@@ -1,4 +1,4 @@
-name: Build & Deploy
+name: Build & Push Docker Images
 
 on:
   push:
@@ -67,20 +67,3 @@ jobs:
           labels: ${{ steps.frontend-meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    if: success()
-    steps:
-      - name: Deploy to server
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            cd ${{ secrets.DEPLOY_DIR }}
-            docker compose pull
-            docker compose up -d
-            docker image prune -f --filter "until=24h"
