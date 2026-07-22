@@ -24,4 +24,4 @@ COPY --from=frontend-build /app/dist ./dist/
 
 EXPOSE 5000
 
-CMD ["node", "src/server.js"]
+CMD ["npx", "tsx", "src/server.ts"]
