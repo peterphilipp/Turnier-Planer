@@ -285,6 +285,187 @@ erDiagram
 
 ---
 
+## Data Dictionary
+
+### 🏅 Club (Verein)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `name` | String | ❌ | Vereinsname |
+| `logo` | String | ✅ | Logo als Base64-DataURI |
+| `primaryColor` | String | ❌ | Hauptfarbe (#hex), Header/Gradients |
+| `secondaryColor` | String | ❌ | Sekundärfarbe (#hex), Buttons/Akzente |
+| `accentColor` | String | ❌ | Akzentfarbe (#hex), Status/Highlights |
+
+### 🏟️ Tournament (Turnier)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `name` | String | ❌ | Turniername |
+| `description` | String | ✅ | Beschreibung/Details |
+| `startDate` | DateTime | ❌ | Erster Turniertag |
+| `endDate` | DateTime | ❌ | Letzter Turniertag |
+| `status` | String | ❌ | `aktiv` / `beendet` / `archiviert` |
+| `clubId` | Int (FK) | ✅ | Verknüpfter Verein → Club.id |
+
+### 👥 Group (Gruppe)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `name` | String | ❌ | Gruppenname (z.B. "Gruppe A") |
+| `tournamentId` | Int (FK) | ❌ | Gehört zu → Tournament.id |
+
+### ⚽ Team (Mannschaft)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `name` | String | ❌ | Mannschaftsname |
+| `groupId` | Int (FK) | ❌ | Gehört zu → Group.id |
+| `goalsFor` | Int | ❌ | Erzielte Tore |
+| `goalsAgainst` | Int | ❌ | Gegene Tore |
+
+### 📋 Match (Begegnung)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `tournamentId` | Int (FK) | ❌ | Gehört zu → Tournament.id |
+| `teamAId` | Int (FK) | ❌ | Team A → Team.id |
+| `teamBId` | Int (FK) | ❌ | Team B → Team.id |
+| `scoreA` | Int | ✅ | Ergebnis Team A (null = ausstehend) |
+| `scoreB` | Int | ✅ | Ergebnis Team B (null = ausstehend) |
+| `field` | String | ❌ | Spielfeld (Standard: "Feld 1") |
+| `time` | DateTime | ❌ | Angesetzt Spielzeit |
+
+### 👤 Volunteer (Helferin/Helfer)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `name` | String | ❌ | Vollständiger Name |
+| `email` | String | ✅ | E-Mail-Adresse (Login/Passwort-Zurücksetzen) |
+| `phone` | String | ✅ | Telefonnummer |
+| `childName` | String | ✅ | Name des eigenen Kindes (bei Registrierung) |
+| `childYear` | Int | ✅ | Jahrgang des eigenen Kindes (bei Registrierung) |
+| `password` | String | ✅ | bcrypt-Hash (optional, nur bei Registrierung gesetzt) |
+| `roles` | String | ❌ | JSON-Array als String: `["admin","helper"]` |
+| `tournamentId` | Int (FK) | ✅ | Aktuelles Turnier → Tournament.id |
+
+### 👶 VolunteerChild (Kind einer Helferin)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `volunteerId` | Int (FK) | ❌ | Gehört zu → Volunteer.id |
+| `childName` | String | ❌ | Name des Kindes |
+| `childYear` | Int | ❌ | Geburtsjahr (z.B. 2015 für Jahrgang 2013) |
+
+### 📅 VolunteerShift (Helfer-Einsatz)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `volunteerId` | Int (FK) | ❌ | Helferin/Helfer → Volunteer.id |
+| `shiftId` | Int (FK) | ✅ | Konkreter Job-Slot → Shift.id |
+| `date` | DateTime | ❌ | Einsatzdatum |
+| `slot` | String | ❌ | Zeitslot-Name (z.B. "09:00–12:00") |
+| `role` | String | ❌ | Rolle/Aufgabe |
+
+### 📍 Arbeitsbereich (Station)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `name` | String | ❌ | Name (z.B. "Verkaufsstand", "Grillstand") |
+| `icon` | String | ❌ | Emoji-Icon (Standard: "📍") |
+| `minVolunteers` | Int | ❌ | Mindestanzahl Helfer (Default: 2) |
+| `maxVolunteers` | Int | ❌ | Maximalanzahl Helfer (Default: 8) |
+| `color` | String | ❌ | Farbwert für UI-Badges (#hex) |
+
+### ⏰ Zeitslot (Zeitfenster)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `name` | String | ❌ | Anzeigename (z.B. "Morgen") |
+| `startTime` | String | ❌ | Startzeit (ISO 8601: "09:00") |
+| `endTime` | String | ❌ | Endzeit (ISO 8601: "12:00") |
+| `color` | String | ❌ | Farbwert für UI (#hex) |
+| `order` | Int | ❌ | Sortierreihenfolge (Default: 0) |
+
+### 🔧 Shift (Job-Slot)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `tournamentId` | Int (FK) | ❌ | Gehört zu → Tournament.id |
+| `date` | DateTime | ❌ | Einsatzdatum |
+| `zeitslotId` | Int (FK) | ✅ | Zeitfenster → Zeitslot.id |
+| `arbeitsbereichId` | Int (FK) | ✅ | Station → Arbeitsbereich.id |
+| `maxVolunteers` | Int | ❌ | Max. Helfer (Default: 8, überschreibt Arbeitsbereich) |
+
+### 📂 FoodCategory (Lebensmittel-Kategorie)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `name` | String | ❌ | Kategoriename (z.B. "Kuchen", "Getränke") |
+| `icon` | String | ❌ | Emoji-Icon (Standard: "🍽️") |
+| `order` | Int | ❌ | Sortierreihenfolge (Default: 0) |
+
+### 🍰 FoodItem (Lebensmittel-Artikel)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `categoryId` | Int (FK) | ❌ | Kategorie → FoodCategory.id |
+| `name` | String | ❌ | Artikelname (z.B. "Selbstgemachter Kuchen") |
+| `price` | String | ✅ | Preisangabe (optional) |
+| `unit` | String | ❌ | Einheit (Default: "Stk") |
+
+### 🎓 YearGroup (Jahrgang)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `name` | String | ❌ | Anzeigename (z.B. "Jahrgang 2013") |
+| `birthYearStart` | Int | ❌ | Startjahr der Altersgruppe |
+| `birthYearEnd` | Int | ❌ | Endjahr der Altersgruppe |
+| `order` | Int | ❌ | Sortierreihenfolge (Default: 0) |
+| `isActive` | Boolean | ❌ | Aktiv/Inaktiv (Default: true) |
+
+### 🎯 FoodDonationSlot (Spenden-Ziel)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `tournamentId` | Int (FK) | ❌ | Gehört zu → Tournament.id |
+| `yearGroupId` | Int (FK) | ✅ | Ziel-Jahrgang → YearGroup.id |
+| `foodItemId` | Int (FK) | ✅ | Gewünschter Artikel → FoodItem.id |
+| `targetQuantity` | Int | ❌ | Zielmenge (Default: 0) |
+| `collected` | Int | ❌ | Aktuelle gespendete Menge (wird automatisch inkrementiert) |
+
+### 📦 FoodDonation (Konkrete Spende)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `tournamentId` | Int (FK) | ❌ | Gehört zu → Tournament.id |
+| `volunteerId` | Int (FK) | ❌ | Spender:in → Volunteer.id |
+| `foodDonationSlotId` | Int (FK) | ✅ | Verknüpfter Slot → FoodDonationSlot.id |
+| `foodItemId` | Int (FK) | ❌ | Gespendeter Artikel → FoodItem.id |
+| `quantity` | Int | ❌ | Menge |
+| `note` | String | ✅ | Notiz/Freitext |
+
+### 📋 MaterialItem (Materialgegenstand)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `tournamentId` | Int (FK) | ❌ | Gehört zu → Tournament.id |
+| `name` | String | ❌ | Gegenstandsname |
+| `quantity` | Int | ❌ | Menge (Default: 1) |
+| `unit` | String | ❌ | Einheit (Default: "Stk") |
+| `done` | Boolean | ❌ | Abgehakt/Erledigt (Default: false) |
+
+### 🔑 PasswordResetToken (Passwort-Zurücksetzen)
+| Feld | Typ | Nullable | Beschreibung |
+|------|-----|----------|-------------|
+| `id` | Int (PK) | ❌ | Primärschlüssel |
+| `volunteerId` | Int (FK) | ❌ | Gehört zu → Volunteer.id |
+| `token` | String | ❌ | Einmaliger Reset-Token (unique) |
+| `expiresAt` | DateTime | ❌ | Ablaufzeit des Tokens |
+| `used` | Boolean | ❌ | Bereits verwendet (Default: false) |
+
+---
+
 ## Lokaler Start
 
 ```bash
