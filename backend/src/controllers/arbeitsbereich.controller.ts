@@ -1,3 +1,4 @@
+import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 import { z } from 'zod';
 
@@ -9,17 +10,17 @@ export const arbeitsbereichSchema = z.object({
   color: z.string().optional()
 });
 
-export const getArbeitsbereiche = async (req, res) => {
+export const getArbeitsbereiche = async (req: Request, res: Response) => {
   const areas = await prisma.arbeitsbereich.findMany({ orderBy: { id: 'asc' } });
   return res.json(areas || []);
 };
 
-export const createArbeitsbereich = async (req, res) => {
+export const createArbeitsbereich = async (req: Request, res: Response) => {
   const a = await prisma.arbeitsbereich.create({ data: req.body });
   return res.status(201).json(a);
 };
 
-export const updateArbeitsbereich = async (req, res) => {
+export const updateArbeitsbereich = async (req: Request, res: Response) => {
   const a = await prisma.arbeitsbereich.update({
     where: { id: parseInt(req.params.id) },
     data: req.body
@@ -27,7 +28,7 @@ export const updateArbeitsbereich = async (req, res) => {
   return res.json(a);
 };
 
-export const deleteArbeitsbereich = async (req, res) => {
+export const deleteArbeitsbereich = async (req: Request, res: Response) => {
   const usedShifts = await prisma.shift.findMany({
     where: { arbeitsbereichId: parseInt(req.params.id) },
     include: { tournament: true }

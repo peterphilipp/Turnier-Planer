@@ -1,3 +1,4 @@
+import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 import { z } from 'zod';
 
@@ -10,7 +11,7 @@ export const shiftSchema = z.object({
   description: z.string().optional().nullable()
 });
 
-export const getShifts = async (req, res) => {
+export const getShifts = async (req: Request, res: Response) => {
   const { tournamentId } = req.query;
   if (tournamentId) {
     const shifts = await prisma.shift.findMany({
@@ -23,7 +24,7 @@ export const getShifts = async (req, res) => {
   return res.json([]);
 };
 
-export const createShift = async (req, res) => {
+export const createShift = async (req: Request, res: Response) => {
   const { tournamentId, date, zeitslotId, arbeitsbereichId, maxVolunteers, description } = req.body;
   const s = await prisma.shift.create({
     data: {
@@ -38,7 +39,7 @@ export const createShift = async (req, res) => {
   return res.status(201).json(s);
 };
 
-export const updateShift = async (req, res) => {
+export const updateShift = async (req: Request, res: Response) => {
   const body = req.body;
   const validDate = body.date ? new Date(body.date) : undefined;
   const updated = await prisma.shift.update({
@@ -54,7 +55,7 @@ export const updateShift = async (req, res) => {
   return res.json(updated);
 };
 
-export const deleteShift = async (req, res) => {
+export const deleteShift = async (req: Request, res: Response) => {
   await prisma.shift.delete({ where: { id: parseInt(req.params.id) } });
   return res.status(204).send();
 };

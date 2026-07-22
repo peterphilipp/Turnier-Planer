@@ -1,3 +1,4 @@
+import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 import { z } from 'zod';
 
@@ -10,7 +11,7 @@ export const volunteerShiftSchema = z.object({
   areaId: z.string().optional().nullable()
 });
 
-export const getVolunteerShifts = async (req, res) => {
+export const getVolunteerShifts = async (req: Request, res: Response) => {
   const { tournamentId } = req.query;
   const where = tournamentId ? { tournamentId: parseInt(tournamentId) } : {};
   const shifts = await prisma.volunteerShift.findMany({
@@ -20,7 +21,7 @@ export const getVolunteerShifts = async (req, res) => {
   return res.json(shifts || []);
 };
 
-export const createVolunteerShift = async (req, res) => {
+export const createVolunteerShift = async (req: Request, res: Response) => {
   const { volunteerId, tournamentId, date, slot, role, areaId } = req.body;
   const s = await prisma.volunteerShift.create({
     data: {
@@ -34,7 +35,7 @@ export const createVolunteerShift = async (req, res) => {
   return res.status(201).json(s);
 };
 
-export const updateVolunteerShift = async (req, res) => {
+export const updateVolunteerShift = async (req: Request, res: Response) => {
   const body = req.body;
   const { slot, role, volunteerId, areaId, date } = body;
   const validDate = date ? new Date(date) : undefined;
@@ -53,7 +54,7 @@ export const updateVolunteerShift = async (req, res) => {
   return res.json(updated);
 };
 
-export const deleteVolunteerShift = async (req, res) => {
+export const deleteVolunteerShift = async (req: Request, res: Response) => {
   await prisma.volunteerShift.delete({ where: { id: parseInt(req.params.id) } });
   return res.status(204).send();
 };

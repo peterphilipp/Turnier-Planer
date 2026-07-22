@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getTournaments, getVolunteers, getZeitSlots, getShifts, getVolunteerShifts, apiPost, apiDelete, apiPatch } from '../api';
 
 interface Tournament { id: number; name: string; startDate: string; endDate: string; status: string; }
 interface Volunteer { id: number; name: string; roles: string[] }
@@ -22,12 +24,7 @@ type SchedulerTab = 'dienstplan' | 'helfer';
 
 export default function SchedulerView() {
   const [activeTab, setActiveTab] = useState<SchedulerTab>('dienstplan');
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournament, setSelectedTournament] = useState<number | null>(null);
-  const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
-  const [volunteerShifts, setVolunteerShifts] = useState<VolunteerShift[]>([]);
-  const [jobSlots, setJobSlots] = useState<Shift[]>([]);
-  const [zeitSlots, setZeitSlots] = useState<Zeitslot[]>([]);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedArea, setSelectedArea] = useState<number | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
@@ -37,32 +34,32 @@ export default function SchedulerView() {
   const [editSlotId, setEditSlotId] = useState<number>(0);
   const [editVolunteerId, setEditVolunteerId] = useState<number>(0);
   const [editAreaId, setEditAreaId] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [showNewHelper, setShowNewHelper] = useState(false);
-  const [newHelperName, setNewHelperName] = useState('');
+  const queryClient = useQueryClient();
 
-  // Daten laden
-  useEffect(() => {
-    fetch('/api/tournaments').then(r => r.json()).then((t: Tournament[]) => {
-      setTournaments(t);
-      // Aktives Turnier automatisch auswählen
-      const active = t.find(t => t.status === 'aktiv');
-      if (active && !selectedTournament) {
-        setSelectedTournament(active.id);
-      }
-    });
-    fetch('/api/volunteers').then(r => r.json()).then(setVolunteers);
-    fetch('/api/zeit-slots').then(r => r.json()).then(setZeitSlots);
-  }, []);
+  const { data: tournaments = [] } = useQuery<Tournament[]>({ queryKey: ['tournaments'], queryFn: getTournaments });
+  const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers'], queryFn: getVolunteers });
+  const { data: zeitSlots = [] } = useQuery<Zeitslot[]>({ queryKey: ['zeitSlots'], queryFn: getZeitSlots });
+
+  const { data: jobSlots = [], isFetching: busySlots } = useQuery<Shift[]>({
+    queryKey: ['shifts', selectedTournament],
+    queryFn: () => getShifts(selectedTournament),
+    enabled: !!selectedTournament
+  });
+
+  const { data: volunteerShifts = [], isFetching: busyVolShifts } = useQuery<VolunteerShift[]>({
+    queryKey: ['volunteerShifts', selectedTournament],
+    queryFn: () => getVolunteerShifts(selectedTournament),
+    enabled: !!selectedTournament
+  });
 
   useEffect(() => {
-    if (!selectedTournament) return;
-    setBusy(true);
-    Promise.all([
-      fetch(`/api/shifts?tournamentId=${selectedTournament}`).then(r => r.json()).then(setJobSlots),
-      fetch(`/api/volunteer-shifts?tournamentId=${selectedTournament}`).then(r => r.json()).then(setVolunteerShifts),
-    ]).finally(() => setBusy(false));
-  }, [selectedTournament]);
+    const active = tournaments.find(t => t.status === 'aktiv');
+    if (active && !selectedTournament) {
+      setSelectedTournament(active.id);
+    }
+  }, [tournaments, selectedTournament]);
+
+  const busy = busySlots || busyVolShifts;
 
   // Turnier-Tage
   const tournamentDays = useMemo(() => {
@@ -150,25 +147,17 @@ export default function SchedulerView() {
   // Helfer anlegen
   const addVolunteer = async () => {
     if (!newVolunteerName.trim()) return;
-    await fetch('/api/volunteers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newVolunteerName.trim(), roles: ['Helfer'] }),
-    });
-    setVolunteers(await (await fetch('/api/volunteers')).json());
+    await apiPost('/api/volunteers', { name: newVolunteerName.trim(), roles: ['Helfer'] });
+    queryClient.invalidateQueries({ queryKey: ['volunteers'] });
     setNewVolunteerName('');
   };
 
   // Helfer inline anlegen + auswählen
   const addVolunteerInline = async () => {
     if (!newHelperName.trim()) return;
-    await fetch('/api/volunteers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newHelperName.trim(), roles: ['Helfer'] }),
-    });
-    const all = await (await fetch('/api/volunteers')).json();
-    setVolunteers(all);
+    await apiPost('/api/volunteers', { name: newHelperName.trim(), roles: ['Helfer'] });
+    const all = await getVolunteers();
+    queryClient.setQueryData(['volunteers'], all);
     const last = all[all.length - 1];
     setSelectedVolunteer(String(last.id));
     setShowNewHelper(false);
@@ -190,25 +179,21 @@ export default function SchedulerView() {
     if (existing) return alert(`${volunteers.find(v => v.id === parseInt(selectedVolunteer))?.name} ist an diesem Tag bereits in diesem Slot.`);
 
     const area = slot.arbeitsbereich;
-    await fetch('/api/volunteer-shifts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        volunteerId: parseInt(selectedVolunteer),
-        tournamentId: selectedTournament,
-        date: selectedDate,
-        slot: slotName,
-        role: area ? `${area.name} Schicht` : 'Schicht',
-        areaId: slot.arbeitsbereichId,
-      }),
+    await apiPost('/api/volunteer-shifts', {
+      volunteerId: parseInt(selectedVolunteer),
+      tournamentId: selectedTournament,
+      date: selectedDate,
+      slot: slotName,
+      role: area ? `${area.name} Schicht` : 'Schicht',
+      areaId: slot.arbeitsbereichId,
     });
-    setVolunteerShifts(await (await fetch(`/api/volunteer-shifts?tournamentId=${selectedTournament}`)).json());
+    queryClient.invalidateQueries({ queryKey: ['volunteerShifts', selectedTournament] });
   };
 
   // Zuweisung entfernen
   const removeAssignment = async (id: number) => {
-    await fetch(`/api/volunteer-shifts/${id}`, { method: 'DELETE' });
-    setVolunteerShifts(await (await fetch(`/api/volunteer-shifts?tournamentId=${selectedTournament}`)).json());
+    await apiDelete(`/api/volunteer-shifts/${id}`);
+    queryClient.invalidateQueries({ queryKey: ['volunteerShifts', selectedTournament] });
   };
 
   // Edit speichern
@@ -216,16 +201,12 @@ export default function SchedulerView() {
     if (!editingShift) return;
     const slot = zeitSlots.find(z => z.id === editSlotId);
     const area = loadedArbeitsbereiche.find(a => a.id === editAreaId);
-    await fetch(`/api/volunteer-shifts/${editingShift.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        slot: slot?.name || editingShift.slot,
-        volunteerId: editVolunteerId || editingShift.volunteerId,
-        areaId: area?.id || null,
-      }),
+    await apiPatch(`/api/volunteer-shifts/${editingShift.id}`, {
+      slot: slot?.name || editingShift.slot,
+      volunteerId: editVolunteerId || editingShift.volunteerId,
+      areaId: area?.id || null,
     });
-    setVolunteerShifts(await (await fetch(`/api/volunteer-shifts?tournamentId=${selectedTournament}`)).json());
+    queryClient.invalidateQueries({ queryKey: ['volunteerShifts', selectedTournament] });
     setEditingShift(null);
   };
 
@@ -342,23 +323,19 @@ export default function SchedulerView() {
                   );
                   if (!existing) {
                     const area = slot.arbeitsbereich;
-                    await fetch('/api/volunteer-shifts', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        volunteerId: parseInt(selectedVolunteer),
-                        tournamentId: selectedTournament,
-                        date: selectedDate,
-                        slot: slotName,
-                        role: area ? `${area.name} Schicht` : 'Schicht',
-                        areaId: slot.arbeitsbereichId,
-                      }),
+                    await apiPost('/api/volunteer-shifts', {
+                      volunteerId: parseInt(selectedVolunteer),
+                      tournamentId: selectedTournament,
+                      date: selectedDate,
+                      slot: slotName,
+                      role: area ? `${area.name} Schicht` : 'Schicht',
+                      areaId: slot.arbeitsbereichId,
                     });
                     created++;
                   }
                 }
                 if (created > 0) {
-                  setVolunteerShifts(await (await fetch(`/api/volunteer-shifts?tournamentId=${selectedTournament}`)).json());
+                  queryClient.invalidateQueries({ queryKey: ['volunteerShifts', selectedTournament] });
                   alert(`${created} Schicht${created > 1 ? 'en' : ''} für ${volunteers.find(v => v.id === parseInt(selectedVolunteer))?.name} zugewiesen.`);
                 } else {
                   alert('Helfer ist an diesem Tag bereits für alle Slots eingeschichtet.');
