@@ -1,0 +1,788 @@
+import { useState, useEffect, useMemo } from 'react';
+
+const DEFAULT_COLORS = ['#3b98f8', '#e74c3c', '#27ae60', '#f39c12', '#8e44ad', '#1abc9c', '#e67e22', '#2c3e50'];
+
+interface Tournament { id: number; name: string; startDate: string; endDate: string; status: string; }
+interface VolunteerShift {
+  id: number; volunteerId: number; tournamentId: number | null;
+  date: string; slot: string; role: string; arbeitsbereichId: string | null;
+}
+interface Shift {
+  id: number; tournamentId: number; date: string; zeitslotId: number | null;
+  slot: string;
+  arbeitsbereichId: number | null; maxVolunteers: number; description: string | null;
+  zeitslot: { id: number; name: string; startTime: string; endTime: string } | null;
+  arbeitsbereich: { id: number; name: string; icon: string; color: string } | null;
+}
+interface Arbeitsbereich {
+  id: number; name: string; icon: string;
+  minVolunteers: number; maxVolunteers: number; color: string;
+}
+interface Zeitslot {
+  id: number; name: string; startTime: string; endTime: string;
+  color: string; order: number;
+}
+
+type AdminTab = 'turniere' | 'arbeitsbereiche' | 'zeitslots' | 'zeitslots-verwalten' | 'uebersicht';
+
+export default function AdminView() {
+  const [activeTab, setActiveTab] = useState<AdminTab>('turniere');
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [selectedTournament, setSelectedTournament] = useState<number | null>(null);
+  const [jobSlots, setJobSlots] = useState<Shift[]>([]);
+  const [volunteerShifts, setVolunteerShifts] = useState<VolunteerShift[]>([]);
+  const [arbeitsbereiche, setArbeitsbereiche] = useState<Arbeitsbereich[]>([]);
+  const [newAbName, setNewAbName] = useState('');
+  const [newAbIcon, setNewAbIcon] = useState('📍');
+  const [zeitSlots, setZeitSlots] = useState<Zeitslot[]>([]);
+
+  // Arbeitsbereich Editor
+  const [abForm, setAbForm] = useState({
+    name: '', icon: '📍',
+    minVolunteers: '2', maxVolunteers: '8', color: DEFAULT_COLORS[0]
+  });
+  const [editingAb, setEditingAb] = useState<number | null>(null);
+
+  // Zeitslot Editor
+  const [zsForm, setZsForm] = useState({
+    name: '', startTime: '07:45', endTime: '10:30', color: DEFAULT_COLORS[0], order: 0
+  });
+  const [editingZs, setEditingZs] = useState<number | null>(null);
+
+  // Slot Editor
+  const [slotForm, setSlotForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    zeitslotId: '', arbeitsbereichId: '',
+    description: ''
+  });
+
+  const [editingSlotId, setEditingSlotId] = useState<number | null>(null);
+
+  // Turnier-Tage generieren
+  const tournamentDays = useMemo(() => {
+    if (!selectedTournament) return [];
+    const tournament = tournaments.find(t => t.id === selectedTournament);
+    if (!tournament) return [];
+    const days: string[] = [];
+    const start = new Date(tournament.startDate);
+    const end = new Date(tournament.endDate);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      days.push(d.toISOString().split('T')[0]);
+    }
+    return days;
+  }, [selectedTournament, tournaments]);
+
+  // Filter
+  const [search, setSearch] = useState('');
+  const [filterArbeitsbereich, setFilterArbeitsbereich] = useState('');
+  const [filterZs, setFilterZs] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+
+  // Bulk-Erstellung
+  const [bulkArbeitsbereich, setBulkArbeitsbereich] = useState('');
+  const [bulkZs, setBulkZs] = useState('');
+  const [bulkMax, setBulkMax] = useState('8');
+
+  // Status-Change
+  const [statusDialog, setStatusDialog] = useState<{ open: boolean; tournament: Tournament | null }>({ open: false, tournament: null });
+
+  useEffect(() => {
+    fetch('/api/tournaments').then(r => r.json()).then(setTournaments);
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/arbeitsbereiche').then(r => r.json()).then(setArbeitsbereiche);
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/zeit-slots').then(r => r.json()).then(setZeitSlots);
+  }, []);
+
+  useEffect(() => {
+    if (selectedTournament) {
+      fetch(`/api/shifts?tournamentId=${selectedTournament}`)
+        .then(r => r.json())
+        .then(setJobSlots);
+      fetch(`/api/volunteer-shifts?tournamentId=${selectedTournament}`)
+        .then(r => r.json())
+        .then(setVolunteerShifts);
+    }
+  }, [selectedTournament]);
+
+  const getAbConfig = (id: number): Arbeitsbereich => {
+    return arbeitsbereiche.find(a => a.id === id) || {
+      id: 0, name: '–', icon: '📍',
+      minVolunteers: 2, maxVolunteers: 8, color: '#3b98f8'
+    };
+  };
+
+  const getAbName = (id: number | null) => {
+    if (!id) return '–';
+    const ab = arbeitsbereiche.find(a => a.id === id);
+    return ab ? ab.name : '–';
+  };
+
+  const getAbIcon = (id: number | null) => {
+    if (!id) return '–';
+    const ab = arbeitsbereiche.find(a => a.id === id);
+    return ab ? ab.icon : '–';
+  };
+
+  const getAbColor = (id: number | null) => {
+    if (!id) return '#3b98f8';
+    const ab = arbeitsbereiche.find(a => a.id === id);
+    return ab ? ab.color : '#3b98f8';
+  };
+
+  const getZsLabel = (zeitslotId: number | null) => {
+    if (!zeitslotId) return '–';
+    const zs = zeitSlots.find(s => s.id === zeitslotId);
+    return zs ? zs.name + ' (' + zs.startTime + '–' + zs.endTime + ')' : '–';
+  };
+
+  const getZsColor = (zeitslotId: number | null) => {
+    if (!zeitslotId) return '#3b98f8';
+    const zs = zeitSlots.find(s => s.id === zeitslotId);
+    return zs ? zs.color : '#3b98f8';
+  };
+
+  // Helfer-Belegung pro Job-Slot
+  const slotVolunteerCounts = useMemo(() => {
+    if (!selectedTournament) return {};
+    const counts: Record<number, { count: number; status: 'full' | 'partial' | 'empty' }> = {};
+    volunteerShifts.forEach(vs => {
+      const vsDate = new Date(vs.date).toISOString().split('T')[0];
+      const slot = jobSlots.find(s => {
+        const slotDate = new Date(s.date).toISOString().split('T')[0];
+        return s.tournamentId === selectedTournament &&
+               vsDate === slotDate &&
+               vs.slot === s.slot &&
+               (!s.arbeitsbereichId || String(s.arbeitsbereichId) === vs.arbeitsbereichId);
+      });
+      if (slot) {
+        const existing = counts[slot.id] || { count: 0, status: 'empty' };
+        const newCount = existing.count + 1;
+        counts[slot.id] = {
+          count: newCount,
+          status: newCount >= slot.maxVolunteers ? 'full' : newCount > 0 ? 'partial' : 'empty'
+        };
+      }
+    });
+    return counts;
+  }, [volunteerShifts, jobSlots, selectedTournament]);
+
+  const filteredSlots = useMemo(() => {
+    let result = [...jobSlots];
+    if (search) result = result.filter(s =>
+      (s.description && s.description.toLowerCase().includes(search.toLowerCase()))
+    );
+    if (filterArbeitsbereich) result = result.filter(s => s.arbeitsbereichId === parseInt(filterArbeitsbereich));
+    if (filterZs) result = result.filter(s => s.zeitslotId === parseInt(filterZs));
+    if (filterDate) result = result.filter(s => s.date.split('T')[0] === filterDate);
+    return result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [jobSlots, search, filterArbeitsbereich, filterZs, filterDate]);
+
+  // ============ ARBEITSBEREICH CRUD ============
+  const addAb = async () => {
+    if (!newAbName.trim()) return alert('Name ist erforderlich!');
+    const res = await fetch('/api/arbeitsbereiche', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newAbName.trim(), icon: newAbIcon }),
+    });
+    if (!res.ok) return alert('Fehler: ' + (await res.json()).error);
+    setArbeitsbereiche(await (await fetch('/api/arbeitsbereiche')).json());
+    setNewAbName('');
+    setNewAbIcon('📍');
+  };
+
+  const saveAb = async () => {
+    if (!abForm.name) return alert('Name ist erforderlich!');
+    if (editingAb) {
+      const res = await fetch('/api/arbeitsbereiche/' + editingAb, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: abForm.name, icon: abForm.icon, minVolunteers: parseInt(abForm.minVolunteers), maxVolunteers: parseInt(abForm.maxVolunteers), color: abForm.color }),
+      });
+      if (res.status === 409) {
+        const data = await res.json();
+        alert('⚠️ ' + data.error + '\n\n' + (data.activeTournaments?.map((t: { name: string }) => '• ' + t.name).join('\n') || ''));
+        return;
+      }
+    } else {
+      const res = await fetch('/api/arbeitsbereiche', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: abForm.name, icon: abForm.icon, minVolunteers: parseInt(abForm.minVolunteers), maxVolunteers: parseInt(abForm.maxVolunteers), color: abForm.color }),
+      });
+      if (!res.ok) return alert('Fehler: ' + (await res.json()).error);
+    }
+    setArbeitsbereiche(await (await fetch('/api/arbeitsbereiche')).json());
+    resetAbForm();
+  };
+
+  const deleteAb = async (id: number) => {
+    if (!confirm('Arbeitsbereich wirklich löschen?')) return;
+    const res = await fetch('/api/arbeitsbereiche/' + id, { method: 'DELETE' });
+    if (res.status === 409) {
+      const data = await res.json();
+      alert('❌ ' + data.error + '\n\n' + (data.activeTournaments?.map((t: { name: string }) => '• ' + t.name).join('\n') || ''));
+      return;
+    }
+    setArbeitsbereiche(await (await fetch('/api/arbeitsbereiche')).json());
+    if (editingAb === id) resetAbForm();
+  };
+
+  const startEditAb = (ab: Arbeitsbereich) => {
+    setEditingAb(ab.id);
+    setAbForm({
+      name: ab.name, icon: ab.icon,
+      minVolunteers: String(ab.minVolunteers), maxVolunteers: String(ab.maxVolunteers),
+      color: ab.color
+    });
+  };
+
+  const resetAbForm = () => {
+    setEditingAb(null);
+    setAbForm({ name: '', icon: '📍', minVolunteers: '2', maxVolunteers: '8', color: DEFAULT_COLORS[0] });
+  };
+
+  // ============ ZEITSLOT CRUD ============
+  const saveZs = async () => {
+    if (!zsForm.name) return alert('Name ist erforderlich!');
+    if (!zsForm.startTime || !zsForm.endTime) return alert('Uhrzeiten sind erforderlich!');
+    if (editingZs) {
+      const res = await fetch('/api/zeit-slots/' + editingZs, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: zsForm.name, startTime: zsForm.startTime, endTime: zsForm.endTime, color: zsForm.color, order: zsForm.order }),
+      });
+      if (res.status === 409) {
+        const data = await res.json();
+        alert('⚠️ ' + data.error + '\n\n' + (data.activeTournaments?.map((t: { name: string }) => '• ' + t.name).join('\n') || ''));
+        return;
+      }
+    } else {
+      const res = await fetch('/api/zeit-slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: zsForm.name, startTime: zsForm.startTime, endTime: zsForm.endTime, color: zsForm.color, order: zsForm.order }),
+      });
+      if (!res.ok) return alert('Fehler: ' + (await res.json()).error);
+    }
+    setZeitSlots(await (await fetch('/api/zeit-slots')).json());
+    resetZsForm();
+  };
+
+  const deleteZs = async (id: number) => {
+    if (!confirm('Zeitslot wirklich löschen?')) return;
+    const res = await fetch('/api/zeit-slots/' + id, { method: 'DELETE' });
+    if (res.status === 409) {
+      const data = await res.json();
+      alert('❌ ' + data.error + '\n\n' + (data.activeTournaments?.map((t: { name: string }) => '• ' + t.name).join('\n') || ''));
+      return;
+    }
+    setZeitSlots(await (await fetch('/api/zeit-slots')).json());
+    if (editingZs === id) resetZsForm();
+  };
+
+  const startEditZs = (zs: Zeitslot) => {
+    setEditingZs(zs.id);
+    setZsForm({ name: zs.name, startTime: zs.startTime, endTime: zs.endTime, color: zs.color, order: zs.order });
+  };
+
+  const resetZsForm = () => {
+    setEditingZs(null);
+    setZsForm({ name: '', startTime: '07:45', endTime: '10:30', color: DEFAULT_COLORS[0], order: 0 });
+  };
+
+  // ============ SLOT CRUD ============
+  const saveSlot = async () => {
+    if (!selectedTournament) return alert('Bitte Turnier wählen!');
+    if (!slotForm.date) return alert('Datum benötigt!');
+    if (!slotForm.zeitslotId) return alert('Zeitslot-Typ benötigt!');
+    if (!slotForm.arbeitsbereichId) return alert('Arbeitsbereich benötigt!');
+
+    const ab = arbeitsbereiche.find(a => a.id === parseInt(slotForm.arbeitsbereichId));
+    const maxVol = ab ? ab.maxVolunteers : 8;
+
+    if (editingSlotId) {
+      await fetch('/api/shifts/' + editingSlotId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: slotForm.date,
+          zeitslotId: parseInt(slotForm.zeitslotId),
+          arbeitsbereichId: parseInt(slotForm.arbeitsbereichId),
+          maxVolunteers: maxVol,
+          description: slotForm.description || null,
+        }),
+      });
+    } else {
+      const res = await fetch('/api/shifts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tournamentId: selectedTournament, date: slotForm.date,
+          zeitslotId: parseInt(slotForm.zeitslotId),
+          arbeitsbereichId: parseInt(slotForm.arbeitsbereichId),
+          maxVolunteers: maxVol,
+          description: slotForm.description || null,
+        }),
+      });
+      if (res.ok) setJobSlots(await (await fetch('/api/shifts?tournamentId=' + selectedTournament)).json());
+    }
+    resetSlotForm();
+  };
+
+  const deleteSlot = async (id: number) => {
+    if (!confirm('Job-Slot wirklich löschen?')) return;
+    await fetch('/api/shifts/' + id, { method: 'DELETE' });
+    setJobSlots(prev => prev.filter(s => s.id !== id));
+    if (editingSlotId === id) resetSlotForm();
+  };
+
+  const resetSlotForm = () => {
+    setEditingSlotId(null);
+    setSlotForm({ date: '', zeitslotId: '', arbeitsbereichId: '', description: '' });
+  };
+
+  const startEditSlot = (slot: Shift) => {
+    setEditingSlotId(slot.id);
+    setSlotForm({
+      date: slot.date.split('T')[0],
+      zeitslotId: String(slot.zeitslotId || ''),
+      arbeitsbereichId: String(slot.arbeitsbereichId || ''),
+      description: slot.description || ''
+    });
+  };
+
+  const bulkCreate = async () => {
+    if (!selectedTournament || !bulkArbeitsbereich || !bulkZs) return;
+    const tournament = tournaments.find(t => t.id === selectedTournament);
+    if (!tournament || !tournament.startDate || !tournament.endDate) return;
+    const start = new Date(tournament.startDate);
+    const end = new Date(tournament.endDate);
+    const ab = arbeitsbereiche.find(a => a.id === parseInt(bulkArbeitsbereich));
+    const maxVol = ab ? ab.maxVolunteers : 8;
+    let created = 0;
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      const exists = jobSlots.some(s => s.date.split('T')[0] === dateStr && s.zeitslotId === parseInt(bulkZs) && s.arbeitsbereichId === parseInt(bulkArbeitsbereich));
+      if (!exists) {
+        await fetch('/api/shifts', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tournamentId: selectedTournament, date: dateStr,
+            zeitslotId: parseInt(bulkZs), arbeitsbereichId: parseInt(bulkArbeitsbereich), maxVolunteers: maxVol,
+          }),
+        });
+        created++;
+      }
+    }
+    setJobSlots(await (await fetch('/api/shifts?tournamentId=' + selectedTournament)).json());
+    setBulkArbeitsbereich(''); setBulkZs('');
+    alert(created > 0 ? created + ' Job-Slot' + (created > 1 ? 's' : '') + ' angelegt!' : 'Alle existieren bereits.');
+  };
+
+  const clearFilters = () => { setSearch(''); setFilterArbeitsbereich(''); setFilterZs(''); setFilterDate(''); };
+
+  const updateTournamentStatus = async (status: string) => {
+    if (!statusDialog.tournament) return;
+    await fetch('/api/tournaments/' + statusDialog.tournament.id + '/status', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    setTournaments(await (await fetch('/api/tournaments')).json());
+    setStatusDialog({ open: false, tournament: null });
+  };
+
+  const tdStyle: React.CSSProperties = { padding: '8px', border: '1px solid #dee2e6', verticalAlign: 'top' };
+  const thStyle: React.CSSProperties = { ...tdStyle, background: '#f8f9fa', fontWeight: 'bold' };
+  const btnStyle: React.CSSProperties = { padding: '6px 12px', cursor: 'pointer', border: '1px solid #ced4da', borderRadius: 4, background: '#e9ecef' };
+
+  const selectedTournamentData = tournaments.find(t => t.id === selectedTournament);
+
+  const statusBadge = (status: string) => {
+    const map: Record<string, { bg: string; text: string; label: string }> = {
+      aktiv: { bg: '#d1e7dd', text: '#0f5132', label: '🟢 Aktiv' },
+      beendet: { bg: '#fff3cd', text: '#856404', label: '🟡 Beendet' },
+      archiviert: { bg: '#e2e3e5', text: '#41464b', label: '⚪ Archiviert' },
+    };
+    const s = map[status] || map.aktiv;
+    return <span style={{ background: s.bg, color: s.text, padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 'bold' }}>{s.label}</span>;
+  };
+
+  const tabs: { key: AdminTab; label: string }[] = [
+    { key: 'turniere', label: '🏆 Turniere' },
+    { key: 'arbeitsbereiche', label: '📍 Arbeitsbereiche' },
+    { key: 'zeitslots', label: '⏰ Zeitslots' },
+    { key: 'zeitslots-verwalten', label: '📋 Job-Slots' },
+    { key: 'uebersicht', label: '📊 Übersicht' },
+  ];
+
+  return (
+    <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 1200, margin: '0 auto' }}>
+      <h2>⚙️ Admin – Stammdaten Editor</h2>
+
+      {/* Haupt-Tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)}
+            style={{ padding: '8px 16px', border: '1px solid #ced4da', borderRadius: 6, background: activeTab === t.key ? '#0d6efd' : '#f8f9fa', color: activeTab === t.key ? '#fff' : '#333' }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ==================== TURNIER-VERWALTUNG ==================== */}
+      {activeTab === 'turniere' && (
+        <div style={{ background: '#f8f9fa', padding: 16, borderRadius: 8, border: '1px solid #dee2e6' }}>
+          <h3 style={{ marginTop: 0 }}>🏆 Turnier-Verwaltung</h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Name</th>
+                <th style={thStyle}>Von</th>
+                <th style={thStyle}>Bis</th>
+                <th style={thStyle}>Status</th>
+                <th style={thStyle}>Schichten</th>
+                <th style={thStyle}>Aktion</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tournaments.map(t => (
+                <tr key={t.id} style={{ cursor: 'pointer' }} onClick={() => setSelectedTournament(t.id)}>
+                  <td style={{ ...tdStyle, fontWeight: 'bold' }}>{t.name}</td>
+                  <td style={tdStyle}>{new Date(t.startDate).toLocaleDateString('de-DE')}</td>
+                  <td style={tdStyle}>{new Date(t.endDate).toLocaleDateString('de-DE')}</td>
+                  <td style={tdStyle}>{statusBadge(t.status)}</td>
+                  <td style={{ ...tdStyle, textAlign: 'center' }}>{jobSlots.filter(s => s.tournamentId === t.id).length}</td>
+                  <td style={{ ...tdStyle, textAlign: 'center' }}>
+                    <button onClick={e => { e.stopPropagation(); setStatusDialog({ open: true, tournament: t }); }}
+                      style={{ ...btnStyle, marginRight: 4 }}>📝 Status</button>
+                  </td>
+                </tr>
+              ))}
+              {tournaments.length === 0 && (
+                <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: '#666', padding: 24 }}>Keine Turniere vorhanden.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ==================== ARBEITSBEREICHE EDITOR ==================== */}
+      {activeTab === 'arbeitsbereiche' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 20 }}>
+          {/* Linke Spalte: Editor */}
+          <div>
+            <div style={{ background: '#f8f9fa', padding: 16, borderRadius: 8, border: '1px solid #dee2e6' }}>
+              <h3 style={{ marginTop: 0 }}>➕ Neuer Arbeitsbereich</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 2, fontSize: 13 }}>Name *</label>
+                  <input type="text" value={newAbName} onChange={e => setNewAbName(e.target.value)} placeholder="z.B. Grillstand"
+                    style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: 4 }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 2, fontSize: 13 }}>Icon</label>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
+                    {['🏪', '🍳', '🔥', '🎪', '🎯', '⚽', '🍰', '☕', '🥤', '🏆', '📦', '🗑️', '💰', '🎁', '🎵', '🎠', '🧸', '🎴', '🎲', '🏅', '🥇', '🎖️', '📋', '✅', '❌', '⏰', '📍', '📞', '🔧', '📢', '📣', '📝'].map(icon => (
+                      <button key={icon} type="button" onClick={() => setNewAbIcon(icon)}
+                        style={{
+                          width: 36, height: 36, fontSize: 20, border: newAbIcon === icon ? '2px solid #0d6efd' : '1px solid #dee2e6',
+                          borderRadius: 6, background: newAbIcon === icon ? '#e7f3ff' : '#fff',
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>{icon}</button>
+                    ))}
+                  </div>
+                  <div style={{ padding: '4px 8px', background: '#f8f9fa', borderRadius: 4, textAlign: 'center', fontSize: 13, color: '#666' }}>
+                    Ausgewählt: <span style={{ fontSize: 18 }}>{newAbIcon || '❓'}</span>
+                  </div>
+                </div>
+                <button onClick={addAb} style={{ padding: '8px 12px', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold' }}>
+                  ➕ Anlegen
+                </button>
+              </div>
+            </div>
+            {editingAb && (() => {
+              const ab = arbeitsbereiche.find(a => a.id === editingAb);
+              if (!ab) return null;
+              return (
+                <div style={{ background: '#e7f3ff', padding: 16, borderRadius: 8, border: '1px solid #b3d9ff', marginTop: 16 }}>
+                  <h3 style={{ marginTop: 0 }}>✏️ bearbeiten</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 2, fontSize: 13 }}>Name</label>
+                      <input type="text" value={abForm.name} onChange={e => setAbForm({ ...abForm, name: e.target.value })}
+                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: 4 }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 2, fontSize: 13 }}>Icon</label>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
+                        {['🏪', '🍳', '🔥', '🎪', '🎯', '⚽', '🍰', '☕', '🥤', '🏆', '📦', '🗑️', '💰', '🎁', '🎵', '🎠', '🧸', '🎴', '🎲', '🏅', '🥇', '🎖️', '📋', '✅', '❌', '⏰', '📍', '📞', '🔧', '📢', '📣', '📝'].map(icon => (
+                          <button key={icon} type="button" onClick={() => setAbForm({ ...abForm, icon })}
+                            style={{
+                              width: 36, height: 36, fontSize: 20, border: abForm.icon === icon ? '2px solid #0d6efd' : '1px solid #dee2e6',
+                              borderRadius: 6, background: abForm.icon === icon ? '#e7f3ff' : '#fff',
+                              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}>{icon}</button>
+                        ))}
+                      </div>
+                      <div style={{ padding: '4px 8px', background: '#f8f9fa', borderRadius: 4, textAlign: 'center', fontSize: 13, color: '#666' }}>
+                        Ausgewählt: <span style={{ fontSize: 18 }}>{abForm.icon || '❓'}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 2, fontSize: 13 }}>Farbe</label>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <input type="color" value={abForm.color} onChange={e => setAbForm({ ...abForm, color: e.target.value })}
+                          style={{ width: 40, height: 36, border: 'none', cursor: 'pointer' }} />
+                        <input type="text" value={abForm.color} onChange={e => setAbForm({ ...abForm, color: e.target.value })}
+                          style={{ width: 80, padding: '6px 8px', border: '1px solid #ced4da', borderRadius: 4 }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 2, fontSize: 13 }}>Min. Helfer</label>
+                        <input type="number" min={1} max={50} value={abForm.minVolunteers} onChange={e => setAbForm({ ...abForm, minVolunteers: e.target.value })}
+                          style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: 4 }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 2, fontSize: 13 }}>Max. Helfer</label>
+                        <input type="number" min={1} max={50} value={abForm.maxVolunteers} onChange={e => setAbForm({ ...abForm, maxVolunteers: e.target.value })}
+                          style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: 4 }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={saveAb} style={{ flex: 1, padding: '8px 12px', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold' }}>
+                        💾 Speichern
+                      </button>
+                      <button onClick={resetAbForm} style={{ padding: '8px 12px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>✖</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+          {/* Rechte Spalte: Liste */}
+          <div>
+            <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #dee2e6', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>ID</th>
+                    <th style={thStyle}>Icon</th>
+                    <th style={thStyle}>Name</th>
+                    <th style={thStyle}>Min.</th>
+                    <th style={thStyle}>Max.</th>
+                    <th style={thStyle}>Farbe</th>
+                    <th style={thStyle}>Aktion</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {arbeitsbereiche.map(ab => (
+                    <tr key={ab.id} style={{ background: editingAb === ab.id ? '#e7f3ff' : 'transparent', cursor: 'pointer' }}
+                      onClick={() => startEditAb(ab)}>
+                      <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 12, color: '#666' }}>{ab.id}</td>
+                      <td style={{ ...tdStyle, textAlign: 'center', fontSize: 20 }}>{ab.icon}</td>
+                      <td style={{ ...tdStyle, fontWeight: 'bold' }}>{ab.name}</td>
+                      <td style={{ ...tdStyle, textAlign: 'center' }}>{ab.minVolunteers}</td>
+                      <td style={{ ...tdStyle, textAlign: 'center' }}>{ab.maxVolunteers}</td>
+                      <td style={tdStyle}>
+                        <span style={{ background: ab.color, color: '#fff', padding: '2px 10px', borderRadius: 4, fontSize: 12 }}>{ab.name}</span>
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: 'center' }}>
+                        <button onClick={e => { e.stopPropagation(); deleteAb(ab.id); }}
+                          style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545' }}>🗑️</button>
+                      </td>
+                    </tr>
+                  ))}
+                  {arbeitsbereiche.length === 0 && (
+                    <tr><td colSpan={7} style={{ ...tdStyle, textAlign: 'center', color: '#666', padding: 24 }}>Noch keine Arbeitsbereiche angelegt.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== ZEITSLOTS EDITOR ==================== */}
+      {activeTab === 'zeitslots' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 20 }}>
+          {/* Linke Spalte: Editor */}
+          <div>
+            <div style={{ background: '#f8f9fa', padding: 16, borderRadius: 8, border: '1px solid #dee2e6' }}>
+              <h3 style={{ marginTop: 0 }}>{editingZs ? '✏️ Zeitslot bearbeiten' : '➕ Neuer Zeitslot'}</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 2, fontSize: 13 }}>Name *</label>
+                  <input type="text" value={zsForm.name} onChange={e => setZsForm({ ...zsForm, name: e.target.value })} placeholder="z.B. Vormittag"
+                    style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: 4 }} />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 2, fontSize: 13 }}>Von (Uhrzeit)</label>
+                    <input type="time" value={zsForm.startTime} onChange={e => setZsForm({ ...zsForm, startTime: e.target.value })}
+                      style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: 4 }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 2, fontSize: 13 }}>Bis (Uhrzeit)</label>
+                    <input type="time" value={zsForm.endTime} onChange={e => setZsForm({ ...zsForm, endTime: e.target.value })}
+                      style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: 4 }} />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 2, fontSize: 13 }}>Farbe</label>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <input type="color" value={zsForm.color} onChange={e => setZsForm({ ...zsForm, color: e.target.value })}
+                      style={{ width: 40, height: 36, border: 'none', cursor: 'pointer' }} />
+                    <input type="text" value={zsForm.color} onChange={e => setZsForm({ ...zsForm, color: e.target.value })}
+                      style={{ width: 80, padding: '6px 8px', border: '1px solid #ced4da', borderRadius: 4 }} />
+                    <span style={{ color: '#666', fontSize: 12 }}>Vorschau:</span>
+                    <span style={{ background: zsForm.color, color: '#fff', padding: '2px 10px', borderRadius: 4, fontSize: 12, fontWeight: 'bold' }}>
+                      {zsForm.name || 'Vorschau'}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 2, fontSize: 13 }}>Reihenfolge</label>
+                  <input type="number" min={0} max={99} value={zsForm.order} onChange={e => setZsForm({ ...zsForm, order: parseInt(e.target.value) || 0 })}
+                    style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: 4 }} />
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  <button onClick={saveZs} style={{ flex: 1, padding: '8px 12px', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold' }}>
+                    {editingZs ? '💾 Speichern' : '➕ Anlegen'}
+                  </button>
+                  {editingZs && (
+                    <button onClick={resetZsForm} style={{ padding: '8px 12px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>✖</button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Rechte Spalte: Liste */}
+          <div>
+            <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #dee2e6', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>Name</th>
+                    <th style={thStyle}>Von</th>
+                    <th style={thStyle}>Bis</th>
+                    <th style={thStyle}>Reihe.</th>
+                    <th style={thStyle}>Farbe</th>
+                    <th style={thStyle}>Aktion</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {zeitSlots.sort((a, b) => a.order - b.order).map(zs => (
+                    <tr key={zs.id} style={{ background: editingZs === zs.id ? '#e7f3ff' : 'transparent', cursor: 'pointer' }}
+                      onClick={() => startEditZs(zs)}>
+                      <td style={{ ...tdStyle, fontWeight: 'bold' }}>{zs.name}</td>
+                      <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{zs.startTime}</td>
+                      <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{zs.endTime}</td>
+                      <td style={{ ...tdStyle, textAlign: 'center' }}>{zs.order}</td>
+                      <td style={tdStyle}>
+                        <span style={{ background: zs.color, color: '#fff', padding: '2px 10px', borderRadius: 4, fontSize: 12 }}>{zs.name}</span>
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: 'center' }}>
+                        <button onClick={e => { e.stopPropagation(); deleteZs(zs.id); }}
+                          style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545' }}>🗑️</button>
+                      </td>
+                    </tr>
+                  ))}
+                  {zeitSlots.length === 0 && (
+                    <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: '#666', padding: 24 }}>Noch keine Zeitslots angelegt.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== SCHICHTEN / ZEITSLOTS VERWALTEN ==================== */}
+      {/* ==================== ÜBERSICHT ==================== */}
+      {activeTab === 'uebersicht' && selectedTournament && (() => {
+        const grouped: Record<string, Shift[]> = {};
+        jobSlots.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).forEach(slot => {
+          const dateKey = new Date(slot.date).toLocaleDateString('de-DE');
+          if (!grouped[dateKey]) grouped[dateKey] = [];
+          grouped[dateKey].push(slot);
+        });
+        return Object.entries(grouped).map(([dateStr, slots]) => {
+          const firstSlot = slots[0];
+          const firstDate = new Date(firstSlot.date);
+          const dayName = firstDate.toLocaleDateString('de-DE', { weekday: 'long' });
+          return (
+            <div key={dateStr} style={{ marginBottom: 24 }}>
+              <h4 style={{ background: '#f8f9fa', padding: '10px 14px', borderRadius: 6, marginTop: 0 }}>
+                📅 {dateStr} ({dayName})
+                <span style={{ float: 'right', fontSize: 14, color: '#666' }}>{slots.length} Schichten</span>
+              </h4>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>Zeitslot</th>
+                    <th style={thStyle}>Bereich</th>
+                    <th style={thStyle}>Belegt</th>
+                    <th style={thStyle}>Max. Helfer</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {slots.map(slot => (
+                    <tr key={slot.id}>
+                      <td style={{ ...tdStyle, fontWeight: 'bold' }}>
+                        {slot.zeitslotId ? (
+                          <span style={{ background: getZsColor(slot.zeitslotId), color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>{getZsLabel(slot.zeitslotId)}</span>
+                        ) : <span style={{ color: '#adb5bd' }}>–</span>}
+                      </td>
+                      <td style={tdStyle}>
+                        {slot.arbeitsbereichId ? (
+                          <span style={{ background: getAbColor(slot.arbeitsbereichId), color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>{getAbIcon(slot.arbeitsbereichId)} {getAbName(slot.arbeitsbereichId)}</span>
+                        ) : '–'}
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: 'center' }}>
+                        {(() => {
+                          const info = slotVolunteerCounts[slot.id];
+                          if (!info) return <span style={{ color: '#adb5bd' }}>🔴 0/{slot.maxVolunteers}</span>;
+                          const color = info.status === 'full' ? '#198754' : info.status === 'partial' ? '#ffc107' : '#dc3545';
+                          const emoji = info.status === 'full' ? '🟢' : info.status === 'partial' ? '🟡' : '🔴';
+                          return <span style={{ color, fontWeight: 'bold' }}>{emoji} {info.count}/{slot.maxVolunteers}</span>;
+                        })()}
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: 'center' }}>{slot.maxVolunteers}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        });
+      })()}
+
+      {activeTab === 'uebersicht' && !selectedTournament && <p style={{ color: '#666' }}>Bitte ein Turnier auswählen.</p>}
+
+      {/* Status-Dialog */}
+      {statusDialog.open && statusDialog.tournament && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={() => setStatusDialog({ open: false, tournament: null })}>
+          <div style={{ background: '#fff', padding: 24, borderRadius: 12, minWidth: 400, maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>📝 Status ändern: {statusDialog.tournament.name}</h3>
+            <p style={{ color: '#666', marginBottom: 16 }}>Aktueller Status: <strong>{statusBadge(statusDialog.tournament.status)}</strong></p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => updateTournamentStatus('aktiv')} style={{ flex: 1, padding: '10px 12px', background: '#d1e7dd', color: '#0f5132', border: '1px solid #a3cfbb', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>🟢 Aktiv</button>
+              <button onClick={() => updateTournamentStatus('beendet')} style={{ flex: 1, padding: '10px 12px', background: '#fff3cd', color: '#856404', border: '1px solid #ffe69c', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>🟡 Beendet</button>
+              <button onClick={() => updateTournamentStatus('archiviert')} style={{ flex: 1, padding: '10px 12px', background: '#e2e3e5', color: '#41464b', border: '1px solid #c6c8cb', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>⚪ Archiviert</button>
+            </div>
+            <button onClick={() => setStatusDialog({ open: false, tournament: null })} style={{ marginTop: 16, width: '100%', padding: '8px', background: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: 6, cursor: 'pointer' }}>Abbrechen</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
