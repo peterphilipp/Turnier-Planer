@@ -15,6 +15,7 @@ import arbeitsbereichRoutes from './routes/arbeitsbereich.routes.js';
 import zeitslotRoutes from './routes/zeitslot.routes.js';
 import materialRoutes from './routes/material.routes.js';
 import healthRoutes from './routes/health.routes.js';
+import passwordRoutes from './routes/password.routes.js';
 
 // Middleware imports
 import errorHandler from './middleware/errorHandler.js';
@@ -36,6 +37,7 @@ app.use('/api/arbeitsbereiche', arbeitsbereichRoutes);
 app.use('/api/zeit-slots', zeitslotRoutes);
 app.use('/api/material', materialRoutes);
 app.use('/api/health', healthRoutes);
+app.use('/api/auth', passwordRoutes);
 
 // ===================== Error Handling =====================
 // This must be registered after all routes
