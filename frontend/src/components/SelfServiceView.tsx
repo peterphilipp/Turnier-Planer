@@ -29,6 +29,13 @@ export default function SelfServiceView() {
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetNewPasswordConfirm, setResetNewPasswordConfirm] = useState('');
+  const [forgotMessage, setForgotMessage] = useState('');
   const [clubPrimary, setClubPrimary] = useState('#0d6efd');
   const [clubSecondary, setClubSecondary] = useState('#6c757d');
   const [clubAccent, setClubAccent] = useState('#198754');
@@ -37,6 +44,15 @@ export default function SelfServiceView() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
+    // Reset-Token aus URL auslesen
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenParam = urlParams.get('token');
+    if (tokenParam) {
+      setResetToken(tokenParam);
+      setShowResetPassword(true);
+      return;
+    }
+
     const savedToken = localStorage.getItem('token');
     const savedVolunteer = localStorage.getItem('volunteer');
     console.log('useEffect - savedToken:', !!savedToken, 'savedVolunteer:', savedVolunteer);
@@ -162,8 +178,84 @@ export default function SelfServiceView() {
     return '#' + (R.toString(16).padStart(2, '0')) + (G.toString(16).padStart(2, '0')) + (B.toString(16).padStart(2, '0'));
   };
 
+  /* ===== RESET PASSWORD SCREEN ===== */
+  if (showResetPassword) {
+    return (
+      <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + clubAccent + ' 0%, ' + shadeColor(clubAccent, -30) + ' 100%)', boxSizing: 'border-box' }}>
+        <div style={{ background: '#fff', borderRadius: 16, padding: isMobile ? 24 : 40, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div style={{ fontSize: isMobile ? 48 : 64, marginBottom: 8 }}>🔑</div>
+            <h2 style={{ margin: 0, color: '#333' }}>Neues Passwort festlegen</h2>
+            <p style={{ color: '#666', fontSize: 14, marginTop: 4 }}>Gib dein neues Passwort ein</p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <input type="password" placeholder="Neues Passwort" value={resetNewPassword} onChange={e => setResetNewPassword(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            <input type="password" placeholder="Passwort bestaetigen" value={resetNewPasswordConfirm} onChange={e => setResetNewPasswordConfirm(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            <button onClick={async () => {
+              if (resetNewPassword.length < 6) { alert('Passwort muss mindestens 6 Zeichen haben'); return; }
+              if (resetNewPassword !== resetNewPasswordConfirm) { alert('Passwoerter stimmen nicht ueberein'); return; }
+              try {
+                const res = await fetch('/api/auth/reset-password', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token: resetToken, newPassword: resetNewPassword }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                  alert('Passwort erfolgreich zurueckgesetzt! Du kannst dich jetzt anmelden.');
+                  setShowResetPassword(false);
+                } else {
+                  alert(data.error || 'Fehler beim Zuruecksetzen');
+                }
+              } catch { alert('Fehler beim Zuruecksetzen'); }
+            }} style={{ padding: '16px', background: clubAccent, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Passwort zuruecksetzen</button>
+            <button onClick={() => setShowResetPassword(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Zurueck</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ===== FORGOT PASSWORD SCREEN ===== */
+  if (!isLoggedIn && showForgotPassword) {
+    return (
+      <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + shadeColor(clubPrimary, 30) + ' 0%, ' + clubPrimary + ' 100%)', boxSizing: 'border-box' }}>
+        <div style={{ background: '#fff', borderRadius: 16, padding: isMobile ? 24 : 40, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div style={{ fontSize: isMobile ? 48 : 64, marginBottom: 8 }}>📧</div>
+            <h2 style={{ margin: 0, color: '#333' }}>Passwort vergessen?</h2>
+            <p style={{ color: '#666', fontSize: 14, marginTop: 4 }}>Gib deine Email ein und wir senden dir einen Link zum Zuruecksetzen</p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <input type="email" placeholder="Email-Adresse" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            {forgotMessage && <div style={{ padding: '12px 16px', background: '#d1e7dd', borderRadius: 10, fontSize: 14, color: '#0f5132', whiteSpace: 'pre-line' }}>{forgotMessage}</div>}
+            <button onClick={async () => {
+              if (!forgotEmail) { alert('Bitte Email eingeben'); return; }
+              setForgotMessage('');
+              try {
+                const res = await fetch('/api/auth/forgot-password', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ email: forgotEmail }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                  setForgotMessage(data.message + '\n\n(Hinweis: In der Entwicklungsumgebung wurde der Link im Server-Log ausgegeben.)');
+                  setTimeout(() => setShowForgotPassword(false), 5000);
+                } else {
+                  alert(data.error);
+                }
+              } catch { alert('Fehler beim Senden'); }
+            }} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Link senden</button>
+            <button onClick={() => setShowForgotPassword(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Zurueck zum Login</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   /* ===== LOGIN SCREEN ===== */
-  if (!isLoggedIn && !showRegisterForm) {
+  if (!isLoggedIn && !showRegisterForm && !showForgotPassword) {
     return (
       <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + clubPrimary + ' 0%, ' + shadeColor(clubPrimary, -30) + ' 100%)', boxSizing: 'border-box' }}>
         <div style={{ background: '#fff', borderRadius: 16, padding: isMobile ? 24 : 40, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
@@ -182,6 +274,7 @@ export default function SelfServiceView() {
             <input type="email" placeholder="Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} autoFocus />
             <input type="password" placeholder="Passwort" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') login(); }} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <button onClick={login} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Anmelden</button>
+            <button onClick={() => setShowForgotPassword(true)} style={{ padding: '12px', background: 'transparent', color: clubSecondary, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: '500', fontSize: 14, textDecoration: 'underline' }}>Passwort vergessen?</button>
             <button onClick={() => setShowRegisterForm(true)} style={{ padding: '14px', background: 'transparent', color: clubPrimary, border: '2px solid ' + clubPrimary, borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15 }}>Registrieren</button>
           </div>
         </div>
