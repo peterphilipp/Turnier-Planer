@@ -25,7 +25,21 @@ type OrgTab = 'uebersicht' | 'jobslots' | 'buchungen' | 'lebensmittel-slots';
 type StammTab = 'turniere' | 'vereine' | 'arbeitsbereiche' | 'zeitslots' | 'helfer' | 'lebensmittel' | 'jahrgaenge';
 
 export default function App() {
-  const [view, setView] = useState<View>('selfservice');
+  // View basierend auf URL/Hostname vorinitialisieren
+  const getInitialView = (): View => {
+    if (typeof window === 'undefined') return 'selfservice';
+    // Query-Parameter hat Vorrang
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get('view');
+    if (viewParam === 'admin') return 'admin';
+    if (viewParam === 'selfservice') return 'selfservice';
+    // Sonst nach Hostname schauen
+    const host = window.location.hostname.toLowerCase();
+    if (host.includes('admin')) return 'admin';
+    return 'selfservice';
+  };
+
+  const [view, setView] = useState<View>(getInitialView());
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('spielplan');
   
   const [activeOrgTab, setActiveOrgTab] = useState<OrgTab>('uebersicht');
@@ -41,6 +55,17 @@ export default function App() {
       setSelectedTournamentId(active.id);
     }
   }, [tournaments, selectedTournamentId]);
+
+  // URL beim View-Wechsel aktualisieren
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (view === 'admin') params.set('view', 'admin');
+      else params.delete('view');
+      const url = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
+      window.history.replaceState({}, '', url);
+    }
+  }, [view]);
 
   if (view === 'selfservice') {
     return (
