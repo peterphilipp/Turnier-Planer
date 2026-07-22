@@ -7,7 +7,7 @@ interface Shift { id: number; tournamentId: number; date: string; zeitslotId: nu
 interface Arbeitsbereich { id: number; name: string; icon: string; color: string; minVolunteers: number; maxVolunteers: number; }
 interface Zeitslot { id: number; name: string; startTime: string; endTime: string; color: string; order: number; }
 interface VolunteerShift { id: number; volunteerId: number; tournamentId: number | null; date: string; slot: string; role: string; arbeitsbereichId: number | null; }
-interface Volunteer { id: number; name: string; email: string | null; phone: string | null; roles: string[]; }
+interface Volunteer { id: number; name: string; email: string | null; phone: string | null; roles: string[]; tournamentId: number | null; }
 interface Club { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
 interface FoodCategory { id: number; name: string; icon: string; order: number; items: { id: number; name: string; price: string | null; unit: string }[]; }
 interface FoodItem { id: number; categoryId: number; name: string; price: string | null; unit: string; category: { id: number; name: string; icon: string } | null; }
@@ -51,7 +51,7 @@ export default function AdminView() {
   const [zsForm, setZsForm] = useState({ name: '', startTime: '09:00', endTime: '10:00', color: '#3b98f8', order: 1 });
   const [editingAb, setEditingAb] = useState<number | null>(null);
   const [editingZs, setEditingZs] = useState<number | null>(null);
-  const [volForm, setVolForm] = useState({ name: '', email: '', phone: '' });
+  const [volForm, setVolForm] = useState({ name: '', email: '', phone: '', tournamentId: '' });
   const [editingVol, setEditingVol] = useState<number | null>(null);
   const [clubForm, setClubForm] = useState({ name: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' });
   const [editingClub, setEditingClub] = useState<number | null>(null);
@@ -189,13 +189,14 @@ export default function AdminView() {
 
   const saveVolunteer = async () => {
     if (!volForm.name.trim()) return alert('Name erforderlich!');
+    const tournamentId = volForm.tournamentId ? parseInt(volForm.tournamentId) : null;
     if (editingVol) {
-      await apiPatch(`/api/volunteers/${editingVol}`, { ...volForm, roles: ['Helfer'] });
+      await apiPatch(`/api/volunteers/${editingVol}`, { ...volForm, roles: ['Helfer'], tournamentId });
     } else {
-      await apiPost('/api/volunteers', { ...volForm, roles: ['Helfer'] });
+      await apiPost('/api/volunteers', { ...volForm, roles: ['Helfer'], tournamentId });
     }
     queryClient.invalidateQueries({ queryKey: ['volunteers'] });
-    setVolForm({ name: '', email: '', phone: '' });
+    setVolForm({ name: '', email: '', phone: '', tournamentId: '' });
     setEditingVol(null);
   };
 
@@ -536,6 +537,12 @@ export default function AdminView() {
             <input value={volForm.name} onChange={e => setVolForm({ ...volForm, name: e.target.value })} placeholder="Name" style={{ padding: '10px 14px', border: '1px solid #dee2e6', borderRadius: 10, fontSize: 14, outline: 'none', width: 200 }} />
             <input value={volForm.email} onChange={e => setVolForm({ ...volForm, email: e.target.value })} placeholder="E-Mail" style={{ padding: '10px 14px', border: '1px solid #dee2e6', borderRadius: 10, fontSize: 14, outline: 'none', width: 250 }} />
             <input value={volForm.phone} onChange={e => setVolForm({ ...volForm, phone: e.target.value })} placeholder="Handynummer" style={{ padding: '10px 14px', border: '1px solid #dee2e6', borderRadius: 10, fontSize: 14, outline: 'none', width: 180 }} />
+            <select value={volForm.tournamentId} onChange={e => setVolForm({ ...volForm, tournamentId: e.target.value })} style={{ padding: '10px 14px', border: '1px solid #dee2e6', borderRadius: 10, fontSize: 14, outline: 'none', background: '#fff' }}>
+              <option value="">Kein Turnier</option>
+              {tournaments.map(t => (
+                <option key={t.id} value={t.id}>{t.name} ({t.status})</option>
+              ))}
+            </select>
             <button onClick={saveVolunteer} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: '600', fontSize: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>{editingVol ? '💾 Speichern' : '➕ Helfer anlegen'}</button>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -548,7 +555,7 @@ export default function AdminView() {
                   <td style={tdStyle}>{v.phone || '–'}</td>
                   <td style={tdStyle}>{v.roles?.join(', ') || '–'}</td>
                   <td style={tdStyle}>
-                    <button onClick={() => { setEditingVol(v.id); setVolForm({ name: v.name, email: v.email || '', phone: v.phone || '' }); }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none' }}>✏️</button>
+                    <button onClick={() => { setEditingVol(v.id); setVolForm({ name: v.name, email: v.email || '', phone: v.phone || '', tournamentId: String(v.tournamentId || '') }); }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none' }}>✏️</button>
                     <button onClick={async () => {
                       const pw = prompt('Neues Passwort für ' + v.name + ':');
                       if (!pw) return;
