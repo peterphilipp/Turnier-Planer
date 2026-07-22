@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { inputStyle, btnStyle } from './admin/shared';
 
 interface Shift {
   id: number; date: string; slot: string;
@@ -8,10 +9,12 @@ interface Shift {
   maxVolunteers: number;
 }
 interface VolunteerShift { id: number; volunteerId: number; date: string; slot: string; role: string; areaId: string | null; shiftId: number | null; shift: { id: number; date: string; slot: string; zeitslot: { name: string; startTime: string; endTime: string; color: string } | null; arbeitsbereich: { name: string; icon: string; color: string } | null; arbeitsbereichId: number | null; maxVolunteers: number; } | null; }
-interface Volunteer { id: number; name: string; email: string | null; phone: string | null; childName: string | null; childYear: number | null; }
+interface VolunteerChild { id: number; childName: string; childYear: number; }
+interface Volunteer { id: number; name: string; email: string | null; phone: string | null; childName: string | null; childYear: number | null; tournamentId: number | null; children?: VolunteerChild[]; }
 interface Club { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
 interface FoodCategory { id: number; name: string; icon: string; items: { id: number; name: string; price: string | null; unit: string }[]; }
 interface FoodDonation { id: number; foodItemId: number; quantity: number; note: string | null; createdAt: string; foodItem: { id: number; name: string; unit: string; category: { id: number; name: string; icon: string } } | null; }
+interface FoodDonationSlot { id: number; tournamentId: number; yearGroup: string; foodItemId: number | null; targetQuantity: number; collected: number; foodItem: { id: number; name: string; unit: string; icon: string } | null; }
 
 export default function SelfServiceView() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -31,14 +34,12 @@ export default function SelfServiceView() {
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
-  const [regChildName, setRegChildName] = useState('');
-  const [regChildYear, setRegChildYear] = useState('');
+  const [regChildren, setRegChildren] = useState<{ childName: string; childYear: string }[]>([{ childName: '', childYear: '' }]);
   const [showProfile, setShowProfile] = useState(false);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
-  const [editChildName, setEditChildName] = useState('');
-  const [editChildYear, setEditChildYear] = useState('');
+  const [editChildren, setEditChildren] = useState<{ childName: string; childYear: string }[]>([{ childName: '', childYear: '' }]);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
@@ -55,6 +56,7 @@ export default function SelfServiceView() {
   const [activeSection, setActiveSection] = useState<'schichten' | 'spenden'>('schichten');
   const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
   const [myDonations, setMyDonations] = useState<FoodDonation[]>([]);
+  const [foodDonationSlots, setFoodDonationSlots] = useState<FoodDonationSlot[]>([]);
   const [donationFoodId, setDonationFoodId] = useState(0);
   const [donationQuantity, setDonationQuantity] = useState('');
   const [donationNote, setDonationNote] = useState('');
@@ -169,6 +171,18 @@ export default function SelfServiceView() {
       ]);
       setFoodCategories(cats);
       setMyDonations(dons.donations || []);
+      
+      // Food Donation Slots laden und nach Kinder-Jahrgaengen filtern
+      if (volunteer?.tournamentId) {
+        const allSlots = await fetch('/api/food-donation-slots?tournamentId=' + volunteer.tournamentId).then(r => r.json()).catch(() => []);
+        const childYears = volunteer.children?.map((c: VolunteerChild) => c.childYear) || [];
+        const relevantSlots = allSlots.filter((slot: FoodDonationSlot) => {
+          if (childYears.includes(parseInt(slot.yearGroup))) return true;
+          if (volunteer.childYear && parseInt(slot.yearGroup) === volunteer.childYear) return true;
+          return false;
+        });
+        setFoodDonationSlots(relevantSlots);
+      }
     } catch {}
   };
 
@@ -344,8 +358,19 @@ export default function SelfServiceView() {
             <input type="text" placeholder="Vor- und Nachname" value={regName} onChange={e => setRegName(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <input type="email" placeholder="Email-Adresse" value={regEmail} onChange={e => setRegEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <input type="tel" placeholder="Handynummer (optional)" value={regPhone} onChange={e => setRegPhone(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
-            <input type="text" placeholder="Name des Kindes (optional)" value={regChildName} onChange={e => setRegChildName(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
-            <input type="number" placeholder="Jahrgang (optional)" value={regChildYear} onChange={e => setRegChildYear(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 8 }}>Kinder (optional)</div>
+              {regChildren.map((child, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                  <input type="text" placeholder="Name des Kindes" value={child.childName} onChange={e => { const n = [...regChildren]; n[idx].childName = e.target.value; setRegChildren(n); }} style={{ ...inputStyle, flex: 1 }} />
+                  <input type="number" placeholder="Jg." value={child.childYear} onChange={e => { const n = [...regChildren]; n[idx].childYear = e.target.value; setRegChildren(n); }} style={{ ...inputStyle, width: 80 }} />
+                  {regChildren.length > 1 && (
+                    <button type="button" onClick={() => { const n = regChildren.filter((_, i) => i !== idx); setRegChildren(n); }} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none', padding: '8px 12px', fontSize: 16 }}>×</button>
+                  )}
+                </div>
+              ))}
+              <button type="button" onClick={() => setRegChildren([...regChildren, { childName: '', childYear: '' }])} style={{ ...btnStyle, background: '#f8f9fa', border: '1px dashed #adb5bd', color: '#495057', padding: '8px 12px', fontSize: 14, marginTop: 4 }}>➕ Kind hinzufügen</button>
+            </div>
             <input type="password" placeholder="Passwort" value={regPassword} onChange={e => setRegPassword(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <input type="password" placeholder="Passwort bestaetigen" value={regPasswordConfirm} onChange={e => setRegPasswordConfirm(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <button onClick={async () => {
@@ -356,7 +381,7 @@ export default function SelfServiceView() {
                 const res = await fetch('/api/auth/register', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ name: regName, email: regEmail, phone: regPhone || null, password: regPassword, childName: regChildName || null, childYear: regChildYear ? parseInt(regChildYear) : null }),
+                  body: JSON.stringify({ name: regName, email: regEmail, phone: regPhone || null, password: regPassword, children: regChildren.filter(c => c.childName || c.childYear).map(c => ({ childName: c.childName || null, childYear: c.childYear ? parseInt(c.childYear) : null })) }),
                 });
                 if (res.ok) {
                   const data = await res.json();
@@ -391,14 +416,25 @@ export default function SelfServiceView() {
             <input type="text" placeholder="Vor- und Nachname" value={editName} onChange={e => setEditName(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <input type="email" placeholder="Email-Adresse" value={editEmail} onChange={e => setEditEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <input type="tel" placeholder="Handynummer" value={editPhone} onChange={e => setEditPhone(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
-            <input type="text" placeholder="Name des Kindes (optional)" value={editChildName} onChange={e => setEditChildName(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
-            <input type="number" placeholder="Jahrgang (optional)" value={editChildYear} onChange={e => setEditChildYear(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 8 }}>Kinder</div>
+              {editChildren.map((child, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                  <input type="text" placeholder="Name des Kindes" value={child.childName} onChange={e => { const n = [...editChildren]; n[idx].childName = e.target.value; setEditChildren(n); }} style={{ ...inputStyle, flex: 1 }} />
+                  <input type="number" placeholder="Jg." value={child.childYear} onChange={e => { const n = [...editChildren]; n[idx].childYear = e.target.value; setEditChildren(n); }} style={{ ...inputStyle, width: 80 }} />
+                  {editChildren.length > 1 && (
+                    <button type="button" onClick={() => { const n = editChildren.filter((_, i) => i !== idx); setEditChildren(n); }} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none', padding: '8px 12px', fontSize: 16 }}>×</button>
+                  )}
+                </div>
+              ))}
+              <button type="button" onClick={() => setEditChildren([...editChildren, { childName: '', childYear: '' }])} style={{ ...btnStyle, background: '#f8f9fa', border: '1px dashed #adb5bd', color: '#495057', padding: '8px 12px', fontSize: 14, marginTop: 4 }}>➕ Kind hinzufügen</button>
+            </div>
             <button onClick={async () => {
               try {
                 const res = await fetch('/api/auth/profile', {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-                  body: JSON.stringify({ name: editName, email: editEmail, phone: editPhone, childName: editChildName || null, childYear: editChildYear ? parseInt(editChildYear) : null }),
+                  body: JSON.stringify({ name: editName, email: editEmail, phone: editPhone, children: editChildren.filter(c => c.childName || c.childYear).map(c => ({ childName: c.childName || null, childYear: c.childYear ? parseInt(c.childYear) : null })) }),
                 });
                 if (res.ok) {
                   const data = await res.json();
@@ -451,8 +487,7 @@ export default function SelfServiceView() {
               setEditName(volunteer?.name || '');
               setEditEmail(volunteer?.email || '');
               setEditPhone(volunteer?.phone || '');
-              setEditChildName(volunteer?.childName || '');
-              setEditChildYear(volunteer?.childYear ? String(volunteer.childYear) : '');
+              setEditChildren((volunteer?.children || []).map(c => ({ childName: c.childName, childYear: String(c.childYear) })) || [{ childName: '', childYear: '' }]);
             }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>👤 Profil bearbeiten</button>
             <button onClick={() => {
               setMenuOpen(false);
@@ -643,6 +678,36 @@ export default function SelfServiceView() {
               <button onClick={submitDonation} style={{ padding: '14px 0', background: clubSecondary, color: '#fff', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: '600', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>📦 Spende eintragen</button>
             </div>
           </div>
+
+          {/* Lebensmittel-Slots für Kinder */}
+          {foodDonationSlots.length > 0 && (
+            <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>📊 Deine Lebensmittel-Slots</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {foodDonationSlots.map(slot => {
+                  const progress = slot.targetQuantity > 0 ? Math.min(100, (slot.collected / slot.targetQuantity) * 100) : 0;
+                  return (
+                    <div key={slot.id} style={{ padding: 12, background: '#f8f9fa', borderRadius: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                        <span style={{ fontSize: 20 }}>{slot.foodItem?.icon || '🍽️'}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: '600', fontSize: 14, color: '#333' }}>{slot.foodItem?.name || '–'}</div>
+                          <div style={{ fontSize: 12, color: '#999' }}>Jahrgang {slot.yearGroup}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 16, fontWeight: 'bold', color: progress >= 100 ? '#198754' : clubAccent }}>{slot.collected}/{slot.targetQuantity}</div>
+                          <div style={{ fontSize: 11, color: '#999' }}>{slot.foodItem?.unit}</div>
+                        </div>
+                      </div>
+                      <div style={{ background: '#e9ecef', borderRadius: 4, height: 8, overflow: 'hidden' }}>
+                        <div style={{ width: `${progress}%`, height: '100%', background: progress >= 100 ? '#198754' : '#ffc107', borderRadius: 4 }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Meine Spenden */}
           {myDonations.length > 0 && (
