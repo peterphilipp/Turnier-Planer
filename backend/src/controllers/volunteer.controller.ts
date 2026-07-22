@@ -10,7 +10,11 @@ export const volunteerSchema = z.object({
 });
 
 export const getVolunteers = async (req: Request, res: Response) => {
-  const vs = await prisma.volunteer.findMany();
+  const { tournamentId } = req.query;
+  const vs = await prisma.volunteer.findMany({
+    where: tournamentId ? { tournamentId: Number(tournamentId) } : undefined,
+    orderBy: { name: 'asc' }
+  });
   return res.json(vs?.map(v => ({ ...v, roles: typeof v.roles === 'string' ? JSON.parse(v.roles) : [] })) || []);
 };
 

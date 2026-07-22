@@ -18,7 +18,7 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
   const queryClient = useQueryClient();
 
   const { data: tournaments = [] } = useQuery<Tournament[]>({ queryKey: ['tournaments'], queryFn: getTournaments });
-  const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers'], queryFn: getVolunteers });
+  const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers', selectedTournament], queryFn: () => getVolunteers(selectedTournament), enabled: !!selectedTournament });
   const { data: zeitSlots = [] } = useQuery<Zeitslot[]>({ queryKey: ['zeitSlots'], queryFn: getZeitSlots });
   const { data: arbeitsbereiche = [] } = useQuery<Arbeitsbereich[]>({ queryKey: ['arbeitsbereiche'], queryFn: getArbeitsbereiche });
 
@@ -132,9 +132,9 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
   // Helfer inline anlegen + auswählen
   const addVolunteerInline = async () => {
     if (!newHelperName.trim()) return;
-    await apiPost('/api/volunteers', { name: newHelperName.trim(), roles: ['Helfer'] });
-    const all = await getVolunteers();
-    queryClient.setQueryData(['volunteers'], all);
+    await apiPost('/api/volunteers', { name: newHelperName.trim(), roles: ['Helfer'], tournamentId: selectedTournament });
+    const all = await getVolunteers(selectedTournament);
+    queryClient.setQueryData(['volunteers', selectedTournament], all);
     const last = all[all.length - 1];
     setSelectedVolunteer(String(last.id));
     setShowNewHelper(false);

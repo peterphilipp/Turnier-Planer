@@ -9,7 +9,8 @@ export const getFoodDonationSlots = async (req: Request, res: Response) => {
     where: tournamentId ? { tournamentId: Number(tournamentId) } : undefined,
     include: {
       tournament: true,
-      foodItem: true
+      foodItem: true,
+      volunteer: true
     },
     orderBy: { yearGroup: 'asc', foodItemId: 'asc' }
   });
@@ -19,7 +20,7 @@ export const getFoodDonationSlots = async (req: Request, res: Response) => {
 
 // Slot erstellen
 export const createFoodDonationSlot = async (req: Request, res: Response) => {
-  const { tournamentId, yearGroup, foodItemId, targetQuantity, description } = req.body;
+  const { tournamentId, yearGroup, foodItemId, targetQuantity, description, volunteerId } = req.body;
   
   if (!tournamentId || !yearGroup) {
     return res.status(400).json({ error: 'tournamentId und yearGroup sind erforderlich' });
@@ -31,11 +32,13 @@ export const createFoodDonationSlot = async (req: Request, res: Response) => {
       yearGroup,
       foodItemId: foodItemId ? Number(foodItemId) : null,
       targetQuantity: Number(targetQuantity) || 0,
-      description: description || null
+      description: description || null,
+      volunteerId: volunteerId ? Number(volunteerId) : null
     },
     include: {
       tournament: true,
-      foodItem: true
+      foodItem: true,
+      volunteer: true
     }
   });
 
@@ -45,7 +48,7 @@ export const createFoodDonationSlot = async (req: Request, res: Response) => {
 // Slot aktualisieren
 export const updateFoodDonationSlot = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { yearGroup, foodItemId, targetQuantity, description } = req.body;
+  const { yearGroup, foodItemId, targetQuantity, description, volunteerId } = req.body;
 
   const slot = await prisma.foodDonationSlot.update({
     where: { id: Number(id) },
@@ -53,11 +56,13 @@ export const updateFoodDonationSlot = async (req: Request, res: Response) => {
       ...(yearGroup && { yearGroup }),
       ...(foodItemId !== undefined && { foodItemId: foodItemId ? Number(foodItemId) : null }),
       ...(targetQuantity !== undefined && { targetQuantity: Number(targetQuantity) }),
-      ...(description !== undefined && { description })
+      ...(description !== undefined && { description }),
+      ...(volunteerId !== undefined && { volunteerId: volunteerId ? Number(volunteerId) : null })
     },
     include: {
       tournament: true,
-      foodItem: true
+      foodItem: true,
+      volunteer: true
     }
   });
 

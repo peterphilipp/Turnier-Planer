@@ -92,6 +92,7 @@ model Volunteer {
   shifts          VolunteerShift[]
   resetTokens     PasswordResetToken[]
   foodDonations   FoodDonation[]
+  foodDonationSlots FoodDonationSlot[]
 
   @@map("volunteers")
 }
@@ -229,8 +230,10 @@ model FoodDonationSlot {
   collected       Int              @default(0) @map("collected")
   description     String?          @map("description")
   createdAt       DateTime         @default(now()) @map("created_at")
+  volunteerId     Int?             @map("volunteer_id")
   tournament      Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   foodItem        FoodItem?        @relation(fields: [foodItemId], references: [id])
+  volunteer       Volunteer?       @relation(fields: [volunteerId], references: [id], onDelete: SetNull)
   donations       FoodDonation[]
 
   @@map("food_donation_slots")

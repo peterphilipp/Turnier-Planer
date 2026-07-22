@@ -3,9 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getVolunteers, apiPost, apiPatch, apiDelete } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, Volunteer } from '../shared';
 
-export default function Helfer({ adminPrimary }: { adminPrimary: string }) {
+export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: string, tournamentId: number | null }) {
   const queryClient = useQueryClient();
-  const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers'], queryFn: getVolunteers });
+  const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers', tournamentId], queryFn: () => getVolunteers(tournamentId), enabled: !!tournamentId });
   
   const [volForm, setVolForm] = useState({ name: '', email: '', phone: '' });
   const [editingVol, setEditingVol] = useState<number | null>(null);
