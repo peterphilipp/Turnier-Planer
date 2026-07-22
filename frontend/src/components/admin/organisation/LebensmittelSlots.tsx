@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getFoodDonationSlots, getFoodItems, apiPost, apiPatch, apiDelete } from '../../../api';
-import { tdStyle, thStyle, btnStyle, inputStyle, FoodDonationSlot, FoodItem, Tournament } from '../shared';
+import { getFoodDonationSlots, getFoodCategories, getFoodItems, apiPost, apiPatch, apiDelete } from '../../../api';
+import { tdStyle, thStyle, btnStyle, inputStyle, FoodDonationSlot, FoodItem, FoodCategory, Tournament } from '../shared';
 
 export default function LebensmittelSlots({ selectedTournament, tournament, adminPrimary }: { selectedTournament: number | null, tournament: Tournament | null, adminPrimary: string }) {
   const queryClient = useQueryClient();
@@ -12,39 +12,46 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
     enabled: !!selectedTournament
   });
   
+  const { data: foodCategories = [] } = useQuery<FoodCategory[]>({ queryKey: ['foodCategories'], queryFn: getFoodCategories });
   const { data: foodItems = [] } = useQuery<FoodItem[]>({ queryKey: ['foodItems'], queryFn: getFoodItems });
   
   const [editingSlotId, setEditingSlotId] = useState<number | null>(null);
-  const [slotForm, setSlotForm] = useState({ date: '', yearGroup: '', foodItemId: 0, targetQuantity: 0, description: '' });
+  const [slotForm, setSlotForm] = useState({ dates: [] as string[], yearGroup: '', categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' });
   
   const [filterYear, setFilterYear] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
 
+  const toggleDate = (d: string) => {
+    setSlotForm(prev => ({ ...prev, dates: prev.dates.includes(d) ? prev.dates.filter(x => x !== d) : [...prev.dates, d] }));
+  };
+
   const saveSlot = async () => {
-    if (!selectedTournament || !slotForm.date || !slotForm.yearGroup) {
+    if (!selectedTournament || slotForm.dates.length === 0 || !slotForm.yearGroup) {
       return alert('Bitte Datum, Jahrgang und mindestens einen Bereich wählen.');
     }
     
     if (editingSlotId) {
       await apiPatch(`/api/food-donation-slots/${editingSlotId}`, { 
-        date: slotForm.date, 
+        date: slotForm.dates[0], 
         yearGroup: slotForm.yearGroup, 
         foodItemId: slotForm.foodItemId || null, 
         targetQuantity: slotForm.targetQuantity, 
         description: slotForm.description || null 
       });
     } else {
-      await apiPost('/api/food-donation-slots', { 
-        tournamentId: selectedTournament, 
-        date: slotForm.date, 
-        yearGroup: slotForm.yearGroup, 
-        foodItemId: slotForm.foodItemId || null, 
-        targetQuantity: slotForm.targetQuantity, 
-        description: slotForm.description || null 
-      });
+      for (const date of slotForm.dates) {
+        await apiPost('/api/food-donation-slots', { 
+          tournamentId: selectedTournament, 
+          date, 
+          yearGroup: slotForm.yearGroup, 
+          foodItemId: slotForm.foodItemId || null, 
+          targetQuantity: slotForm.targetQuantity, 
+          description: slotForm.description || null 
+        });
+      }
     }
     queryClient.invalidateQueries({ queryKey: ['foodDonationSlots', selectedTournament] });
-    setSlotForm({ date: '', yearGroup: '', foodItemId: 0, targetQuantity: 0, description: '' });
+    setSlotForm({ dates: [], yearGroup: '', categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' });
     setEditingSlotId(null);
   };
 
@@ -94,6 +101,11 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
     return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
   }, [filteredSlots]);
 
+  // Artikel nach Kategorie filtern
+  const filteredItems = slotForm.categoryId
+    ? foodItems.filter(item => item.categoryId === slotForm.categoryId)
+    : [];
+
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>🍞 Lebensmittel-Slots (Jahrgangsplanung)</h3>
@@ -102,11 +114,11 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
       {/* Formular für Lebensmittel-Slots */}
       <div style={{ background: '#f8f9fa', padding: 20, borderRadius: 12, marginBottom: 30, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
-          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>1. Datum wählen</label>
+          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>1. Datum wählen (Mehrfachauswahl)</label>
           <p style={{ color: '#666', fontSize: 12, marginBottom: 8 }}>{tournamentDays.length} Tage: {tournamentDays.map(d => new Date(d).toLocaleDateString('de-DE')).join(', ')}</p>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {tournamentDays.map(d => (
-              <button key={d} onClick={() => setSlotForm({ ...slotForm, date: d })} style={{ padding: '8px 12px', background: slotForm.date === d ? adminPrimary : '#fff', color: slotForm.date === d ? '#fff' : '#000', border: slotForm.date === d ? 'none' : '1px solid #dee2e6', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: slotForm.date === d ? 'bold' : 'normal' }}>
+              <button key={d} onClick={() => toggleDate(d)} style={{ padding: '8px 10px', background: slotForm.dates.includes(d) ? adminPrimary : '#fff', color: slotForm.dates.includes(d) ? '#fff' : '#000', border: slotForm.dates.includes(d) ? 'none' : '1px solid #dee2e6', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: slotForm.dates.includes(d) ? 'bold' : 'normal' }}>
                 {new Date(d).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
               </button>
             ))}
@@ -119,31 +131,45 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
         </div>
 
         <div>
-          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>3. Lebensmittel (optional)</label>
+          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>3. Kategorie</label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={() => setSlotForm({ ...slotForm, categoryId: 0, foodItemId: 0 })} style={{ ...btnStyle, background: slotForm.categoryId === 0 ? adminPrimary : '#fff', color: slotForm.categoryId === 0 ? '#fff' : '#000', border: slotForm.categoryId === 0 ? 'none' : '1px solid #dee2e6' }}>
+              -- Alle Kategorien --
+            </button>
+            {foodCategories.map(cat => (
+              <button key={cat.id} onClick={() => setSlotForm({ ...slotForm, categoryId: cat.id, foodItemId: 0 })} style={{ ...btnStyle, background: slotForm.categoryId === cat.id ? adminPrimary : '#fff', color: slotForm.categoryId === cat.id ? '#fff' : '#000', border: slotForm.categoryId === cat.id ? 'none' : '1px solid #dee2e6' }}>
+                {cat.icon} {cat.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>4. Artikel</label>
           <select value={slotForm.foodItemId} onChange={e => setSlotForm({ ...slotForm, foodItemId: parseInt(e.target.value) || 0 })} style={inputStyle}>
-            <option value={0}>-- Alle Artikel --</option>
-            {foodItems.map(item => (
+            <option value={0}>-- Artikel wählen --</option>
+            {filteredItems.map(item => (
               <option key={item.id} value={item.id}>{item.name}</option>
             ))}
           </select>
         </div>
 
         <div>
-          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>4. Soll-Menge</label>
+          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>5. Soll-Menge</label>
           <input type="number" value={slotForm.targetQuantity} onChange={e => setSlotForm({ ...slotForm, targetQuantity: parseInt(e.target.value) || 0 })} placeholder="0" style={{ ...inputStyle, width: 120 }} />
         </div>
 
         <div>
-          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>5. Optionale Beschreibung</label>
+          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>6. Optionale Beschreibung</label>
           <input value={slotForm.description} onChange={e => setSlotForm({ ...slotForm, description: e.target.value })} placeholder="Besondere Hinweise..." style={{ ...inputStyle, width: '100%', maxWidth: 500 }} />
         </div>
 
         <div style={{ marginTop: 10 }}>
           <button onClick={saveSlot} style={{ padding: '10px 24px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-            {editingSlotId ? '💾 Slot speichern' : '➕ Slot erstellen'}
+            {editingSlotId ? '💾 Slot speichern' : `➕ ${slotForm.dates.length} Slot${slotForm.dates.length !== 1 ? 's' : ''} erstellen`}
           </button>
           {editingSlotId && (
-            <button onClick={() => { setEditingSlotId(null); setSlotForm({ date: '', yearGroup: '', foodItemId: 0, targetQuantity: 0, description: '' }); }} style={{ ...btnStyle, marginLeft: 10, padding: '10px 20px' }}>Abbrechen</button>
+            <button onClick={() => { setEditingSlotId(null); setSlotForm({ dates: [], yearGroup: '', categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' }); }} style={{ ...btnStyle, marginLeft: 10, padding: '10px 20px' }}>Abbrechen</button>
           )}
         </div>
       </div>
@@ -157,7 +183,7 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
         <input placeholder="Suchen..." value={filterSearch} onChange={e => setFilterSearch(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
       </div>
 
-      {/* Tabelle mit zweistufiger Hierarchie */}
+      {/* Tabelle mit Jahrgang-Hierarchie */}
       <div style={{ overflowX: 'auto' }}>
         {groupedByYear.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>Keine Lebensmittel-Slots gefunden.</div>
@@ -198,7 +224,7 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
                       <td style={tdStyle}>
                         <button onClick={() => {
                           setEditingSlotId(slot.id);
-                          setSlotForm({ date: slot.date, yearGroup: slot.yearGroup, foodItemId: slot.foodItemId || 0, targetQuantity: slot.targetQuantity, description: slot.description || '' });
+                          setSlotForm({ dates: [slot.date], yearGroup: slot.yearGroup, categoryId: slot.foodItem?.categoryId || 0, foodItemId: slot.foodItemId || 0, targetQuantity: slot.targetQuantity, description: slot.description || '' });
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', marginRight: 6 }}>✏️</button>
                         <button onClick={() => deleteSlot(slot.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>🗑️</button>
