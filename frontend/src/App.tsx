@@ -10,6 +10,7 @@ import Arbeitsbereiche from './components/admin/stammdaten/Arbeitsbereiche';
 import Zeitslots from './components/admin/stammdaten/Zeitslots';
 import Helfer from './components/admin/stammdaten/Helfer';
 import Vereine from './components/admin/stammdaten/Vereine';
+import Lebensmittel from './components/admin/stammdaten/Lebensmittel';
 
 import Jobslots from './components/admin/organisation/Jobslots';
 import Buchungen from './components/admin/organisation/Buchungen';
@@ -19,7 +20,7 @@ import { Tournament } from './components/admin/shared';
 type View = 'admin' | 'selfservice';
 type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
 type OrgTab = 'uebersicht' | 'jobslots' | 'buchungen';
-type StammTab = 'turniere' | 'vereine' | 'arbeitsbereiche' | 'zeitslots' | 'helfer';
+type StammTab = 'turniere' | 'vereine' | 'arbeitsbereiche' | 'zeitslots' | 'helfer' | 'lebensmittel';
 
 export default function App() {
   const [view, setView] = useState<View>('selfservice');
@@ -145,6 +146,7 @@ export default function App() {
           <button onClick={() => setActiveStammTab('arbeitsbereiche')} style={{ padding: '6px 16px', cursor: 'pointer', background: activeStammTab === 'arbeitsbereiche' ? '#6c757d' : '#e9ecef', color: activeStammTab === 'arbeitsbereiche' ? '#fff' : '#000', border: 'none', borderRadius: 6 }}>Arbeitsbereiche</button>
           <button onClick={() => setActiveStammTab('zeitslots')} style={{ padding: '6px 16px', cursor: 'pointer', background: activeStammTab === 'zeitslots' ? '#6c757d' : '#e9ecef', color: activeStammTab === 'zeitslots' ? '#fff' : '#000', border: 'none', borderRadius: 6 }}>Zeitslots</button>
           <button onClick={() => setActiveStammTab('helfer')} style={{ padding: '6px 16px', cursor: 'pointer', background: activeStammTab === 'helfer' ? '#6c757d' : '#e9ecef', color: activeStammTab === 'helfer' ? '#fff' : '#000', border: 'none', borderRadius: 6 }}>Helfer (Personal)</button>
+          <button onClick={() => setActiveStammTab('lebensmittel')} style={{ padding: '6px 16px', cursor: 'pointer', background: activeStammTab === 'lebensmittel' ? '#6c757d' : '#e9ecef', color: activeStammTab === 'lebensmittel' ? '#fff' : '#000', border: 'none', borderRadius: 6 }}>🍞 Lebensmittel</button>
         </nav>
       )}
 
@@ -161,6 +163,7 @@ export default function App() {
         {activeMainTab === 'stammdaten' && activeStammTab === 'arbeitsbereiche' && <Arbeitsbereiche adminPrimary="#6c757d" />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'zeitslots' && <Zeitslots adminPrimary="#6c757d" />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'helfer' && <Helfer adminPrimary="#6c757d" />}
+        {activeMainTab === 'stammdaten' && activeStammTab === 'lebensmittel' && <Lebensmittel adminPrimary="#6c757d" />}
       </main>
     </div>
   );

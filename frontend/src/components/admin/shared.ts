@@ -24,3 +24,5 @@ export interface Zeitslot { id: number; name: string; startTime: string; endTime
 export interface VolunteerShift { id: number; volunteerId: number; tournamentId: number | null; date: string; slot: string; role: string; areaId: number | null; shiftId: number | null; arbeitsbereichId?: number | null; arbeitsbereich: { id: number; name: string; icon: string; color: string } | null; volunteer?: { id: number; name: string; roles: string[] }; }
 export interface Volunteer { id: number; name: string; email: string | null; phone: string | null; roles: string[]; tournamentId: number | null; }
 export interface Club { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
+export interface FoodCategory { id: number; name: string; icon: string; order: number; items: FoodItem[]; }
+export interface FoodItem { id: number; categoryId: number; name: string; price: string | null; unit: string; category?: { id: number; name: string; icon: string }; }
