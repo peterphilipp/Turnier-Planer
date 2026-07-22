@@ -30,6 +30,8 @@ export default function SchedulerView() {
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [selectedVolunteer, setSelectedVolunteer] = useState('');
   const [newVolunteerName, setNewVolunteerName] = useState('');
+  const [showNewHelper, setShowNewHelper] = useState(false);
+  const [newHelperName, setNewHelperName] = useState('');
   const [editingShift, setEditingShift] = useState<VolunteerShift | null>(null);
   const [editSlotId, setEditSlotId] = useState<number>(0);
   const [editVolunteerId, setEditVolunteerId] = useState<number>(0);
@@ -60,6 +62,8 @@ export default function SchedulerView() {
   }, [tournaments, selectedTournament]);
 
   const busy = busySlots || busyVolShifts;
+  const [showNewHelper, setShowNewHelper] = useState(false);
+  const [newHelperName, setNewHelperName] = useState('');
 
   // Turnier-Tage
   const tournamentDays = useMemo(() => {
