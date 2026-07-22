@@ -232,10 +232,23 @@ model FoodDonation {
   @@map("food_donations")
 }
 
+model YearGroup {
+  id              Int                @id @default(autoincrement())
+  name            String             @map("name")
+  birthYearStart  Int                @map("birth_year_start")
+  birthYearEnd    Int                @map("birth_year_end")
+  order           Int                @default(0)
+  isActive        Boolean            @default(true) @map("is_active")
+  foodDonationSlots FoodDonationSlot[]
+
+  @@map("year_groups")
+}
+
 model FoodDonationSlot {
   id              Int              @id @default(autoincrement())
   tournamentId    Int              @map("tournament_id")
-  yearGroup       String           @map("year_group")
+  yearGroupId     Int?             @map("year_group_id")
+  yearGroup       YearGroup?       @relation(fields: [yearGroupId], references: [id])
   foodItemId      Int?             @map("food_item_id")
   targetQuantity  Int              @default(0) @map("target_quantity")
   collected       Int              @default(0) @map("collected")
@@ -248,5 +261,5 @@ model FoodDonationSlot {
   donations       FoodDonation[]
 
   @@map("food_donation_slots")
-  @@unique([tournamentId, yearGroup, foodItemId])
+  @@unique([tournamentId, yearGroupId, foodItemId])
 }

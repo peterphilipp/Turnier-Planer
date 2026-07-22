@@ -3,6 +3,9 @@ import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const JWT_SECRET = process.env.JWT_SECRET || 'tsv-holm-secret-2025';
 
@@ -32,12 +35,30 @@ router.post('/forgot-password', async (req, res, next) => {
       }
     });
 
-    // In Production: E-Mail senden
-    // const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
-    // await sendEmail(volunteer.email, 'Passwort zurücksetzen', `Klicke hier: ${resetUrl}`);
-
-    // Für Development: Token im Log ausgeben
-    const resetUrl = `http://localhost:5173/reset-password?token=${token}`;
+    // E-Mail über Resend senden
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
+    
+    if (resend) {
+      try {
+        await resend.emails.send({
+          from: 'Turnier-Planer <noreply@turnier-planer.mygate.dedyn.io>',
+          to: volunteer.email,
+          subject: 'Passwort zurücksetzen',
+          html: `
+            <h2>Passwort zurücksetzen</h2>
+            <p>Hallo ${volunteer.name},</p>
+            <p>Klicke auf den folgenden Link, um dein Passwort zurückzusetzen:</p>
+            <p><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#0d6efd;color:#fff;text-decoration:none;border-radius:8px;">Passwort zurücksetzen</a></p>
+            <p>Der Link ist 1 Stunde gültig.</p>
+            <p style="color:#999;font-size:12px;">Wenn du keine Passwortänderung angefordert hast, ignoriere diese E-Mail.</p>
+          `
+        });
+      } catch (emailErr) {
+        console.error('E-Mail konnte nicht gesendet werden:', emailErr);
+      }
+    }
+    
+    // Fallback: Token im Log ausgeben
     console.log(`\n🔑 PASSWORT-RESET LINK (gültig 1h):\n${resetUrl}\n`);
 
     res.json({ message: 'Wenn das Konto existiert, wurde ein Reset-Link gesendet.' });

@@ -36,6 +36,9 @@ export const getFoodDonations = () => apiFetch('/api/food/donations');
 export const getFoodDonationSlots = (tournamentId?: number | null) => 
   apiFetch(`/api/food-donation-slots?tournamentId=${tournamentId}`);
 
+// ===================== Year Groups =====================
+export const getYearGroups = () => apiFetch('/api/year-groups');
+
 // ===================== Mutations (Generic) =====================
 export const apiPost = (url: string, data: any) => 
   apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });

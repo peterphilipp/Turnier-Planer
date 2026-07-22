@@ -25,6 +25,7 @@ import clubRoutes from './routes/club.routes.js';
 import selfRoutes from './routes/self.routes.js';
 import foodRoutes from './routes/food.routes.js';
 import foodDonationSlotRoutes from './routes/foodDonationSlot.routes.js';
+import yearGroupRoutes from './routes/yearGroup.routes.js';
 // Middleware imports
 import errorHandler from './middleware/errorHandler.js';
 
@@ -50,6 +51,7 @@ app.use('/api/clubs', clubRoutes);
 app.use('/api/self', selfRoutes);
 app.use('/api/food', foodRoutes);
 app.use('/api/food-donation-slots', foodDonationSlotRoutes);
+app.use('/api/year-groups', yearGroupRoutes);
 // ===================== Serve Frontend (SPA) =====================
 const distPath = path.resolve(__dirname, '../dist');
 app.use(express.static(distPath));
