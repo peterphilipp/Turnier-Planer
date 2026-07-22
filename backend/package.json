@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
+    "start": "node --loader ts-node/esm src/server.ts",
+    "dev": "nodemon --exec \"node --loader ts-node/esm\" src/server.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev"
   },
@@ -19,7 +19,12 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "prisma": "^5.10.0"
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.1",
+    "prisma": "^5.10.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^7.0.2"
   },
   "allowScripts": {
     "@prisma/client@5.22.0": true,
