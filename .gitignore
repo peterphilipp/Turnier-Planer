@@ -7,3 +7,7 @@ build/
 prisma/migrations/
 .pnpm*
 pnpm-lock.yaml  ## für yarn
+backend/prisma/data/*.db
+backend/data/
+_data/
+
