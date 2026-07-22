@@ -26,4 +26,4 @@ export interface Volunteer { id: number; name: string; email: string | null; pho
 export interface Club { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
 export interface FoodCategory { id: number; name: string; icon: string; order: number; items: FoodItem[]; }
 export interface FoodItem { id: number; categoryId: number; name: string; price: string | null; unit: string; category?: { id: number; name: string; icon: string }; }
-export interface FoodDonationSlot { id: number; tournamentId: number; date: string; yearGroup: string; foodItemId: number | null; targetQuantity: number; collected: number; description: string | null; tournament?: { id: number; name: string }; foodItem?: { id: number; name: string; icon: string }; }
+export interface FoodDonationSlot { id: number; tournamentId: number; date: string; yearGroup: string; foodItemId: number | null; targetQuantity: number; collected: number; description: string | null; tournament?: { id: number; name: string }; foodItem?: { id: number; categoryId: number; name: string; icon: string }; }
