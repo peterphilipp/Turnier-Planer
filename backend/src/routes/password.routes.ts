@@ -5,8 +5,6 @@ import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const JWT_SECRET = process.env.JWT_SECRET || 'tsv-holm-secret-2025';
 
 const router = express.Router();
@@ -38,8 +36,9 @@ router.post('/forgot-password', async (req, res, next) => {
     // E-Mail über Resend senden
     const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
     
-    if (resend) {
+    if (process.env.RESEND_API_KEY) {
       try {
+        const resend = new Resend(process.env.RESEND_API_KEY);
         await resend.emails.send({
           from: 'Turnier-Planer <noreply@turnier-planer.mygate.dedyn.io>',
           to: volunteer.email,
@@ -56,6 +55,8 @@ router.post('/forgot-password', async (req, res, next) => {
       } catch (emailErr) {
         console.error('E-Mail konnte nicht gesendet werden:', emailErr);
       }
+    } else {
+      console.log('\n📧 RESEND_API_KEY nicht gesetzt — Reset-Link nur im Log:\n' + resetUrl + '\n');
     }
     
     // Fallback: Token im Log ausgeben
