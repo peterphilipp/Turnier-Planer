@@ -82,6 +82,8 @@ model Volunteer {
   name       String
   email      String?          @map("email")
   phone      String?          @map("phone")
+  childName  String?          @map("child_name")
+  childYear  Int?             @map("child_year")
   password   String?          @map("password")
   roles      String
   tournamentId Int?           @map("tournament_id")

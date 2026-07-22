@@ -8,7 +8,7 @@ interface Shift {
   maxVolunteers: number;
 }
 interface VolunteerShift { id: number; volunteerId: number; date: string; slot: string; role: string; areaId: string | null; shiftId: number | null; shift: { id: number; date: string; slot: string; zeitslot: { name: string; startTime: string; endTime: string; color: string } | null; arbeitsbereich: { name: string; icon: string; color: string } | null; arbeitsbereichId: number | null; maxVolunteers: number; } | null; }
-interface Volunteer { id: number; name: string; email: string | null; phone: string | null; }
+interface Volunteer { id: number; name: string; email: string | null; phone: string | null; childName: string | null; childYear: number | null; }
 interface Club { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
 
 export default function SelfServiceView() {
@@ -29,6 +29,14 @@ export default function SelfServiceView() {
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
+  const [regChildName, setRegChildName] = useState('');
+  const [regChildYear, setRegChildYear] = useState('');
+  const [showProfile, setShowProfile] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editChildName, setEditChildName] = useState('');
+  const [editChildYear, setEditChildYear] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
@@ -296,6 +304,10 @@ export default function SelfServiceView() {
             <input type="text" placeholder="Vor- und Nachname" value={regName} onChange={e => setRegName(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <input type="email" placeholder="Email-Adresse" value={regEmail} onChange={e => setRegEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <input type="tel" placeholder="Handynummer (optional)" value={regPhone} onChange={e => setRegPhone(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <input type="text" placeholder="Name des Kindes (optional)" value={regChildName} onChange={e => setRegChildName(e.target.value)} style={{ flex: 1, padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+              <input type="number" placeholder="Jahrgang" value={regChildYear} onChange={e => setRegChildYear(e.target.value)} style={{ width: 100, padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            </div>
             <input type="password" placeholder="Passwort" value={regPassword} onChange={e => setRegPassword(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <input type="password" placeholder="Passwort bestaetigen" value={regPasswordConfirm} onChange={e => setRegPasswordConfirm(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <button onClick={async () => {
@@ -306,7 +318,7 @@ export default function SelfServiceView() {
                 const res = await fetch('/api/auth/register', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ name: regName, email: regEmail, phone: regPhone || null, password: regPassword }),
+                  body: JSON.stringify({ name: regName, email: regEmail, phone: regPhone || null, password: regPassword, childName: regChildName || null, childYear: regChildYear ? parseInt(regChildYear) : null }),
                 });
                 if (res.ok) {
                   const data = await res.json();
@@ -321,6 +333,50 @@ export default function SelfServiceView() {
               } catch { alert('Fehler bei der Registrierung'); }
             }} style={{ padding: '16px', background: clubAccent, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Registrieren</button>
             <button onClick={() => setShowRegisterForm(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Zurueck zum Login</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ===== PROFIL BEARBEITEN ===== */
+  if (showProfile) {
+    return (
+      <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + shadeColor(clubPrimary, 30) + ' 0%, ' + clubPrimary + ' 100%)', boxSizing: 'border-box' }}>
+        <div style={{ background: '#fff', borderRadius: 16, padding: isMobile ? 24 : 40, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div style={{ fontSize: isMobile ? 48 : 64, marginBottom: 8 }}>👤</div>
+            <h2 style={{ margin: 0, color: '#333' }}>Profil bearbeiten</h2>
+            <p style={{ color: '#666', fontSize: 14, marginTop: 4 }}>Ändere deine Daten</p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <input type="text" placeholder="Vor- und Nachname" value={editName} onChange={e => setEditName(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            <input type="email" placeholder="Email-Adresse" value={editEmail} onChange={e => setEditEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            <input type="tel" placeholder="Handynummer" value={editPhone} onChange={e => setEditPhone(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <input type="text" placeholder="Name des Kindes (optional)" value={editChildName} onChange={e => setEditChildName(e.target.value)} style={{ flex: 1, padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+              <input type="number" placeholder="Jahrgang" value={editChildYear} onChange={e => setEditChildYear(e.target.value)} style={{ width: 100, padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+            <button onClick={async () => {
+              try {
+                const res = await fetch('/api/auth/profile', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+                  body: JSON.stringify({ name: editName, email: editEmail, phone: editPhone, childName: editChildName || null, childYear: editChildYear ? parseInt(editChildYear) : null }),
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  setVolunteer(data);
+                  localStorage.setItem('volunteer', JSON.stringify(data));
+                  setShowProfile(false);
+                  alert('Profil aktualisiert!');
+                } else {
+                  const err = await res.json();
+                  alert(err.error);
+                }
+              } catch { alert('Fehler beim Aktualisieren'); }
+            }} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Speichern</button>
+            <button onClick={() => setShowProfile(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Abbrechen</button>
           </div>
         </div>
       </div>
@@ -353,6 +409,15 @@ export default function SelfServiceView() {
               <div style={{ fontWeight: 'bold', fontSize: 15 }}>{volunteer?.name}</div>
               <div style={{ fontSize: 12, color: '#999' }}>{volunteer?.email || ''}</div>
             </div>
+            <button onClick={() => {
+              setMenuOpen(false);
+              setShowProfile(true);
+              setEditName(volunteer?.name || '');
+              setEditEmail(volunteer?.email || '');
+              setEditPhone(volunteer?.phone || '');
+              setEditChildName(volunteer?.childName || '');
+              setEditChildYear(volunteer?.childYear ? String(volunteer.childYear) : '');
+            }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>👤 Profil bearbeiten</button>
             <button onClick={() => {
               setMenuOpen(false);
               const pw = prompt('Neues Passwort:');
