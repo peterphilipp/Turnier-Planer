@@ -23,6 +23,7 @@ model Tournament {
   shifts          Shift[]
   volunteerShifts VolunteerShift[]
   donations       FoodDonation[]
+  foodDonationSlots FoodDonationSlot[]
 
   @@map("tournaments")
 }
@@ -194,24 +195,44 @@ model FoodItem {
   name        String
   price       String?        @map("price")
   unit        String         @default("Stk")
-  donations   FoodDonation[]
-  createdAt   DateTime       @default(now())
+  donations        FoodDonation[]
+  foodDonationSlots FoodDonationSlot[]
+  createdAt        DateTime       @default(now())
 
   @@map("food_items")
 }
 
 model FoodDonation {
-  id            Int          @id @default(autoincrement())
-  tournamentId  Int          @map("tournament_id")
-  volunteerId   Int          @map("volunteer_id")
-  foodItemId    Int          @map("food_item_id")
-  quantity      Int
-  note          String?
-  createdAt     DateTime     @default(now())
+  id                 Int                @id @default(autoincrement())
+  tournamentId       Int                @map("tournament_id")
+  volunteerId        Int                @map("volunteer_id")
+  foodDonationSlotId Int?               @map("food_donation_slot_id")
+  foodItemId         Int                @map("food_item_id")
+  quantity            Int
+  note               String?
+  createdAt          DateTime           @default(now())
 
-  tournament    Tournament   @relation(fields: [tournamentId], references: [id])
-  volunteer     Volunteer    @relation(fields: [volunteerId], references: [id])
-  foodItem      FoodItem     @relation(fields: [foodItemId], references: [id])
+  tournament         Tournament         @relation(fields: [tournamentId], references: [id])
+  volunteer          Volunteer          @relation(fields: [volunteerId], references: [id])
+  foodItem           FoodItem           @relation(fields: [foodItemId], references: [id])
+  foodDonationSlot   FoodDonationSlot?  @relation(fields: [foodDonationSlotId], references: [id])
 
   @@map("food_donations")
+}
+
+model FoodDonationSlot {
+  id              Int              @id @default(autoincrement())
+  tournamentId    Int              @map("tournament_id")
+  date            DateTime
+  yearGroup       String           @map("year_group")
+  foodItemId      Int?             @map("food_item_id")
+  targetQuantity  Int              @default(0) @map("target_quantity")
+  collected       Int              @default(0) @map("collected")
+  description     String?          @map("description")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  tournament      Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  foodItem        FoodItem?        @relation(fields: [foodItemId], references: [id])
+  donations       FoodDonation[]
+
+  @@map("food_donation_slots")
 }
