@@ -6,6 +6,8 @@ services:
       - "5000:5000"
     environment:
       DATABASE_URL: "file:./data/dev.db"
+      RESEND_API_KEY: "re_3PGBqyUu_CMQinfQVh4VeWx3YfaCQ44qA"
+      FRONTEND_URL: "https://turnier-planer.mygate.dedyn.io"
     volumes:
       - db-data:/app/data
 

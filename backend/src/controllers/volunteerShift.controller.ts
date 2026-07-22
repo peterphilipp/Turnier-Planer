@@ -17,6 +17,7 @@ export const getVolunteerShifts = async (req: Request, res: Response) => {
   const shifts = await prisma.volunteerShift.findMany({
     where,
     orderBy: { date: 'asc' },
+    include: { volunteer: true },
   });
   return res.json(shifts || []);
 };

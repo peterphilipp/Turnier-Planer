@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getFoodDonationSlots, getFoodCategories, getFoodItems, apiPost, apiPatch, apiDelete } from '../../../api';
-import { tdStyle, thStyle, btnStyle, inputStyle, FoodDonationSlot, FoodItem, FoodCategory, Tournament } from '../shared';
+import { getFoodDonationSlots, getYearGroups, getFoodCategories, getFoodItems, apiPost, apiPatch, apiDelete } from '../../../api';
+import { tdStyle, thStyle, btnStyle, inputStyle, FoodDonationSlot, YearGroup, FoodItem, FoodCategory, Tournament } from '../shared';
 
 export default function LebensmittelSlots({ selectedTournament, tournament, adminPrimary }: { selectedTournament: number | null, tournament: Tournament | null, adminPrimary: string }) {
   const queryClient = useQueryClient();
@@ -12,38 +12,41 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
     enabled: !!selectedTournament
   });
   
+  const { data: yearGroups = [] } = useQuery<YearGroup[]>({ queryKey: ['yearGroups'], queryFn: getYearGroups });
   const { data: foodCategories = [] } = useQuery<FoodCategory[]>({ queryKey: ['foodCategories'], queryFn: getFoodCategories });
   const { data: foodItems = [] } = useQuery<FoodItem[]>({ queryKey: ['foodItems'], queryFn: getFoodItems });
   
   const [editingSlotId, setEditingSlotId] = useState<number | null>(null);
-  const [slotForm, setSlotForm] = useState({ yearGroup: '', categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' });
+  const [slotForm, setSlotForm] = useState({ yearGroupIds: [] as number[], categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' });
   
   const [filterYear, setFilterYear] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
 
   const saveSlot = async () => {
-    if (!selectedTournament || !slotForm.yearGroup) {
-      return alert('Bitte Jahrgang wählen.');
+    if (!selectedTournament || slotForm.yearGroupIds.length === 0) {
+      return alert('Bitte mindestens einen Jahrgang wählen.');
     }
     
     if (editingSlotId) {
       await apiPatch(`/api/food-donation-slots/${editingSlotId}`, { 
-        yearGroup: slotForm.yearGroup, 
+        yearGroupId: slotForm.yearGroupIds[0], 
         foodItemId: slotForm.foodItemId || null,
         targetQuantity: slotForm.targetQuantity, 
         description: slotForm.description || null 
       });
     } else {
-      await apiPost('/api/food-donation-slots', { 
-        tournamentId: selectedTournament, 
-        yearGroup: slotForm.yearGroup, 
-        foodItemId: slotForm.foodItemId || null,
-        targetQuantity: slotForm.targetQuantity, 
-        description: slotForm.description || null 
-      });
+      for (const yearGroupId of slotForm.yearGroupIds) {
+        await apiPost('/api/food-donation-slots', { 
+          tournamentId: selectedTournament, 
+          yearGroupId, 
+          foodItemId: slotForm.foodItemId || null,
+          targetQuantity: slotForm.targetQuantity, 
+          description: slotForm.description || null 
+        });
+      }
     }
     queryClient.invalidateQueries({ queryKey: ['foodDonationSlots', selectedTournament] });
-    setSlotForm({ yearGroup: '', categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' });
+    setSlotForm({ yearGroupIds: [], categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' });
     setEditingSlotId(null);
   };
 
@@ -57,29 +60,16 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
     return <div style={{ padding: 24, background: '#fff', borderRadius: 16 }}>Bitte wähle zunächst oben ein Turnier aus.</div>;
   }
 
-  // Turnier-Tage generieren
-  const tournamentDays = useMemo(() => {
-    if (!tournament?.startDate || !tournament?.endDate) return [];
-    const days: string[] = [];
-    const start = new Date(tournament.startDate);
-    const end = new Date(tournament.endDate);
-    const current = new Date(start);
-    while (current <= end) {
-      days.push(current.toISOString().split('T')[0]);
-      current.setDate(current.getDate() + 1);
-    }
-    return days;
-  }, [tournament]);
-
   const sortedSlots = [...slots].sort((a, b) => {
-    if (a.yearGroup !== b.yearGroup) return a.yearGroup.localeCompare(b.yearGroup);
-    if (a.foodItemId && b.foodItemId) return a.foodItemId - b.foodItemId;
-    return 0;
+    const aYear = a.yearGroup?.name || '';
+    const bYear = b.yearGroup?.name || '';
+    return aYear.localeCompare(bYear);
   });
 
   const filteredSlots = sortedSlots.filter(s => {
-    if (filterYear && s.yearGroup !== filterYear) return false;
-    if (filterSearch && !s.yearGroup.toLowerCase().includes(filterSearch.toLowerCase())) return false;
+    const yearName = s.yearGroup?.name || '';
+    if (filterYear && !yearName.toLowerCase().includes(filterYear.toLowerCase())) return false;
+    if (filterSearch && !yearName.toLowerCase().includes(filterSearch.toLowerCase())) return false;
     return true;
   });
 
@@ -87,7 +77,7 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
   const groupedByYear = useMemo(() => {
     const groups: Record<string, FoodDonationSlot[]> = {};
     filteredSlots.forEach(slot => {
-      const key = slot.yearGroup;
+      const key = slot.yearGroup?.name || 'Ohne Jahrgang';
       if (!groups[key]) groups[key] = [];
       groups[key].push(slot);
     });
@@ -98,7 +88,7 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
   const totalsByYear = useMemo(() => {
     const totals: Record<string, { target: number; collected: number }> = {};
     filteredSlots.forEach(slot => {
-      const key = slot.yearGroup;
+      const key = slot.yearGroup?.name || 'Ohne Jahrgang';
       if (!totals[key]) totals[key] = { target: 0, collected: 0 };
       totals[key].target += slot.targetQuantity;
       totals[key].collected += slot.collected;
@@ -111,6 +101,19 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
     ? foodItems.filter(item => item.categoryId === slotForm.categoryId)
     : [];
 
+  const toggleYearGroup = (yg: number) => {
+    if (editingSlotId) { setSlotForm({ ...slotForm, yearGroupIds: [yg] }); return; }
+    setSlotForm(prev => ({
+      ...prev,
+      yearGroupIds: prev.yearGroupIds.includes(yg) ? prev.yearGroupIds.filter(x => x !== yg) : [...prev.yearGroupIds, yg]
+    }));
+  };
+
+  const getYearName = (id: number | null) => {
+    if (!id) return 'Ohne Jahrgang';
+    return yearGroups.find(yg => yg.id === id)?.name || `Jahrgang #${id}`;
+  };
+
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>Lebensmittel-Slots (turnierweit)</h3>
@@ -119,8 +122,18 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
       {/* Formular für Lebensmittel-Slots */}
       <div style={{ background: '#f8f9fa', padding: 20, borderRadius: 12, marginBottom: 30, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
-          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>1. Jahrgang (Kind-Jahrgang)</label>
-          <input type="text" value={slotForm.yearGroup} onChange={e => setSlotForm({ ...slotForm, yearGroup: e.target.value })} placeholder="z.B. 2016, 2017, 2018..." style={inputStyle} />
+          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>1. Jahrgang(e) {editingSlotId ? '(Nur einer)' : '(Mehrfachauswahl)'}</label>
+          <p style={{ color: '#666', fontSize: 12, marginBottom: 8 }}>{yearGroups.length} Jahrgänge verfügbar</p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {yearGroups.filter(yg => yg.isActive).map(yg => {
+              const isSelected = slotForm.yearGroupIds.includes(yg.id);
+              return (
+                <button key={yg.id} type="button" onClick={() => toggleYearGroup(yg.id)} style={{ padding: '8px 14px', background: isSelected ? adminPrimary : '#fff', color: isSelected ? '#fff' : '#000', border: isSelected ? 'none' : '1px solid #dee2e6', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: isSelected ? 'bold' : 'normal' }}>
+                  {yg.name} ({yg.birthYearStart}–{yg.birthYearEnd})
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div>
@@ -164,10 +177,10 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
 
         <div style={{ marginTop: 10 }}>
           <button onClick={saveSlot} style={{ padding: '10px 24px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-            {editingSlotId ? '💾 Slot speichern' : '➕ Slot erstellen'}
+            {editingSlotId ? '💾 Slot speichern' : `➕ ${slotForm.yearGroupIds.length} Slot${slotForm.yearGroupIds.length > 1 ? 's' : ''} erstellen`}
           </button>
           {editingSlotId && (
-            <button onClick={() => { setEditingSlotId(null); setSlotForm({ yearGroup: '', categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' }); }} style={{ ...btnStyle, marginLeft: 10, padding: '10px 20px' }}>Abbrechen</button>
+            <button onClick={() => { setEditingSlotId(null); setSlotForm({ yearGroupIds: [], categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' }); }} style={{ ...btnStyle, marginLeft: 10, padding: '10px 20px' }}>Abbrechen</button>
           )}
         </div>
       </div>
@@ -186,13 +199,13 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
         {groupedByYear.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>Keine Lebensmittel-Slots gefunden.</div>
         ) : (
-          groupedByYear.map(([yearGroup, slots]) => {
-            const totals = totalsByYear[yearGroup] || { target: 0, collected: 0 };
+          groupedByYear.map(([yearName, slots]) => {
+            const totals = totalsByYear[yearName] || { target: 0, collected: 0 };
             const progress = totals.target > 0 ? Math.min(100, (totals.collected / totals.target) * 100) : 0;
             return (
-              <div key={yearGroup} style={{ marginBottom: 24 }}>
+              <div key={yearName} style={{ marginBottom: 24 }}>
                 <h4 style={{ background: '#f8f9fa', padding: '12px 16px', borderRadius: 10, marginTop: 0, fontSize: 16, fontWeight: '600', borderLeft: '4px solid ' + adminPrimary }}>
-                  Jahrgang {yearGroup} <span style={{ float: 'right', fontSize: 14, color: '#666' }}>{totals.collected} / {totals.target} gesamt</span>
+                  {yearName} <span style={{ float: 'right', fontSize: 14, color: '#666' }}>{totals.collected} / {totals.target} gesamt</span>
                 </h4>
                 <div style={{ background: '#e9ecef', borderRadius: 4, height: 12, overflow: 'hidden', marginBottom: 12 }}>
                   <div style={{ 
@@ -215,7 +228,7 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
                   <tbody>
                     {slots.map(slot => (
                       <tr key={slot.id} style={{ borderBottom: '1px solid #eee' }}>
-                        <td style={tdStyle}>{slot.foodItem ? `${slot.foodItem.icon} ${slot.foodItem.name}` : 'Alle'}</td>
+                        <td style={tdStyle}>{slot.foodItem ? `${slot.foodItem.category?.icon ?? '🍽️'} ${slot.foodItem.name}` : 'Alle'}</td>
                         <td style={tdStyle}>{slot.targetQuantity} <span style={{ color: '#666', fontSize: 12 }}>{slot.foodItem?.unit || 'Stk'}</span></td>
                         <td style={tdStyle}>{slot.collected} <span style={{ color: '#666', fontSize: 12 }}>{slot.foodItem?.unit || 'Stk'}</span></td>
                         <td style={tdStyle}>
@@ -232,7 +245,7 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
                         <td style={tdStyle}>
                           <button onClick={() => {
                             setEditingSlotId(slot.id);
-                            setSlotForm({ yearGroup: slot.yearGroup, categoryId: slot.foodItem?.categoryId || 0, foodItemId: slot.foodItemId || 0, targetQuantity: slot.targetQuantity, description: slot.description || '' });
+                            setSlotForm({ yearGroupIds: [slot.yearGroupId || 0], categoryId: slot.foodItem?.categoryId || 0, foodItemId: slot.foodItemId || 0, targetQuantity: slot.targetQuantity, description: slot.description || '' });
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', marginRight: 6 }}>✏️</button>
                           <button onClick={() => deleteSlot(slot.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>🗑️</button>

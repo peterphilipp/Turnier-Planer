@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getTournaments, getVolunteers, getZeitSlots, getShifts, getVolunteerShifts, getArbeitsbereiche, apiPost, apiDelete, apiPatch } from '../../../api';
 
@@ -97,6 +97,17 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
     return map;
   }, [volunteerShifts, jobSlots, selectedTournament, selectedDate]);
 
+  // Expandierte Slots
+  const [expandedSlots, setExpandedSlots] = useState<Set<number>>(new Set());
+  const toggleSlot = (slotId: number) => {
+    setExpandedSlots(prev => {
+      const next = new Set(prev);
+      if (next.has(slotId)) next.delete(slotId);
+      else next.add(slotId);
+      return next;
+    });
+  };
+
   // Helfer-Status pro Tag
   const helperStatusByDay = useMemo(() => {
     if (!selectedTournament) return {};
@@ -192,8 +203,8 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
   const btnStyle: React.CSSProperties = { padding: '4px 10px', cursor: 'pointer', border: '1px solid #ced4da', borderRadius: 4, background: '#e9ecef', fontSize: 12 };
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 1200, margin: '0 auto' }}>
-      <h2 style={{ marginBottom: 16 }}>📅 Dienstplan</h2>
+    <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
+      <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>📅 Dienstplan & Zuweisung</h3>
 
       {!selectedTournament ? <div style={{ padding: 24, background: '#fff', borderRadius: 16 }}>Bitte wähle zunächst oben ein Turnier aus.</div> : (
         <>
@@ -313,8 +324,8 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
                     <th style={{ ...thStyle, width: 180 }}>Zeitslot</th>
                     <th style={thStyle}>Bereich</th>
                     <th style={{ ...thStyle, textAlign: 'center', width: 80 }}>Status</th>
-                    <th style={{ ...thStyle, width: 250 }}>Helfer</th>
-                    <th style={{ ...thStyle, textAlign: 'center', width: 100 }}>Aktionen</th>
+                    <th style={{ ...thStyle, width: 200 }}>Helfer ({filteredSlots.reduce((sum, s) => sum + (slotAssignments[s.id] || []).length, 0)})</th>
+                    <th style={{ ...thStyle, textAlign: 'center', width: 60 }}>Details</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -322,83 +333,99 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
                     const status = getSlotStatus(slot.id);
                     const assignments = slotAssignments[slot.id] || [];
                     const area = slot.arbeitsbereich;
+                    const isExpanded = expandedSlots.has(slot.id);
                     return (
-                      <tr key={slot.id} style={{ borderBottom: '1px solid #e9ecef' }}>
-                        <td style={{ ...tdStyle, fontSize: 12 }}>
-                          {slot.zeitslot ? (
-                            <span style={{
-                              background: slot.zeitslot.color || '#3b98f8',
-                              color: '#fff',
-                              padding: '3px 8px',
-                              borderRadius: 4,
-                              fontSize: 12,
-                              fontWeight: 'bold',
-                            }}>{slot.zeitslot.name}</span>
-                          ) : <span style={{ color: '#adb5bd' }}>–</span>}
-                          <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
-                            {slot.zeitslot?.startTime} – {slot.zeitslot?.endTime}
-                          </div>
-                        </td>
-                        <td style={tdStyle}>
-                          {area ? (
-                            <span style={{
-                              background: area.color || '#3b98f8',
-                              color: '#fff',
-                              padding: '3px 8px',
-                              borderRadius: 4,
-                              fontSize: 12,
-                            }}>{area.icon} {area.name}</span>
-                          ) : '–'}
-                          <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
-                            Max. {slot.maxVolunteers} Helfer
-                          </div>
-                        </td>
-                        <td style={{ ...tdStyle, textAlign: 'center', fontSize: 16 }}>
-                          <span style={{ color: status.color, fontWeight: 'bold' }}>{status.emoji}</span>
-                          <div style={{ fontSize: 11, color: status.color }}>{status.label}</div>
-                        </td>
-                        <td style={tdStyle}>
-                          {assignments.length === 0 && (
-                            <span style={{ color: '#adb5bd', fontSize: 12, fontStyle: 'italic' }}>Keine Helfer zugewiesen</span>
-                          )}
-                          {assignments.map(vs => (
-                            <div key={vs.id} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                              <span style={{ background: '#e7f3ff', color: '#0d6efd', padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 'bold' }}>
-                                {vs.volunteer?.name || '?'}
-                              </span>
-                              <button onClick={() => removeAssignment(vs.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', padding: '1px 6px', fontSize: 10 }}>✕</button>
+                      <Fragment key={`frag-${slot.id}`}>
+                        <tr key={slot.id} style={{ borderBottom: '1px solid #e9ecef', cursor: 'pointer' }} onClick={() => toggleSlot(slot.id)}>
+                          <td style={{ ...tdStyle, fontSize: 12 }}>
+                            {slot.zeitslot ? (
+                              <span style={{
+                                background: slot.zeitslot.color || '#3b98f8',
+                                color: '#fff',
+                                padding: '3px 8px',
+                                borderRadius: 4,
+                                fontSize: 12,
+                                fontWeight: 'bold',
+                              }}>{slot.zeitslot.name}</span>
+                            ) : <span style={{ color: '#adb5bd' }}>–</span>}
+                            <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+                              {slot.zeitslot?.startTime} – {slot.zeitslot?.endTime}
                             </div>
-                          ))}
-                          {/* Zuweisen */}
-                          {selectedVolunteer && !assignments.some(a => a.volunteerId === parseInt(selectedVolunteer)) && (
-                            <button onClick={async () => {
-                              await assignToSlot(slot.id);
-                              const name = volunteers.find(v => v.id === parseInt(selectedVolunteer))?.name || 'Helfer';
-                              const slotName = slot.zeitslot?.name || slot.slot || '–';
-                              alert(`✅ ${name} → ${slotName}`);
-                            }}
-                              style={{ width: '100%', marginTop: 4, padding: '4px 0', background: '#d1e7dd', color: '#0f5132', border: '1px solid #a3cfbb', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
-                              + {volunteers.find(v => v.id === parseInt(selectedVolunteer))?.name}
-                            </button>
-                          )}
-                        </td>
-                        <td style={{ ...tdStyle, textAlign: 'center' }}>
-                          {assignments.length > 0 && (
-                            <button onClick={() => {
-                              const vs = assignments[0];
-                              setEditingShift(vs);
-                              setEditVolunteerId(vs.volunteerId);
-                              setEditAreaId(vs.arbeitsbereichId ?? vs.areaId);
-                              const matchedSlot = jobSlots.find(s =>
-                                s.tournamentId === selectedTournament &&
-                                s.date.split('T')[0] === new Date(vs.date).toISOString().split('T')[0] &&
-                                (!s.arbeitsbereichId || String(s.arbeitsbereichId) === String(vs.arbeitsbereichId ?? vs.areaId))
-                              );
-                              setEditSlotId(matchedSlot?.zeitslotId || 0);
-                            }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', marginRight: 2, fontSize: 11 }}>✏️</button>
-                          )}
-                        </td>
-                      </tr>
+                          </td>
+                          <td style={tdStyle}>
+                            {area ? (
+                              <span style={{
+                                background: area.color || '#3b98f8',
+                                color: '#fff',
+                                padding: '3px 8px',
+                                borderRadius: 4,
+                                fontSize: 12,
+                              }}>{area.icon} {area.name}</span>
+                            ) : '–'}
+                            <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+                              Max. {slot.maxVolunteers} Helfer
+                            </div>
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'center', fontSize: 16 }}>
+                            <span style={{ color: status.color, fontWeight: 'bold' }}>{status.emoji}</span>
+                            <div style={{ fontSize: 11, color: status.color }}>{status.label}</div>
+                          </td>
+                          <td style={tdStyle}>
+                            {assignments.length > 0 ? (
+                              <span style={{ background: '#d1e7dd', color: '#0f5132', padding: '2px 10px', borderRadius: 6, fontWeight: 'bold', fontSize: 13 }}>
+                                {assignments.length} / {slot.maxVolunteers} Helfer
+                              </span>
+                            ) : (
+                              <span style={{ color: '#adb5bd', fontSize: 12, fontStyle: 'italic' }}>0 / {slot.maxVolunteers}</span>
+                            )}
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'center', fontSize: 18 }}>
+                            {assignments.length > 0 ? (isExpanded ? '▼' : '▶') : '–'}
+                          </td>
+                        </tr>
+                        {/* Aufgeklappte Helfer-Details */}
+                        {isExpanded && (
+                          <tr key={`${slot.id}-detail`} style={{ background: '#f8f9fa' }}>
+                            <td colSpan={4} style={{ padding: 0 }}>
+                              <div style={{ padding: '12px 16px' }}>
+                                <div style={{ fontSize: 13, fontWeight: 'bold', color: '#495057', marginBottom: 8 }}>
+                                  📋 Zugewiesene Helfer ({assignments.length})
+                                </div>
+                                {assignments.length === 0 ? (
+                                  <div style={{ color: '#adb5bd', fontSize: 13, fontStyle: 'italic' }}>Keine Helfer zugewiesen</div>
+                                ) : (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                    {assignments.map(vs => (
+                                      <div key={vs.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: '6px 10px', minWidth: 180 }}>
+                                        <span style={{ background: '#e7f3ff', color: '#0d6efd', padding: '2px 10px', borderRadius: 6, fontSize: 13, fontWeight: 'bold' }}>
+                                          {vs.volunteer?.name || '?'}
+                                        </span>
+                                        <span style={{ color: '#6c757d', fontSize: 12 }}>{vs.volunteer?.phone ? vs.volunteer.phone.replace(/(.{3}).*({.*})/, '$1…$2') : ''}</span>
+                                        <button onClick={(e) => { e.stopPropagation(); removeAssignment(vs.id); }} style={{ background: '#ffe3e3', color: '#dc3545', border: 'none', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>✕</button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {/* Schnell-Zuweisung */}
+                                {selectedVolunteer && !assignments.some(a => a.volunteerId === parseInt(selectedVolunteer)) && (
+                                  <div style={{ marginTop: 10 }}>
+                                    <button onClick={async (e) => {
+                                      e.stopPropagation();
+                                      await assignToSlot(slot.id);
+                                      queryClient.invalidateQueries({ queryKey: ['volunteerShifts', selectedTournament] });
+                                      const name = volunteers.find(v => v.id === parseInt(selectedVolunteer))?.name || 'Helfer';
+                                      alert(`✅ ${name} zugewiesen`);
+                                    }}
+                                      style={{ padding: '6px 14px', background: '#d1e7dd', color: '#0f5132', border: '1px solid #a3cfbb', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+                                      + {volunteers.find(v => v.id === parseInt(selectedVolunteer))?.name} hinzufügen
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     );
                   })}
                 </tbody>
@@ -408,8 +435,6 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
         </>
       )}
 
-
-      {/* ==================== HELFER TAB ==================== */}
       {/* Edit Modal */}
       {editingShift && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}

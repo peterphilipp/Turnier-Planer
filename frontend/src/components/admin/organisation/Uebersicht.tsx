@@ -1,8 +1,20 @@
+import { useState, Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getShifts, getVolunteerShifts } from '../../../api';
 import { Shift, VolunteerShift, thStyle, tdStyle } from '../shared';
 
 export default function Uebersicht({ selectedTournament }: { selectedTournament: number | null }) {
+  // Hooks MÜSSEN vor allen early returns stehen
+  const [expandedSlots, setExpandedSlots] = useState<Set<number>>(new Set());
+  const toggleSlot = (slotId: number) => {
+    setExpandedSlots(prev => {
+      const next = new Set(prev);
+      if (next.has(slotId)) next.delete(slotId);
+      else next.add(slotId);
+      return next;
+    });
+  };
+
   const { data: jobSlots = [], isFetching: busySlots } = useQuery<Shift[]>({
     queryKey: ['shifts', selectedTournament],
     queryFn: () => getShifts(selectedTournament),
@@ -56,7 +68,7 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
           <div key={dateStr} style={{ marginBottom: 24 }}>
             <h4 style={{ background: '#f8f9fa', padding: '14px 18px', borderRadius: 10, marginTop: 0, fontSize: 16, fontWeight: '600', border: '1px solid #e9ecef' }}>
               📅 {dateStr} ({dayName})
-              <span style={{ float: 'right', fontSize: 14, color: '#666' }}>{slots.length} Schichten</span>
+              <span style={{ float: 'right', fontSize: 14, color: '#666' }}>{slots.length} Schichten · {slots.reduce((sum, s) => sum + volunteerShifts.filter(vs => vs.shiftId === s.id).length, 0)} Helfer</span>
             </h4>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
@@ -64,39 +76,75 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
                   <tr>
                     <th style={{ ...thStyle, borderTopLeftRadius: 12 }}>Zeitslot</th>
                     <th style={thStyle}>Bereich</th>
-                    <th style={thStyle}>Belegt</th>
-                    <th style={{ ...thStyle, borderTopRightRadius: 12 }}>Max. Helfer</th>
+                    <th style={{ ...thStyle, textAlign: 'center' }}>Belegt</th>
+                    <th style={{ ...thStyle, textAlign: 'center' }}>Max.</th>
+                    <th style={{ ...thStyle, borderTopRightRadius: 12, textAlign: 'center' }}>Helfer</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {slots.map(slot => (
-                    <tr key={slot.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                      <td style={{ ...tdStyle, fontWeight: '600' }}>
-                        {slot.zeitslot ? (
-                          <span style={{ background: slot.zeitslot.color || '#3b98f8', color: '#fff', padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: '600' }}>
-                            {slot.zeitslot.name} ({slot.zeitslot.startTime} - {slot.zeitslot.endTime})
-                          </span>
-                        ) : <span style={{ color: '#adb5bd' }}>–</span>}
-                      </td>
-                      <td style={tdStyle}>
-                        {slot.arbeitsbereich ? (
-                          <span style={{ background: slot.arbeitsbereich.color || '#6c757d', color: '#fff', padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: '600' }}>
-                            {slot.arbeitsbereich.icon} {slot.arbeitsbereich.name}
-                          </span>
-                        ) : '–'}
-                      </td>
-                      <td style={{ ...tdStyle, textAlign: 'center', fontWeight: '600' }}>
-                        {(() => {
-                          const count = volunteerShifts.filter(vs => vs.shiftId === slot.id).length;
-                          const status = count >= (slot.maxVolunteers || 0) ? 'full' : count > 0 ? 'partial' : 'empty';
-                          const color = status === 'full' ? '#198754' : status === 'partial' ? '#ffc107' : '#dc3545';
-                          const emoji = status === 'full' ? '🟢' : status === 'partial' ? '🟡' : '🔴';
-                          return <span style={{ color, fontWeight: 'bold' }}>{emoji} {count}/{slot.maxVolunteers}</span>;
-                        })()}
-                      </td>
-                      <td style={{ ...tdStyle, textAlign: 'center', fontWeight: '600', color: '#666' }}>{slot.maxVolunteers}</td>
-                    </tr>
-                  ))}
+                  {slots.map(slot => {
+                    const assigned = volunteerShifts.filter(vs => vs.shiftId === slot.id);
+                    const isExpanded = expandedSlots.has(slot.id);
+                    return (
+                      <Fragment key={`frag-${slot.id}`}>
+                        <tr key={slot.id} style={{ borderBottom: '1px solid #f0f0f0', cursor: 'pointer' }} onClick={() => toggleSlot(slot.id)}>
+                          <td style={{ ...tdStyle, fontWeight: '600' }}>
+                            {slot.zeitslot ? (
+                              <span style={{ background: slot.zeitslot.color || '#3b98f8', color: '#fff', padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: '600' }}>
+                                {slot.zeitslot.name} ({slot.zeitslot.startTime} - {slot.zeitslot.endTime})
+                              </span>
+                            ) : <span style={{ color: '#adb5bd' }}>–</span>}
+                          </td>
+                          <td style={tdStyle}>
+                            {slot.arbeitsbereich ? (
+                              <span style={{ background: slot.arbeitsbereich.color || '#6c757d', color: '#fff', padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: '600' }}>
+                                {slot.arbeitsbereich.icon} {slot.arbeitsbereich.name}
+                              </span>
+                            ) : '–'}
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'center', fontWeight: '600' }}>
+                            {(() => {
+                              const count = assigned.length;
+                              const status = count >= (slot.maxVolunteers || 0) ? 'full' : count > 0 ? 'partial' : 'empty';
+                              const color = status === 'full' ? '#198754' : status === 'partial' ? '#ffc107' : '#dc3545';
+                              const emoji = status === 'full' ? '🟢' : status === 'partial' ? '🟡' : '🔴';
+                              return <span style={{ color, fontWeight: 'bold' }}>{emoji} {count}/{slot.maxVolunteers}</span>;
+                            })()}
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'center', fontWeight: '600', color: '#666' }}>{slot.maxVolunteers}</td>
+                          <td style={{ ...tdStyle, textAlign: 'center', fontSize: 18 }}>
+                            {assigned.length > 0 ? (isExpanded ? '▼' : '▶') : '–'}
+                          </td>
+                        </tr>
+                        {/* Aufgeklappte Helfer */}
+                        {isExpanded && (
+                          <tr key={`${slot.id}-detail`} style={{ background: '#f8f9fa' }}>
+                            <td colSpan={4} style={{ padding: 0 }}>
+                              <div style={{ padding: '12px 16px' }}>
+                                <div style={{ fontSize: 13, fontWeight: 'bold', color: '#495057', marginBottom: 8 }}>
+                                  📋 Zugewiesene Helfer ({assigned.length})
+                                </div>
+                                {assigned.length === 0 ? (
+                                  <div style={{ color: '#adb5bd', fontSize: 13, fontStyle: 'italic' }}>Keine Helfer zugewiesen</div>
+                                ) : (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                    {assigned.map(vs => (
+                                      <div key={vs.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: '6px 10px', minWidth: 180 }}>
+                                        <span style={{ background: '#e7f3ff', color: '#0d6efd', padding: '2px 10px', borderRadius: 6, fontSize: 13, fontWeight: 'bold' }}>
+                                          {vs.volunteer?.name || '?'}
+                                        </span>
+                                        <span style={{ color: '#6c757d', fontSize: 12 }}>{vs.volunteer?.phone ? vs.volunteer.phone.replace(/(.{3}).*({.*})/, '$1…$2') : ''}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

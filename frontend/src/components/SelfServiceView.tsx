@@ -13,8 +13,8 @@ interface VolunteerChild { id: number; childName: string; childYear: number; }
 interface Volunteer { id: number; name: string; email: string | null; phone: string | null; childName: string | null; childYear: number | null; tournamentId: number | null; children?: VolunteerChild[]; }
 interface Club { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
 interface FoodCategory { id: number; name: string; icon: string; items: { id: number; name: string; price: string | null; unit: string }[]; }
-interface FoodDonation { id: number; foodItemId: number; quantity: number; note: string | null; createdAt: string; foodItem: { id: number; name: string; unit: string; category: { id: number; name: string; icon: string } } | null; }
-interface FoodDonationSlot { id: number; tournamentId: number; yearGroup: string; foodItemId: number | null; targetQuantity: number; collected: number; foodItem: { id: number; name: string; unit: string; icon: string } | null; }
+interface FoodDonation { id: number; foodItemId: number; quantity: number; note: string | null; createdAt: string; foodDonationSlotId: number | null; foodItem: { id: number; name: string; unit: string; category: { id: number; name: string; icon: string } } | null; }
+interface FoodDonationSlot { id: number; tournamentId: number; yearGroupId: number | null; yearGroup?: { id: number; name: string; birthYearStart: number; birthYearEnd: number } | null; foodItemId: number | null; targetQuantity: number; collected: number; foodItem: { id: number; name: string; unit: string; icon: string } | null; }
 
 export default function SelfServiceView() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -60,6 +60,7 @@ export default function SelfServiceView() {
   const [donationFoodId, setDonationFoodId] = useState(0);
   const [donationQuantity, setDonationQuantity] = useState('');
   const [donationNote, setDonationNote] = useState('');
+  const [slotCommitments, setSlotCommitments] = useState<Record<number, number>>({});
 
   useEffect(() => {
     // Reset-Token aus URL auslesen
@@ -177,8 +178,13 @@ export default function SelfServiceView() {
         const allSlots = await fetch('/api/food-donation-slots?tournamentId=' + volunteer.tournamentId).then(r => r.json()).catch(() => []);
         const childYears = volunteer.children?.map((c: VolunteerChild) => c.childYear) || [];
         const relevantSlots = allSlots.filter((slot: FoodDonationSlot) => {
-          if (childYears.includes(parseInt(slot.yearGroup))) return true;
-          if (volunteer.childYear && parseInt(slot.yearGroup) === volunteer.childYear) return true;
+          if (!slot.yearGroup) return false;
+          const yg = slot.yearGroup;
+          // Direkt nach yearGroupId matchen
+          if (childYears.some(y => y >= yg.birthYearStart && y <= yg.birthYearEnd)) return true;
+          if (volunteer.childYear && volunteer.childYear >= yg.birthYearStart && volunteer.childYear <= yg.birthYearEnd) return true;
+          // Fallback: alter String-Vergleich
+          if (childYears.includes(parseInt(yg.name))) return true;
           return false;
         });
         setFoodDonationSlots(relevantSlots);
@@ -199,6 +205,35 @@ export default function SelfServiceView() {
         setDonationFoodId(0);
         setDonationQuantity('');
         setDonationNote('');
+        await loadFood();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Fehler');
+      }
+    } catch { alert('Fehler beim Eintragen'); }
+  };
+
+  const removeCommitment = (slotId: number) => {
+    const newCommitments: Record<number, number> = {};
+    Object.entries(slotCommitments).forEach(([k, v]) => { if (Number(k) !== slotId) newCommitments[Number(k)] = v; });
+    setSlotCommitments(newCommitments);
+  };
+
+  const commitSlot = async (slotId: number, foodItemId?: number | null) => {
+    if (!foodItemId) return alert('Kein Artikel verfügbar!');
+    const qty = slotCommitments[slotId] ?? 0;
+    if (qty <= 0) return alert('Bitte Menge eingeben!');
+    try {
+      const res = await fetch('/api/food/donations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ foodItemId: Number(foodItemId), quantity: qty, slotId }),
+      });
+      if (res.ok) {
+        alert('Zusage eingetragen!');
+        const newCommitments: Record<number, number> = {};
+        Object.entries(slotCommitments).forEach(([k, v]) => { if (Number(k) !== slotId) newCommitments[Number(k)] = v; });
+        setSlotCommitments(newCommitments);
         await loadFood();
       } else {
         const err = await res.json();
@@ -361,11 +396,11 @@ export default function SelfServiceView() {
             <div style={{ marginTop: 8 }}>
               <div style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 8 }}>Kinder (optional)</div>
               {regChildren.map((child, idx) => (
-                <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                  <input type="text" placeholder="Name des Kindes" value={child.childName} onChange={e => { const n = [...regChildren]; n[idx].childName = e.target.value; setRegChildren(n); }} style={{ ...inputStyle, flex: 1 }} />
-                  <input type="number" placeholder="Jg." value={child.childYear} onChange={e => { const n = [...regChildren]; n[idx].childYear = e.target.value; setRegChildren(n); }} style={{ ...inputStyle, width: 80 }} />
+                <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input type="text" placeholder="Name des Kindes" value={child.childName} onChange={e => { const n = [...regChildren]; n[idx].childName = e.target.value; setRegChildren(n); }} style={{ ...inputStyle, flex: 1, minWidth: 140 }} />
+                  <input type="number" placeholder="Jg." value={child.childYear} onChange={e => { const n = [...regChildren]; n[idx].childYear = e.target.value; setRegChildren(n); }} style={{ ...inputStyle, width: 70, flexShrink: 0 }} />
                   {regChildren.length > 1 && (
-                    <button type="button" onClick={() => { const n = regChildren.filter((_, i) => i !== idx); setRegChildren(n); }} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none', padding: '8px 12px', fontSize: 16 }}>×</button>
+                    <button type="button" onClick={() => { const n = regChildren.filter((_, i) => i !== idx); setRegChildren(n); }} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none', padding: '8px 10px', fontSize: 16, flexShrink: 0 }}>×</button>
                   )}
                 </div>
               ))}
@@ -419,11 +454,11 @@ export default function SelfServiceView() {
             <div style={{ marginTop: 8 }}>
               <div style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 8 }}>Kinder</div>
               {editChildren.map((child, idx) => (
-                <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                  <input type="text" placeholder="Name des Kindes" value={child.childName} onChange={e => { const n = [...editChildren]; n[idx].childName = e.target.value; setEditChildren(n); }} style={{ ...inputStyle, flex: 1 }} />
-                  <input type="number" placeholder="Jg." value={child.childYear} onChange={e => { const n = [...editChildren]; n[idx].childYear = e.target.value; setEditChildren(n); }} style={{ ...inputStyle, width: 80 }} />
+                <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input type="text" placeholder="Name des Kindes" value={child.childName} onChange={e => { const n = [...editChildren]; n[idx].childName = e.target.value; setEditChildren(n); }} style={{ ...inputStyle, flex: 1, minWidth: 140 }} />
+                  <input type="number" placeholder="Jg." value={child.childYear} onChange={e => { const n = [...editChildren]; n[idx].childYear = e.target.value; setEditChildren(n); }} style={{ ...inputStyle, width: 70, flexShrink: 0 }} />
                   {editChildren.length > 1 && (
-                    <button type="button" onClick={() => { const n = editChildren.filter((_, i) => i !== idx); setEditChildren(n); }} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none', padding: '8px 12px', fontSize: 16 }}>×</button>
+                    <button type="button" onClick={() => { const n = editChildren.filter((_, i) => i !== idx); setEditChildren(n); }} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none', padding: '8px 10px', fontSize: 16, flexShrink: 0 }}>×</button>
                   )}
                 </div>
               ))}
@@ -559,20 +594,20 @@ export default function SelfServiceView() {
                       {new Date(vs.date).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })}
                     </div>
                   )}
-                  <div style={{ background: '#fff', borderRadius: 12, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, borderLeft: '4px solid ' + clubAccent }}>
-                    <div style={{ minWidth: 140 }}>
-                      <div style={{ fontSize: 18, marginBottom: 4 }}>{s?.arbeitsbereich?.icon || '📍'}</div>
-                      <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>{s?.arbeitsbereich?.name || '–'}</div>
+                  <div style={{ background: '#fff', borderRadius: 12, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 10, borderLeft: '4px solid ' + clubAccent, overflow: 'hidden' }}>
+                    <div style={{ minWidth: 0, flexShrink: 0 }}>
+                      <div style={{ fontSize: 16 }}>{s?.arbeitsbereich?.icon || '📍'}</div>
+                      <div style={{ fontSize: 13, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>{s?.arbeitsbereich?.name || '–'}</div>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, color: '#666', marginBottom: 2 }}>{new Date(vs.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</div>
-                      {s?.zeitslot && <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{s.zeitslot.startTime} - {s.zeitslot.endTime}</div>}
+                    <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
+                      <div style={{ fontSize: 12, color: '#666' }}>{new Date(vs.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</div>
+                      {s?.zeitslot && <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.zeitslot.startTime}–{s.zeitslot.endTime}</div>}
                     </div>
-                    <div style={{ textAlign: 'center', minWidth: 50 }}>
-                      <div style={{ fontSize: 18, fontWeight: 'bold', color: remaining > 0 ? clubAccent : '#6c757d' }}>{remaining}/{s?.maxVolunteers || 0}</div>
+                    <div style={{ textAlign: 'center', minWidth: 40, flexShrink: 0 }}>
+                      <div style={{ fontSize: 16, fontWeight: 'bold', color: remaining > 0 ? clubAccent : '#6c757d' }}>{remaining}/{s?.maxVolunteers || 0}</div>
                     </div>
-                    <div style={{ flexShrink: 0, overflow: 'hidden' }}>
-                      <button onClick={() => unassign(vs.id)} title="Abmelden" style={{ width: 44, height: 44, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    <div style={{ flexShrink: 0 }}>
+                      <button onClick={() => unassign(vs.id)} title="Abmelden" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M3 7v6h6" />
                           <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
@@ -587,14 +622,16 @@ export default function SelfServiceView() {
       )}
 
       {/* Offene Schichten */}
-      {busy && <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>Lade Schichten...</div>}
+      {activeSection === 'schichten' && (
+        <>
+          {busy && <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>Lade Schichten...</div>}
 
-      {!busy && shifts.length === 0 && (
-        <div style={{ textAlign: 'center', padding: 40, background: '#fff', borderRadius: 12, color: '#666' }}>Keine Schichten verfügbar.</div>
-      )}
+          {!busy && shifts.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 40, background: '#fff', borderRadius: 12, color: '#666' }}>Keine Schichten verfügbar.</div>
+          )}
 
-      {!busy && shifts.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {!busy && shifts.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <h3 style={{ margin: '0 0 6px', fontSize: 16, color: clubPrimary }}>Offene Schichten</h3>
           {shifts
             .filter(s => !filterDate || new Date(s.date).toLocaleDateString('de-DE') === filterDate)
@@ -619,28 +656,28 @@ export default function SelfServiceView() {
                       {new Date(slot.date).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })}
                     </div>
                   )}
-                  <div style={{ background: '#fff', borderRadius: 12, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-                    <div style={{ minWidth: 140 }}>
-                      <div style={{ fontSize: 18, marginBottom: 4 }}>{slot.arbeitsbereich?.icon || '📍'}</div>
-                      <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>{slot.arbeitsbereich?.name || '–'}</div>
+                  <div style={{ background: '#fff', borderRadius: 12, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
+                    <div style={{ minWidth: 0, flexShrink: 0 }}>
+                      <div style={{ fontSize: 16 }}>{slot.arbeitsbereich?.icon || '📍'}</div>
+                      <div style={{ fontSize: 13, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>{slot.arbeitsbereich?.name || '–'}</div>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, color: '#666', marginBottom: 2 }}>{new Date(slot.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</div>
-                      {slot.zeitslot && <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{slot.zeitslot.startTime} - {slot.zeitslot.endTime}</div>}
+                    <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
+                      <div style={{ fontSize: 12, color: '#666' }}>{new Date(slot.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</div>
+                      {slot.zeitslot && <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{slot.zeitslot.startTime}–{slot.zeitslot.endTime}</div>}
                     </div>
-                    <div style={{ textAlign: 'center', minWidth: 50 }}>
-                      <div style={{ fontSize: 18, fontWeight: 'bold', color: remaining > 0 ? clubAccent : '#6c757d' }}>{remaining}/{slot.maxVolunteers}</div>
+                    <div style={{ textAlign: 'center', minWidth: 40, flexShrink: 0 }}>
+                      <div style={{ fontSize: 16, fontWeight: 'bold', color: remaining > 0 ? clubAccent : '#6c757d' }}>{remaining}/{slot.maxVolunteers}</div>
                     </div>
-                    <div style={{ flexShrink: 0, overflow: 'hidden' }}>
+                    <div style={{ flexShrink: 0 }}>
                       {assigned ? (
-                        <button onClick={() => unassign(myShift!.id)} title="Abmelden" style={{ width: 44, height: 44, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <button onClick={() => unassign(myShift!.id)} title="Abmelden" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M3 7v6h6" />
                             <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
                           </svg>
                         </button>
                       ) : remaining > 0 ? (
-                        <button onClick={() => assign(slot.id, dateStr)} title="Zuweisen" style={{ width: 44, height: 44, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', fontSize: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+                        <button onClick={() => assign(slot.id, dateStr)} title="Zuweisen" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                           <span style={{ color: '#fff', lineHeight: 1, fontWeight: 'bold' }}>+</span>
                         </button>
                       ) : (
@@ -651,64 +688,14 @@ export default function SelfServiceView() {
                 </div>
               );
             })}
-        </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Lebensmittel Spenden */}
       {activeSection === 'spenden' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Spenden Formular */}
-          <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>🍞 Neue Spende</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <select value={donationFoodId} onChange={e => setDonationFoodId(parseInt(e.target.value))} style={{ padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', background: '#fff' }}>
-                <option value={0}>-- Artikel auswählen --</option>
-                {foodCategories.map(cat => (
-                  <optgroup key={cat.id} label={`${cat.icon} ${cat.name}`}>
-                    {cat.items.map(item => (
-                      <option key={item.id} value={item.id}>{item.name} ({item.unit})</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <input value={donationQuantity} onChange={e => setDonationQuantity(e.target.value)} placeholder="Menge" type="number" min="1" style={{ flex: 1, padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }} />
-                <input value={donationNote} onChange={e => setDonationNote(e.target.value)} placeholder="Notiz (optional)" style={{ flex: 1, padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }} />
-              </div>
-              <button onClick={submitDonation} style={{ padding: '14px 0', background: clubSecondary, color: '#fff', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: '600', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>📦 Spende eintragen</button>
-            </div>
-          </div>
-
-          {/* Lebensmittel-Slots für Kinder */}
-          {foodDonationSlots.length > 0 && (
-            <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
-              <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>📊 Deine Lebensmittel-Slots</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {foodDonationSlots.map(slot => {
-                  const progress = slot.targetQuantity > 0 ? Math.min(100, (slot.collected / slot.targetQuantity) * 100) : 0;
-                  return (
-                    <div key={slot.id} style={{ padding: 12, background: '#f8f9fa', borderRadius: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                        <span style={{ fontSize: 20 }}>{slot.foodItem?.icon || '🍽️'}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: '600', fontSize: 14, color: '#333' }}>{slot.foodItem?.name || '–'}</div>
-                          <div style={{ fontSize: 12, color: '#999' }}>Jahrgang {slot.yearGroup}</div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 16, fontWeight: 'bold', color: progress >= 100 ? '#198754' : clubAccent }}>{slot.collected}/{slot.targetQuantity}</div>
-                          <div style={{ fontSize: 11, color: '#999' }}>{slot.foodItem?.unit}</div>
-                        </div>
-                      </div>
-                      <div style={{ background: '#e9ecef', borderRadius: 4, height: 8, overflow: 'hidden' }}>
-                        <div style={{ width: `${progress}%`, height: '100%', background: progress >= 100 ? '#198754' : '#ffc107', borderRadius: 4 }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {/* Meine Spenden */}
           {myDonations.length > 0 && (
             <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
@@ -728,6 +715,144 @@ export default function SelfServiceView() {
               </div>
             </div>
           )}
+
+          {/* Lebensmittel-Slots für Kinder */}
+          {foodDonationSlots.length > 0 && (
+            <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>📊 Lebensmittel-Slots für deine Kinder</h3>
+              {(() => {
+                // Nach Jahrgang gruppieren
+                const grouped: Record<string, FoodDonationSlot[]> = {};
+                foodDonationSlots.forEach(slot => {
+                  const key = slot.yearGroup?.name || 'Ohne Jahrgang';
+                  if (!grouped[key]) grouped[key] = [];
+                  grouped[key].push(slot);
+                });
+                
+                return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([yearName, slots]) => {
+                  // Gesamtsumme für diesen Jahrgang
+                  const totalTarget = slots.reduce((s, sl) => s + sl.targetQuantity, 0);
+                  const totalCollected = slots.reduce((s, sl) => s + sl.collected, 0);
+                  const progress = totalTarget > 0 ? Math.min(100, (totalCollected / totalTarget) * 100) : 0;
+                  
+                  // Zeige welche Kinder-Jahrgänge passen
+                  const firstSlot = slots[0];
+                  const matchingChildren = volunteer?.children?.filter(c => {
+                    if (!c.childYear || !firstSlot.yearGroup) return false;
+                    return c.childYear >= firstSlot.yearGroup.birthYearStart && c.childYear <= firstSlot.yearGroup.birthYearEnd;
+                  }) || [];
+                  
+                  return (
+                    <div key={yearName} style={{ marginBottom: 20 }}>
+                      {/* Jahrgang-Header */}
+                      <div style={{ background: '#f8f9fa', padding: '10px 14px', borderRadius: 10, marginBottom: 10, borderLeft: `4px solid ${clubPrimary}` }}>
+                        <div style={{ fontWeight: '600', fontSize: 15, color: '#333' }}>{yearName}</div>
+                        {matchingChildren.length > 0 && (
+                          <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+                            Für: {matchingChildren.map(c => c.childName ? `${c.childName} (${c.childYear})` : `Jahrgang ${c.childYear}`).join(', ')}
+                          </div>
+                        )}
+                        <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+                          {totalCollected} / {totalTarget} gesamt
+                        </div>
+                      </div>
+                      {/* Fortschrittsbalken */}
+                      <div style={{ background: '#e9ecef', borderRadius: 4, height: 8, overflow: 'hidden', marginBottom: 10 }}>
+                        <div style={{ width: `${progress}%`, height: '100%', background: progress >= 100 ? '#198754' : clubAccent, borderRadius: 4 }} />
+                      </div>
+                      {/* Einzelne Artikel – erfüllte nach unten */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {slots
+                          .sort((a, b) => {
+                            const aDone = a.targetQuantity > 0 && a.collected >= a.targetQuantity;
+                            const bDone = b.targetQuantity > 0 && b.collected >= b.targetQuantity;
+                            if (aDone === bDone) return 0;
+                            return aDone ? 1 : -1;
+                          })
+                          .map(slot => {
+                          const slotProgress = slot.targetQuantity > 0 ? Math.min(100, (slot.collected / slot.targetQuantity) * 100) : 0;
+                          const remaining = slot.targetQuantity - slot.collected;
+                          // Wie viel hat DER Helfer bereits für diesen Slot zugesagt?
+                          const myCommitted = myDonations
+                            .filter(d => d.foodDonationSlotId === slot.id)
+                            .reduce((sum, d) => sum + d.quantity, 0);
+                          const committed = slotCommitments[slot.id] || 0;
+                          return (
+                            <div key={slot.id} style={{ padding: 12, background: '#f8f9fa', borderRadius: 10 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{ fontSize: 20 }}>{slot.foodItem?.icon || '🍽️'}</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontWeight: '600', fontSize: 14, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot.foodItem?.name || '–'}</div>
+                                  <div style={{ fontSize: 12, color: '#999' }}>{remaining > 0 ? `${remaining} ${slot.foodItem?.unit} noch gesucht` : '✓ Erfüllt'}</div>
+                                </div>
+                                <div style={{ textAlign: 'right', minWidth: 70 }}>
+                                  <div style={{ fontSize: 16, fontWeight: 'bold', color: slotProgress >= 100 ? '#198754' : clubAccent }}>{slot.collected}</div>
+                                  <div style={{ fontSize: 11, color: '#999' }}>von {slot.targetQuantity} {slot.foodItem?.unit}</div>
+                                </div>
+                              </div>
+                              {/* Zeige wie viel der Helfer bereits bringt */}
+                              {myCommitted > 0 && (
+                                <div style={{ fontSize: 13, color: clubSecondary, fontWeight: '600', marginTop: 4 }}>
+                                  ✅ Du bringst: {myCommitted} {slot.foodItem?.unit}
+                                </div>
+                              )}
+                              {/* Fortschritt */}
+                              {slot.targetQuantity > 0 && (
+                                <div style={{ background: '#e9ecef', borderRadius: 4, height: 6, overflow: 'hidden', marginTop: 8 }}>
+                                  <div style={{ width: `${slotProgress}%`, height: '100%', background: slotProgress >= 100 ? '#198754' : clubAccent, borderRadius: 4 }} />
+                                </div>
+                              )}
+                              {/* Zusage-Button/Input */}
+                              {remaining > 0 && !committed && (
+                                <button onClick={() => setSlotCommitments({ ...slotCommitments, [slot.id]: 1 })} style={{ marginTop: 8, width: '100%', padding: '10px 0', background: clubSecondary, color: '#fff', border: 'none', borderRadius: 8, fontSize: 20, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                              )}
+                              {committed > 0 && (
+                                <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                                  <input type="number" min="1" value={committed} onChange={e => setSlotCommitments({ ...slotCommitments, [slot.id]: parseInt(e.target.value) || 0 })} style={{ width: 70, padding: '8px 10px', border: '2px solid #e9ecef', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
+                                  <span style={{ fontSize: 13, color: '#666' }}>{slot.foodItem?.unit}</span>
+                                  <button onClick={() => commitSlot(slot.id, slot.foodItemId!)} title="Zusagen" style={{ width: 40, height: 40, borderRadius: 8, border: 'none', background: clubSecondary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                  </button>
+                                  <button onClick={() => removeCommitment(slot.id)} title="Rücknahme" style={{ width: 40, height: 40, borderRadius: 8, border: 'none', background: '#fde8e8', color: '#dc3545', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M3 7v6h6" />
+                                      <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          )}
+
+          {/* Zusätzliche Spende */}
+          <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>🍞 Zusätzliche Spende</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <select value={donationFoodId} onChange={e => setDonationFoodId(parseInt(e.target.value))} style={{ padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', background: '#fff', boxSizing: 'border-box' }}>
+                <option value={0}>-- Artikel auswählen --</option>
+                {foodCategories.map(cat => (
+                  <optgroup key={cat.id} label={`${cat.icon} ${cat.name}`}>
+                    {cat.items.map(item => (
+                      <option key={item.id} value={item.id}>{item.name} ({item.unit})</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <input value={donationQuantity} onChange={e => setDonationQuantity(e.target.value)} placeholder="Menge" type="number" min="1" style={{ padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }} />
+              <input value={donationNote} onChange={e => setDonationNote(e.target.value)} placeholder="Notiz (optional)" style={{ padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }} />
+              <button onClick={submitDonation} style={{ padding: '14px 0', background: clubSecondary, color: '#fff', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: '600', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>📦 Spende eintragen</button>
+            </div>
+          </div>
         </div>
       )}
 
