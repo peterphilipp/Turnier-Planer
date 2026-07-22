@@ -187,14 +187,6 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
     setEditingShift(null);
   };
 
-  const arbeitsbereiche = useMemo(() => {
-    const seen = new Set<number>();
-    return jobSlots
-      .filter(s => s.arbeitsbereichId && !seen.has(s.arbeitsbereichId) && seen.add(s.arbeitsbereichId!))
-      .map(s => s.arbeitsbereich)
-      .filter((a): a is NonNullable<typeof a> => !!a);
-  }, [jobSlots]);
-
   const tdStyle: React.CSSProperties = { padding: '6px', border: '1px solid #dee2e6', verticalAlign: 'top', minHeight: 40 };
   const thStyle: React.CSSProperties = { ...tdStyle, background: '#f8f9fa', fontWeight: 'bold', fontSize: 12 };
   const btnStyle: React.CSSProperties = { padding: '4px 10px', cursor: 'pointer', border: '1px solid #ced4da', borderRadius: 4, background: '#e9ecef', fontSize: 12 };
@@ -416,25 +408,6 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
         </>
       )}
 
-      {activeTab === 'dienstplan' && !selectedTournament && (
-        <div style={{ padding: 40, textAlign: 'center', color: '#666', background: '#fff3cd', borderRadius: 8, border: '1px solid #ffe69c' }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
-          <div style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>Bitte ein Turnier auswählen</div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
-            <label style={{ fontWeight: 'bold' }}>Turnier:</label>
-            <select
-              value={selectedTournament || ''}
-              onChange={e => setSelectedTournament(e.target.value ? parseInt(e.target.value) : null)}
-              style={{ padding: '8px 12px', border: '1px solid #ced4da', borderRadius: 4, minWidth: 300 }}
-            >
-              <option value="">-- Bitte wählen --</option>
-              {tournaments.map(t => (
-                <option key={t.id} value={t.id}>{t.name} ({new Date(t.startDate).toLocaleDateString('de-DE')} – {new Date(t.endDate).toLocaleDateString('de-DE')})</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
 
       {/* ==================== HELFER TAB ==================== */}
       {/* Edit Modal */}

@@ -5,20 +5,24 @@ import { z } from 'zod';
 export const tournamentSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
   description: z.string().optional(),
-  startDate: z.string().datetime().or(z.date()).optional(),
-  endDate: z.string().datetime().or(z.date()).optional(),
-  status: z.string().optional()
+  startDate: z.string().or(z.date()).optional(),
+  endDate: z.string().or(z.date()).optional(),
+  status: z.string().optional(),
+  clubId: z.number().nullable().optional()
 });
 
 export const getTournaments = async (req: Request, res: Response) => {
-  const ts = await prisma.tournament.findMany({ orderBy: { startDate: 'desc' } });
+  const ts = await prisma.tournament.findMany({ 
+    orderBy: { startDate: 'desc' },
+    include: { club: true }
+  });
   return res.json(ts || []);
 };
 
 export const getTournamentById = async (req: Request, res: Response) => {
   const t = await prisma.tournament.findUnique({
     where: { id: parseInt(req.params.id) },
-    include: { groups: { include: { teams: true } }, matches: true, shifts: true, volunteerShifts: true }
+    include: { club: true, groups: { include: { teams: true } }, matches: true, shifts: true, volunteerShifts: true }
   });
   if (!t) return res.status(404).json({ error: 'Turnier nicht gefunden' });
   return res.json(t);

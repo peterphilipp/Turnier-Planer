@@ -1,7 +1,10 @@
 import express from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'tsv-holm-secret-2025';
 
 const router = express.Router();
 
@@ -78,6 +81,61 @@ router.post('/reset-password', async (req, res, next) => {
     res.json({ message: 'Passwort erfolgreich zurückgesetzt' });
   } catch (err) {
     next(err);
+  }
+});
+
+// POST /api/auth/login
+router.post('/login', async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+    const identifier = email || name;
+    
+    if (!identifier) {
+      return res.status(400).json({ error: 'Name oder E-Mail erforderlich' });
+    }
+
+    const volunteer = await prisma.volunteer.findFirst({ 
+      where: { 
+        OR: [
+          { email: identifier },
+          { name: identifier }
+        ]
+      } 
+    });
+    
+    if (!volunteer || !volunteer.password) {
+      return res.status(401).json({ error: 'Ungültige Anmeldedaten' });
+    }
+
+    const match = await bcrypt.compare(password, volunteer.password);
+    if (!match) {
+      return res.status(401).json({ error: 'Ungültige Anmeldedaten' });
+    }
+
+    const token = jwt.sign({ volunteerId: volunteer.id }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, volunteer });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/auth/me
+router.get('/me', async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Nicht authentifiziert' });
+    }
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET) as { volunteerId: number };
+    
+    const volunteer = await prisma.volunteer.findUnique({ where: { id: decoded.volunteerId } });
+    if (!volunteer) {
+      return res.status(401).json({ error: 'Ungültiger Token' });
+    }
+    res.json(volunteer);
+  } catch (err) {
+    res.status(401).json({ error: 'Ungültiger Token' });
   }
 });
 
