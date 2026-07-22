@@ -13,18 +13,19 @@ import Vereine from './components/admin/stammdaten/Vereine';
 
 import Jobslots from './components/admin/organisation/Jobslots';
 import Buchungen from './components/admin/organisation/Buchungen';
+import Uebersicht from './components/admin/organisation/Uebersicht';
 import { Tournament } from './components/admin/shared';
 
 type View = 'admin' | 'selfservice';
 type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
-type OrgTab = 'jobslots' | 'buchungen';
+type OrgTab = 'uebersicht' | 'jobslots' | 'buchungen';
 type StammTab = 'turniere' | 'vereine' | 'arbeitsbereiche' | 'zeitslots' | 'helfer';
 
 export default function App() {
   const [view, setView] = useState<View>('selfservice');
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('spielplan');
   
-  const [activeOrgTab, setActiveOrgTab] = useState<OrgTab>('buchungen');
+  const [activeOrgTab, setActiveOrgTab] = useState<OrgTab>('uebersicht');
   const [activeStammTab, setActiveStammTab] = useState<StammTab>('turniere');
   
   const [selectedTournamentId, setSelectedTournamentId] = useState<number | null>(null);
@@ -122,13 +123,17 @@ export default function App() {
       {/* LEVEL 2: SUB-NAVIGATION */}
       {activeMainTab === 'organisation' && (
         <nav style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          <button onClick={() => setActiveOrgTab('uebersicht')}
+            style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'uebersicht' ? '#198754' : '#e9ecef', color: activeOrgTab === 'uebersicht' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+            Übersicht
+          </button>
           <button onClick={() => setActiveOrgTab('buchungen')}
             style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'buchungen' ? '#198754' : '#e9ecef', color: activeOrgTab === 'buchungen' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-            Dienstplan & Buchungen
+            Dienstplan & Zuweisung
           </button>
           <button onClick={() => setActiveOrgTab('jobslots')}
             style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'jobslots' ? '#198754' : '#e9ecef', color: activeOrgTab === 'jobslots' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-            Job-Slots anlegen (Bedarf)
+            Job-Slots anlegen
           </button>
         </nav>
       )}
@@ -147,6 +152,7 @@ export default function App() {
       <main>
         {activeMainTab === 'spielplan' && <TournamentView />}
         
+        {activeMainTab === 'organisation' && activeOrgTab === 'uebersicht' && <Uebersicht selectedTournament={selectedTournamentId} />}
         {activeMainTab === 'organisation' && activeOrgTab === 'buchungen' && <Buchungen selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
         {activeMainTab === 'organisation' && activeOrgTab === 'jobslots' && <Jobslots selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
 
