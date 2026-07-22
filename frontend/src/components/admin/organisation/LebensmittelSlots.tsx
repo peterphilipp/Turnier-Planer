@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getFoodDonationSlots, getFoodItems, apiPost, apiPatch, apiDelete } from '../../../api';
-import { tdStyle, thStyle, btnStyle, inputStyle, FoodDonationSlot, FoodItem } from '../shared';
+import { tdStyle, thStyle, btnStyle, inputStyle, FoodDonationSlot, FoodItem, Tournament } from '../shared';
 
-export default function LebensmittelSlots({ selectedTournament, adminPrimary }: { selectedTournament: number | null, adminPrimary: string }) {
+export default function LebensmittelSlots({ selectedTournament, tournament, adminPrimary }: { selectedTournament: number | null, tournament: Tournament | null, adminPrimary: string }) {
   const queryClient = useQueryClient();
 
   const { data: slots = [] } = useQuery<FoodDonationSlot[]>({
@@ -58,6 +58,20 @@ export default function LebensmittelSlots({ selectedTournament, adminPrimary }: 
     return <div style={{ padding: 24, background: '#fff', borderRadius: 16 }}>Bitte wähle zunächst oben ein Turnier aus.</div>;
   }
 
+  // Turnier-Tage generieren
+  const tournamentDays = useMemo(() => {
+    if (!tournament?.startDate || !tournament?.endDate) return [];
+    const days: string[] = [];
+    const start = new Date(tournament.startDate);
+    const end = new Date(tournament.endDate);
+    const current = new Date(start);
+    while (current <= end) {
+      days.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    }
+    return days;
+  }, [tournament]);
+
   const sortedSlots = [...slots].sort((a, b) => {
     if (a.yearGroup !== b.yearGroup) return a.yearGroup.localeCompare(b.yearGroup);
     return new Date(a.date).getTime() - new Date(b.date).getTime();
@@ -69,6 +83,17 @@ export default function LebensmittelSlots({ selectedTournament, adminPrimary }: 
     return true;
   });
 
+  // Nach Jahrgang gruppieren
+  const groupedByYear = useMemo(() => {
+    const groups: Record<string, FoodDonationSlot[]> = {};
+    filteredSlots.forEach(slot => {
+      const key = slot.yearGroup;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(slot);
+    });
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [filteredSlots]);
+
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>🍞 Lebensmittel-Slots (Jahrgangsplanung)</h3>
@@ -78,7 +103,14 @@ export default function LebensmittelSlots({ selectedTournament, adminPrimary }: 
       <div style={{ background: '#f8f9fa', padding: 20, borderRadius: 12, marginBottom: 30, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
           <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>1. Datum wählen</label>
-          <input type="date" value={slotForm.date} onChange={e => setSlotForm({ ...slotForm, date: e.target.value })} style={inputStyle} />
+          <p style={{ color: '#666', fontSize: 12, marginBottom: 8 }}>{tournamentDays.length} Tage: {tournamentDays.map(d => new Date(d).toLocaleDateString('de-DE')).join(', ')}</p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {tournamentDays.map(d => (
+              <button key={d} onClick={() => setSlotForm({ ...slotForm, date: d })} style={{ padding: '8px 12px', background: slotForm.date === d ? adminPrimary : '#fff', color: slotForm.date === d ? '#fff' : '#000', border: slotForm.date === d ? 'none' : '1px solid #dee2e6', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: slotForm.date === d ? 'bold' : 'normal' }}>
+                {new Date(d).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div>
@@ -125,51 +157,59 @@ export default function LebensmittelSlots({ selectedTournament, adminPrimary }: 
         <input placeholder="Suchen..." value={filterSearch} onChange={e => setFilterSearch(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
       </div>
 
-      {/* Tabelle */}
+      {/* Tabelle mit zweistufiger Hierarchie */}
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Datum</th>
-              <th style={thStyle}>Jahrgang</th>
-              <th style={thStyle}>Lebensmittel</th>
-              <th style={thStyle}>Soll</th>
-              <th style={thStyle}>Ist</th>
-              <th style={thStyle}>Fortschritt</th>
-              <th style={thStyle}>Aktion</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredSlots.map(slot => (
-              <tr key={slot.id} style={{ borderBottom: '1px solid #eee' }}>
-                <td style={tdStyle}>{new Date(slot.date).toLocaleDateString('de-DE')}</td>
-                <td style={tdStyle}><strong>📅 {slot.yearGroup}</strong></td>
-                <td style={tdStyle}>{slot.foodItem ? `${slot.foodItem.icon} ${slot.foodItem.name}` : 'Alle'}</td>
-                <td style={tdStyle}>{slot.targetQuantity}</td>
-                <td style={tdStyle}>{slot.collected}</td>
-                <td style={tdStyle}>
-                  <div style={{ background: '#e9ecef', borderRadius: 4, height: 8, overflow: 'hidden', width: 100 }}>
-                    <div style={{ 
-                      width: `${slot.targetQuantity > 0 ? Math.min(100, (slot.collected / slot.targetQuantity) * 100) : 0}%`,
-                      height: '100%',
-                      background: slot.collected >= slot.targetQuantity ? '#198754' : '#ffc107',
-                      borderRadius: 4
-                    }}></div>
-                  </div>
-                </td>
-                <td style={tdStyle}>
-                  <button onClick={() => {
-                    setEditingSlotId(slot.id);
-                    setSlotForm({ date: slot.date, yearGroup: slot.yearGroup, foodItemId: slot.foodItemId || 0, targetQuantity: slot.targetQuantity, description: slot.description || '' });
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', marginRight: 6 }}>✏️</button>
-                  <button onClick={() => deleteSlot(slot.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>🗑️</button>
-                </td>
-              </tr>
-            ))}
-            {filteredSlots.length === 0 && <tr><td colSpan={7} style={{ ...tdStyle, textAlign: 'center', color: '#666', padding: 20 }}>Keine Lebensmittel-Slots gefunden.</td></tr>}
-          </tbody>
-        </table>
+        {groupedByYear.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>Keine Lebensmittel-Slots gefunden.</div>
+        ) : (
+          groupedByYear.map(([yearGroup, slots]) => (
+            <div key={yearGroup} style={{ marginBottom: 24 }}>
+              <h4 style={{ background: '#f8f9fa', padding: '12px 16px', borderRadius: 10, marginTop: 0, fontSize: 16, fontWeight: '600', borderLeft: '4px solid ' + adminPrimary }}>
+                📅 Jahrgang {yearGroup} <span style={{ float: 'right', fontSize: 14, color: '#666' }}>{slots.length} Slot{slots.length !== 1 ? 's' : ''}</span>
+              </h4>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, borderLeft: '2px solid #e9ecef' }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, background: '#f8f9fa' }}>Datum</th>
+                    <th style={{ ...thStyle, background: '#f8f9fa' }}>Lebensmittel</th>
+                    <th style={{ ...thStyle, background: '#f8f9fa' }}>Soll</th>
+                    <th style={{ ...thStyle, background: '#f8f9fa' }}>Ist</th>
+                    <th style={{ ...thStyle, background: '#f8f9fa' }}>Fortschritt</th>
+                    <th style={{ ...thStyle, background: '#f8f9fa' }}>Aktion</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {slots.map(slot => (
+                    <tr key={slot.id} style={{ borderBottom: '1px solid #eee' }}>
+                      <td style={tdStyle}>{new Date(slot.date).toLocaleDateString('de-DE')}</td>
+                      <td style={tdStyle}>{slot.foodItem ? `${slot.foodItem.icon} ${slot.foodItem.name}` : 'Alle'}</td>
+                      <td style={tdStyle}>{slot.targetQuantity}</td>
+                      <td style={tdStyle}>{slot.collected}</td>
+                      <td style={tdStyle}>
+                        <div style={{ background: '#e9ecef', borderRadius: 4, height: 8, overflow: 'hidden', width: 100 }}>
+                          <div style={{ 
+                            width: `${slot.targetQuantity > 0 ? Math.min(100, (slot.collected / slot.targetQuantity) * 100) : 0}%`,
+                            height: '100%',
+                            background: slot.collected >= slot.targetQuantity ? '#198754' : '#ffc107',
+                            borderRadius: 4
+                          }}></div>
+                        </div>
+                      </td>
+                      <td style={tdStyle}>
+                        <button onClick={() => {
+                          setEditingSlotId(slot.id);
+                          setSlotForm({ date: slot.date, yearGroup: slot.yearGroup, foodItemId: slot.foodItemId || 0, targetQuantity: slot.targetQuantity, description: slot.description || '' });
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', marginRight: 6 }}>✏️</button>
+                        <button onClick={() => deleteSlot(slot.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>🗑️</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

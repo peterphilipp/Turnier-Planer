@@ -161,8 +161,8 @@ export default function App() {
         
         {activeMainTab === 'organisation' && activeOrgTab === 'uebersicht' && <Uebersicht selectedTournament={selectedTournamentId} />}
         {activeMainTab === 'organisation' && activeOrgTab === 'buchungen' && <Buchungen selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
-        {activeMainTab === 'organisation' && activeOrgTab === 'jobslots' && <Jobslots selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
-        {activeMainTab === 'organisation' && activeOrgTab === 'lebensmittel-slots' && <LebensmittelSlots selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
+        {activeMainTab === 'organisation' && activeOrgTab === 'jobslots' && <Jobslots selectedTournament={selectedTournamentId} tournament={tournaments.find(t => t.id === selectedTournamentId) || null} adminPrimary="#198754" />}
+        {activeMainTab === 'organisation' && activeOrgTab === 'lebensmittel-slots' && <LebensmittelSlots selectedTournament={selectedTournamentId} tournament={tournaments.find(t => t.id === selectedTournamentId) || null} adminPrimary="#198754" />}
 
         {activeMainTab === 'stammdaten' && activeStammTab === 'turniere' && <Turniere adminPrimary="#6c757d" adminSecondary="#adb5bd" />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'vereine' && <Vereine adminPrimary="#6c757d" />}
