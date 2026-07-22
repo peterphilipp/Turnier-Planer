@@ -76,88 +76,190 @@ Die Anwendung bietet zwei getrennte Oberflächen, die über die URL gesteuert we
 
 ## ER-Modell
 
-```
-┌──────────┐       ┌──────────────┐       ┌──────────┐
-│   Club   │1    *│  Tournament  │1    *│  Group   │
-│          │◄─────►│              │◄────►│          │
-│ id       │       │ id           │       │ id       │
-│ name     │       │ name         │       │ name     │
-│ logo     │       │ startDate    │       │ tournamentId├──► Tournament
-│ colors   │       │ endDate      │       └──────────┘
-└──────────┘       │ status       │              │
-                   │ clubId       │              ▼
-                   └──────┬───────┐       ┌──────────┐
-                          │        │1    *│  Team    │
-                          ▼        │       │          │
-                   ┌──────────┐   │       │ id       │
-                   │ Material │   │       │ name     │
-                   │  Item    │   │       │ groupId  ├──► Group
-                   └──────────┘   │       │ goalsFor │
-                                    │       └──────────┘
-                          ┌────────┴─────┐              │
-                          ▼              │              ▼
-                   ┌──────────┐          │       ┌──────────┐
-                   │  Shift   │          │       │  Match   │
-                   │          │          │       │          │
-                   │ id       │          │       │ id       │
-                   │ date     │          │       │ time     │
-                   │ zeitslot ├───┐      │       │ teamAId  ├──► Team A
-                   │ arbeits- │   │      │       │ teamBId  ├──► Team B
-                   │  bereich │   │      │       │ scoreA/B │
-                   └──────────┘   │      │       └──────────┘
-                                    │      │
-                          ┌─────────┴──────┘
-                          ▼
-                   ┌──────────┐
-                   │ Volunteer│1    *│ VolunteerShift │
-                   │          │◄────►│                │
-                   │ id       │      │ id             │
-                   │ name     │      │ volunteerId    ├──► Volunteer
-                   │ email    │      │ shiftId        ├──► Shift
-                   │ phone    │      │ date           │
-                   │ password │      │ slot / role    │
-                   │ roles    │      └────────────────┘
-                   │ children │
-                   │ (1:N)    │
-                   └────┬─────┘
-                        │
-              ┌─────────▼──────────┐
-              │ VolunteerChild     │
-              │                    │
-              │ id                 │
-              │ volunteerId        ├──► Volunteer
-              │ childName          │
-              │ childYear          │
-              └────────────────────┘
+```mermaid
+erDiagram
+    Club ||--o{ Tournament : "owns"
+    Tournament ||--o{ Group : "has"
+    Tournament ||--o{ Match : "contains"
+    Tournament ||--o{ Shift : "has"
+    Tournament ||--o{ VolunteerShift : "has"
+    Tournament ||--o{ FoodDonation : "has"
+    Tournament ||--o{ FoodDonationSlot : "has"
+    Tournament ||--o{ MaterialItem : "has"
 
-  ┌──────────────┐       ┌──────────────────┐       ┌──────────────┐
-  │ FoodCategory │1    *│   FoodItem       │1    *│FoodDonation │
-  │              │◄─────►│                  │◄────►│              │
-  │ id           │       │ id               │       │ id           │
-  │ name/icon    │       │ categoryId       ├──► Category │
-  │ order        │       │ name / price     │       │ volunteerId├──► Volunteer
-  └──────────────┘       │ unit             │       │ slotId     ├──► Slot
-                         └────────┬─────────┘       │ quantity   │
-                                  │1    *            └────────────┘
-                           ┌──────▼───────┐
-                           │FoodDonationSlot│
-                           │                │
-                           │ id             │
-                           │ tournamentId   ├──► Tournament
-                           │ yearGroupId    ├──► YearGroup
-                           │ foodItemId     ├──► FoodItem
-                           │ targetQuantity │
-                           │ collected      │
-                           └────────────────┘
+    Group ||--o{ Team : "contains"
+    Team ||--o| Match : "teamA"
+    Team ||--o| Match : "teamB"
 
-  ┌──────────────┐       ┌──────────────┐
-  │  YearGroup   │1    *│FoodDonationSlot│
-  │              │◄─────►│                │
-  │ id           │       │                │
-  │ name         │       └────────────────┘
-  │ birthYearStart│
-  │ birthYearEnd │
-  └──────────────┘
+    Volunteer ||--o{ VolunteerChild : "has"
+    Volunteer ||--o{ VolunteerShift : "assigned"
+    Volunteer ||--o{ FoodDonation : "makes"
+    Volunteer ||--o{ FoodDonationSlot : "targets"
+
+    Shift }o--|| Zeitslot : "uses"
+    Shift }o--|| Arbeitsbereich : "at"
+    VolunteerShift }o--|| Volunteer : "by"
+    VolunteerShift }o--|| Shift : "for"
+
+    FoodCategory ||--o{ FoodItem : "contains"
+    YearGroup ||--o{ FoodDonationSlot : "defines"
+    FoodItem ||--o{ FoodDonation : "donated"
+    FoodItem ||--o{ FoodDonationSlot : "targeted"
+    FoodDonation }o--|| FoodDonationSlot : "fulfills"
+
+    Club {
+        int id PK
+        string name
+        string logo
+        string primaryColor
+        string secondaryColor
+        string accentColor
+    }
+
+    Tournament {
+        int id PK
+        string name
+        datetime startDate
+        datetime endDate
+        string status
+        int clubId FK
+    }
+
+    Group {
+        int id PK
+        string name
+        int tournamentId FK
+    }
+
+    Team {
+        int id PK
+        string name
+        int groupId FK
+        int goalsFor
+        int goalsAgainst
+    }
+
+    Match {
+        int id PK
+        int teamAId FK
+        int teamBId FK
+        int scoreA
+        int scoreB
+        datetime time
+        string field
+    }
+
+    Volunteer {
+        int id PK
+        string name
+        string email
+        string phone
+        string password
+        string roles
+        int tournamentId FK
+    }
+
+    VolunteerChild {
+        int id PK
+        int volunteerId FK
+        string childName
+        int childYear
+    }
+
+    VolunteerShift {
+        int id PK
+        int volunteerId FK
+        int shiftId FK
+        datetime date
+        string slot
+        string role
+    }
+
+    Arbeitsbereich {
+        int id PK
+        string name
+        string icon
+        int minVolunteers
+        int maxVolunteers
+        string color
+    }
+
+    Zeitslot {
+        int id PK
+        string name
+        string startTime
+        string endTime
+        string color
+        int order
+    }
+
+    Shift {
+        int id PK
+        int tournamentId FK
+        datetime date
+        int zeitslotId FK
+        int arbeitsbereichId FK
+        int maxVolunteers
+    }
+
+    FoodCategory {
+        int id PK
+        string name
+        string icon
+        int order
+    }
+
+    FoodItem {
+        int id PK
+        int categoryId FK
+        string name
+        string price
+        string unit
+    }
+
+    YearGroup {
+        int id PK
+        string name
+        int birthYearStart
+        int birthYearEnd
+        boolean isActive
+    }
+
+    FoodDonationSlot {
+        int id PK
+        int tournamentId FK
+        int yearGroupId FK
+        int foodItemId FK
+        int targetQuantity
+        int collected
+    }
+
+    FoodDonation {
+        int id PK
+        int tournamentId FK
+        int volunteerId FK
+        int slotId FK
+        int foodItemId FK
+        int quantity
+        string note
+    }
+
+    MaterialItem {
+        int id PK
+        int tournamentId FK
+        string name
+        int quantity
+        string unit
+        boolean done
+    }
+
+    PasswordResetToken {
+        int id PK
+        int volunteerId FK
+        string token
+        datetime expiresAt
+        boolean used
+    }
 ```
 
 ### Datenmodell-Übersicht
