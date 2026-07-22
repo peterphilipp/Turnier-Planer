@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getTournaments, getArbeitsbereiche, getZeitSlots, getVolunteers, getClubs, getShifts, getVolunteerShifts, apiPost, apiPatch, apiPut, apiDelete } from '../api';
 
 interface Tournament { id: number; name: string; startDate: string; endDate: string; status: string; clubId: number | null; club: { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string } | null; }
 interface Shift { id: number; tournamentId: number; date: string; zeitslotId: number | null; slot: string; arbeitsbereichId: number | null; maxVolunteers: number; description: string | null; zeitslot: { id: number; name: string; startTime: string; endTime: string; color: string; order: number } | null; arbeitsbereich: { id: number; name: string; icon: string; color: string } | null; }
@@ -11,13 +13,30 @@ interface Club { id: number; name: string; logo: string | null; primaryColor: st
 type AdminTab = 'turniere' | 'arbeitsbereiche' | 'zeitslots' | 'helfer' | 'zeitslots-verwalten' | 'clubs' | 'uebersicht';
 
 export default function AdminView() {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<AdminTab>('turniere');
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournament, setSelectedTournament] = useState<number | null>(null);
-  const [arbeitsbereiche, setArbeitsbereiche] = useState<Arbeitsbereich[]>([]);
-  const [zeitSlots, setZeitSlots] = useState<Zeitslot[]>([]);
-  const [jobSlots, setJobSlots] = useState<Shift[]>([]);
-  const [volunteerShifts, setVolunteerShifts] = useState<VolunteerShift[]>([]);
+  
+  const { data: tournaments = [] } = useQuery<Tournament[]>({ queryKey: ['tournaments'], queryFn: getTournaments });
+  const { data: arbeitsbereiche = [] } = useQuery<Arbeitsbereich[]>({ queryKey: ['arbeitsbereiche'], queryFn: getArbeitsbereiche });
+  const { data: zeitSlots = [] } = useQuery<Zeitslot[]>({ queryKey: ['zeitSlots'], queryFn: getZeitSlots });
+  const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers'], queryFn: getVolunteers });
+  const { data: clubs = [] } = useQuery<Club[]>({ queryKey: ['clubs'], queryFn: getClubs });
+
+  const { data: jobSlots = [], isFetching: busySlots } = useQuery<Shift[]>({
+    queryKey: ['shifts', selectedTournament],
+    queryFn: () => getShifts(selectedTournament),
+    enabled: !!selectedTournament
+  });
+
+  const { data: volunteerShifts = [], isFetching: busyVolShifts } = useQuery<VolunteerShift[]>({
+    queryKey: ['volunteerShifts', selectedTournament],
+    queryFn: () => getVolunteerShifts(selectedTournament),
+    enabled: !!selectedTournament
+  });
+
+  const busy = busySlots || busyVolShifts;
+
   const [editingSlotId, setEditingSlotId] = useState<number | null>(null);
   const [slotForm, setSlotForm] = useState({ dates: [] as string[], zeitslotId: 0 as number, arbeitsbereichIds: [] as number[], description: '' });
   const [filterDate, setFilterDate] = useState('');
@@ -28,34 +47,14 @@ export default function AdminView() {
   const [zsForm, setZsForm] = useState({ name: '', startTime: '09:00', endTime: '10:00', color: '#3b98f8', order: 1 });
   const [editingAb, setEditingAb] = useState<number | null>(null);
   const [editingZs, setEditingZs] = useState<number | null>(null);
-  const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [volForm, setVolForm] = useState({ name: '', email: '', phone: '' });
   const [editingVol, setEditingVol] = useState<number | null>(null);
-  const [clubs, setClubs] = useState<Club[]>([]);
   const [clubForm, setClubForm] = useState({ name: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' });
   const [editingClub, setEditingClub] = useState<number | null>(null);
   const [clubLogo, setClubLogo] = useState<string | null>(null);
   const [emojiPicker, setEmojiPicker] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   const statusBadge = (status: string) => status === 'aktiv' ? '🟢' : status === 'beendet' ? '🟡' : '⚪';
-
-  useEffect(() => {
-    fetch('/api/tournaments').then(r => r.json()).then(setTournaments);
-    fetch('/api/arbeitsbereiche').then(r => r.json()).then(setArbeitsbereiche);
-    fetch('/api/zeit-slots').then(r => r.json()).then(setZeitSlots);
-    fetch('/api/volunteers').then(r => r.json()).then(setVolunteers);
-    fetch('/api/clubs').then(r => r.json()).then(setClubs);
-  }, []);
-
-  useEffect(() => {
-    if (!selectedTournament) return;
-    setBusy(true);
-    Promise.all([
-      fetch(`/api/shifts?tournamentId=${selectedTournament}`).then(r => r.json()).then(setJobSlots),
-      fetch(`/api/volunteer-shifts?tournamentId=${selectedTournament}`).then(r => r.json()).then(setVolunteerShifts),
-    ]).finally(() => setBusy(false));
-  }, [selectedTournament]);
 
   // Automatische Auswahl des nächsten aktiven Turniers beim Wechsel zu Management Buchungen / Übersicht
   useEffect(() => {
@@ -121,7 +120,7 @@ export default function AdminView() {
         if (existing) {
           const zs = zeitSlots.find(z => z.id === slotForm.zeitslotId);
           const slotName = zs ? `${zs.name} (${zs.startTime}–${zs.endTime})` : '';
-          await fetch(`/api/shifts/${editingSlotId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, zeitslotId: slotForm.zeitslotId, arbeitsbereichId: slotForm.arbeitsbereichIds[0], maxVolunteers: arbeitsbereiche.find(a => a.id === slotForm.arbeitsbereichIds[0])?.maxVolunteers || 8, description: slotForm.description || null, slot: slotName }) });
+          await apiPatch(`/api/shifts/${editingSlotId}`, { date, zeitslotId: slotForm.zeitslotId, arbeitsbereichId: slotForm.arbeitsbereichIds[0], maxVolunteers: arbeitsbereiche.find(a => a.id === slotForm.arbeitsbereichIds[0])?.maxVolunteers || 8, description: slotForm.description || null, slot: slotName });
         }
       }
     } else {
@@ -130,76 +129,72 @@ export default function AdminView() {
       for (const date of slotForm.dates) {
         for (const abId of slotForm.arbeitsbereichIds) {
           const maxVol = arbeitsbereiche.find(a => a.id === abId)?.maxVolunteers || 8;
-          await fetch('/api/shifts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tournamentId: selectedTournament, date, zeitslotId: slotForm.zeitslotId, arbeitsbereichId: abId, maxVolunteers: maxVol, description: slotForm.description || null, slot: slotName }) });
+          await apiPost('/api/shifts', { tournamentId: selectedTournament, date, zeitslotId: slotForm.zeitslotId, arbeitsbereichId: abId, maxVolunteers: maxVol, description: slotForm.description || null, slot: slotName });
         }
       }
     }
-    setJobSlots(await (await fetch('/api/shifts?tournamentId=' + selectedTournament)).json());
+    queryClient.invalidateQueries({ queryKey: ['shifts', selectedTournament] });
     setEditingSlotId(null);
     setSlotForm({ dates: [], zeitslotId: 0, arbeitsbereichIds: [], description: '' });
   };
 
   const startEditSlot = (slot: Shift) => { setEditingSlotId(slot.id); setSlotForm({ dates: [slot.date.split('T')[0]], zeitslotId: slot.zeitslotId || 0, arbeitsbereichIds: slot.arbeitsbereichId ? [slot.arbeitsbereichId] : [], description: slot.description || '' }); };
 
-  const deleteSlot = async (id: number) => { if (!confirm('Job-Slot löschen?')) return; await fetch(`/api/shifts/${id}`, { method: 'DELETE' }); setJobSlots(await (await fetch('/api/shifts?tournamentId=' + selectedTournament)).json()); };
+  const deleteSlot = async (id: number) => { if (!confirm('Job-Slot löschen?')) return; await apiDelete(`/api/shifts/${id}`); queryClient.invalidateQueries({ queryKey: ['shifts', selectedTournament] }); };
 
   const closeStatusDialog = () => setStatusDialog({ open: false, tournament: null, editName: '', editClubId: '', editStart: '', editEnd: '' });
-  const updateTournamentStatus = async (status: string) => { if (!statusDialog.tournament) return; await fetch(`/api/tournaments/${statusDialog.tournament.id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }); setTournaments(await (await fetch('/api/tournaments')).json()); closeStatusDialog(); };
+  const updateTournamentStatus = async (status: string) => { if (!statusDialog.tournament) return; await apiPatch(`/api/tournaments/${statusDialog.tournament.id}/status`, { status }); queryClient.invalidateQueries({ queryKey: ['tournaments'] }); closeStatusDialog(); };
 
   const saveTournamentEdit = async () => {
     if (!statusDialog.tournament) return;
     if (!statusDialog.editName.trim()) return alert('Name erforderlich!');
-    await fetch(`/api/tournaments/${statusDialog.tournament.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    await apiPatch(`/api/tournaments/${statusDialog.tournament.id}`, {
         name: statusDialog.editName,
         startDate: statusDialog.editStart,
         endDate: statusDialog.editEnd,
         clubId: statusDialog.editClubId ? parseInt(statusDialog.editClubId) : null,
-      }),
-    });
-    setTournaments(await (await fetch('/api/tournaments')).json());
+      });
+    queryClient.invalidateQueries({ queryKey: ['tournaments'] });
   };
 
   const saveArbeitsbereich = async () => {
     if (!abForm.name.trim()) return alert('Name erforderlich!');
-    if (editingAb) { await fetch(`/api/arbeitsbereiche/${editingAb}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(abForm) }); }
-    else { await fetch('/api/arbeitsbereiche', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(abForm) }); }
-    setArbeitsbereiche(await (await fetch('/api/arbeitsbereiche')).json());
+    if (editingAb) { await apiPatch(`/api/arbeitsbereiche/${editingAb}`, abForm); }
+    else { await apiPost('/api/arbeitsbereiche', abForm); }
+    queryClient.invalidateQueries({ queryKey: ['arbeitsbereiche'] });
     setAbForm({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8 });
     setEditingAb(null);
   };
 
-  const deleteArbeitsbereich = async (id: number) => { if (!confirm('Bereich löschen?')) return; await fetch(`/api/arbeitsbereiche/${id}`, { method: 'DELETE' }); setArbeitsbereiche(await (await fetch('/api/arbeitsbereiche')).json()); };
+  const deleteArbeitsbereich = async (id: number) => { if (!confirm('Bereich löschen?')) return; await apiDelete(`/api/arbeitsbereiche/${id}`); queryClient.invalidateQueries({ queryKey: ['arbeitsbereiche'] }); };
 
   const saveZeitslot = async () => {
     if (!zsForm.name.trim()) return alert('Name erforderlich!');
-    if (editingZs) { await fetch(`/api/zeit-slots/${editingZs}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(zsForm) }); }
-    else { await fetch('/api/zeit-slots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(zsForm) }); }
-    setZeitSlots(await (await fetch('/api/zeit-slots')).json());
+    if (editingZs) { await apiPatch(`/api/zeit-slots/${editingZs}`, zsForm); }
+    else { await apiPost('/api/zeit-slots', zsForm); }
+    queryClient.invalidateQueries({ queryKey: ['zeitSlots'] });
     setZsForm({ name: '', startTime: '09:00', endTime: '10:00', color: '#3b98f8', order: 1 });
     setEditingZs(null);
   };
 
-  const deleteZeitslot = async (id: number) => { if (!confirm('Zeitslot löschen?')) return; await fetch(`/api/zeit-slots/${id}`, { method: 'DELETE' }); setZeitSlots(await (await fetch('/api/zeit-slots')).json()); };
+  const deleteZeitslot = async (id: number) => { if (!confirm('Zeitslot löschen?')) return; await apiDelete(`/api/zeit-slots/${id}`); queryClient.invalidateQueries({ queryKey: ['zeitSlots'] }); };
 
   const saveVolunteer = async () => {
     if (!volForm.name.trim()) return alert('Name erforderlich!');
     if (editingVol) {
-      await fetch(`/api/volunteers/${editingVol}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...volForm, roles: ['Helfer'] }) });
+      await apiPatch(`/api/volunteers/${editingVol}`, { ...volForm, roles: ['Helfer'] });
     } else {
-      await fetch('/api/volunteers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...volForm, roles: ['Helfer'] }) });
+      await apiPost('/api/volunteers', { ...volForm, roles: ['Helfer'] });
     }
-    setVolunteers(await (await fetch('/api/volunteers')).json());
+    queryClient.invalidateQueries({ queryKey: ['volunteers'] });
     setVolForm({ name: '', email: '', phone: '' });
     setEditingVol(null);
   };
 
   const deleteVolunteer = async (id: number) => {
     if (!confirm('Helfer löschen? Alle Einsätze werden entfernt.')) return;
-    await fetch(`/api/volunteers/${id}`, { method: 'DELETE' });
-    setVolunteers(await (await fetch('/api/volunteers')).json());
+    await apiDelete(`/api/volunteers/${id}`);
+    queryClient.invalidateQueries({ queryKey: ['volunteers'] });
   };
 
   const saveClub = async () => {
@@ -207,11 +202,11 @@ export default function AdminView() {
     const data: { name: string; primaryColor: string; secondaryColor: string; accentColor: string; logo?: string } = { name: clubForm.name, primaryColor: clubForm.primaryColor, secondaryColor: clubForm.secondaryColor, accentColor: clubForm.accentColor };
     if (clubForm.logo) data.logo = clubForm.logo;
     if (editingClub) {
-      await fetch(`/api/clubs/${editingClub}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      await apiPut(`/api/clubs/${editingClub}`, data);
     } else {
-      await fetch('/api/clubs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      await apiPost('/api/clubs', data);
     }
-    setClubs(await (await fetch('/api/clubs')).json());
+    queryClient.invalidateQueries({ queryKey: ['clubs'] });
     setClubForm({ name: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' });
     setClubLogo(null);
     setEditingClub(null);
@@ -219,8 +214,8 @@ export default function AdminView() {
 
   const deleteClub = async (id: number) => {
     if (!confirm('Verein löschen?')) return;
-    await fetch(`/api/clubs/${id}`, { method: 'DELETE' });
-    setClubs(await (await fetch('/api/clubs')).json());
+    await apiDelete(`/api/clubs/${id}`);
+    queryClient.invalidateQueries({ queryKey: ['clubs'] });
   };
 
   const startEditClub = (club: Club) => {
@@ -408,8 +403,8 @@ export default function AdminView() {
               const end = (document.getElementById('tournamentEnd') as HTMLInputElement).value;
               const clubId = (document.getElementById('tournamentClub') as HTMLInputElement).value;
               if (!name || !start || !end) return alert('Alle Felder erforderlich!');
-              await fetch('/api/tournaments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, startDate: start, endDate: end, status: 'aktiv', clubId: clubId ? parseInt(clubId) : null }) });
-              setTournaments(await (await fetch('/api/tournaments')).json());
+              await apiPost('/api/tournaments', { name, startDate: start, endDate: end, status: 'aktiv', clubId: clubId ? parseInt(clubId) : null });
+              queryClient.invalidateQueries({ queryKey: ['tournaments'] });
             }} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: '600', fontSize: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>➕ Turnier</button>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -508,7 +503,7 @@ export default function AdminView() {
                     <button onClick={async () => {
                       const pw = prompt('Neues Passwort für ' + v.name + ':');
                       if (!pw) return;
-                      await fetch(`/api/volunteers/${v.id}/password`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
+                      await apiPatch(`/api/volunteers/${v.id}/password`, { password: pw });
                       alert('✅ Passwort gesetzt!');
                     }} style={{ ...btnStyle, background: '#d1e7dd', color: '#0f5132', border: 'none' }}>🔑</button>
                     <button onClick={() => deleteVolunteer(v.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>🗑️</button>
