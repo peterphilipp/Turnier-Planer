@@ -538,8 +538,8 @@ export default function SelfServiceView() {
                       <div style={{ fontSize: 18, fontWeight: 'bold', color: remaining > 0 ? clubAccent : '#6c757d' }}>{remaining}/{s?.maxVolunteers || 0}</div>
                       <div style={{ fontSize: 11, color: '#999' }}>frei</div>
                     </div>
-                    <div>
-                      <button onClick={() => unassign(vs.id)} title="Abmelden" style={{ width: 44, height: 44, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ flexShrink: 0, overflow: 'hidden' }}>
+                      <button onClick={() => unassign(vs.id)} title="Abmelden" style={{ width: 44, height: 44, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M3 7v6h6" />
                           <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
@@ -599,20 +599,20 @@ export default function SelfServiceView() {
                       <div style={{ fontSize: 18, fontWeight: 'bold', color: remaining > 0 ? clubAccent : '#6c757d' }}>{remaining}/{slot.maxVolunteers}</div>
                       <div style={{ fontSize: 11, color: '#999' }}>frei</div>
                     </div>
-                    <div>
+                    <div style={{ flexShrink: 0, overflow: 'hidden' }}>
                       {assigned ? (
-                        <button onClick={() => unassign(myShift!.id)} title="Abmelden" style={{ width: 44, height: 44, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <button onClick={() => unassign(myShift!.id)} title="Abmelden" style={{ width: 44, height: 44, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M3 7v6h6" />
                             <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
                           </svg>
                         </button>
                       ) : remaining > 0 ? (
-                        <button onClick={() => assign(slot.id, dateStr)} title="Zuweisen" style={{ width: 44, height: 44, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', fontSize: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+                        <button onClick={() => assign(slot.id, dateStr)} title="Zuweisen" style={{ width: 44, height: 44, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', fontSize: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
                           <span style={{ color: '#fff', lineHeight: 1, fontWeight: 'bold' }}>+</span>
                         </button>
                       ) : (
-                        <span style={{ width: 44, height: 44, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e9ecef', color: '#adb5bd', fontSize: 22 }}>✖</span>
+                        <span style={{ width: 44, height: 44, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e9ecef', color: '#adb5bd', fontSize: 22, overflow: 'hidden' }}>✖</span>
                       )}
                     </div>
                   </div>
