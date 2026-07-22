@@ -1,15 +1,42 @@
-import { useState } from 'react'
-import TournamentView from './components/TournamentView'
-import SchedulerView from './components/SchedulerView'
-import AdminView from './components/AdminView'
-import SelfServiceView from './components/SelfServiceView'
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getTournaments } from './api';
 
-type View = 'admin' | 'selfservice'
-type AdminTab = 'turnier' | 'admin' | 'dienstplan'
+import SelfServiceView from './components/SelfServiceView';
+import TournamentView from './components/TournamentView';
+
+import Turniere from './components/admin/stammdaten/Turniere';
+import Arbeitsbereiche from './components/admin/stammdaten/Arbeitsbereiche';
+import Zeitslots from './components/admin/stammdaten/Zeitslots';
+import Helfer from './components/admin/stammdaten/Helfer';
+import Vereine from './components/admin/stammdaten/Vereine';
+
+import Jobslots from './components/admin/organisation/Jobslots';
+import Buchungen from './components/admin/organisation/Buchungen';
+import { Tournament } from './components/admin/shared';
+
+type View = 'admin' | 'selfservice';
+type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
+type OrgTab = 'jobslots' | 'buchungen';
+type StammTab = 'turniere' | 'vereine' | 'arbeitsbereiche' | 'zeitslots' | 'helfer';
 
 export default function App() {
-  const [view, setView] = useState<View>('selfservice')
-  const [activeTab, setActiveTab] = useState<AdminTab>('turnier')
+  const [view, setView] = useState<View>('selfservice');
+  const [activeMainTab, setActiveMainTab] = useState<MainTab>('spielplan');
+  
+  const [activeOrgTab, setActiveOrgTab] = useState<OrgTab>('buchungen');
+  const [activeStammTab, setActiveStammTab] = useState<StammTab>('turniere');
+  
+  const [selectedTournamentId, setSelectedTournamentId] = useState<number | null>(null);
+  
+  const { data: tournaments = [] } = useQuery<Tournament[]>({ queryKey: ['tournaments'], queryFn: getTournaments });
+
+  useEffect(() => {
+    const active = tournaments.find(t => t.status === 'aktiv');
+    if (active && !selectedTournamentId) {
+      setSelectedTournamentId(active.id);
+    }
+  }, [tournaments, selectedTournamentId]);
 
   if (view === 'selfservice') {
     return (
@@ -32,13 +59,34 @@ export default function App() {
           </button>
         </div>
       </div>
-    )
+    );
   }
+
+  const primaryColor = '#0d6efd';
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', fontFamily: 'system-ui, sans-serif', padding: 20 }}>
+      {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ margin: 0 }}>⚽ Turnierplaner – Admin</h1>
+        
+        {/* Globale Turnierauswahl für Organisations-Tab */}
+        {activeMainTab === 'organisation' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff3cd', padding: '6px 12px', borderRadius: 8, border: '1px solid #ffe69c' }}>
+            <label style={{ fontWeight: 'bold', fontSize: 13 }}>Aktives Turnier:</label>
+            <select
+              value={selectedTournamentId || ''}
+              onChange={e => setSelectedTournamentId(e.target.value ? parseInt(e.target.value) : null)}
+              style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 4, minWidth: 200 }}
+            >
+              <option value="">-- Bitte wählen --</option>
+              {tournaments.map(t => (
+                <option key={t.id} value={t.id}>{t.name} ({new Date(t.startDate).toLocaleDateString('de-DE')})</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <button
           onClick={() => setView('selfservice')}
           style={{
@@ -55,22 +103,59 @@ export default function App() {
         </button>
       </div>
 
-      <nav style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
-        {(['turnier', 'admin', 'dienstplan'] as AdminTab[]).map(t => (
-          <button key={t} onClick={() => setActiveTab(t)}
-            style={{ padding: '8px 16px', cursor: 'pointer', background: activeTab===t ? '#0d6efd' : '#e9ecef', color: activeTab===t ? '#fff' : '#000', border: 'none', borderRadius: 6 }}>
-            {t === 'turnier' ? '🏆 Turnier & Spielplan'
-             : t === 'admin' ? '⚙️ Admin – Stamm Daten'
-             : '📋 Job-Slots'}
-          </button>
-        ))}
+      {/* LEVEL 1: HAUPT-NAVIGATION */}
+      <nav style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', borderBottom: '2px solid #dee2e6', paddingBottom: 10 }}>
+        <button onClick={() => setActiveMainTab('spielplan')}
+          style={{ padding: '10px 20px', cursor: 'pointer', background: activeMainTab === 'spielplan' ? primaryColor : 'transparent', color: activeMainTab === 'spielplan' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
+          🏆 Spielplanmanagement
+        </button>
+        <button onClick={() => setActiveMainTab('organisation')}
+          style={{ padding: '10px 20px', cursor: 'pointer', background: activeMainTab === 'organisation' ? primaryColor : 'transparent', color: activeMainTab === 'organisation' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
+          📋 Organisationsmanagement
+        </button>
+        <button onClick={() => setActiveMainTab('stammdaten')}
+          style={{ padding: '10px 20px', cursor: 'pointer', background: activeMainTab === 'stammdaten' ? primaryColor : 'transparent', color: activeMainTab === 'stammdaten' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
+          ⚙️ Stammdaten
+        </button>
       </nav>
 
+      {/* LEVEL 2: SUB-NAVIGATION */}
+      {activeMainTab === 'organisation' && (
+        <nav style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          <button onClick={() => setActiveOrgTab('buchungen')}
+            style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'buchungen' ? '#198754' : '#e9ecef', color: activeOrgTab === 'buchungen' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+            Dienstplan & Buchungen
+          </button>
+          <button onClick={() => setActiveOrgTab('jobslots')}
+            style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'jobslots' ? '#198754' : '#e9ecef', color: activeOrgTab === 'jobslots' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+            Job-Slots anlegen (Bedarf)
+          </button>
+        </nav>
+      )}
+
+      {activeMainTab === 'stammdaten' && (
+        <nav style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          <button onClick={() => setActiveStammTab('turniere')} style={{ padding: '6px 16px', cursor: 'pointer', background: activeStammTab === 'turniere' ? '#6c757d' : '#e9ecef', color: activeStammTab === 'turniere' ? '#fff' : '#000', border: 'none', borderRadius: 6 }}>Turniere</button>
+          <button onClick={() => setActiveStammTab('vereine')} style={{ padding: '6px 16px', cursor: 'pointer', background: activeStammTab === 'vereine' ? '#6c757d' : '#e9ecef', color: activeStammTab === 'vereine' ? '#fff' : '#000', border: 'none', borderRadius: 6 }}>Vereine</button>
+          <button onClick={() => setActiveStammTab('arbeitsbereiche')} style={{ padding: '6px 16px', cursor: 'pointer', background: activeStammTab === 'arbeitsbereiche' ? '#6c757d' : '#e9ecef', color: activeStammTab === 'arbeitsbereiche' ? '#fff' : '#000', border: 'none', borderRadius: 6 }}>Arbeitsbereiche</button>
+          <button onClick={() => setActiveStammTab('zeitslots')} style={{ padding: '6px 16px', cursor: 'pointer', background: activeStammTab === 'zeitslots' ? '#6c757d' : '#e9ecef', color: activeStammTab === 'zeitslots' ? '#fff' : '#000', border: 'none', borderRadius: 6 }}>Zeitslots</button>
+          <button onClick={() => setActiveStammTab('helfer')} style={{ padding: '6px 16px', cursor: 'pointer', background: activeStammTab === 'helfer' ? '#6c757d' : '#e9ecef', color: activeStammTab === 'helfer' ? '#fff' : '#000', border: 'none', borderRadius: 6 }}>Helfer (Personal)</button>
+        </nav>
+      )}
+
+      {/* CONTENT AREA */}
       <main>
-        {activeTab === 'turnier' && <TournamentView />}
-        {activeTab === 'admin' && <AdminView />}
-        {activeTab === 'dienstplan' && <SchedulerView />}
+        {activeMainTab === 'spielplan' && <TournamentView />}
+        
+        {activeMainTab === 'organisation' && activeOrgTab === 'buchungen' && <Buchungen selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
+        {activeMainTab === 'organisation' && activeOrgTab === 'jobslots' && <Jobslots selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
+
+        {activeMainTab === 'stammdaten' && activeStammTab === 'turniere' && <Turniere adminPrimary="#6c757d" adminSecondary="#adb5bd" />}
+        {activeMainTab === 'stammdaten' && activeStammTab === 'vereine' && <Vereine adminPrimary="#6c757d" />}
+        {activeMainTab === 'stammdaten' && activeStammTab === 'arbeitsbereiche' && <Arbeitsbereiche adminPrimary="#6c757d" />}
+        {activeMainTab === 'stammdaten' && activeStammTab === 'zeitslots' && <Zeitslots adminPrimary="#6c757d" />}
+        {activeMainTab === 'stammdaten' && activeStammTab === 'helfer' && <Helfer adminPrimary="#6c757d" />}
       </main>
     </div>
-  )
+  );
 }

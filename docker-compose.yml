@@ -3,7 +3,7 @@ services:
   app:
     image: ghcr.io/peterphilipp/tsv-holm-planungs-tool:latest
     ports:
-      - "80:80"
+      - "5000:5000"
     environment:
       DATABASE_URL: "file:./data/dev.db"
     volumes:
