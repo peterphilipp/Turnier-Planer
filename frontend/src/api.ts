@@ -20,7 +20,7 @@ export const apiFetch = async (url: string, options?: RequestInit) => {
 export const getTournaments = () => apiFetch('/api/tournaments');
 export const getArbeitsbereiche = () => apiFetch('/api/arbeitsbereiche');
 export const getZeitSlots = () => apiFetch('/api/zeit-slots');
-export const getVolunteers = () => apiFetch('/api/volunteers');
+export const getVolunteers = (tournamentId?: number | null) => apiFetch(tournamentId ? `/api/volunteers?tournamentId=${tournamentId}` : '/api/volunteers');
 export const getClubs = () => apiFetch('/api/clubs').catch(() => []); // Fallback if clubs endpoint doesn't exist
 
 export const getShifts = (tournamentId?: string | number | null) => 
