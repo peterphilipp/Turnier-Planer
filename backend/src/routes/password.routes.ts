@@ -139,4 +139,67 @@ router.get('/me', async (req, res, next) => {
   }
 });
 
+// PATCH /api/auth/password
+router.patch('/password', async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Nicht authentifiziert' });
+    }
+    const token = authHeader.split(' ')[1];
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET) as { volunteerId: number };
+    } catch {
+      return res.status(401).json({ error: 'Ungültiger Token' });
+    }
+    
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Bitte alle Felder ausfuellen' });
+
+    const volunteer = await prisma.volunteer.findUnique({ where: { id: decoded.volunteerId } });
+    if (!volunteer || !volunteer.password) return res.status(401).json({ error: 'Ungültige Anmeldedaten' });
+
+    const match = await bcrypt.compare(currentPassword, volunteer.password);
+    if (!match) return res.status(401).json({ error: 'Aktuelles Passwort ist falsch' });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await prisma.volunteer.update({
+      where: { id: decoded.volunteerId },
+      data: { password: hashed }
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/auth/register
+router.post('/register', async (req, res, next) => {
+  try {
+    const { name, email, phone, password } = req.body;
+    if (!name || !email || !password) return res.status(400).json({ error: 'Fehlende Pflichtfelder' });
+
+    const existing = await prisma.volunteer.findFirst({ where: { email } });
+    if (existing) return res.status(409).json({ error: 'Email wird bereits verwendet' });
+
+    const hashed = await bcrypt.hash(password, 10);
+    const volunteer = await prisma.volunteer.create({
+      data: {
+        name,
+        email,
+        phone,
+        password: hashed,
+        roles: '["Helfer"]'
+      }
+    });
+
+    const token = jwt.sign({ volunteerId: volunteer.id }, JWT_SECRET, { expiresIn: '30d' });
+    res.status(201).json({ token, volunteer });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

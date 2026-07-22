@@ -397,15 +397,16 @@ export default function SelfServiceView() {
       </div>
 
       {/* Deine Schichten */}
-      {volunteerShifts.length > 0 && (
+      {volunteerShifts.filter(vs => vs.volunteerId === volunteer?.id).length > 0 && (
         <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <h3 style={{ margin: '0 0 6px', fontSize: 16, color: clubPrimary }}>Deine Schichten ({volunteerShifts.length})</h3>
+          <h3 style={{ margin: '0 0 6px', fontSize: 16, color: clubPrimary }}>Deine Schichten ({volunteerShifts.filter(vs => vs.volunteerId === volunteer?.id).length})</h3>
           {volunteerShifts
+            .filter(vs => vs.volunteerId === volunteer?.id)
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-            .map((vs, idx) => {
+            .map((vs, idx, myShifts) => {
               const s = vs.shift;
               const dateStr = new Date(vs.date).toISOString().split('T')[0];
-              const prevVs = idx > 0 ? volunteerShifts[idx - 1] : null;
+              const prevVs = idx > 0 ? myShifts[idx - 1] : null;
               const showDayHeader = !prevVs || new Date(prevVs.date).toDateString() !== new Date(vs.date).toDateString();
               const assignedCount = volunteerShifts.filter(v => v.shiftId === s?.id).length;
               const remaining = (s?.maxVolunteers || 0) - assignedCount;
