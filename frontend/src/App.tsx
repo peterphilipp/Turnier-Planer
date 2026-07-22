@@ -72,24 +72,6 @@ export default function App() {
       {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ margin: 0 }}>⚽ Turnierplaner – Admin</h1>
-        
-        {/* Globale Turnierauswahl für Organisations-Tab */}
-        {activeMainTab === 'organisation' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff3cd', padding: '6px 12px', borderRadius: 8, border: '1px solid #ffe69c' }}>
-            <label style={{ fontWeight: 'bold', fontSize: 13 }}>Aktives Turnier:</label>
-            <select
-              value={selectedTournamentId || ''}
-              onChange={e => setSelectedTournamentId(e.target.value ? parseInt(e.target.value) : null)}
-              style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 4, minWidth: 200 }}
-            >
-              <option value="">-- Bitte wählen --</option>
-              {tournaments.map(t => (
-                <option key={t.id} value={t.id}>{t.name} ({new Date(t.startDate).toLocaleDateString('de-DE')})</option>
-              ))}
-            </select>
-          </div>
-        )}
-
         <button
           onClick={() => setView('selfservice')}
           style={{
@@ -124,24 +106,40 @@ export default function App() {
 
       {/* LEVEL 2: SUB-NAVIGATION */}
       {activeMainTab === 'organisation' && (
-        <nav style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          <button onClick={() => setActiveOrgTab('uebersicht')}
-            style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'uebersicht' ? '#198754' : '#e9ecef', color: activeOrgTab === 'uebersicht' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-            Übersicht
-          </button>
-          <button onClick={() => setActiveOrgTab('buchungen')}
-            style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'buchungen' ? '#198754' : '#e9ecef', color: activeOrgTab === 'buchungen' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-            Dienstplan & Zuweisung
-          </button>
-          <button onClick={() => setActiveOrgTab('jobslots')}
-            style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'jobslots' ? '#198754' : '#e9ecef', color: activeOrgTab === 'jobslots' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-            Job-Slots
-          </button>
-          <button onClick={() => setActiveOrgTab('lebensmittel-slots')}
-            style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'lebensmittel-slots' ? '#198754' : '#e9ecef', color: activeOrgTab === 'lebensmittel-slots' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-            Lebensmittel-Slots
-          </button>
-        </nav>
+        <div>
+          {/* Turnierauswahl */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <label style={{ fontWeight: 'bold', fontSize: 13 }}>Aktives Turnier:</label>
+            <select
+              value={selectedTournamentId || ''}
+              onChange={e => setSelectedTournamentId(e.target.value ? parseInt(e.target.value) : null)}
+              style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 6, minWidth: 280 }}
+            >
+              <option value="">-- Bitte wählen --</option>
+              {tournaments.map(t => (
+                <option key={t.id} value={t.id}>{t.name} ({new Date(t.startDate).toLocaleDateString('de-DE')})</option>
+              ))}
+            </select>
+          </div>
+          <nav style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setActiveOrgTab('uebersicht')}
+              style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'uebersicht' ? '#198754' : '#e9ecef', color: activeOrgTab === 'uebersicht' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+              Übersicht
+            </button>
+            <button onClick={() => setActiveOrgTab('buchungen')}
+              style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'buchungen' ? '#198754' : '#e9ecef', color: activeOrgTab === 'buchungen' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+              Dienstplan & Zuweisung
+            </button>
+            <button onClick={() => setActiveOrgTab('jobslots')}
+              style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'jobslots' ? '#198754' : '#e9ecef', color: activeOrgTab === 'jobslots' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+              Job-Slots
+            </button>
+            <button onClick={() => setActiveOrgTab('lebensmittel-slots')}
+              style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'lebensmittel-slots' ? '#198754' : '#e9ecef', color: activeOrgTab === 'lebensmittel-slots' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+              Lebensmittel-Slots
+            </button>
+          </nav>
+        </div>
       )}
 
       {activeMainTab === 'stammdaten' && (
