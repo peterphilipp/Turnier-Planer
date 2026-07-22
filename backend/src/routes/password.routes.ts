@@ -100,7 +100,8 @@ router.post('/login', async (req, res, next) => {
           { email: identifier },
           { name: identifier }
         ]
-      } 
+      },
+      include: { children: true }
     });
     
     if (!volunteer || !volunteer.password) {
@@ -190,7 +191,7 @@ router.patch('/profile', async (req, res, next) => {
       return res.status(401).json({ error: 'Ungültiger Token' });
     }
 
-    const { name, email, phone, childName, childYear } = req.body;
+    const { name, email, phone, childName, childYear, children } = req.body;
     const updateData: any = {};
     if (name) updateData.name = name;
     if (email) updateData.email = email;
@@ -198,9 +199,23 @@ router.patch('/profile', async (req, res, next) => {
     if (childName !== undefined) updateData.childName = childName || null;
     if (childYear !== undefined) updateData.childYear = childYear ? parseInt(childYear) : null;
 
+    // Kinder aktualisieren
+    if (children && Array.isArray(children)) {
+      // Alte Kinder löschen
+      await prisma.volunteerChild.deleteMany({ where: { volunteerId: decoded.volunteerId } });
+      // Neue Kinder erstellen
+      updateData.children = {
+        create: children.map((c: { childName: string; childYear: number }) => ({
+          childName: c.childName,
+          childYear: parseInt(c.childYear)
+        }))
+      };
+    }
+
     const volunteer = await prisma.volunteer.update({
       where: { id: decoded.volunteerId },
-      data: updateData
+      data: updateData,
+      include: { children: true }
     });
 
     res.json(volunteer);
@@ -212,7 +227,7 @@ router.patch('/profile', async (req, res, next) => {
 // POST /api/auth/register
 router.post('/register', async (req, res, next) => {
   try {
-    const { name, email, phone, password, childName, childYear } = req.body;
+    const { name, email, phone, password, childName, childYear, children } = req.body;
     if (!name || !email || !password) return res.status(400).json({ error: 'Fehlende Pflichtfelder' });
 
     const existing = await prisma.volunteer.findFirst({ where: { email } });
@@ -225,17 +240,30 @@ router.post('/register', async (req, res, next) => {
     });
 
     const hashed = await bcrypt.hash(password, 10);
+    const createData: any = {
+      name,
+      email,
+      phone,
+      childName: childName || null,
+      childYear: childYear ? parseInt(childYear) : null,
+      password: hashed,
+      roles: '["Helfer"]',
+      tournamentId: activeTournament?.id || null
+    };
+
+    // Kinder erstellen
+    if (children && Array.isArray(children) && children.length > 0) {
+      createData.children = {
+        create: children.map((c: { childName: string; childYear: number }) => ({
+          childName: c.childName,
+          childYear: parseInt(c.childYear)
+        }))
+      };
+    }
+
     const volunteer = await prisma.volunteer.create({
-      data: {
-        name,
-        email,
-        phone,
-        childName: childName || null,
-        childYear: childYear ? parseInt(childYear) : null,
-        password: hashed,
-        roles: '["Helfer"]',
-        tournamentId: activeTournament?.id || null
-      }
+      data: createData,
+      include: { children: true }
     });
 
     const token = jwt.sign({ volunteerId: volunteer.id }, JWT_SECRET, { expiresIn: '30d' });

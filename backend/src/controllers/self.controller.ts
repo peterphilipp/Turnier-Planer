@@ -21,9 +21,12 @@ export const getAvailable = async (req: Request, res: Response) => {
   const volunteerId = getVolunteerId(req);
   if (!volunteerId) return res.status(401).json({ error: 'Nicht authentifiziert' });
 
-  const volunteer = await prisma.volunteer.findUnique({ where: { id: volunteerId } });
+  const volunteer = await prisma.volunteer.findUnique({ 
+    where: { id: volunteerId },
+    include: { children: true }
+  });
   if (!volunteer || !volunteer.tournamentId) {
-    return res.json({ shifts: [], volunteerShifts: [] });
+    return res.json({ shifts: [], volunteerShifts: [], volunteer: null });
   }
 
   const shifts = await prisma.shift.findMany({

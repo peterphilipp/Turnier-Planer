@@ -93,8 +93,19 @@ model Volunteer {
   resetTokens     PasswordResetToken[]
   foodDonations   FoodDonation[]
   foodDonationSlots FoodDonationSlot[]
+  children        VolunteerChild[]
 
   @@map("volunteers")
+}
+
+model VolunteerChild {
+  id         Int    @id @default(autoincrement())
+  volunteerId Int    @map("volunteer_id")
+  childName  String @map("child_name")
+  childYear  Int    @map("child_year")
+  volunteer  Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+
+  @@map("volunteer_children")
 }
 
 model VolunteerShift {
