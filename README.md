@@ -17,38 +17,49 @@ Webanwendung zur Planung von Fußballturnieren, Verwaltung von Helfer-Dienstplä
 
 ## Architektur
 
+```mermaid
+graph TD
+    subgraph Browser ["🌐 Benutzer / Browser"]
+        URL["URL: turnier-planer.mygate.dedyn.io\n?view=admin → Admin\n(kein Parameter) → SelfService"]
+    end
+
+    subgraph Frontend ["⚛️ Frontend – React + Vite"]
+        App["App.tsx\nURL-Routing\nView-Selector"]
+        SS["SelfServiceView\n📱 Helfer-Portal"]
+        Admin["Admin-Bereich\n🖥️ Management"]
+    end
+
+    subgraph Backend ["🟢 Backend – Express + tsx"]
+        API["Express API\nPort: 5000"]
+        Auth["Auth\nJWT + bcrypt"]
+        Email["E-Mail\nResend API"]
+    end
+
+    subgraph Data ["💾 Daten"]
+        DB[("SQLite\ndev.db\nPrisma ORM")]
+    end
+
+    URL --> App
+    App --> SS
+    App --> Admin
+    SS --> API
+    Admin --> API
+    API --> Auth
+    API --> Email
+    API --> DB
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Benutzer / Browser                     │
-└──────────────┬──────────────────────────────┬───────────┘
-               │                              │
-    ┌──────────▼──────────┐        ┌─────────▼──────────┐
-    │  turnier-planer.     │        │  turnier-planer-   │
-    │  mygate.dedyn.io     │        │  admin.mygate...   │
-    │                      │        │                     │
-    │  SelfServiceView     │        │  AdminView (App)   │
-    │  (Helfer-Portal)     │        │  (Admin-Bereich)   │
-    └──────────┬───────────┘        └─────────┬──────────┘
-               │                              │
-               ▼                              │
-    ┌──────────────────────┐                   │
-    │   Vite Dev / Nginx   │                   │
-    │   (Frontend Build)   │                   │
-    └──────────┬───────────┘                   │
-               │                                │
-               ▼                                │
-    ┌──────────────────────┐                   │
-    │  Express + tsx       │◄──────────────────┘
-    │  (Backend API)       │
-    │  Port: 5000          │
-    └──────────┬───────────┘
-               │
-               ▼
-    ┌──────────────────────┐
-    │   SQLite (dev.db)    │
-    │   Prisma ORM         │
-    └──────────────────────┘
-```
+
+### Tech Stack
+
+| Schicht       | Technologie                          |
+|---------------|--------------------------------------|
+| Frontend      | React 18 + Vite + TypeScript         |
+| Backend       | Express.js + tsx (TypeScript Runtime)|
+| Datenbank     | SQLite + Prisma ORM                  |
+| Auth          | JWT (`jsonwebtoken`) + bcrypt        |
+| E-Mail        | Resend API                           |
+| Deployment    | Docker Compose + GitHub Actions      |
+| CI/CD         | GHCR (GitHub Container Registry)     |
 
 ### Tech Stack
 
