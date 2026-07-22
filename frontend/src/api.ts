@@ -33,6 +33,8 @@ export const getVolunteerShifts = (tournamentId?: string | number | null) =>
 export const getFoodCategories = () => apiFetch('/api/food/categories');
 export const getFoodItems = () => apiFetch('/api/food/items');
 export const getFoodDonations = () => apiFetch('/api/food/donations');
+export const getFoodDonationSlots = (tournamentId?: number | null) => 
+  apiFetch(`/api/food-donation-slots?tournamentId=${tournamentId}`);
 
 // ===================== Mutations (Generic) =====================
 export const apiPost = (url: string, data: any) => 

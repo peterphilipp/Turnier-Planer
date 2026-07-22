@@ -15,11 +15,12 @@ import Lebensmittel from './components/admin/stammdaten/Lebensmittel';
 import Jobslots from './components/admin/organisation/Jobslots';
 import Buchungen from './components/admin/organisation/Buchungen';
 import Uebersicht from './components/admin/organisation/Uebersicht';
+import LebensmittelSlots from './components/admin/organisation/LebensmittelSlots';
 import { Tournament } from './components/admin/shared';
 
 type View = 'admin' | 'selfservice';
 type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
-type OrgTab = 'uebersicht' | 'jobslots' | 'buchungen';
+type OrgTab = 'uebersicht' | 'jobslots' | 'buchungen' | 'lebensmittel-slots';
 type StammTab = 'turniere' | 'vereine' | 'arbeitsbereiche' | 'zeitslots' | 'helfer' | 'lebensmittel';
 
 export default function App() {
@@ -136,6 +137,10 @@ export default function App() {
             style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'jobslots' ? '#198754' : '#e9ecef', color: activeOrgTab === 'jobslots' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
             Job-Slots anlegen
           </button>
+          <button onClick={() => setActiveOrgTab('lebensmittel-slots')}
+            style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'lebensmittel-slots' ? '#198754' : '#e9ecef', color: activeOrgTab === 'lebensmittel-slots' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+            🍞 Lebensmittel-Slots
+          </button>
         </nav>
       )}
 
@@ -157,6 +162,7 @@ export default function App() {
         {activeMainTab === 'organisation' && activeOrgTab === 'uebersicht' && <Uebersicht selectedTournament={selectedTournamentId} />}
         {activeMainTab === 'organisation' && activeOrgTab === 'buchungen' && <Buchungen selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
         {activeMainTab === 'organisation' && activeOrgTab === 'jobslots' && <Jobslots selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
+        {activeMainTab === 'organisation' && activeOrgTab === 'lebensmittel-slots' && <LebensmittelSlots selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
 
         {activeMainTab === 'stammdaten' && activeStammTab === 'turniere' && <Turniere adminPrimary="#6c757d" adminSecondary="#adb5bd" />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'vereine' && <Vereine adminPrimary="#6c757d" />}
