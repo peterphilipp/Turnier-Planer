@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getTournaments, getArbeitsbereiche, getZeitSlots, getVolunteers, getClubs, getShifts, getVolunteerShifts, apiPost, apiPatch, apiPut, apiDelete } from '../api';
+import { getTournaments, getArbeitsbereiche, getZeitSlots, getVolunteers, getClubs, getShifts, getVolunteerShifts, getFoodCategories, getFoodItems, apiPost, apiPatch, apiPut, apiDelete } from '../api';
 
 interface Tournament { id: number; name: string; startDate: string; endDate: string; status: string; clubId: number | null; club: { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string } | null; }
 interface Shift { id: number; tournamentId: number; date: string; zeitslotId: number | null; slot: string; arbeitsbereichId: number | null; maxVolunteers: number; description: string | null; zeitslot: { id: number; name: string; startTime: string; endTime: string; color: string; order: number } | null; arbeitsbereich: { id: number; name: string; icon: string; color: string } | null; }
@@ -9,8 +9,10 @@ interface Zeitslot { id: number; name: string; startTime: string; endTime: strin
 interface VolunteerShift { id: number; volunteerId: number; tournamentId: number | null; date: string; slot: string; role: string; arbeitsbereichId: number | null; }
 interface Volunteer { id: number; name: string; email: string | null; phone: string | null; roles: string[]; }
 interface Club { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
+interface FoodCategory { id: number; name: string; icon: string; order: number; items: { id: number; name: string; price: string | null; unit: string }[]; }
+interface FoodItem { id: number; categoryId: number; name: string; price: string | null; unit: string; category: { id: number; name: string; icon: string } | null; }
 
-type AdminTab = 'turniere' | 'arbeitsbereiche' | 'zeitslots' | 'helfer' | 'zeitslots-verwalten' | 'clubs' | 'uebersicht';
+type AdminTab = 'turniere' | 'arbeitsbereiche' | 'zeitslots' | 'helfer' | 'zeitslots-verwalten' | 'clubs' | 'uebersicht' | 'lebensmittel';
 
 export default function AdminView() {
   const queryClient = useQueryClient();
@@ -22,6 +24,8 @@ export default function AdminView() {
   const { data: zeitSlots = [] } = useQuery<Zeitslot[]>({ queryKey: ['zeitSlots'], queryFn: getZeitSlots });
   const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers'], queryFn: getVolunteers });
   const { data: clubs = [] } = useQuery<Club[]>({ queryKey: ['clubs'], queryFn: getClubs });
+  const { data: foodCategories = [] } = useQuery<FoodCategory[]>({ queryKey: ['foodCategories'], queryFn: getFoodCategories });
+  const { data: foodItems = [] } = useQuery<FoodItem[]>({ queryKey: ['foodItems'], queryFn: getFoodItems });
 
   const { data: jobSlots = [], isFetching: busySlots } = useQuery<Shift[]>({
     queryKey: ['shifts', selectedTournament],
@@ -53,6 +57,10 @@ export default function AdminView() {
   const [editingClub, setEditingClub] = useState<number | null>(null);
   const [clubLogo, setClubLogo] = useState<string | null>(null);
   const [emojiPicker, setEmojiPicker] = useState(false);
+  const [foodCatForm, setFoodCatForm] = useState({ name: '', icon: '🍽️', order: 0 });
+  const [editingFoodCat, setEditingFoodCat] = useState<number | null>(null);
+  const [foodItemForm, setFoodItemForm] = useState({ categoryId: 0, name: '', price: '', unit: 'Stk' });
+  const [editingFoodItem, setEditingFoodItem] = useState<number | null>(null);
 
   const statusBadge = (status: string) => status === 'aktiv' ? '🟢' : status === 'beendet' ? '🟡' : '⚪';
 
@@ -224,6 +232,46 @@ export default function AdminView() {
     setClubLogo(club.logo);
   };
 
+  const saveFoodCategory = async () => {
+    if (!foodCatForm.name.trim()) return alert('Name erforderlich!');
+    if (editingFoodCat) {
+      await apiPatch(`/api/food/categories/${editingFoodCat}`, foodCatForm);
+    } else {
+      await apiPost('/api/food/categories', foodCatForm);
+    }
+    queryClient.invalidateQueries({ queryKey: ['foodCategories'] });
+    setFoodCatForm({ name: '', icon: '🍽️', order: 0 });
+    setEditingFoodCat(null);
+  };
+
+  const deleteFoodCategory = async (id: number) => {
+    if (!confirm('Kategorie löschen? Alle Artikel werden ebenfalls gelöscht.')) return;
+    await apiDelete(`/api/food/categories/${id}`);
+    queryClient.invalidateQueries({ queryKey: ['foodCategories'] });
+    queryClient.invalidateQueries({ queryKey: ['foodItems'] });
+  };
+
+  const saveFoodItem = async () => {
+    if (!foodItemForm.name.trim()) return alert('Name erforderlich!');
+    if (foodItemForm.categoryId === 0) return alert('Kategorie wählen!');
+    if (editingFoodItem) {
+      await apiPatch(`/api/food/items/${editingFoodItem}`, foodItemForm);
+    } else {
+      await apiPost('/api/food/items', foodItemForm);
+    }
+    queryClient.invalidateQueries({ queryKey: ['foodItems'] });
+    queryClient.invalidateQueries({ queryKey: ['foodCategories'] });
+    setFoodItemForm({ categoryId: 0, name: '', price: '', unit: 'Stk' });
+    setEditingFoodItem(null);
+  };
+
+  const deleteFoodItem = async (id: number) => {
+    if (!confirm('Artikel löschen?')) return;
+    await apiDelete(`/api/food/items/${id}`);
+    queryClient.invalidateQueries({ queryKey: ['foodItems'] });
+    queryClient.invalidateQueries({ queryKey: ['foodCategories'] });
+  };
+
     const rgbToHex = (r: number, g: number, b: number): string => {
     return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
   };
@@ -321,7 +369,7 @@ export default function AdminView() {
   const tabGroups = [
     { name: 'Management Jobslots', keys: ['zeitslots-verwalten'] as AdminTab[] },
     { name: 'Management Buchungen', keys: ['uebersicht'] as AdminTab[] },
-    { name: 'Stammdaten', keys: ['clubs', 'arbeitsbereiche', 'zeitslots', 'helfer', 'turniere'] as AdminTab[] },
+    { name: 'Stammdaten', keys: ['clubs', 'arbeitsbereiche', 'zeitslots', 'helfer', 'turniere', 'lebensmittel'] as AdminTab[] },
   ];
 
   const tabs: { key: AdminTab; label: string }[] = [
@@ -332,6 +380,7 @@ export default function AdminView() {
     { key: 'zeitslots', label: '🕐 Zeitslots' },
     { key: 'helfer', label: '👥 Helfer' },
     { key: 'turniere', label: '🏆 Turniere' },
+    { key: 'lebensmittel', label: '🍞 Lebensmittel' },
   ];
 
   return (
@@ -770,6 +819,74 @@ export default function AdminView() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ==================== LEbensmittel ==================== */}
+      {activeTab === 'lebensmittel' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+          {/* Kategorien */}
+          <div style={{ background: '#fff', borderRadius: 16, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: '600', color: '#212529' }}>🍞 Kategorien</h3>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <input value={foodCatForm.icon} onChange={e => setFoodCatForm(f => ({ ...f, icon: e.target.value }))} placeholder="🍽️" style={{ width: 48, padding: 8, border: '1px solid #dee2e6', borderRadius: 8, textAlign: 'center', fontSize: 20 }} />
+              <input value={foodCatForm.name} onChange={e => setFoodCatForm(f => ({ ...f, name: e.target.value }))} placeholder="Kategoriename" style={{ flex: 1, padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 14 }} />
+              <button onClick={saveFoodCategory} style={{ ...btnStyle, background: adminPrimary, color: '#fff', border: 'none' }}>{editingFoodCat ? '💾 Speichern' : '➕ Hinzufügen'}</button>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ ...thStyle, width: 50 }}>Icon</th><th style={thStyle}>Name</th><th style={{ ...thStyle, width: 100 }}>Aktion</th></tr></thead>
+              <tbody>
+                {foodCategories.map(cat => (
+                  <tr key={cat.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                    <td style={tdStyle}>{cat.icon}</td>
+                    <td style={tdStyle}>{cat.name} ({cat.items.length})</td>
+                    <td style={tdStyle}>
+                      <button onClick={() => { setEditingFoodCat(cat.id); setFoodCatForm({ name: cat.name, icon: cat.icon, order: cat.order }); }} style={{ ...btnStyle, border: 'none', background: '#e8f4fd', color: '#0d6efd' }}>✏️</button>
+                      <button onClick={() => deleteFoodCategory(cat.id)} style={{ ...btnStyle, border: 'none', background: '#fde8e8', color: '#dc3545' }}>🗑️</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Artikel */}
+          <div style={{ background: '#fff', borderRadius: 16, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: '600', color: '#212529' }}>📦 Artikel</h3>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+              <select value={foodItemForm.categoryId} onChange={e => setFoodItemForm(f => ({ ...f, categoryId: parseInt(e.target.value) }))} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 14 }}>
+                <option value={0}>-- Kategorie --</option>
+                {foodCategories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+              </select>
+              <input value={foodItemForm.name} onChange={e => setFoodItemForm(f => ({ ...f, name: e.target.value }))} placeholder="Artikelname" style={{ flex: 1, minWidth: 150, padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 14 }} />
+              <input value={foodItemForm.price} onChange={e => setFoodItemForm(f => ({ ...f, price: e.target.value }))} placeholder="Preis" type="number" step="0.01" style={{ width: 80, padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 14 }} />
+              <select value={foodItemForm.unit} onChange={e => setFoodItemForm(f => ({ ...f, unit: e.target.value }))} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 14 }}>
+                <option value="Stk">Stk</option>
+                <option value="kg">kg</option>
+                <option value="L">L</option>
+                <option value="Tüte">Tüte</option>
+                <option value="Set">Set</option>
+              </select>
+              <button onClick={saveFoodItem} style={{ ...btnStyle, background: adminPrimary, color: '#fff', border: 'none' }}>{editingFoodItem ? '💾 Speichern' : '➕ Hinzufügen'}</button>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={thStyle}>Name</th><th style={thStyle}>Kategorie</th><th style={thStyle}>Preis</th><th style={thStyle}>Einheit</th><th style={{ ...thStyle, width: 100 }}>Aktion</th></tr></thead>
+              <tbody>
+                {foodItems.map(item => (
+                  <tr key={item.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                    <td style={tdStyle}>{item.name}</td>
+                    <td style={tdStyle}>{item.category?.icon} {item.category?.name || '–'}</td>
+                    <td style={tdStyle}>{item.price || '–'}</td>
+                    <td style={tdStyle}>{item.unit}</td>
+                    <td style={tdStyle}>
+                      <button onClick={() => { setEditingFoodItem(item.id); setFoodItemForm({ categoryId: item.categoryId, name: item.name, price: item.price || '', unit: item.unit }); }} style={{ ...btnStyle, border: 'none', background: '#e8f4fd', color: '#0d6efd' }}>✏️</button>
+                      <button onClick={() => deleteFoodItem(item.id)} style={{ ...btnStyle, border: 'none', background: '#fde8e8', color: '#dc3545' }}>🗑️</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

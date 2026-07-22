@@ -29,6 +29,11 @@ export const getShifts = (tournamentId?: string | number | null) =>
 export const getVolunteerShifts = (tournamentId?: string | number | null) => 
   tournamentId ? apiFetch(`/api/volunteer-shifts?tournamentId=${tournamentId}`) : Promise.resolve([]);
 
+// ===================== Food =====================
+export const getFoodCategories = () => apiFetch('/api/food/categories');
+export const getFoodItems = () => apiFetch('/api/food/items');
+export const getFoodDonations = () => apiFetch('/api/food/donations');
+
 // ===================== Mutations (Generic) =====================
 export const apiPost = (url: string, data: any) => 
   apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });

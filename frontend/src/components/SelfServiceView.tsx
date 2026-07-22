@@ -10,6 +10,8 @@ interface Shift {
 interface VolunteerShift { id: number; volunteerId: number; date: string; slot: string; role: string; areaId: string | null; shiftId: number | null; shift: { id: number; date: string; slot: string; zeitslot: { name: string; startTime: string; endTime: string; color: string } | null; arbeitsbereich: { name: string; icon: string; color: string } | null; arbeitsbereichId: number | null; maxVolunteers: number; } | null; }
 interface Volunteer { id: number; name: string; email: string | null; phone: string | null; childName: string | null; childYear: number | null; }
 interface Club { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
+interface FoodCategory { id: number; name: string; icon: string; items: { id: number; name: string; price: string | null; unit: string }[]; }
+interface FoodDonation { id: number; foodItemId: number; quantity: number; note: string | null; createdAt: string; foodItem: { id: number; name: string; unit: string; category: { id: number; name: string; icon: string } } | null; }
 
 export default function SelfServiceView() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -50,6 +52,12 @@ export default function SelfServiceView() {
   const [clubLogo, setClubLogo] = useState<string | null>(null);
   const [tournamentName, setTournamentName] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<'schichten' | 'spenden'>('schichten');
+  const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
+  const [myDonations, setMyDonations] = useState<FoodDonation[]>([]);
+  const [donationFoodId, setDonationFoodId] = useState(0);
+  const [donationQuantity, setDonationQuantity] = useState('');
+  const [donationNote, setDonationNote] = useState('');
 
   useEffect(() => {
     // Reset-Token aus URL auslesen
@@ -159,6 +167,46 @@ export default function SelfServiceView() {
       const res = await fetch('/api/self/unassign/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
       if (res.ok) { await loadAvailable(); alert('Abgemeldet!'); }
     } catch { alert('Fehler bei der Abmeldung'); }
+  };
+
+  const loadFood = async () => {
+    try {
+      const [cats, dons] = await Promise.all([
+        fetch('/api/food/categories').then(r => r.json()).catch(() => []),
+        fetch('/api/food/donations', { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json()).catch(() => ({ donations: [] }))
+      ]);
+      setFoodCategories(cats);
+      setMyDonations(dons.donations || []);
+    } catch {}
+  };
+
+  const submitDonation = async () => {
+    if (!donationFoodId || !donationQuantity) return alert('Artikel und Menge auswaehlen!');
+    try {
+      const res = await fetch('/api/food/donations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ foodItemId: donationFoodId, quantity: parseInt(donationQuantity), note: donationNote || null }),
+      });
+      if (res.ok) {
+        alert('Spende eingetragen!');
+        setDonationFoodId(0);
+        setDonationQuantity('');
+        setDonationNote('');
+        await loadFood();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Fehler');
+      }
+    } catch { alert('Fehler beim Eintragen'); }
+  };
+
+  const cancelDonation = async (id: number) => {
+    if (!confirm('Spende loeschen?')) return;
+    try {
+      const res = await fetch('/api/food/donations/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+      if (res.ok) { alert('Geloescht!'); await loadFood(); }
+    } catch { alert('Fehler'); }
   };
 
   const changePassword = async () => {
@@ -461,8 +509,14 @@ export default function SelfServiceView() {
         </select>
       </div>
 
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        <button onClick={() => setActiveSection('schichten')} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'schichten' ? '600' : '400', background: activeSection === 'schichten' ? clubSecondary : '#fff', color: activeSection === 'schichten' ? '#fff' : '#666', boxShadow: activeSection === 'schichten' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>📋 Schichten</button>
+        <button onClick={() => { setActiveSection('spenden'); loadFood(); }} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'spenden' ? '600' : '400', background: activeSection === 'spenden' ? clubSecondary : '#fff', color: activeSection === 'spenden' ? '#fff' : '#666', boxShadow: activeSection === 'spenden' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>🍞 Spenden</button>
+      </div>
+
       {/* Deine Schichten */}
-      {volunteerShifts.filter(vs => vs.volunteerId === volunteer?.id).length > 0 && (
+      {activeSection === 'schichten' && volunteerShifts.filter(vs => vs.volunteerId === volunteer?.id).length > 0 && (
         <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <h3 style={{ margin: '0 0 6px', fontSize: 16, color: clubPrimary }}>Deine Schichten ({volunteerShifts.filter(vs => vs.volunteerId === volunteer?.id).length})</h3>
           {volunteerShifts
@@ -576,6 +630,53 @@ export default function SelfServiceView() {
                 </div>
               );
             })}
+        </div>
+      )}
+
+      {/* Lebensmittel Spenden */}
+      {activeSection === 'spenden' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Spenden Formular */}
+          <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>🍞 Neue Spende</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <select value={donationFoodId} onChange={e => setDonationFoodId(parseInt(e.target.value))} style={{ padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', background: '#fff' }}>
+                <option value={0}>-- Artikel auswählen --</option>
+                {foodCategories.map(cat => (
+                  <optgroup key={cat.id} label={`${cat.icon} ${cat.name}`}>
+                    {cat.items.map(item => (
+                      <option key={item.id} value={item.id}>{item.name} ({item.unit})</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <input value={donationQuantity} onChange={e => setDonationQuantity(e.target.value)} placeholder="Menge" type="number" min="1" style={{ flex: 1, padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }} />
+                <input value={donationNote} onChange={e => setDonationNote(e.target.value)} placeholder="Notiz (optional)" style={{ flex: 1, padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+              <button onClick={submitDonation} style={{ padding: '14px 0', background: clubSecondary, color: '#fff', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: '600', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>📦 Spende eintragen</button>
+            </div>
+          </div>
+
+          {/* Meine Spenden */}
+          {myDonations.length > 0 && (
+            <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>📌 Meine Spenden ({myDonations.length})</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {myDonations.map(d => (
+                  <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: '#f8f9fa', borderRadius: 10 }}>
+                    <div style={{ fontSize: 24 }}>{d.foodItem?.category?.icon || '🍽️'}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: '600', fontSize: 14, color: '#333' }}>{d.foodItem?.name || '–'}</div>
+                      <div style={{ fontSize: 12, color: '#999' }}>{d.quantity} {d.foodItem?.unit} · {new Date(d.createdAt).toLocaleDateString('de-DE')}</div>
+                      {d.note && <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>📝 {d.note}</div>}
+                    </div>
+                    <button onClick={() => cancelDonation(d.id)} title="Löschen" style={{ width: 36, height: 36, borderRadius: 8, border: 'none', background: '#fde8e8', color: '#dc3545', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

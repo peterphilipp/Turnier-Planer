@@ -22,6 +22,7 @@ model Tournament {
   materials       MaterialItem[]
   shifts          Shift[]
   volunteerShifts VolunteerShift[]
+  donations       FoodDonation[]
 
   @@map("tournaments")
 }
@@ -78,17 +79,18 @@ model Match {
 }
 
 model Volunteer {
-  id         Int              @id @default(autoincrement())
-  name       String
-  email      String?          @map("email")
-  phone      String?          @map("phone")
-  childName  String?          @map("child_name")
-  childYear  Int?             @map("child_year")
-  password   String?          @map("password")
-  roles      String
-  tournamentId Int?           @map("tournament_id")
-  shifts     VolunteerShift[]
-  resetTokens PasswordResetToken[]
+  id              Int              @id @default(autoincrement())
+  name            String
+  email           String?          @map("email")
+  phone           String?          @map("phone")
+  childName       String?          @map("child_name")
+  childYear       Int?             @map("child_year")
+  password        String?          @map("password")
+  roles           String
+  tournamentId    Int?             @map("tournament_id")
+  shifts          VolunteerShift[]
+  resetTokens     PasswordResetToken[]
+  foodDonations   FoodDonation[]
 
   @@map("volunteers")
 }
@@ -110,12 +112,12 @@ model VolunteerShift {
 }
 
 model Arbeitsbereich {
-  id            Int     @id @default(autoincrement())
+  id            Int         @id @default(autoincrement())
   name          String
-  icon          String  @default("📍")
-  minVolunteers Int     @default(2) @map("min_volunteers")
-  maxVolunteers Int     @default(8) @map("max_volunteers")
-  color         String  @default("#3b98f8")
+  icon          String      @default("📍")
+  minVolunteers Int         @default(2) @map("min_volunteers")
+  maxVolunteers Int         @default(8) @map("max_volunteers")
+  color         String      @default("#3b98f8")
   shifts        Shift[]
 
   @@map("arbeitsbereiche")
@@ -163,13 +165,53 @@ model MaterialItem {
 }
 
 model PasswordResetToken {
-  id         Int      @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   volunteerId Int      @map("volunteer_id")
-  volunteer  Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
-  token      String   @unique @map("token")
-  expiresAt  DateTime @map("expires_at")
-  used       Boolean  @default(false) @map("used")
-  createdAt  DateTime @default(now()) @map("created_at")
+  volunteer   Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+  token       String   @unique @map("token")
+  expiresAt   DateTime @map("expires_at")
+  used        Boolean  @default(false) @map("used")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   @@map("password_reset_tokens")
+}
+
+model FoodCategory {
+  id        Int            @id @default(autoincrement())
+  name      String
+  icon      String         @default("🍽️")
+  order     Int            @default(0)
+  items     FoodItem[]
+  createdAt DateTime       @default(now())
+
+  @@map("food_categories")
+}
+
+model FoodItem {
+  id          Int            @id @default(autoincrement())
+  categoryId  Int            @map("category_id")
+  category    FoodCategory   @relation(fields: [categoryId], references: [id])
+  name        String
+  price       String?        @map("price")
+  unit        String         @default("Stk")
+  donations   FoodDonation[]
+  createdAt   DateTime       @default(now())
+
+  @@map("food_items")
+}
+
+model FoodDonation {
+  id            Int          @id @default(autoincrement())
+  tournamentId  Int          @map("tournament_id")
+  volunteerId   Int          @map("volunteer_id")
+  foodItemId    Int          @map("food_item_id")
+  quantity      Int
+  note          String?
+  createdAt     DateTime     @default(now())
+
+  tournament    Tournament   @relation(fields: [tournamentId], references: [id])
+  volunteer     Volunteer    @relation(fields: [volunteerId], references: [id])
+  foodItem      FoodItem     @relation(fields: [foodItemId], references: [id])
+
+  @@map("food_donations")
 }
