@@ -175,10 +175,44 @@ router.patch('/password', async (req, res, next) => {
   }
 });
 
+// PATCH /api/auth/profile
+router.patch('/profile', async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Nicht authentifiziert' });
+    }
+    const token = authHeader.split(' ')[1];
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET) as { volunteerId: number };
+    } catch {
+      return res.status(401).json({ error: 'Ungültiger Token' });
+    }
+
+    const { name, email, phone, childName, childYear } = req.body;
+    const updateData: any = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    if (phone !== undefined) updateData.phone = phone;
+    if (childName !== undefined) updateData.childName = childName || null;
+    if (childYear !== undefined) updateData.childYear = childYear ? parseInt(childYear) : null;
+
+    const volunteer = await prisma.volunteer.update({
+      where: { id: decoded.volunteerId },
+      data: updateData
+    });
+
+    res.json(volunteer);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/auth/register
 router.post('/register', async (req, res, next) => {
   try {
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, childName, childYear } = req.body;
     if (!name || !email || !password) return res.status(400).json({ error: 'Fehlende Pflichtfelder' });
 
     const existing = await prisma.volunteer.findFirst({ where: { email } });
@@ -190,6 +224,8 @@ router.post('/register', async (req, res, next) => {
         name,
         email,
         phone,
+        childName: childName || null,
+        childYear: childYear ? parseInt(childYear) : null,
         password: hashed,
         roles: '["Helfer"]'
       }
