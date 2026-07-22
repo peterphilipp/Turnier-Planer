@@ -156,7 +156,12 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
 
         <div>
           <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>5. Soll-Menge</label>
-          <input type="number" value={slotForm.targetQuantity} onChange={e => setSlotForm({ ...slotForm, targetQuantity: parseInt(e.target.value) || 0 })} placeholder="0" style={{ ...inputStyle, width: 120 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input type="number" value={slotForm.targetQuantity} onChange={e => setSlotForm({ ...slotForm, targetQuantity: parseInt(e.target.value) || 0 })} placeholder="0" style={{ ...inputStyle, width: 120 }} />
+            <span style={{ color: '#666', fontSize: 14 }}>
+              {filteredItems.find(i => i.id === slotForm.foodItemId)?.unit || 'Stk'}
+            </span>
+          </div>
         </div>
 
         <div>
@@ -200,6 +205,7 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
                     <th style={{ ...thStyle, background: '#f8f9fa' }}>Lebensmittel</th>
                     <th style={{ ...thStyle, background: '#f8f9fa' }}>Soll</th>
                     <th style={{ ...thStyle, background: '#f8f9fa' }}>Ist</th>
+                    <th style={{ ...thStyle, background: '#f8f9fa' }}>Einheit</th>
                     <th style={{ ...thStyle, background: '#f8f9fa' }}>Fortschritt</th>
                     <th style={{ ...thStyle, background: '#f8f9fa' }}>Aktion</th>
                   </tr>
@@ -209,8 +215,8 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
                     <tr key={slot.id} style={{ borderBottom: '1px solid #eee' }}>
                       <td style={tdStyle}>{new Date(slot.date).toLocaleDateString('de-DE')}</td>
                       <td style={tdStyle}>{slot.foodItem ? `${slot.foodItem.icon} ${slot.foodItem.name}` : 'Alle'}</td>
-                      <td style={tdStyle}>{slot.targetQuantity}</td>
-                      <td style={tdStyle}>{slot.collected}</td>
+                      <td style={tdStyle}>{slot.targetQuantity} <span style={{ color: '#666', fontSize: 12 }}>{slot.foodItem?.unit || 'Stk'}</span></td>
+                      <td style={tdStyle}>{slot.collected} <span style={{ color: '#666', fontSize: 12 }}>{slot.foodItem?.unit || 'Stk'}</span></td>
                       <td style={tdStyle}>
                         <div style={{ background: '#e9ecef', borderRadius: 4, height: 8, overflow: 'hidden', width: 100 }}>
                           <div style={{ 

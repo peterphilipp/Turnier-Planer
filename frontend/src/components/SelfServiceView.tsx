@@ -77,9 +77,7 @@ export default function SelfServiceView() {
       const vol = JSON.parse(savedVolunteer);
       setVolunteer(vol);
       setIsLoggedIn(true);
-      console.log('Auto-login volunteer:', vol);
       if (vol?.tournamentId) {
-        console.log('Auto-fetching club colors for tournamentId:', vol.tournamentId);
         fetchClubColors(vol.tournamentId);
       }
       fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + savedToken } })
@@ -91,12 +89,9 @@ export default function SelfServiceView() {
 
   const fetchClubColors = async (tournamentId: number) => {
     try {
-      console.log('fetchClubColors called for tournamentId:', tournamentId);
       const res = await fetch('/api/tournaments/' + tournamentId);
-      console.log('fetchClubColors response status:', res.status);
       if (res.ok) {
         const t = await res.json();
-        console.log('Club data:', t?.club);
         if (t?.club) {
           setClubPrimary(t.club.primaryColor || '#0d6efd');
           setClubSecondary(t.club.secondaryColor || '#6c757d');
@@ -124,11 +119,9 @@ export default function SelfServiceView() {
       setIsLoggedIn(true);
       localStorage.setItem('token', data.token);
       localStorage.setItem('volunteer', JSON.stringify(data.volunteer));
-      console.log('Login volunteer:', data.volunteer);
       setLoginEmail('');
       setLoginPassword('');
       if (data.volunteer?.tournamentId) {
-        console.log('Setting tournamentId:', data.volunteer.tournamentId);
         fetchClubColors(data.volunteer.tournamentId);
       }
       const res2 = await fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + data.token } });

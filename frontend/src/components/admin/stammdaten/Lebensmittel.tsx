@@ -61,7 +61,7 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
       {/* Kategorien */}
       <div style={{ background: '#fff', borderRadius: 16, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-        <h3 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: '600', color: '#212529' }}>🍞 Kategorien</h3>
+        <h3 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: '600', color: '#212529' }}>Kategorien</h3>
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <input value={foodCatForm.icon} onChange={e => setFoodCatForm(f => ({ ...f, icon: e.target.value }))} placeholder="🍽️" style={{ width: 48, padding: 8, border: '1px solid #dee2e6', borderRadius: 8, textAlign: 'center', fontSize: 20 }} />
           <input value={foodCatForm.name} onChange={e => setFoodCatForm(f => ({ ...f, name: e.target.value }))} placeholder="Kategoriename" style={{ flex: 1, padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 14 }} />
