@@ -135,11 +135,11 @@ export default function App() {
           </button>
           <button onClick={() => setActiveOrgTab('jobslots')}
             style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'jobslots' ? '#198754' : '#e9ecef', color: activeOrgTab === 'jobslots' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-            Job-Slots anlegen
+            Job-Slots
           </button>
           <button onClick={() => setActiveOrgTab('lebensmittel-slots')}
             style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'lebensmittel-slots' ? '#198754' : '#e9ecef', color: activeOrgTab === 'lebensmittel-slots' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-            🍞 Lebensmittel-Slots
+            Lebensmittel-Slots
           </button>
         </nav>
       )}
