@@ -7,7 +7,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE: tsv-holm-planungs-tool
+  IMAGE: turnier-planer
 
 jobs:
   build-and-push:
