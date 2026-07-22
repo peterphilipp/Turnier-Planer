@@ -5,7 +5,8 @@ import bcrypt from 'bcrypt';
 
 export const volunteerSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
-  roles: z.union([z.array(z.string()), z.string()]).optional()
+  roles: z.union([z.array(z.string()), z.string()]).optional(),
+  tournamentId: z.number().int().nullable().optional()
 });
 
 export const getVolunteers = async (req: Request, res: Response) => {
