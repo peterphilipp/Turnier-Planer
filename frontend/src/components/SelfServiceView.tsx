@@ -533,9 +533,8 @@ export default function SelfServiceView() {
                       <div style={{ fontSize: 14, color: '#666', marginBottom: 2 }}>{new Date(vs.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</div>
                       {s?.zeitslot && <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{s.zeitslot.startTime} - {s.zeitslot.endTime}</div>}
                     </div>
-                    <div style={{ textAlign: 'center', minWidth: 70 }}>
+                    <div style={{ textAlign: 'center', minWidth: 50 }}>
                       <div style={{ fontSize: 18, fontWeight: 'bold', color: remaining > 0 ? clubAccent : '#6c757d' }}>{remaining}/{s?.maxVolunteers || 0}</div>
-                      <div style={{ fontSize: 11, color: '#999' }}>frei</div>
                     </div>
                     <div style={{ flexShrink: 0, overflow: 'hidden' }}>
                       <button onClick={() => unassign(vs.id)} title="Abmelden" style={{ width: 44, height: 44, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -594,9 +593,8 @@ export default function SelfServiceView() {
                       <div style={{ fontSize: 14, color: '#666', marginBottom: 2 }}>{new Date(slot.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</div>
                       {slot.zeitslot && <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{slot.zeitslot.startTime} - {slot.zeitslot.endTime}</div>}
                     </div>
-                    <div style={{ textAlign: 'center', minWidth: 70 }}>
+                    <div style={{ textAlign: 'center', minWidth: 50 }}>
                       <div style={{ fontSize: 18, fontWeight: 'bold', color: remaining > 0 ? clubAccent : '#6c757d' }}>{remaining}/{slot.maxVolunteers}</div>
-                      <div style={{ fontSize: 11, color: '#999' }}>frei</div>
                     </div>
                     <div style={{ flexShrink: 0, overflow: 'hidden' }}>
                       {assigned ? (
