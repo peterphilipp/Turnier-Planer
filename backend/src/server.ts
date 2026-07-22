@@ -1,7 +1,12 @@
 import 'express-async-errors'; // Must be at the very top for async error catching
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import prisma from './config/prisma.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Route imports
 import tournamentRoutes from './routes/tournament.routes.js';
@@ -38,6 +43,18 @@ app.use('/api/zeit-slots', zeitslotRoutes);
 app.use('/api/material', materialRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', passwordRoutes);
+
+// ===================== Serve Frontend (SPA) =====================
+const distPath = path.resolve(__dirname, '../dist');
+app.use(express.static(distPath));
+
+// SPA fallback: alle nicht-API-Routen -> index.html
+app.get('*', (req: Request, res: Response) => {
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  res.sendFile(path.resolve(distPath, 'index.html'));
+});
 
 // ===================== Error Handling =====================
 // This must be registered after all routes

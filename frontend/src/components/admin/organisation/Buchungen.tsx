@@ -1,31 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getTournaments, getVolunteers, getZeitSlots, getShifts, getVolunteerShifts, apiPost, apiDelete, apiPatch } from '../api';
+import { getTournaments, getVolunteers, getZeitSlots, getShifts, getVolunteerShifts, getArbeitsbereiche, apiPost, apiDelete, apiPatch } from '../../../api';
 
-interface Tournament { id: number; name: string; startDate: string; endDate: string; status: string; }
-interface Volunteer { id: number; name: string; roles: string[] }
-interface VolunteerShift {
-  id: number; volunteerId: number; tournamentId: number | null;
-  date: string; slot: string; role: string; areaId: number | null;
-  arbeitsbereichId?: number | null;
-  arbeitsbereich: { id: number; name: string; icon: string; color: string } | null;
-  volunteer?: Volunteer;
-}
-interface Shift {
-  id: number; tournamentId: number; date: string; zeitslotId: number | null;
-  slot: string;
-  arbeitsbereichId: number | null; maxVolunteers: number; description: string | null;
-  zeitslot: { id: number; name: string; startTime: string; endTime: string; color: string; order: number } | null;
-  arbeitsbereich: { id: number; name: string; icon: string; color: string } | null;
-}
-interface Zeitslot { id: number; name: string; startTime: string; endTime: string; color: string; order: number; }
-
-type SchedulerTab = 'dienstplan' | 'helfer';
-
-export default function SchedulerView() {
-  const [activeTab, setActiveTab] = useState<SchedulerTab>('dienstplan');
-  const [selectedTournament, setSelectedTournament] = useState<number | null>(null);
-  const [selectedDate, setSelectedDate] = useState('');
+import { Tournament, Shift, Zeitslot, VolunteerShift, Volunteer, Arbeitsbereich } from '../shared';
+export default function Buchungen({ selectedTournament, adminPrimary }: { selectedTournament: number | null, adminPrimary: string }) {
+      const [selectedDate, setSelectedDate] = useState('');
   const [selectedArea, setSelectedArea] = useState<number | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [selectedVolunteer, setSelectedVolunteer] = useState('');
@@ -41,6 +20,7 @@ export default function SchedulerView() {
   const { data: tournaments = [] } = useQuery<Tournament[]>({ queryKey: ['tournaments'], queryFn: getTournaments });
   const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers'], queryFn: getVolunteers });
   const { data: zeitSlots = [] } = useQuery<Zeitslot[]>({ queryKey: ['zeitSlots'], queryFn: getZeitSlots });
+  const { data: arbeitsbereiche = [] } = useQuery<Arbeitsbereich[]>({ queryKey: ['arbeitsbereiche'], queryFn: getArbeitsbereiche });
 
   const { data: jobSlots = [], isFetching: busySlots } = useQuery<Shift[]>({
     queryKey: ['shifts', selectedTournament],
@@ -54,12 +34,7 @@ export default function SchedulerView() {
     enabled: !!selectedTournament
   });
 
-  useEffect(() => {
-    const active = tournaments.find(t => t.status === 'aktiv');
-    if (active && !selectedTournament) {
-      setSelectedTournament(active.id);
-    }
-  }, [tournaments, selectedTournament]);
+
 
   const busy = busySlots || busyVolShifts;
 
@@ -202,7 +177,7 @@ export default function SchedulerView() {
   const saveEdit = async () => {
     if (!editingShift) return;
     const slot = zeitSlots.find(z => z.id === editSlotId);
-    const area = loadedArbeitsbereiche.find(a => a.id === editAreaId);
+    const area = arbeitsbereiche.find(a => a.id === editAreaId);
     await apiPatch(`/api/volunteer-shifts/${editingShift.id}`, {
       slot: slot?.name || editingShift.slot,
       volunteerId: editVolunteerId || editingShift.volunteerId,
@@ -212,7 +187,7 @@ export default function SchedulerView() {
     setEditingShift(null);
   };
 
-  const loadedArbeitsbereiche = useMemo(() => {
+  const arbeitsbereiche = useMemo(() => {
     const seen = new Set<number>();
     return jobSlots
       .filter(s => s.arbeitsbereichId && !seen.has(s.arbeitsbereichId) && seen.add(s.arbeitsbereichId!))
@@ -228,33 +203,7 @@ export default function SchedulerView() {
     <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 1200, margin: '0 auto' }}>
       <h2 style={{ marginBottom: 16 }}>📅 Dienstplan</h2>
 
-      {/* Turnier-Auswahl */}
-      <div style={{ marginBottom: 16, padding: 12, background: '#fff3cd', borderRadius: 6, border: '1px solid #ffe69c' }}>
-        <label style={{ fontWeight: 'bold', marginRight: 8 }}>Turnier:</label>
-        <select
-          value={selectedTournament || ''}
-          onChange={e => setSelectedTournament(e.target.value ? parseInt(e.target.value) : null)}
-          style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 4, minWidth: 300 }}
-        >
-          <option value="">-- Bitte wählen --</option>
-          {tournaments.map(t => (
-            <option key={t.id} value={t.id}>{t.name} ({new Date(t.startDate).toLocaleDateString('de-DE')} – {new Date(t.endDate).toLocaleDateString('de-DE')})</option>
-          ))}
-        </select>
-        {selectedTournament && (
-          <span style={{ marginLeft: 12, color: '#0d6efd', fontWeight: 'bold' }}>
-            → {tournaments.find(t => t.id === selectedTournament)?.name}
-          </span>
-        )}
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <button onClick={() => setActiveTab('dienstplan')} style={{ padding: '8px 16px', border: '1px solid #ced4da', borderRadius: 6, background: activeTab === 'dienstplan' ? '#0d6efd' : '#f8f9fa', color: activeTab === 'dienstplan' ? '#fff' : '#333' }}>📅 Dienstplan</button>
-        <button onClick={() => setActiveTab('helfer')} style={{ padding: '8px 16px', border: '1px solid #ced4da', borderRadius: 6, background: activeTab === 'helfer' ? '#0d6efd' : '#f8f9fa', color: activeTab === 'helfer' ? '#fff' : '#333' }}>👥 Helfer ({volunteers.length})</button>
-      </div>
-
-      {activeTab === 'dienstplan' && selectedTournament && (
+      {!selectedTournament ? <div style={{ padding: 24, background: '#fff', borderRadius: 16 }}>Bitte wähle zunächst oben ein Turnier aus.</div> : (
         <>
           {/* Filter: Datum + Bereich */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -272,7 +221,7 @@ export default function SchedulerView() {
               <select value={selectedArea || ''} onChange={e => setSelectedArea(e.target.value ? parseInt(e.target.value) : null)}
                 style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 4 }}>
                 <option value="">Alle Bereiche</option>
-                {loadedArbeitsbereiche.map(a => (
+                {arbeitsbereiche.map(a => (
                   <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
                 ))}
               </select>
@@ -488,76 +437,6 @@ export default function SchedulerView() {
       )}
 
       {/* ==================== HELFER TAB ==================== */}
-      {activeTab === 'helfer' && (
-        <>
-          {/* Helfer anlegen */}
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input placeholder="Neuer Helfer" value={newVolunteerName} onChange={e => setNewVolunteerName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') addVolunteer() }}
-              style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 4, width: 220 }} />
-            <button onClick={addVolunteer} style={{ ...btnStyle, background: '#0d6efd', color: '#fff', fontWeight: 'bold' }}>+ Helfer anlegen</button>
-          </div>
-
-          {/* Helfer-Tabelle */}
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Name</th>
-                <th style={thStyle}>Rollen</th>
-                {tournamentDays.map(d => (
-                  <th key={d} style={{ ...thStyle, textAlign: 'center', minWidth: 80 }}>
-                    {new Date(d).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
-                  </th>
-                ))}
-                <th style={{ ...thStyle, textAlign: 'center' }}>Total</th>
-                <th style={{ ...thStyle, textAlign: 'center' }}>Aktion</th>
-              </tr>
-            </thead>
-            <tbody>
-              {volunteers.map(v => {
-                const dayCounts: Record<string, number> = {};
-                tournamentDays.forEach(d => { dayCounts[d] = 0; });
-                volunteerShifts.forEach(vs => {
-                  const vsDate = new Date(vs.date).toISOString().split('T')[0];
-                  if (vs.tournamentId === selectedTournament && dayCounts[vsDate] !== undefined) {
-                    dayCounts[vsDate]++;
-                  }
-                });
-                const total = Object.values(dayCounts).reduce((a, b) => a + b, 0);
-                return (
-                  <tr key={v.id} style={{ borderBottom: '1px solid #e9ecef' }}>
-                    <td style={{ ...tdStyle, fontWeight: 'bold' }}>{v.name}</td>
-                    <td style={tdStyle}>{v.roles?.join(', ') || '–'}</td>
-                    {tournamentDays.map(d => {
-                      const count = dayCounts[d];
-                      const color = count === 0 ? '#dc3545' : count >= 2 ? '#198754' : '#ffc107';
-                      const emoji = count === 0 ? '🔴' : count >= 2 ? '🟢' : '🟡';
-                      return (
-                        <td key={d} style={{ ...tdStyle, textAlign: 'center' }}>
-                          <span style={{ color, fontSize: 16 }}>{emoji}</span>
-                          <div style={{ fontSize: 10, color }}>{count} Schicht{count !== 1 ? 'en' : ''}</div>
-                        </td>
-                      );
-                    })}
-                    <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold', color: total > 0 ? '#0d6efd' : '#adb5bd' }}>
-                      {total}
-                    </td>
-                    <td style={{ ...tdStyle, textAlign: 'center' }}>
-                      <button onClick={() => {
-                        const toRemove = volunteerShifts.filter(vs =>
-                          vs.volunteerId === v.id && vs.tournamentId === selectedTournament
-                        );
-                        toRemove.forEach(vs => removeAssignment(vs.id));
-                      }} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545' }}>🗑️ Alle entfernen</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </>
-      )}
-
       {/* Edit Modal */}
       {editingShift && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
@@ -579,7 +458,7 @@ export default function SchedulerView() {
               <select value={editAreaId || ''} onChange={e => setEditAreaId(e.target.value ? parseInt(e.target.value) : null)}
                 style={{ width: '100%', padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 4 }}>
                 <option value="">-- Bitte wählen --</option>
-                {loadedArbeitsbereiche.map(a => (
+                {arbeitsbereiche.map(a => (
                   <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
                 ))}
               </select>
