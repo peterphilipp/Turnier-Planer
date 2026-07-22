@@ -71,7 +71,6 @@ export default function SelfServiceView() {
 
     const savedToken = localStorage.getItem('token');
     const savedVolunteer = localStorage.getItem('volunteer');
-    console.log('useEffect - savedToken:', !!savedToken, 'savedVolunteer:', savedVolunteer);
     if (savedToken && savedVolunteer) {
       setToken(savedToken);
       const vol = JSON.parse(savedVolunteer);
