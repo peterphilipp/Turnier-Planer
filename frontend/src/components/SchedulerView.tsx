@@ -62,8 +62,6 @@ export default function SchedulerView() {
   }, [tournaments, selectedTournament]);
 
   const busy = busySlots || busyVolShifts;
-  const [showNewHelper, setShowNewHelper] = useState(false);
-  const [newHelperName, setNewHelperName] = useState('');
 
   // Turnier-Tage
   const tournamentDays = useMemo(() => {
