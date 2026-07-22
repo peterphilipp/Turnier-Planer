@@ -24,4 +24,7 @@ COPY --from=frontend-build /app/dist ./dist/
 
 EXPOSE 5000
 
-CMD ["npx", "tsx", "src/server.ts"]
+COPY backend/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
