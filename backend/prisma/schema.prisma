@@ -1,0 +1,160 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./data/dev.db"
+}
+
+model Tournament {
+  id              Int              @id @default(autoincrement()) @map("id")
+  name            String
+  description     String?          @map("description")
+  startDate       DateTime         @map("start_date")
+  endDate         DateTime         @map("end_date")
+  status          String           @default("aktiv") @map("status")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  clubId          Int?             @map("club_id")
+  club            Club?            @relation(fields: [clubId], references: [id])
+  groups          Group[]
+  matches         Match[]
+  materials       MaterialItem[]
+  shifts          Shift[]
+  volunteerShifts VolunteerShift[]
+
+  @@map("tournaments")
+}
+
+model Club {
+  id              Int         @id @default(autoincrement())
+  name            String
+  logo            String?     @map("logo")
+  primaryColor    String      @default("#0d6efd") @map("primary_color")
+  secondaryColor  String      @default("#6c757d") @map("secondary_color")
+  accentColor     String      @default("#198754") @map("accent_color")
+  tournaments     Tournament[]
+
+  @@map("clubs")
+}
+
+model Group {
+  id           Int        @id @default(autoincrement())
+  name         String
+  tournamentId Int        @map("tournament_id")
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  teams        Team[]
+
+  @@map("groups")
+}
+
+model Team {
+  id           Int     @id @default(autoincrement())
+  name         String
+  groupId      Int     @map("group_id")
+  goalsFor     Int     @default(0) @map("goals_for")
+  goalsAgainst Int     @default(0) @map("goals_against")
+  matchesAsA   Match[] @relation("teamAMatches")
+  matchesAsB   Match[] @relation("teamBMatches")
+  group        Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@map("teams")
+}
+
+model Match {
+  id           Int        @id @default(autoincrement())
+  tournamentId Int        @map("tournament_id")
+  teamAId      Int        @map("team_a_id")
+  teamBId      Int        @map("team_b_id")
+  scoreA       Int?       @map("score_a")
+  scoreB       Int?       @map("score_b")
+  field        String     @default("Feld 1") @map("field")
+  time         DateTime
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  teamA        Team       @relation("teamAMatches", fields: [teamAId], references: [id])
+  teamB        Team       @relation("teamBMatches", fields: [teamBId], references: [id])
+
+  @@map("matches")
+}
+
+model Volunteer {
+  id         Int              @id @default(autoincrement())
+  name       String
+  email      String?          @map("email")
+  phone      String?          @map("phone")
+  password   String?          @map("password")
+  roles      String
+  tournamentId Int?           @map("tournament_id")
+  shifts     VolunteerShift[]
+
+  @@map("volunteers")
+}
+
+model VolunteerShift {
+  id           Int         @id @default(autoincrement())
+  volunteerId  Int         @map("volunteer_id")
+  tournamentId Int?        @map("tournament_id")
+  shiftId      Int?        @map("shift_id")
+  date         DateTime
+  slot         String
+  role         String
+  areaId       String?     @map("area_id")
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id])
+  volunteer    Volunteer   @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+  shift        Shift?      @relation(fields: [shiftId], references: [id])
+
+  @@map("volunteer_shifts")
+}
+
+model Arbeitsbereich {
+  id            Int     @id @default(autoincrement())
+  name          String
+  icon          String  @default("📍")
+  minVolunteers Int     @default(2) @map("min_volunteers")
+  maxVolunteers Int     @default(8) @map("max_volunteers")
+  color         String  @default("#3b98f8")
+  shifts        Shift[]
+
+  @@map("arbeitsbereiche")
+}
+
+model Zeitslot {
+  id        Int     @id @default(autoincrement())
+  name      String
+  startTime String  @map("start_time")
+  endTime   String  @map("end_time")
+  color     String  @default("#3b98f8")
+  order     Int     @default(0)
+  shifts    Shift[]
+
+  @@map("zeit_slots")
+}
+
+model Shift {
+  id               Int              @id @default(autoincrement())
+  tournamentId     Int              @map("tournament_id")
+  date             DateTime
+  zeitslotId       Int?             @map("zeit_slot_id")
+  arbeitsbereichId Int?             @map("arbeitsbereich_id")
+  maxVolunteers    Int              @default(8) @map("max_volunteers")
+  description      String?          @map("description")
+  tournament       Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  arbeitsbereich   Arbeitsbereich?  @relation(fields: [arbeitsbereichId], references: [id])
+  zeitslot         Zeitslot?        @relation(fields: [zeitslotId], references: [id])
+  volunteerShifts  VolunteerShift[]
+
+  @@map("shifts")
+}
+
+model MaterialItem {
+  id           Int        @id @default(autoincrement())
+  tournamentId Int        @map("tournament_id")
+  name         String
+  quantity     Int        @default(1)
+  unit         String     @default("Stk")
+  done         Boolean    @default(false)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@map("material_items")
+}
