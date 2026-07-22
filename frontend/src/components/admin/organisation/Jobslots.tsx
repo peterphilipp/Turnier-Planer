@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getShifts, getArbeitsbereiche, getZeitSlots, apiPost, apiPatch, apiDelete } from '../../../api';
-import { tdStyle, thStyle, btnStyle, inputStyle, Shift, Arbeitsbereich, Zeitslot } from '../shared';
+import { tdStyle, thStyle, btnStyle, inputStyle, Shift, Arbeitsbereich, Zeitslot, Tournament } from '../shared';
 
-export default function Jobslots({ selectedTournament, adminPrimary }: { selectedTournament: number | null, adminPrimary: string }) {
+export default function Jobslots({ selectedTournament, tournament, adminPrimary }: { selectedTournament: number | null, tournament: Tournament | null, adminPrimary: string }) {
   const queryClient = useQueryClient();
 
   const { data: jobSlots = [], isFetching } = useQuery<Shift[]>({
@@ -72,6 +72,20 @@ export default function Jobslots({ selectedTournament, adminPrimary }: { selecte
     return <div style={{ padding: 24, background: '#fff', borderRadius: 16 }}>Bitte wähle zunächst oben ein Turnier aus.</div>;
   }
 
+  // Turnier-Tage generieren
+  const tournamentDays = useMemo(() => {
+    if (!tournament?.startDate || !tournament?.endDate) return [];
+    const days: string[] = [];
+    const start = new Date(tournament.startDate);
+    const end = new Date(tournament.endDate);
+    const current = new Date(start);
+    while (current <= end) {
+      days.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    }
+    return days;
+  }, [tournament]);
+
   const toggleDate = (d: string) => {
     if (editingSlotId) { setSlotForm({ ...slotForm, dates: [d] }); return; }
     setSlotForm(prev => ({ ...prev, dates: prev.dates.includes(d) ? prev.dates.filter(x => x !== d) : [...prev.dates, d] }));
@@ -104,17 +118,12 @@ export default function Jobslots({ selectedTournament, adminPrimary }: { selecte
       <div style={{ background: '#f8f9fa', padding: 20, borderRadius: 12, marginBottom: 30, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
           <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>1. Datum wählen {editingSlotId ? '(Nur eins möglich)' : '(Mehrfachauswahl)'}</label>
+          <p style={{ color: '#666', fontSize: 12, marginBottom: 8 }}>{tournamentDays.length} Tage: {tournamentDays.map(d => new Date(d).toLocaleDateString('de-DE')).join(', ')}</p>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <input type="date" style={inputStyle} onKeyDown={e => {
-              if (e.key === 'Enter') {
-                const val = (e.target as HTMLInputElement).value;
-                if (val && !slotForm.dates.includes(val)) setSlotForm(p => ({ ...p, dates: [...p.dates, val] }));
-              }
-            }} />
-            {slotForm.dates.map(d => (
-              <span key={d} onClick={() => toggleDate(d)} style={{ padding: '6px 12px', background: adminPrimary, color: '#fff', borderRadius: 8, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                📅 {new Date(d).toLocaleDateString('de-DE')} ✕
-              </span>
+            {tournamentDays.map(d => (
+              <button key={d} onClick={() => toggleDate(d)} style={{ padding: '6px 12px', background: slotForm.dates.includes(d) ? adminPrimary : '#fff', color: slotForm.dates.includes(d) ? '#fff' : '#000', border: slotForm.dates.includes(d) ? 'none' : '1px solid #dee2e6', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: slotForm.dates.includes(d) ? 'bold' : 'normal' }}>
+                {new Date(d).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
+              </button>
             ))}
           </div>
         </div>
