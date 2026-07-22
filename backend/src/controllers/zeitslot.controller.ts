@@ -1,3 +1,4 @@
+import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 import { z } from 'zod';
 
@@ -9,17 +10,17 @@ export const zeitslotSchema = z.object({
   order: z.number().int().optional()
 });
 
-export const getZeitslots = async (req, res) => {
+export const getZeitslots = async (req: Request, res: Response) => {
   const slots = await prisma.zeitslot.findMany({ orderBy: { order: 'asc' } });
   return res.json(slots || []);
 };
 
-export const createZeitslot = async (req, res) => {
+export const createZeitslot = async (req: Request, res: Response) => {
   const s = await prisma.zeitslot.create({ data: req.body });
   return res.status(201).json(s);
 };
 
-export const updateZeitslot = async (req, res) => {
+export const updateZeitslot = async (req: Request, res: Response) => {
   const usedShifts = await prisma.shift.findMany({
     where: { zeitslotId: parseInt(req.params.id) }
   });
@@ -37,7 +38,7 @@ export const updateZeitslot = async (req, res) => {
   return res.json(s);
 };
 
-export const deleteZeitslot = async (req, res) => {
+export const deleteZeitslot = async (req: Request, res: Response) => {
   const usedShifts = await prisma.shift.findMany({
     where: { zeitslotId: parseInt(req.params.id) },
     include: { tournament: true }

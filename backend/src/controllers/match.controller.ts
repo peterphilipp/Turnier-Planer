@@ -1,3 +1,4 @@
+import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 import { z } from 'zod';
 
@@ -11,7 +12,7 @@ export const matchSchema = z.object({
   time: z.string().datetime().or(z.date())
 });
 
-export const getMatchesByTournament = async (req, res) => {
+export const getMatchesByTournament = async (req: Request, res: Response) => {
   if (!req.params.tournamentId) return res.json([]);
   const ms = await prisma.match.findMany({
     where: { tournamentId: parseInt(req.params.tournamentId) },
@@ -20,12 +21,12 @@ export const getMatchesByTournament = async (req, res) => {
   return res.json(ms || []);
 };
 
-export const createMatch = async (req, res) => {
+export const createMatch = async (req: Request, res: Response) => {
   const m = await prisma.match.create({ data: req.body });
   res.status(201).json(m);
 };
 
-export const updateMatch = async (req, res) => {
+export const updateMatch = async (req: Request, res: Response) => {
   const m = await prisma.match.update({
     where: { id: parseInt(req.params.id) },
     data: req.body

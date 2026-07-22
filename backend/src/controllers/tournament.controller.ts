@@ -1,3 +1,4 @@
+import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 import { z } from 'zod';
 
@@ -9,12 +10,12 @@ export const tournamentSchema = z.object({
   status: z.string().optional()
 });
 
-export const getTournaments = async (req, res) => {
+export const getTournaments = async (req: Request, res: Response) => {
   const ts = await prisma.tournament.findMany({ orderBy: { startDate: 'desc' } });
   return res.json(ts || []);
 };
 
-export const getTournamentById = async (req, res) => {
+export const getTournamentById = async (req: Request, res: Response) => {
   const t = await prisma.tournament.findUnique({
     where: { id: parseInt(req.params.id) },
     include: { groups: { include: { teams: true } }, matches: true, shifts: true, volunteerShifts: true }
@@ -23,7 +24,7 @@ export const getTournamentById = async (req, res) => {
   return res.json(t);
 };
 
-export const createTournament = async (req, res) => {
+export const createTournament = async (req: Request, res: Response) => {
   const body = req.body;
   if (body.startDate) body.startDate = new Date(body.startDate);
   if (body.endDate) body.endDate = new Date(body.endDate);
@@ -32,7 +33,7 @@ export const createTournament = async (req, res) => {
   res.status(201).json(t);
 };
 
-export const updateTournament = async (req, res) => {
+export const updateTournament = async (req: Request, res: Response) => {
   const body = req.body;
   if (body.startDate) body.startDate = new Date(body.startDate);
   if (body.endDate) body.endDate = new Date(body.endDate);
@@ -44,7 +45,7 @@ export const updateTournament = async (req, res) => {
   return res.json(t);
 };
 
-export const updateTournamentStatus = async (req, res) => {
+export const updateTournamentStatus = async (req: Request, res: Response) => {
   const t = await prisma.tournament.update({
     where: { id: parseInt(req.params.id) },
     data: { status: req.body.status }
@@ -52,7 +53,7 @@ export const updateTournamentStatus = async (req, res) => {
   return res.json(t);
 };
 
-export const deleteTournament = async (req, res) => {
+export const deleteTournament = async (req: Request, res: Response) => {
   await prisma.tournament.delete({ where: { id: parseInt(req.params.id) } });
   return res.status(204).send();
 };
