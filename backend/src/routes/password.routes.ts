@@ -218,6 +218,12 @@ router.post('/register', async (req, res, next) => {
     const existing = await prisma.volunteer.findFirst({ where: { email } });
     if (existing) return res.status(409).json({ error: 'Email wird bereits verwendet' });
 
+    // Aktives Turnier automatisch zuweisen
+    const activeTournament = await prisma.tournament.findFirst({
+      where: { status: 'aktiv' },
+      orderBy: { startDate: 'desc' }
+    });
+
     const hashed = await bcrypt.hash(password, 10);
     const volunteer = await prisma.volunteer.create({
       data: {
@@ -227,7 +233,8 @@ router.post('/register', async (req, res, next) => {
         childName: childName || null,
         childYear: childYear ? parseInt(childYear) : null,
         password: hashed,
-        roles: '["Helfer"]'
+        roles: '["Helfer"]',
+        tournamentId: activeTournament?.id || null
       }
     });
 
