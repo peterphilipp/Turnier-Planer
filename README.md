@@ -64,13 +64,12 @@ Webanwendung zur Planung von Fußballturnieren, Verwaltung von Helfer-Dienstplä
 
 ### Zwei Ansichten über URL-Routing
 
-Die Anwendung bietet zwei getrennte Oberflächen, die über die URL gesteuert werden:
+Die Anwendung bietet zwei getrennte Oberflächen, die **über eine einzige Domain** gesteuert werden:
 
-| URL / Subdomain                    | Ansicht          | Zielgruppe   |
-|------------------------------------|------------------|--------------|
-| `turnier-planer.mygate.dedyn.io`  | SelfServiceView  | Helfer       |
-| `turnier-planer-admin.mygate...`  | Admin (App.tsx)  | Administration |
-| `?view=admin` Query-Parameter      | Admin            | Override     |
+| URL | Ansicht | Zielgruppe |
+|-----|---------|------------|
+| `https://turnier-planer.mygate.dedyn.io` | SelfServiceView | Helfer |
+| `?view=admin` Query-Parameter | Admin (App.tsx) | Administration |
 
 ---
 
@@ -491,13 +490,15 @@ docker compose up --build
 
 Push nach `master` → GitHub Actions baut & pusht die Images → Pullt sie auf dem Server.
 
-### Subdomains konfigurieren
-Für den URL-basierten Zugriff müssen zwei Subdomains eingerichtet werden:
+### Zugriff über eine einzige Domain
+Alle Funktionen sind über **eine Subdomain** erreichbar – die Ansicht wird per Query-Parameter gesteuert:
 
-| Subdomain | Ziel |
-|-----------|------|
-| `turnier-planer.mygate.dedyn.io` | SelfServiceView (Standard) |
-| `turnier-planer-admin.mygate.dedyn.io` | Admin-Bereich |
+| URL | Ansicht |
+|-----|---------|
+| `https://turnier-planer.mygate.dedyn.io` | SelfServiceView (Helfer-Portal) |
+| `https://turnier-planer.mygate.dedyn.io?view=admin` | Admin-Bereich |
+
+**Vorteil:** Keine zweite Subdomain oder DNS-Einträge nötig. Admin-Zugriff direkt über URL-Parameter.
 
 ---
 
