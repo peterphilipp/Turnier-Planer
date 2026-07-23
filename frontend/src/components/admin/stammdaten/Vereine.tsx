@@ -11,7 +11,14 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
   const [editingClub, setEditingClub] = useState<number | null>(null);
   const [clubLogo, setClubLogo] = useState<string | null>(null);
   const [extractedColors, setExtractedColors] = useState<{ primary: string; secondary: string; accent: string } | null>(null);
+  const [colorStrategyIndex, setColorStrategyIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset der Analyse-Strategie
+  const resetAnalysis = () => {
+    setColorStrategyIndex(0);
+    setExtractedColors(null);
+  };
 
   const saveClub = async () => {
     if (!clubForm.name.trim()) return alert('Name erforderlich!');
@@ -23,9 +30,9 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
       await apiPost('/api/clubs', data);
     }
     queryClient.invalidateQueries({ queryKey: ['clubs'] });
+    resetAnalysis();
     setClubForm({ name: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' });
     setClubLogo(null);
-    setExtractedColors(null);
     setEditingClub(null);
   };
 
@@ -35,8 +42,8 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
     queryClient.invalidateQueries({ queryKey: ['clubs'] });
   };
 
-  // Canvas-basierte Farbanalyse (Median-Cut-Algorithmus)
-  const extractColors = (imgSrc: string) => {
+  // Canvas-basierte Farbanalyse mit mehreren Strategien
+  const extractColors = (imgSrc: string, strategy?: number) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -47,13 +54,24 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
       ctx.drawImage(img, 0, 0, 100, 100);
       const data = ctx.getImageData(0, 0, 100, 100).data;
 
-      // Farben sammeln (jeder 4. Pixel für Performance)
+      // Verschiedene Quantisierungs-Strategien für bessere Ergebnisse
+      const strategies = [
+        { step: 32, skip: 16, minBrightness: 40 },
+        { step: 24, skip: 8, minBrightness: 30 },
+        { step: 48, skip: 32, minBrightness: 50 },
+        { step: 16, skip: 4, minBrightness: 20 },
+      ];
+
+      const s = strategy !== undefined ? strategies[strategy % strategies.length] : strategies[0];
+
+      // Farben sammeln mit gewählter Strategie
       const colorMap: Record<string, number> = {};
-      for (let i = 0; i < data.length; i += 16) {
-        const r = Math.round(data[i] / 32) * 32;
-        const g = Math.round(data[i + 1] / 32) * 32;
-        const b = Math.round(data[i + 2] / 32) * 32;
-        if (r < 40 && g < 40 && b < 40) continue; // fast-schwarz überspringen
+      for (let i = 0; i < data.length; i += s.skip) {
+        let r = Math.round(data[i] / s.step) * s.step;
+        let g = Math.round(data[i + 1] / s.step) * s.step;
+        let b = Math.round(data[i + 2] / s.step) * s.step;
+        if (r < s.minBrightness && g < s.minBrightness && b < s.minBrightness) continue;
+        r = Math.min(r, 255); g = Math.min(g, 255); b = Math.min(b, 255);
         const key = `${r},${g},${b}`;
         colorMap[key] = (colorMap[key] || 0) + 1;
       }
@@ -61,7 +79,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
       // Sortiert nach Häufigkeit, Top 3
       const sorted = Object.entries(colorMap).sort((a, b) => b[1] - a[1]).slice(0, 3);
       if (sorted.length >= 3) {
-        const toHex = (rgb: string) => '#' + rgb.split(',').map(c => Math.min(parseInt(c), 255).toString(16).padStart(2, '0')).join('');
+        const toHex = (rgb: string) => '#' + rgb.split(',').map(c => parseInt(c).toString(16).padStart(2, '0')).join('');
         setExtractedColors({ primary: toHex(sorted[0][0]), secondary: toHex(sorted[1][0]), accent: toHex(sorted[2][0]) });
       }
     };
@@ -75,6 +93,8 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
       reader.onloadend = () => {
         const base64 = reader.result as string;
         setClubLogo(base64);
+        setColorStrategyIndex(0);
+        setExtractedColors(null);
         setClubForm({ ...clubForm, logo: base64 });
         extractColors(base64);
       };
@@ -112,7 +132,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
         </div>
 
         {/* Extrahierte Farben */}
-        {extractedColors && (
+        {extractedColors && clubLogo && (
           <div style={{ flex: 1, minWidth: 200 }}>
             <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎨 Vorschlag (Logo-Analyse)</label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
@@ -131,6 +151,14 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
               }} style={{ ...btnStyle, background: '#e7f3ff', color: '#0d6efd', border: 'none', fontSize: 12, padding: '4px 10px' }}>
                 ✓ Übernehmen
               </button>
+              <button onClick={() => {
+                if (clubLogo) {
+                  setColorStrategyIndex(prev => prev + 1);
+                  extractColors(clubLogo, colorStrategyIndex + 1);
+                }
+              }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', fontSize: 12, padding: '4px 10px' }}>
+                🔄 Neu analysieren
+              </button>
             </div>
           </div>
         )}
@@ -139,7 +167,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
           <button onClick={saveClub} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: '600', fontSize: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', height: 42 }}>
             {editingClub ? '💾 Speichern' : '➕ Verein anlegen'}
           </button>
-          {editingClub && <button onClick={() => { setEditingClub(null); setClubForm({ name: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' }); setClubLogo(null); setExtractedColors(null); }} style={{ ...btnStyle, background: '#e9ecef', height: 42, marginLeft: 8 }}>Abbrechen</button>}
+          {editingClub && <button onClick={() => { resetAnalysis(); setEditingClub(null); setClubForm({ name: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' }); setClubLogo(null); }} style={{ ...btnStyle, background: '#e9ecef', height: 42, marginLeft: 8 }}>Abbrechen</button>}
         </div>
       </div>
 
@@ -162,7 +190,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button onClick={() => { setEditingClub(club.id); setClubForm({ name: club.name, primaryColor: club.primaryColor, secondaryColor: club.secondaryColor, accentColor: club.accentColor, logo: club.logo || '' }); setClubLogo(club.logo); if (club.logo) extractColors(club.logo); }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none' }}>✏️</button>
+              <button onClick={() => { resetAnalysis(); setEditingClub(club.id); setClubForm({ name: club.name, primaryColor: club.primaryColor, secondaryColor: club.secondaryColor, accentColor: club.accentColor, logo: club.logo || '' }); setClubLogo(club.logo); if (club.logo) extractColors(club.logo); }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none' }}>✏️</button>
               <button onClick={() => deleteClub(club.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>🗑️</button>
             </div>
           </div>
