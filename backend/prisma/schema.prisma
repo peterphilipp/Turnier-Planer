@@ -86,6 +86,7 @@ model Team {
 model Match {
   id           Int        @id @default(autoincrement())
   tournamentId Int        @map("tournament_id")
+  yearGroupId  Int?       @map("year_group_id")
   bracketId    Int?       @map("bracket_id")
   timeSlotId   Int?       @map("time_slot_id")
   fieldId      Int?       @map("field_id")
@@ -106,6 +107,7 @@ model Match {
   field        Field?     @relation(fields: [fieldId], references: [id])
   teamA        Team       @relation("teamAMatches", fields: [teamAId], references: [id])
   teamB        Team       @relation("teamBMatches", fields: [teamBId], references: [id])
+  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id])
 
   @@map("matches")
 }
@@ -277,6 +279,7 @@ model YearGroup {
   groups          Group[]
   teams           Team[]
   fields          Field[]
+  matches         Match[]
 
   @@map("year_groups")
 }
