@@ -3,9 +3,29 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getClubs, apiPost, apiPut, apiDelete } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, shadeColor, Club } from '../shared';
 
+interface GroupedClub { city: string; clubs: Club[]; }
+
 export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
   const queryClient = useQueryClient();
   const { data: clubs = [] } = useQuery<Club[]>({ queryKey: ['clubs'], queryFn: getClubs });
+  
+  // Nach Stadt gruppieren und sortieren
+  const groupedClubs = ((): GroupedClub[] => {
+    const groups = new Map<string, Club[]>();
+    for (const club of clubs) {
+      const city = club.city || 'Ohne Stadt';
+      if (!groups.has(city)) groups.set(city, []);
+      groups.get(city)!.push(club);
+    }
+    // Sortieren: "Ohne Stadt" zuletzt, dann alphabetisch
+    return Array.from(groups.entries())
+      .map(([city, clubs]) => ({ city, clubs }))
+      .sort((a, b) => {
+        if (a.city === 'Ohne Stadt') return 1;
+        if (b.city === 'Ohne Stadt') return -1;
+        return a.city.localeCompare(b.city);
+      });
+  })();
   
   const [clubForm, setClubForm] = useState({ name: '', city: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' });
   const [editingClub, setEditingClub] = useState<number | null>(null);
@@ -304,34 +324,43 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
       </div>
     </div>
 
-    {/* Vereinsliste */}
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-        {clubs.map(club => (
-          <div key={club.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 16, background: '#fff', border: '1px solid #dee2e6', borderRadius: 12 }}>
-            {club.logo ? (
-              <img src={club.logo} alt={club.name} style={{ width: 60, height: 60, borderRadius: 12, objectFit: 'contain', background: '#f8f9fa' }} />
-            ) : (
-              <div style={{ width: 60, height: 60, borderRadius: 12, background: club.primaryColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 24, fontWeight: 'bold' }}>
-                {club.name.charAt(0)}
-              </div>
-            )}
-            <div style={{ flex: 1 }}>
-              <h4 style={{ margin: '0 0 4px 0', fontSize: 16, color: '#212529' }}>{club.name}</h4>
-              {club.city && <div style={{ fontSize: 13, color: '#6c757d' }}>📍 {club.city}</div>}
-              <div style={{ display: 'flex', gap: 6 }}>
-                <span style={{ width: 16, height: 16, borderRadius: '50%', background: club.primaryColor, display: 'inline-block' }}></span>
-                <span style={{ width: 16, height: 16, borderRadius: '50%', background: club.secondaryColor, display: 'inline-block' }}></span>
-                <span style={{ width: 16, height: 16, borderRadius: '50%', background: club.accentColor, display: 'inline-block' }}></span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button onClick={() => {
-                resetAnalysis();
-                setEditingClub(club.id);
-                setClubForm({ name: club.name, city: club.city || '', primaryColor: club.primaryColor, secondaryColor: club.secondaryColor, accentColor: club.accentColor, logo: club.logo || '' });
-                setClubLogo(club.logo);
-              }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none' }}>✏️</button>
-              <button onClick={() => deleteClub(club.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>🗑️</button>
+    {/* Vereinsliste nach Stadt gruppiert */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {groupedClubs.map(group => (
+          <div key={group.city}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: 16, fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6', paddingBottom: 8 }}>
+              📍 {group.city} <span style={{ fontSize: 13, color: '#6c757d' }}>({group.clubs.length})</span>
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+              {group.clubs.map(club => (
+                <div key={club.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, background: '#fff', border: '1px solid #dee2e6', borderRadius: 10 }}>
+                  {club.logo ? (
+                    <img src={club.logo} alt={club.name} style={{ width: 48, height: 48, borderRadius: 10, objectFit: 'contain', background: '#f8f9fa' }} />
+                  ) : (
+                    <div style={{ width: 48, height: 48, borderRadius: 10, background: club.primaryColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20, fontWeight: 'bold' }}>
+                      {club.name.charAt(0)}
+                    </div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <h4 style={{ margin: '0 0 2px 0', fontSize: 15, color: '#212529', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{club.name}</h4>
+                    {club.city && <div style={{ fontSize: 12, color: '#6c757d' }}>📍 {club.city}</div>}
+                    <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                      <span style={{ width: 12, height: 12, borderRadius: '50%', background: club.primaryColor, display: 'inline-block' }}></span>
+                      <span style={{ width: 12, height: 12, borderRadius: '50%', background: club.secondaryColor, display: 'inline-block' }}></span>
+                      <span style={{ width: 12, height: 12, borderRadius: '50%', background: club.accentColor, display: 'inline-block' }}></span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+                    <button onClick={() => {
+                      resetAnalysis();
+                      setEditingClub(club.id);
+                      setClubForm({ name: club.name, city: club.city || '', primaryColor: club.primaryColor, secondaryColor: club.secondaryColor, accentColor: club.accentColor, logo: club.logo || '' });
+                      setClubLogo(club.logo);
+                    }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', padding: '4px 8px' }}>✏️</button>
+                    <button onClick={() => deleteClub(club.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none', padding: '4px 8px' }}>🗑️</button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         ))}
