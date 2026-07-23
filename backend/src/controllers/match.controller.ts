@@ -226,10 +226,55 @@ export const updateMatch = async (req: Request, res: Response) => {
     data: body,
     include: { teamA: true, teamB: true, timeSlot: true, field: true }
   });
-  
-  // Standings werden jetzt client-seitig neu geladen (React Query)
-  // Hier nur das Match zurückgeben
-  
+
+  // Wenn KO-Ergebnis gespeichert wurde → Sieger ins nächste Match übernehmen
+  if (m.bracketId && m.scoreA !== null && m.scoreB !== null) {
+    const bracket = await prisma.knockoutBracket.findUnique({ where: { id: m.bracketId } });
+    if (bracket) {
+      // Sieger und Verlierer bestimmen
+      const siegerId = m.scoreA > m.scoreB ? m.teamAId : m.teamBId;
+      const verliererId = m.scoreA > m.scoreB ? m.teamBId : m.teamAId;
+
+      if (siegerId && bracket.order < 4) { // Nur bis Halbfinale (order=3) → Finale (order=4)
+        const nextRundeOrder = bracket.order + 1;
+        const nextBracket = await prisma.knockoutBracket.findFirst({
+          where: { tournamentId: bracket.tournamentId, order: nextRundeOrder }
+        });
+
+        if (nextBracket) {
+          // Alle Matches der nächsten Runde laden
+          const existingMatches = await prisma.match.findMany({
+            where: { bracketId: nextBracket.id },
+            orderBy: { id: 'asc' }
+          });
+
+          // Freies Slot finden oder neues Match erstellen
+          let freeMatch = existingMatches.find(match => !match.teamAId);
+          if (!freeMatch) {
+            const matchCount = Math.ceil(existingMatches.length / 2);
+            freeMatch = await prisma.match.create({
+              data: {
+                tournamentId: bracket.tournamentId,
+                bracketId: nextBracket.id,
+                teamAId: 0,
+                teamBId: 0,
+                time: new Date()
+              }
+            });
+          }
+
+          // Sieger in TeamA oder TeamB setzen (je nach Position)
+          const slotInRunde = existingMatches.findIndex(match => match.id === freeMatch?.id);
+          if (slotInRunde % 2 === 0) {
+            await prisma.match.update({ where: { id: freeMatch!.id }, data: { teamAId: siegerId } });
+          } else {
+            await prisma.match.update({ where: { id: freeMatch!.id }, data: { teamBId: siegerId } });
+          }
+        }
+      }
+    }
+  }
+
   return res.json(m);
 };
 
