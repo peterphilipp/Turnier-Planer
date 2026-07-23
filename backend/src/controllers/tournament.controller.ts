@@ -142,6 +142,24 @@ export const generateMatchesForYearGroup = async (req: Request, res: Response) =
 
 // ==================== Turnier-Modi Generatoren ====================
 
+async function getTeamsForGeneration(tournamentId: number, yearGroupId?: number) {
+  // Zuerst nach Jahrgang suchen
+  let teams = await prisma.team.findMany({ 
+    where: yearGroupId ? { tournamentId, yearGroupId } : { tournamentId },
+    orderBy: { name: 'asc' }
+  });
+  
+  // Fallback: wenn keine Teams für Jahrgang → alle Teams des Turniers
+  if (teams.length < 2 && yearGroupId) {
+    teams = await prisma.team.findMany({ 
+      where: { tournamentId },
+      orderBy: { name: 'asc' }
+    });
+  }
+  
+  return teams;
+}
+
 async function generateGruppenKO(tournamentId: number, yearGroupId?: number) {
   let matchesCreated = 0;
   
@@ -151,17 +169,47 @@ async function generateGruppenKO(tournamentId: number, yearGroupId?: number) {
     orderBy: { order: 'asc' }
   });
   
-  if (groups.length === 0) {
-    return { message: 'Keine Gruppen für diesen Jahrgang gefunden. Bitte zuerst unter "Gruppen & Teams" anlegen.', matchesCreated: 0 };
-  }
-  
-  // Für jede Gruppe Gruppenspiele generieren (Jeder gegen jeden)
-  for (const group of groups) {
-    const teams = await prisma.team.findMany({ where: { groupId: group.id, yearGroupId } });
+  if (groups.length > 0) {
+    // Gruppen-Modus: Jeder gegen jeden pro Gruppe
+    for (const group of groups) {
+      const teams = await prisma.team.findMany({ where: { groupId: group.id, yearGroupId } });
+      
+      if (teams.length < 2) continue;
+      
+      for (let i = 0; i < teams.length; i++) {
+        for (let j = i + 1; j < teams.length; j++) {
+          await prisma.match.create({
+            data: {
+              tournamentId,
+              yearGroupId: yearGroupId || undefined,
+              teamAId: teams[i].id,
+              teamBId: teams[j].id,
+              phase: `${group.name}`,
+              status: 'geplant',
+              time: new Date()
+            }
+          });
+          matchesCreated++;
+        }
+      }
+
+      // Gruppentabelle erstellen
+      for (const team of teams) {
+        await prisma.standingsEntry.upsert({
+          where: { teamId_tournamentId: { teamId: team.id, tournamentId } },
+          update: {},
+          create: { teamId: team.id, tournamentId }
+        });
+      }
+    }
+  } else {
+    // Keine Gruppen → alle Teams gegeneinander (wie Liga)
+    const teams = await getTeamsForGeneration(tournamentId, yearGroupId);
     
-    if (teams.length < 2) continue;
+    if (teams.length < 2) {
+      return { message: `Keine Teams gefunden. Bitte zuerst in "Teilnehmer" Vereine anklicken und pro Verein mit "✓ Hinzufügen" ein Team anlegen.`, matchesCreated: 0 };
+    }
     
-    // Jeder gegen jeden in der Gruppe
     for (let i = 0; i < teams.length; i++) {
       for (let j = i + 1; j < teams.length; j++) {
         await prisma.match.create({
@@ -170,7 +218,7 @@ async function generateGruppenKO(tournamentId: number, yearGroupId?: number) {
             yearGroupId: yearGroupId || undefined,
             teamAId: teams[i].id,
             teamBId: teams[j].id,
-            phase: `${group.name}`,
+            phase: 'Gruppenphase',
             status: 'geplant',
             time: new Date()
           }
@@ -178,27 +226,15 @@ async function generateGruppenKO(tournamentId: number, yearGroupId?: number) {
         matchesCreated++;
       }
     }
-
-    // Gruppentabelle erstellen
-    for (const team of teams) {
-      await prisma.standingsEntry.upsert({
-        where: { teamId_tournamentId: { teamId: team.id, tournamentId } },
-        update: {},
-        create: { teamId: team.id, tournamentId }
-      });
-    }
   }
 
   return { message: `${groups.length} Gruppen mit Gruppenspielen erstellt`, matchesCreated };
 }
 
 async function generateKO(tournamentId: number, yearGroupId?: number) {
-  const teams = await prisma.team.findMany({ 
-    where: yearGroupId ? { tournamentId, yearGroupId } : { tournamentId },
-    orderBy: { name: 'asc' }
-  });
+  const teams = await getTeamsForGeneration(tournamentId, yearGroupId);
   
-  if (teams.length < 2) return { message: 'Mindestens 2 Teams benötigt für K.O.', matchesCreated: 0, bracketsCreated: 0 };
+  if (teams.length < 2) return { message: `Keine Teams gefunden. Bitte zuerst in "Teilnehmer" Vereine anklicken und pro Verein mit "✓ Hinzufügen" ein Team anlegen.`, matchesCreated: 0, bracketsCreated: 0 };
 
   // Bracket erstellen
   const bracket = await prisma.knockoutBracket.create({
@@ -229,13 +265,10 @@ async function generateKO(tournamentId: number, yearGroupId?: number) {
 }
 
 async function generateLiga(tournamentId: number, yearGroupId?: number) {
-  const teams = await prisma.team.findMany({ 
-    where: yearGroupId ? { tournamentId, yearGroupId } : { tournamentId },
-    orderBy: { name: 'asc' }
-  });
+  const teams = await getTeamsForGeneration(tournamentId, yearGroupId);
   let matchesCreated = 0;
   
-  if (teams.length < 2) return { message: 'Mindestens 2 Teams benötigt für Liga', matchesCreated, bracketsCreated: 0 };
+  if (teams.length < 2) return { message: `Keine Teams gefunden. Bitte zuerst in "Teilnehmer" Vereine anklicken und pro Verein mit "✓ Hinzufügen" ein Team anlegen.`, matchesCreated, bracketsCreated: 0 };
 
   // Jeder gegen jeden
   for (let i = 0; i < teams.length; i++) {
@@ -268,13 +301,10 @@ async function generateLiga(tournamentId: number, yearGroupId?: number) {
 }
 
 async function generateDoppelKO(tournamentId: number, yearGroupId?: number) {
-  const teams = await prisma.team.findMany({ 
-    where: yearGroupId ? { tournamentId, yearGroupId } : { tournamentId },
-    orderBy: { name: 'asc' }
-  });
+  const teams = await getTeamsForGeneration(tournamentId, yearGroupId);
   let matchesCreated = 0;
   
-  if (teams.length < 2) return { message: 'Mindestens 2 Teams benötigt für Doppel-K.O.', matchesCreated, bracketsCreated: 0 };
+  if (teams.length < 2) return { message: `Keine Teams gefunden. Bitte zuerst in "Teilnehmer" Vereine anklicken und pro Verein mit "✓ Hinzufügen" ein Team anlegen.`, matchesCreated, bracketsCreated: 0 };
 
   // Sieger-Bracket
   const siegerBracket = await prisma.knockoutBracket.create({
