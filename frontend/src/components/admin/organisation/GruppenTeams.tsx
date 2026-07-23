@@ -29,7 +29,7 @@ export default function GruppenTeams({ tournamentId, yearGroupId }: Props) {
     staleTime: 5000
   });
 
-  const { data: allTeams = {} as Record<number, Team[]> } = useQuery<Record<number, Team[]>>({
+  const { data: allTeamsRaw } = useQuery<Record<number, Team[]>>({
     queryKey: ['teams', tournamentId, yearGroupId],
     queryFn: async () => {
       if (!tournamentId || !yearGroupId) return {};
@@ -48,6 +48,8 @@ export default function GruppenTeams({ tournamentId, yearGroupId }: Props) {
     enabled: !!tournamentId && !!yearGroupId,
     staleTime: 5000
   });
+  // Defensive: allTeams kann undefined sein wenn Query noch lädt
+  const allTeams = allTeamsRaw || {} as Record<number, Team[]>;
 
   const handleAddGroup = async () => {
     if (!yearGroupId) return await modal.alert({ title: 'Hinweis', message: 'Bitte wähle oben einen Jahrgang aus!' });

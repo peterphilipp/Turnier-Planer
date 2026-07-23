@@ -31,17 +31,20 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
     enabled: !!tournamentId,
   });
 
+  // Defensive: teams kann undefined sein wenn Query noch lädt
+  const safeTeams = Array.isArray(teams) ? teams : [];
+
   // Vereine die bereits Teams haben → auch als teilnehmend markieren
   const participatingClubIds = new Set<number>(tournamentClubIds);
   if (yearGroupId) {
-    teams.filter(t => t.clubId).forEach(t => participatingClubIds.add(t.clubId!));
+    safeTeams.filter(t => t.clubId).forEach(t => participatingClubIds.add(t.clubId!));
   }
 
   // Teams pro Verein gruppieren
   const teamsByClub: Record<string, Team[]> = {};
   if (yearGroupId) {
     allClubs.forEach(club => {
-      const clubTeams = teams.filter(t => t.clubId === club.id);
+      const clubTeams = safeTeams.filter(t => t.clubId === club.id);
       if (clubTeams.length > 0) {
         teamsByClub[`${club.id}_${yearGroupId}`] = clubTeams;
       }
