@@ -20,8 +20,9 @@ export default function GruppenTeams({ tournamentId, yearGroupId }: Props) {
   const { data: groups = [] } = useQuery<Group[]>({
     queryKey: ['groups', tournamentId, yearGroupId],
     queryFn: () => {
+      if (!yearGroupId) return Promise.resolve([]);
       let url = `/api/groups/${tournamentId}`;
-      if (yearGroupId) url += `&yearGroupId=${yearGroupId}`;
+      url += `&yearGroupId=${yearGroupId}`;
       return fetch(url).then(r => r.json()).catch(() => []);
     },
     enabled: !!tournamentId,
@@ -31,9 +32,9 @@ export default function GruppenTeams({ tournamentId, yearGroupId }: Props) {
   const { data: allTeams = {} as Record<number, Team[]> } = useQuery<Record<number, Team[]>>({
     queryKey: ['teams', tournamentId, yearGroupId],
     queryFn: async () => {
-      if (!tournamentId) return {};
+      if (!tournamentId || !yearGroupId) return {};
       let url = `/api/teams?tournamentId=${tournamentId}`;
-      if (yearGroupId) url += `&yearGroupId=${yearGroupId}`;
+      url += `&yearGroupId=${yearGroupId}`;
       const allTeamsList = await fetch(url).then(r => r.json()).catch(() => []);
       
       // Gruppieren nach groupId
@@ -44,13 +45,14 @@ export default function GruppenTeams({ tournamentId, yearGroupId }: Props) {
       }
       return result;
     },
-    enabled: !!tournamentId && groups.length > 0,
+    enabled: !!tournamentId && !!yearGroupId,
     staleTime: 5000
   });
 
   const handleAddGroup = async () => {
+    if (!yearGroupId) return await modal.alert({ title: 'Hinweis', message: 'Bitte wähle oben einen Jahrgang aus!' });
     if (!newGroup.trim() || !tournamentId) return await modal.alert({ title: 'Hinweis', message: 'Gruppenname erforderlich!' });
-    await apiPost('/api/groups', { name: newGroup.trim(), tournamentId });
+    await apiPost('/api/groups', { name: newGroup.trim(), tournamentId, yearGroupId });
     setNewGroup('');
     queryClient.invalidateQueries({ queryKey: ['groups'] });
   };
@@ -82,6 +84,18 @@ export default function GruppenTeams({ tournamentId, yearGroupId }: Props) {
     return (
       <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
         <p style={{ color: '#dc3545', margin: 0 }}>⚠️ Bitte wähle zuerst ein Turnier aus.</p>
+      </div>
+    );
+  }
+
+  if (!yearGroupId) {
+    return (
+      <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
+        <div style={{ padding: 16, background: '#fff3cd', borderRadius: 10, border: '1px solid #ffc107' }}>
+          <p style={{ margin: 0, fontSize: 14, color: '#856404' }}>
+            ⚠️ Bitte wähle oben einen Jahrgang aus, um Gruppen & Teams zu verwalten.
+          </p>
+        </div>
       </div>
     );
   }

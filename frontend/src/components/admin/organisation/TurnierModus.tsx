@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiPatch, getBrackets, generateMatchesForYearGroup, getYearGroups } from '../../../api';
+import { apiPatch, getBrackets, generateMatchesForYearGroup } from '../../../api';
 import { tdStyle, thStyle, btnStyle, Tournament, KnockoutBracket, YearGroup } from '../shared';
 
 interface Props {
   tournament: Tournament | null;
+  selectedYearGroupId: number | null;
+  yearGroups: YearGroup[];
 }
 
 const MODI = [
@@ -15,16 +17,9 @@ const MODI = [
   { value: 'DOPPEL_KO', label: '🔄 Doppel-K.O.', desc: 'Sieger-Bracket + Verlierer-Runde (Consolation)' }
 ];
 
-export default function TurnierModus({ tournament }: Props) {
+export default function TurnierModus({ tournament, selectedYearGroupId, yearGroups }: Props) {
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState(false);
-  const [selectedYearGroupId, setSelectedYearGroupId] = useState<number | null>(null);
-
-  const { data: yearGroups = [] } = useQuery<YearGroup[]>({
-    queryKey: ['year-groups'],
-    queryFn: getYearGroups,
-    staleTime: 10000
-  });
 
   const { data: brackets = [] } = useQuery<KnockoutBracket[]>({
     queryKey: ['brackets', tournament?.id],
@@ -36,9 +31,7 @@ export default function TurnierModus({ tournament }: Props) {
   const handleModeChange = async (modus: string) => {
     if (!tournament) return;
     
-    if (!(await modal.confirm({ title: 'Turniermodus ändern', message: `Turnier-Modus auf "${MODI.find(m => m.value === modus)?.label}" ändern?
-
-Alle bestehenden Spiele und Tabellen werden dabei NICHT gelöscht, aber neu generiert.`, variant: 'warning' }))) {
+    if (!(await modal.confirm({ title: 'Turniermodus ändern', message: `Turnier-Modus auf "${MODI.find(m => m.value === modus)?.label}" ändern?\n\nAlle bestehenden Spiele und Tabellen werden dabei NICHT gelöscht, aber neu generiert.`, variant: 'warning' }))) {
       return;
     }
 
@@ -49,6 +42,30 @@ Alle bestehenden Spiele und Tabellen werden dabei NICHT gelöscht, aber neu gene
       queryClient.invalidateQueries({ queryKey: ['brackets'] });
     } catch (err) {
       await modal.alert({ title: 'Fehler', message: 'Fehler beim Ändern des Modus: ' + (err as Error).message });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleGenerateMatches = async () => {
+    if (!selectedYearGroupId) {
+      await modal.alert({ title: 'Hinweis', message: 'Bitte wähle oben einen Jahrgang aus, bevor du den Spielplan generierst.' });
+      return;
+    }
+    
+    const ygName = yearGroups.find(y => y.id === selectedYearGroupId)?.name || 'Unbekannt';
+    
+    if (!(await modal.confirm({ title: 'Spielplan generieren', message: `Spielplan für "${ygName}" mit Modus "${MODI.find(m => m.value === tournament?.turnierModus)?.label}" erstellen?`, variant: 'info' }))) {
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const result = await generateMatchesForYearGroup(tournament!.id, selectedYearGroupId);
+      queryClient.invalidateQueries({ queryKey: ['brackets'] });
+      await modal.alert({ title: 'Erfolg', message: `✅ ${result.message}` });
+    } catch (err) {
+      await modal.alert({ title: 'Fehler', message: 'Fehler beim Generieren: ' + (err as Error).message });
     } finally {
       setGenerating(false);
     }
@@ -105,55 +122,32 @@ Alle bestehenden Spiele und Tabellen werden dabei NICHT gelöscht, aber neu gene
         ))}
       </div>
 
-      {/* Spielplan generieren für Jahrgang */}
-      {tournament?.turnierModus && (
-        <div style={{ marginTop: 24, padding: 16, background: '#f0fdf4', borderRadius: 10, border: '1px solid #86efac' }}>
-          <h4 style={{ margin: '0 0 12px 0', fontSize: 15, color: '#166534', fontWeight: '600' }}>🎯 Spielplan generieren</h4>
-          
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            <label style={{ fontSize: 13, color: '#166534', fontWeight: '500' }}>Jahrgang:</label>
-            <select
-              value={selectedYearGroupId || ''}
-              onChange={e => setSelectedYearGroupId(e.target.value ? parseInt(e.target.value) : null)}
-              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #86efac', fontSize: 14, minWidth: 180 }}
-            >
-              <option value="">-- Jahrgang wählen --</option>
-              {yearGroups.map(yg => (
-                <option key={yg.id} value={yg.id}>{yg.name}</option>
-              ))}
-            </select>
-            
+      {/* Spielplan generieren – Nutzt Kontext-Jahrgang */}
+      <div style={{ marginTop: 24, padding: 16, background: selectedYearGroupId ? '#f0fdf4' : '#fff3cd', borderRadius: 10, border: `1px solid ${selectedYearGroupId ? '#86efac' : '#ffc107'}` }}>
+        <h4 style={{ margin: '0 0 8px 0', fontSize: 15, color: selectedYearGroupId ? '#166534' : '#856404', fontWeight: '600' }}>🎯 Spielplan generieren</h4>
+        
+        {selectedYearGroupId ? (
+          <>
+            <p style={{ margin: '0 0 12px 0', fontSize: 13, color: '#15803d' }}>
+              📍 Aktueller Kontext: <strong>{yearGroups.find(y => y.id === selectedYearGroupId)?.name}</strong>
+            </p>
             <button
-              onClick={async () => {
-                if (!selectedYearGroupId) {
-                  await modal.alert({ title: 'Hinweis', message: 'Bitte wähle einen Jahrgang aus.' });
-                  return;
-                }
-                if (!(await modal.confirm({ title: 'Spielplan generieren', message: `Spielplan für "${yearGroups.find(y => y.id === selectedYearGroupId)?.name}" mit Modus "${MODI.find(m => m.value === tournament.turnierModus)?.label}" erstellen?`, variant: 'info' }))) {
-                  return;
-                }
-                setGenerating(true);
-                try {
-                  const result = await generateMatchesForYearGroup(tournament.id, selectedYearGroupId);
-                  queryClient.invalidateQueries({ queryKey: ['brackets'] });
-                  await modal.alert({ title: 'Erfolg', message: `✅ ${result.message}` });
-                } catch (err) {
-                  await modal.alert({ title: 'Fehler', message: 'Fehler beim Generieren: ' + (err as Error).message });
-                } finally {
-                  setGenerating(false);
-                }
-              }}
-              disabled={!selectedYearGroupId || generating}
-              style={{ ...btnStyle, background: '#16a34a', color: '#fff', border: 'none', fontWeight: '600', opacity: (!selectedYearGroupId || generating) ? 0.5 : 1 }}
+              onClick={handleGenerateMatches}
+              disabled={generating}
+              style={{ ...btnStyle, background: '#16a34a', color: '#fff', border: 'none', fontWeight: '600', opacity: generating ? 0.7 : 1 }}
             >
-              {generating ? '⏳ Generiere...' : '🎯 Spielplan generieren'}
+              {generating ? '⏳ Generiere...' : '🎯 Spielplan für aktuellen Jahrgang generieren'}
             </button>
-          </div>
-        </div>
-      )}
+          </>
+        ) : (
+          <p style={{ margin: 0, fontSize: 13, color: '#856404' }}>
+            ⚠️ Bitte wähle oben einen Jahrgang aus, um den Spielplan zu generieren.
+          </p>
+        )}
+      </div>
 
       {/* Info-Box */}
-      <div style={{ padding: 16, background: '#fff3cd', borderRadius: 10, border: '1px solid #ffc107' }}>
+      <div style={{ marginTop: 24, padding: 16, background: '#fff3cd', borderRadius: 10, border: '1px solid #ffc107' }}>
         <p style={{ margin: 0, fontSize: 13, color: '#856404' }}>
           💡 <strong>Hinweis:</strong> Beim Ändern des Modus werden automatisch Paarungen generiert (wenn Teams vorhanden). 
           Bestehende Spiele und Tabellen bleiben erhalten. Du kannst manuell nachträglich Änderungen vornehmen.

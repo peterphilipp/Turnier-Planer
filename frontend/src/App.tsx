@@ -175,18 +175,28 @@ export default function App() {
               const tournament = tournaments.find(t => t.id === selectedTournamentId);
               if (!tournament || !tournament.yearGroups?.length) return null;
               return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <label style={{ fontWeight: 'bold', fontSize: 13 }}>📅 Jahrgang:</label>
-                  <select
-                    value={selectedYearGroupId || ''}
-                    onChange={e => setSelectedYearGroupId(e.target.value ? parseInt(e.target.value) : null)}
-                    style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 6, minWidth: 200 }}
-                  >
-                    <option value="">Alle Jahrgänge</option>
+                  <div style={{ display: 'flex', gap: 4 }}>
                     {tournament.yearGroups.map(yg => (
-                      <option key={yg.id} value={yg.id}>{yg.name}</option>
+                      <button
+                        key={yg.id}
+                        onClick={() => setSelectedYearGroupId(selectedYearGroupId === yg.id ? null : yg.id)}
+                        style={{
+                          padding: '5px 14px',
+                          cursor: 'pointer',
+                          background: selectedYearGroupId === yg.id ? '#0d6efd' : '#e9ecef',
+                          color: selectedYearGroupId === yg.id ? '#fff' : '#333',
+                          border: 'none',
+                          borderRadius: 6,
+                          fontSize: 13,
+                          fontWeight: selectedYearGroupId === yg.id ? 'bold' : 'normal'
+                        }}
+                      >
+                        {yg.name}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
               );
             })()}
@@ -272,7 +282,7 @@ export default function App() {
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'felder' && <Felder tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'turnier-tage' && <TurnierTage tournamentId={selectedTournamentId} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'gruppen-teams' && <GruppenTeams tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'modus' && <TurnierModus tournament={tournaments.find(t => t.id === selectedTournamentId) || null} />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'modus' && <TurnierModus tournament={tournaments.find(t => t.id === selectedTournamentId) || null} selectedYearGroupId={selectedYearGroupId} yearGroups={(tournaments.find(t => t.id === selectedTournamentId)?.yearGroups as any) || []} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan' && (
           <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
             <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: '600', color: '#212529' }}>⚽ Spielplan (Matches)</h3>
