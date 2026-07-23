@@ -56,11 +56,13 @@ router.post('/forgot-password', async (req, res, next) => {
         console.error('E-Mail konnte nicht gesendet werden:', emailErr);
       }
     } else {
-      console.log('\n📧 RESEND_API_KEY nicht gesetzt — Reset-Link nur im Log:\n' + resetUrl + '\n');
+      const masked = resetUrl.replace(/token=[^&]+/g, 'token=****');
+      console.log(`\n📧 RESEND_API_KEY nicht gesetzt — Reset-Link (maskiert):\n${masked}\n`);
     }
     
-    // Fallback: Token im Log ausgeben
-    console.log(`\n🔑 PASSWORT-RESET LINK (gültig 1h):\n${resetUrl}\n`);
+    // Fallback: Token im Log ausgeben (maskiert)
+    const maskedToken = token.substring(0, 8) + '...';
+    console.log(`\n🔑 PASSWORT-RESET TOKEN (gültig 1h): ${maskedToken}\n`);
 
     res.json({ message: 'Wenn das Konto existiert, wurde ein Reset-Link gesendet.' });
   } catch (err) {
@@ -159,6 +161,69 @@ router.get('/me', async (req, res, next) => {
     res.json(volunteer);
   } catch (err) {
     res.status(401).json({ error: 'Ungültiger Token' });
+  }
+});
+
+// GET /api/auth/export – Auskunft nach Art. 15 DSGVO
+router.get('/export', async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Nicht authentifiziert' });
+    }
+    const token = authHeader.split(' ')[1];
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET) as { volunteerId: number };
+    } catch {
+      return res.status(401).json({ error: 'Ungültiger Token' });
+    }
+
+    const volunteer = await prisma.volunteer.findUnique({
+      where: { id: decoded.volunteerId },
+      include: {
+        children: true,
+        shifts: {
+          include: { shift: { include: { arbeitsbereich: true, zeitslot: true } } }
+        },
+        donations: {
+          include: { foodItem: true }
+        }
+      }
+    });
+
+    if (!volunteer) return res.status(404).json({ error: 'Nicht gefunden' });
+
+    // Keine sensiblen Daten exportieren (kein Passwort)
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      appName: 'Turnier-Planer',
+      personalData: {
+        id: volunteer.id,
+        name: volunteer.name,
+        email: volunteer.email,
+        phone: volunteer.phone,
+        roles: JSON.parse(volunteer.roles),
+        children: volunteer.children.map(c => ({ childName: c.childName, childYear: c.childYear })),
+      },
+      shifts: volunteer.shifts.map(s => ({
+        date: s.date,
+        slot: s.slot,
+        role: s.role,
+        arbeitsbereich: s.shift?.arbeitsbereich?.name ?? null,
+        zeitslot: s.shift?.zeitslot ? `${s.shift.zeitslot.name} (${s.shift.zeitslot.startTime}-${s.shift.zeitslot.endTime})` : null
+      })),
+      donations: volunteer.donations.map(d => ({
+        foodItem: d.foodItem.name,
+        quantity: d.quantity,
+        note: d.note,
+        createdAt: d.createdAt
+      }))
+    };
+
+    res.json(exportData);
+  } catch (err) {
+    next(err);
   }
 });
 
