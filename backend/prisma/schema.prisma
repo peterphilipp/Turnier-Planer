@@ -17,9 +17,8 @@ model Tournament {
   turnierModus    String           @default("GRUPPEN_KO") @map("turnier_modus")
   createdAt       DateTime         @default(now()) @map("created_at")
   clubId          Int?             @map("club_id")
-  yearGroupId     Int?             @map("year_group_id")
   club            Club?            @relation(fields: [clubId], references: [id])
-  yearGroup       YearGroup?       @relation(fields: [yearGroupId], references: [id])
+  yearGroups      YearGroup[]      @relation("TournamentYearGroups")
   groups          Group[]
   matches         Match[]
   materials       MaterialItem[]
@@ -265,7 +264,7 @@ model YearGroup {
   order           Int                @default(0)
   isActive        Boolean            @default(true) @map("is_active")
   foodDonationSlots FoodDonationSlot[]
-  tournaments     Tournament[]
+  tournaments       Tournament[]   @relation("TournamentYearGroups")
 
   @@map("year_groups")
 }
