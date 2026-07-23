@@ -36,6 +36,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
   const [colorStrategyIndex, setColorStrategyIndex] = useState(0);
   const [analysisCount, setAnalysisCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
 
   // Sync extractedColors → clubForm wenn sich Farben ändern
   useEffect(() => {
@@ -194,7 +195,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
   return (
     <>
       {/* Haupt-Container */}
-      <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
+      <div ref={formRef} style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>🛡️ Vereine & Clubs</h3>
       
       {/* Vereinsname + Stadt */}
@@ -321,6 +322,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
           {editingClub ? '💾 Speichern' : '➕ Verein anlegen'}
         </button>
         {editingClub && <button onClick={() => { resetAnalysis(); setEditingClub(null); setClubForm({ name: '', city: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' }); setClubLogo(null); }} style={{ ...btnStyle, background: '#e9ecef', height: 42 }}>Abbrechen</button>}
+        {editingClub && <div style={{ fontSize: 13, color: '#6c757d', marginTop: 8 }}>✏️ Bearbeite: <strong>{clubForm.name}</strong></div>}
       </div>
     </div>
 
@@ -356,6 +358,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
                       setEditingClub(club.id);
                       setClubForm({ name: club.name, city: club.city || '', primaryColor: club.primaryColor, secondaryColor: club.secondaryColor, accentColor: club.accentColor, logo: club.logo || '' });
                       setClubLogo(club.logo);
+                      setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
                     }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', padding: '4px 8px' }}>✏️</button>
                     <button onClick={() => deleteClub(club.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none', padding: '4px 8px' }}>🗑️</button>
                   </div>
