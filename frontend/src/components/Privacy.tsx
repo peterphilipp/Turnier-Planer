@@ -8,14 +8,14 @@ export default function Privacy() {
       <h1 style={{ color: '#333', borderBottom: '2px solid #0d6efd', paddingBottom: 12 }}>Datenschutzerklärung</h1>
 
       <p style={{ color: '#666', fontSize: 14, marginBottom: 24 }}>
-        Stand: Juli 2025 &nbsp;|&nbsp; Verantwortlicher: TSV Holm
+        Stand: Juli 2025 &nbsp;|&nbsp; Verantwortlich: Peter Philipp
       </p>
 
       {[
         {
           id: '1',
           title: '1. Verantwortlicher',
-          content: `Verantwortlich für die Datenverarbeitung ist der TSV Holm. Bei Fragen zur Datenspeicherung kontaktieren Sie uns bitte über die Vereinsleitung.`
+          content: `Verantwortlich für die Datenverarbeitung ist Peter Philipp. Bei Fragen zur Datenspeicherung kontaktieren Sie mich bitte unter peter.philipp@web.de.`
         },
         {
           id: '2',
@@ -67,7 +67,7 @@ Die Daten werden ausschließlich für die Turnierorganisation und den damit verb
         {
           id: '7',
           title: '7. Kontakt',
-          content: `Bei Fragen, Auskunftsersuchen oder Löschungsanträgen kontaktieren Sie uns bitte über die Vereinsleitung des TSV Holm.`
+          content: `Bei Fragen, Auskunftsersuchen oder Löschungsanträgen kontaktieren Sie mich bitte unter peter.philipp@web.de.`
         }
       ].map(section => (
         <div key={section.id} style={{ marginBottom: 8, border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
