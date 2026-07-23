@@ -47,6 +47,7 @@ const ModalContext = new (class {
 
       const close = (result: any) => {
         this.state = { type: null, opts: {} };
+        this.listeners.forEach(fn => fn());
         resolve(result);
       };
 
