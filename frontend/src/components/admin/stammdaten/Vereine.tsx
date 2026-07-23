@@ -196,8 +196,12 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
                 <div key={key} style={{ textAlign: 'center' }}>
                   <input
                     type="color"
-                    value={clubForm[key === 'primary' ? 'primaryColor' : key === 'secondary' ? 'secondaryColor' : 'accentColor']}
-                    onChange={e => setClubForm({ ...clubForm, [key === 'primary' ? 'primaryColor' : key === 'secondary' ? 'secondaryColor' : 'accentColor']: e.target.value })}
+                    value={extractedColors[key]}
+                    onChange={e => {
+                      setExtractedColors({ ...extractedColors, [key]: e.target.value });
+                      const clubKey = key === 'primary' ? 'primaryColor' : key === 'secondary' ? 'secondaryColor' : 'accentColor';
+                      setClubForm({ ...clubForm, [clubKey]: e.target.value });
+                    }}
                     style={{ width: 36, height: 28, padding: 0, border: '1px solid #dee2e6', borderRadius: 4, cursor: 'pointer' }}
                   />
                 </div>
