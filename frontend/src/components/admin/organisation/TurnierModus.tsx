@@ -149,9 +149,13 @@ export default function TurnierModus({ tournament, selectedYearGroupId, yearGrou
       {/* Info-Box */}
       <div style={{ marginTop: 24, padding: 16, background: '#fff3cd', borderRadius: 10, border: '1px solid #ffc107' }}>
         <p style={{ margin: 0, fontSize: 13, color: '#856404' }}>
-          💡 <strong>Hinweis:</strong> Beim Ändern des Modus werden automatisch Paarungen generiert (wenn Teams vorhanden). 
-          Bestehende Spiele und Tabellen bleiben erhalten. Du kannst manuell nachträglich Änderungen vornehmen.
+          💡 <strong>Wichtig:</strong> Bevor du den Spielplan generierst, musst du Teams anlegen!
         </p>
+        <ol style={{ margin: '8px 0 0 0', paddingLeft: 20, fontSize: 13, color: '#856404' }}>
+          <li style={{ marginBottom: 4 }}>📋 <strong>Teilnehmer:</strong> Vereine anklicken + pro Verein "✓ Hinzufügen" klicken (erzeugt z.B. "TSV Holm 1")</li>
+          <li style={{ marginBottom: 4 }}>👥 <strong>Gruppen & Teams:</strong> Falls du Gruppen willst → Teams den Gruppen zuweisen</li>
+          <li>⚙️ <strong>Hier:</strong> Modus wählen + "Spielplan generieren" klicken</li>
+        </ol>
       </div>
 
       {/* Angezeigte Brackets */}
