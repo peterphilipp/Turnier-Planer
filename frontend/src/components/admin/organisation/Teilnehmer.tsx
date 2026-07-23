@@ -18,11 +18,12 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
   const { data: teams = [] } = useQuery<Team[]>({
     queryKey: ['teams', tournamentId, yearGroupId],
     queryFn: () => {
+      if (!yearGroupId) return Promise.resolve([]);
       let url = `/api/teams?tournamentId=${tournamentId}`;
-      if (yearGroupId) url += `&yearGroupId=${yearGroupId}`;
+      url += `&yearGroupId=${yearGroupId}`;
       return fetch(url).then(r => r.json()).catch(() => []);
     },
-    enabled: !!tournamentId,
+    enabled: !!tournamentId && !!yearGroupId,
   });
   const { data: tournamentClubIds = [] as number[] } = useQuery<number[]>({
     queryKey: ['tournament-clubs', tournamentId],
@@ -30,23 +31,22 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
     enabled: !!tournamentId,
   });
 
-  // Vereine die bereits Teams für den ausgewählten Jahrgang haben
-  const clubsWithTeams = new Set<number>();
-  if (yearGroupId) {
-    teams.filter(t => t.yearGroupId === yearGroupId && t.clubId).forEach(t => clubsWithTeams.add(t.clubId!));
-  } else {
-    teams.filter(t => t.clubId).forEach(t => clubsWithTeams.add(t.clubId!));
-  }
-
   // Vereine die bereits Teams haben → auch als teilnehmend markieren
   const participatingClubIds = new Set<number>(tournamentClubIds);
   if (yearGroupId) {
-    teams.filter(t => t.yearGroupId === yearGroupId && t.clubId).forEach(t => participatingClubIds.add(t.clubId!));
-  } else {
     teams.filter(t => t.clubId).forEach(t => participatingClubIds.add(t.clubId!));
   }
 
-  // Alle Vereine anzeigen (Checkbox zeigt Teilnahme-Status)
+  // Teams pro Verein gruppieren
+  const teamsByClub: Record<string, Team[]> = {};
+  if (yearGroupId) {
+    allClubs.forEach(club => {
+      const clubTeams = teams.filter(t => t.clubId === club.id);
+      if (clubTeams.length > 0) {
+        teamsByClub[`${club.id}_${yearGroupId}`] = clubTeams;
+      }
+    });
+  }
 
   const handleToggleClub = async (clubId: number) => {
     if (!tournamentId) return;
@@ -60,15 +60,11 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
   };
 
   const handleAddTeam = async (clubId: number) => {
-    if (!tournamentId || !teamForms[clubId]?.trim()) return;
+    if (!tournamentId || !yearGroupId) return;
+    if (!teamForms[clubId]?.trim()) return;
     
     // Team-Nummer für diesen Verein ermitteln
-    let existingTeamsForClub: any[] = [];
-    if (yearGroupId) {
-      existingTeamsForClub = teams.filter(t => t.clubId === clubId && t.yearGroupId === yearGroupId);
-    } else {
-      existingTeamsForClub = teams.filter(t => t.clubId === clubId);
-    }
+    const existingTeamsForClub = teams.filter(t => t.clubId === clubId);
     const teamNumber = existingTeamsForClub.length + 1;
     const club = allClubs.find(c => c.id === clubId);
     const teamName = `${club?.name || 'Verein'} ${teamNumber}`;
@@ -91,19 +87,6 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
     queryClient.invalidateQueries({ queryKey: ['teams'] });
   };
 
-  // Teams pro Verein + Jahrgang gruppieren
-  const teamsByClub = allClubs.reduce<Record<string, Team[]>>((acc, club) => {
-    let clubTeams: any[] = [];
-    if (yearGroupId) {
-      clubTeams = teams.filter(t => t.clubId === club.id && t.yearGroupId === yearGroupId);
-    } else {
-      clubTeams = teams.filter(t => t.clubId === club.id);
-    }
-    const key = `${club.id}_${yearGroupId || 'all'}`;
-    if (clubTeams.length > 0) acc[key] = clubTeams;
-    return acc;
-  }, {});
-
   if (!tournamentId) {
     return (
       <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
@@ -111,6 +94,20 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
       </div>
     );
   }
+
+  if (!yearGroupId) {
+    return (
+      <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
+        <div style={{ padding: 16, background: '#fff3cd', borderRadius: 10, border: '1px solid #ffc107' }}>
+          <p style={{ margin: 0, fontSize: 14, color: '#856404' }}>
+            ⚠️ Bitte wähle oben einen Jahrgang aus, um Teilnehmer zu verwalten.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const selectedYearGroup = tournament?.yearGroups?.find(y => y.id === yearGroupId);
 
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
@@ -120,6 +117,13 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
           {Object.keys(teamsByClub).length} Vereine · {teams.length} Teams insgesamt
         </span>
       </div>
+
+      {/* Jahrgang-Anzeige */}
+      {selectedYearGroup && (
+        <div style={{ marginBottom: 20, padding: '8px 16px', background: '#e7f3ff', borderRadius: 8, display: 'inline-block' }}>
+          <span style={{ fontSize: 13, color: '#0d6efd', fontWeight: 'bold' }}>📅 {selectedYearGroup.name}</span>
+        </div>
+      )}
 
       {/* Vereins-Auswahl */}
       <div style={{ marginBottom: 24 }}>
@@ -212,14 +216,9 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
                     </span>
                   )}
                   <strong style={{ fontSize: 14, color: '#212529' }}>{club.name}</strong>
-                  {yearGroupId && (() => {
-                    const yg = tournament?.yearGroups?.find(y => y.id === yearGroupId);
-                    return yg ? (
-                      <span style={{ fontSize: 11, background: '#e7f3ff', color: '#0d6efd', padding: '2px 8px', borderRadius: 4 }}>
-                        📅 {yg.name}
-                      </span>
-                    ) : null;
-                  })()}
+                  <span style={{ fontSize: 11, background: '#e7f3ff', color: '#0d6efd', padding: '2px 8px', borderRadius: 4 }}>
+                    📅 {selectedYearGroup?.name}
+                  </span>
                   <span style={{ fontSize: 12, color: '#6c757d' }}>({clubTeams.length} Teams)</span>
                 </div>
 
@@ -236,14 +235,7 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
                     {clubTeams.map((team, idx) => (
                       <tr key={team.id} style={{ background: idx % 2 === 0 ? '#fff' : 'rgba(0,0,0,0.02)' }}>
                         <td style={{ ...tdStyle, fontWeight: 'bold', color: '#6c757d', width: 40 }}>{idx + 1}</td>
-                        <td style={tdStyle}>
-                          {team.name}
-                          {team.yearGroup && (
-                            <span style={{ marginLeft: 8, fontSize: 11, background: '#f8f9fa', color: '#6c757d', padding: '2px 6px', borderRadius: 4 }}>
-                              📅 {team.yearGroup.name}
-                            </span>
-                          )}
-                        </td>
+                        <td style={tdStyle}>{team.name}</td>
                         <td style={tdStyle}>
                           <button 
                             onClick={() => handleDeleteTeam(team.id)} 

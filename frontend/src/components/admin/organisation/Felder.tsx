@@ -17,17 +17,19 @@ export default function Felder({ tournamentId, yearGroupId }: Props) {
   const { data: fields = [] } = useQuery<Field[]>({
     queryKey: ['fields', tournamentId, yearGroupId],
     queryFn: () => {
+      if (!yearGroupId) return Promise.resolve([]);
       let url = `/api/fields?tournamentId=${tournamentId}`;
-      if (yearGroupId) url += `&yearGroupId=${yearGroupId}`;
+      url += `&yearGroupId=${yearGroupId}`;
       return fetch(url).then(r => r.json()).catch(() => []);
     },
     enabled: !!tournamentId,
   });
 
   const handleSave = async () => {
-    if (!tournamentId || !form.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Feldname erforderlich!' });
+    if (!tournamentId || !yearGroupId) return await modal.alert({ title: 'Hinweis', message: 'Bitte wähle oben einen Jahrgang aus!' });
+    if (!form.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Feldname erforderlich!' });
     
-    await apiPost('/api/fields', { ...form, tournamentId, yearGroupId: yearGroupId || null });
+    await apiPost('/api/fields', { ...form, tournamentId, yearGroupId });
     queryClient.invalidateQueries({ queryKey: ['fields'] });
     setShowForm(false);
     setForm({ name: 'Feld 1', status: 'verfügbar' });
@@ -50,16 +52,22 @@ export default function Felder({ tournamentId, yearGroupId }: Props) {
     'wartung': '#f8d7da'
   };
 
-  const statusLabels: Record<string, string> = {
-    'verfügbar': '✅ Verfügbar',
-    'in_nutzung': '🔶 In Nutzung',
-    'wartung': '🔴 Wartung'
-  };
-
   if (!tournamentId) {
     return (
       <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
         <p style={{ color: '#dc3545', margin: 0 }}>⚠️ Bitte wähle zuerst ein Turnier aus.</p>
+      </div>
+    );
+  }
+
+  if (!yearGroupId) {
+    return (
+      <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
+        <div style={{ padding: 16, background: '#fff3cd', borderRadius: 10, border: '1px solid #ffc107' }}>
+          <p style={{ margin: 0, fontSize: 14, color: '#856404' }}>
+            ⚠️ Bitte wähle oben einen Jahrgang aus, um Spielfelder zu verwalten.
+          </p>
+        </div>
       </div>
     );
   }
