@@ -14,7 +14,7 @@ export default function Felder({ tournamentId, yearGroupId }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: 'Feld 1', status: 'verfügbar' });
 
-  const { data: fields = [] } = useQuery<Field[]>({
+  const { data: fieldsRaw } = useQuery<Field[]>({
     queryKey: ['fields', tournamentId, yearGroupId],
     queryFn: () => {
       if (!yearGroupId) return Promise.resolve([]);
@@ -24,6 +24,8 @@ export default function Felder({ tournamentId, yearGroupId }: Props) {
     },
     enabled: !!tournamentId,
   });
+  // Defensive: fields kann undefined sein wenn Query noch lädt
+  const fields = Array.isArray(fieldsRaw) ? fieldsRaw : [];
 
   const handleSave = async () => {
     if (!tournamentId || !yearGroupId) return await modal.alert({ title: 'Hinweis', message: 'Bitte wähle oben einen Jahrgang aus!' });
