@@ -21,12 +21,13 @@ import LebensmittelSlots from './components/admin/organisation/LebensmittelSlots
 import TurnierTage from './components/admin/organisation/TurnierTage';
 import GruppenTeams from './components/admin/organisation/GruppenTeams';
 import Teilnehmer from './components/admin/organisation/Teilnehmer';
+import Felder from './components/admin/organisation/Felder';
 import TurnierModus from './components/admin/organisation/TurnierModus';
 import { Tournament } from './components/admin/shared';
 
 type View = 'admin' | 'selfservice' | 'privacy';
 type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
-type SpielplanTab = 'teilnehmer' | 'turnier-tage' | 'gruppen-teams' | 'spielplan' | 'modus';
+type SpielplanTab = 'teilnehmer' | 'felder' | 'turnier-tage' | 'gruppen-teams' | 'spielplan' | 'modus';
 type OrgTab = 'uebersicht' | 'jobslots' | 'buchungen' | 'lebensmittel-slots';
 type StammTab = 'turniere' | 'vereine' | 'arbeitsbereiche' | 'zeitslots' | 'helfer' | 'lebensmittel' | 'jahrgaenge';
 
@@ -172,6 +173,10 @@ export default function App() {
               style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'teilnehmer' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'teilnehmer' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
               📋 Teilnehmer
             </button>
+            <button onClick={() => setActiveSpielplanTab('felder')}
+              style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'felder' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'felder' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+              ⚽ Spielfelder
+            </button>
             <button onClick={() => setActiveSpielplanTab('turnier-tage')}
               style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'turnier-tage' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'turnier-tage' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
               📅 Turnier-Tage
@@ -241,6 +246,7 @@ export default function App() {
       {/* CONTENT AREA */}
       <main>
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'teilnehmer' && <Teilnehmer tournamentId={selectedTournamentId} />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'felder' && <Felder tournamentId={selectedTournamentId} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'turnier-tage' && <TurnierTage tournamentId={selectedTournamentId} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'gruppen-teams' && <GruppenTeams tournamentId={selectedTournamentId} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'modus' && <TurnierModus tournament={tournaments.find(t => t.id === selectedTournamentId) || null} />}
