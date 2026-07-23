@@ -13,7 +13,7 @@
 | Backend | Express.js + tsx (TypeScript Runtime) |
 | Datenbank | SQLite + Prisma ORM |
 | Auth | JWT (`jsonwebtoken`) + bcrypt |
-| E-Mail | Resend API (`re_3PGBqyUu_CMQinfQVh4VeWx3YfaCQ44qA`) |
+| E-Mail | Resend API (im .env der Produktion gesetzt) |
 | Deployment | Docker Compose + GitHub Actions CI/CD (GHCR) |
 
 ## Architektur
