@@ -180,21 +180,25 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
   };
 
   return (
-    <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
+    <>
+      {/* Haupt-Container */}
+      <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>🛡️ Vereine & Clubs</h3>
       
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center', background: '#f8f9fa', padding: 16, borderRadius: 12 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 200 }}>
-          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Vereinsname</label>
-          <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="TSV Musterhausen" style={inputStyle} />
-        </div>
-        
+      {/* Vereinsname */}
+      <div style={{ marginBottom: 12 }}>
+        <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Vereinsname</label>
+        <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="TSV Musterhausen" style={{ ...inputStyle, width: '100%' }} />
+      </div>
+
+      {/* Primärfarbe + Logo */}
+      <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 12 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Primärfarbe</label>
           <input type="color" value={clubForm.primaryColor} onChange={e => setClubForm({ ...clubForm, primaryColor: e.target.value, secondaryColor: shadeColor(e.target.value, -20) })} style={{ width: 60, height: 42, padding: 0, border: '1px solid #dee2e6', borderRadius: 8, cursor: 'pointer' }} />
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
           <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Logo</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {clubLogo ? (
@@ -207,13 +211,14 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
             {clubLogo && <button onClick={() => { setClubLogo(null); setClubForm({ ...clubForm, logo: '' }); setExtractedColors(null); }} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>X</button>}
           </div>
         </div>
+      </div>
 
-        {/* Extrahierte Farben */}
-        {extractedColors && clubLogo && (
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎨 Vorschlag (Logo-Analyse) — {analysisCount > 0 ? `Analyse ${analysisCount} (${strategies[colorStrategyIndex]?.name || 'Standard'})` : 'Erste Analyse'} ({colorStrategyIndex + 1}/4)
-              <span style={{ fontSize: 11, color: '#28a745', marginLeft: 8 }}>✓ Auto-Sync aktiv</span></label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
+      {/* Extrahierte Farben */}
+      {extractedColors && clubLogo && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #dee2e6' }}>
+          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎨 Vorschlag (Logo-Analyse) — {analysisCount > 0 ? `Analyse ${analysisCount} (${strategies[colorStrategyIndex]?.name || 'Standard'})` : 'Erste Analyse'} ({colorStrategyIndex + 1}/4)
+            <span style={{ fontSize: 11, color: '#28a745', marginLeft: 8 }}>✓ Auto-Sync aktiv</span></label>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
               {(['primary', 'secondary', 'accent'] as const).map(key => (
                 <div key={key} style={{ textAlign: 'center' }}>
                   <input
@@ -248,16 +253,18 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
             </div>
           </div>
         )}
-        
-        <div style={{ display: 'flex', alignItems: 'flex-end', height: 64 }}>
-          <button onClick={saveClub} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: '600', fontSize: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', height: 42 }}>
-            {editingClub ? '💾 Speichern' : '➕ Verein anlegen'}
-          </button>
-          {editingClub && <button onClick={() => { resetAnalysis(); setEditingClub(null); setClubForm({ name: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' }); setClubLogo(null); }} style={{ ...btnStyle, background: '#e9ecef', height: 42, marginLeft: 8 }}>Abbrechen</button>}
-        </div>
-      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+      {/* Speichern/Abbrechen */}
+      <div style={{ display: 'flex', gap: 10, marginTop: 16, paddingTop: 12, borderTop: '1px solid #dee2e6' }}>
+        <button onClick={saveClub} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: '600', fontSize: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', height: 42 }}>
+          {editingClub ? '💾 Speichern' : '➕ Verein anlegen'}
+        </button>
+        {editingClub && <button onClick={() => { resetAnalysis(); setEditingClub(null); setClubForm({ name: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' }); setClubLogo(null); }} style={{ ...btnStyle, background: '#e9ecef', height: 42 }}>Abbrechen</button>}
+      </div>
+    </div>
+
+    {/* Vereinsliste */}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
         {clubs.map(club => (
           <div key={club.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 16, background: '#fff', border: '1px solid #dee2e6', borderRadius: 12 }}>
             {club.logo ? (
@@ -283,6 +290,6 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
         ))}
         {clubs.length === 0 && <div style={{ color: '#666', padding: 24 }}>Keine Vereine vorhanden.</div>}
       </div>
-    </div>
+    </>
   );
 }
