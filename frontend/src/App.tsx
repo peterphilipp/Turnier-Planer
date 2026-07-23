@@ -214,7 +214,7 @@ export default function App() {
             style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'spielplan-gruppenphase' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'spielplan-gruppenphase' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
             📊 Gruppenphase
           </button>
-          <button onClick={() => setActiveSpielplanTab('spielplan-ko')}
+          <button onClick={() => { console.log('KO TAB CLICK'); setActiveSpielplanTab('spielplan-ko'); }}
             style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'spielplan-ko' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'spielplan-ko' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
             🏆 KO-Phase
           </button>
