@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getTimeSlots, apiPost, apiPatch, apiDelete } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, TimeSlot } from '../shared';
@@ -38,8 +39,8 @@ export default function TurnierTage({ tournamentId }: Props) {
   };
 
   const handleSave = async () => {
-    if (!tournamentId || !form.date) return alert('Datum erforderlich!');
-    if (!form.startTime) return alert('Anstoßzeit erforderlich!');
+    if (!tournamentId || !form.date) return await modal.alert({ title: 'Hinweis', message: 'Datum erforderlich!' });
+    if (!form.startTime) return await modal.alert({ title: 'Hinweis', message: 'Anstoßzeit erforderlich!' });
     
     const endTime = calculateEndTime(form.startTime, form.durationMinutes);
     await apiPost('/api/time-slots', { ...form, endTime, tournamentId });
@@ -49,7 +50,7 @@ export default function TurnierTage({ tournamentId }: Props) {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Zeitslot löschen? Alle zugewiesenen Spiele gehen verloren.')) return;
+    if (!(await modal.confirm({ title: 'Zeitslot löschen', message: 'Zeitslot löschen? Alle zugewiesenen Spiele gehen verloren.', variant: 'danger' }))) return;
     await apiDelete(`/api/time-slots/${id}`);
     queryClient.invalidateQueries({ queryKey: ['timeSlots'] });
   };

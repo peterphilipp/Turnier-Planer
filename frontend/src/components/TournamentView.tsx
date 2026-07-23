@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { modal } from './admin/Modal';
 
 interface Tournament {
   id: number;
@@ -81,7 +82,7 @@ export default function TournamentView() {
   };
 
   const deleteTournament = async (id: number) => {
-    if (!confirm('Turnier wirklich löschen?')) return;
+    if (!(await modal.confirm({ title: 'Turnier löschen', message: 'Möchtest du dieses Turnier wirklich löschen?', variant: 'danger' }))) return;
     await fetch(`/api/tournaments/${id}`, { method: 'DELETE' });
     setTournaments(await (await fetch('/api/tournaments')).json());
     if (selectedTournament === id) setSelectedTournament(null);

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getTournaments, getClubs, getYearGroups, apiPost, apiPatch } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, statusBadge, Tournament, Club, YearGroup } from '../shared';
@@ -22,7 +23,7 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
 
   const saveTournamentEdit = async () => {
     if (!statusDialog.tournament) return;
-    if (!statusDialog.editName.trim()) return alert('Name erforderlich!');
+    if (!statusDialog.editName.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
     const patchData: any = {
       name: statusDialog.editName,
       startDate: statusDialog.editStart,
@@ -43,7 +44,7 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
     const clubId = (document.getElementById('tournamentClub') as HTMLInputElement).value;
     const modusEl = document.getElementById('tournamentModus') as HTMLSelectElement;
     const turnierModus = modusEl?.value || 'GRUPPEN_KO';
-    if (!name || !start || !end) return alert('Alle Felder erforderlich!');
+    if (!name || !start || !end) return await modal.alert({ title: 'Hinweis', message: 'Alle Felder erforderlich!' });
     const yearGroupIdsEl = document.getElementById('tournamentYearGroups') as HTMLSelectElement;
     const selectedYgs = yearGroupIdsEl?.selectedOptions ? Array.from(yearGroupIdsEl.selectedOptions).map(o => parseInt(o.value)) : [];
     await apiPost('/api/tournaments', { name, startDate: start, endDate: end, status: 'aktiv', clubId: clubId ? parseInt(clubId) : null, turnierModus, yearGroupIds: selectedYgs });

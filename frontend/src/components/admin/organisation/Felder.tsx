@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getFields, apiPost, apiPatch, apiDelete } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, Field } from '../shared';
@@ -24,7 +25,7 @@ export default function Felder({ tournamentId, yearGroupId }: Props) {
   });
 
   const handleSave = async () => {
-    if (!tournamentId || !form.name.trim()) return alert('Feldname erforderlich!');
+    if (!tournamentId || !form.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Feldname erforderlich!' });
     
     await apiPost('/api/fields', { ...form, tournamentId, yearGroupId: yearGroupId || null });
     queryClient.invalidateQueries({ queryKey: ['fields'] });
@@ -38,7 +39,7 @@ export default function Felder({ tournamentId, yearGroupId }: Props) {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Feld löschen? Alle zugewiesenen Spiele gehen verloren.')) return;
+    if (!(await modal.confirm({ title: 'Feld löschen', message: 'Feld löschen? Alle zugewiesenen Spiele gehen verloren.', variant: 'danger' }))) return;
     await apiDelete(`/api/fields/${id}`);
     queryClient.invalidateQueries({ queryKey: ['fields'] });
   };

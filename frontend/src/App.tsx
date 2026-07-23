@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ModalRoot } from './components/admin/Modal';
 import { useQuery } from '@tanstack/react-query';
 import { getTournaments } from './api';
 
@@ -292,6 +293,7 @@ export default function App() {
         {activeMainTab === 'stammdaten' && activeStammTab === 'jahrgaenge' && <Jahrgaenge adminPrimary="#6c757d" />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'lebensmittel' && <Lebensmittel adminPrimary="#6c757d" />}
       </main>
+      <ModalRoot />
     </div>
   );
 }

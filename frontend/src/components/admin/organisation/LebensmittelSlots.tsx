@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getFoodDonationSlots, getYearGroups, getFoodCategories, getFoodItems, apiPost, apiPatch, apiDelete } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, FoodDonationSlot, YearGroup, FoodItem, FoodCategory, Tournament } from '../shared';
@@ -24,7 +25,7 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
 
   const saveSlot = async () => {
     if (!selectedTournament || slotForm.yearGroupIds.length === 0) {
-      return alert('Bitte mindestens einen Jahrgang wählen.');
+      return await modal.alert({ title: 'Hinweis', message: 'Bitte mindestens einen Jahrgang wählen.' });
     }
     
     if (editingSlotId) {
@@ -51,7 +52,7 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
   };
 
   const deleteSlot = async (id: number) => {
-    if (!confirm('Slot löschen?')) return;
+    if (!(await modal.confirm({ title: 'Slot löschen', message: 'Möchtest du diesen Slot wirklich löschen?', variant: 'danger' }))) return;
     await apiDelete(`/api/food-donation-slots/${id}`);
     queryClient.invalidateQueries({ queryKey: ['foodDonationSlots', selectedTournament] });
   };

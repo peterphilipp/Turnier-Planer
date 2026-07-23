@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getClubs, apiPost, apiPut, apiDelete } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, shadeColor, Club } from '../shared';
@@ -66,7 +67,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
   };
 
   const saveClub = async () => {
-    if (!clubForm.name.trim()) return alert('Name erforderlich!');
+    if (!clubForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
     
     const data: { name: string; city?: string | null; primaryColor: string; secondaryColor: string; accentColor: string; logo?: string } = {
       name: clubForm.name,
@@ -89,7 +90,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
   };
 
   const deleteClub = async (id: number) => {
-    if (!confirm('Verein löschen?')) return;
+    if (!(await modal.confirm({ title: 'Verein löschen', message: 'Möchtest du diesen Verein wirklich löschen?', variant: 'danger' }))) return;
     await apiDelete(`/api/clubs/${id}`);
     queryClient.invalidateQueries({ queryKey: ['clubs'] });
   };
@@ -159,17 +160,17 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
           setExtractedColors(result);
           setAnalysisCount(prev => prev + 1);
         } else {
-          alert('Das Logo hat nicht genug verschiedene Farben für eine Analyse.');
+          modal.alert({ title: 'Hinweis', message: 'Das Logo hat nicht genug verschiedene Farben für eine Analyse.' }).catch(() => {});
         }
       };
 
       img.onerror = () => {
-        alert('Bild konnte nicht verarbeitet werden.');
+        modal.alert({ title: 'Fehler', message: 'Bild konnte nicht verarbeitet werden.' }).catch(() => {});
       };
       
       img.src = imgSrc;
     } catch (err) {
-      alert('Farbanalyse konnte nicht durchgeführt werden: ' + (err as Error).message);
+      modal.alert({ title: 'Fehler', message: 'Farbanalyse konnte nicht durchgeführt werden: ' + (err as Error).message }).catch(() => {});
     }
   };
 
@@ -289,8 +290,8 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
                   ✓ Übernehmen
                 </button>
               )}
-              <button onClick={() => {
-                if (!clubLogo) { alert('Bitte zuerst ein Logo hochladen!'); return; }
+              <button onClick={async () => {
+                if (!clubLogo) { await modal.alert({ title: 'Hinweis', message: 'Bitte zuerst ein Logo hochladen!' }); return; }
                 const next = analysisCount === 0 ? 0 : colorStrategyIndex + 1;
                 setColorStrategyIndex(next);
                 extractColors(clubLogo, next);

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { modal } from './admin/Modal';
 import { inputStyle, btnStyle } from './admin/shared';
 
 interface Shift {
@@ -115,7 +116,7 @@ export default function SelfServiceView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
-      if (!res.ok) { const err = await res.json(); alert(err.error); return; }
+      if (!res.ok) { const err = await res.json(); await modal.alert({ title: 'Fehler', message: err.error }); return; }
       const data = await res.json();
       setToken(data.token);
       setVolunteer(data.volunteer);
@@ -129,7 +130,7 @@ export default function SelfServiceView() {
       }
       const res2 = await fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + data.token } });
       if (res2.ok) { const data2 = await res2.json(); setShifts(data2.shifts); setVolunteerShifts(data2.volunteerShifts); }
-    } catch { alert('Login fehlgeschlagen'); }
+    } catch { await modal.alert({ title: 'Fehler', message: 'Login fehlgeschlagen' }); }
   };
 
   const logout = () => {
@@ -152,17 +153,17 @@ export default function SelfServiceView() {
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({ shiftId, date }),
       });
-      if (res.ok) { await loadAvailable(); alert('Zugewiesen!'); }
-      else { const err = await res.json(); alert(err.error); }
-    } catch { alert('Fehler bei der Zuweisung'); }
+      if (res.ok) { await loadAvailable(); await modal.alert({ title: 'Erfolg', message: 'Zugewiesen!' }); }
+      else { const err = await res.json(); await modal.alert({ title: 'Fehler', message: err.error }); }
+    } catch { await modal.alert({ title: 'Fehler', message: 'Fehler bei der Zuweisung' }); }
   };
 
   const unassign = async (id: number) => {
-    if (!confirm('Schicht abmelden?')) return;
+    if (!(await modal.confirm({ title: 'Schicht abmelden', message: 'Möchtest du dich von dieser Schicht abmelden?', variant: 'warning' }))) return;
     try {
       const res = await fetch('/api/self/unassign/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
-      if (res.ok) { await loadAvailable(); alert('Abgemeldet!'); }
-    } catch { alert('Fehler bei der Abmeldung'); }
+      if (res.ok) { await loadAvailable(); await modal.alert({ title: 'Erfolg', message: 'Abgemeldet!' }); }
+    } catch { await modal.alert({ title: 'Fehler', message: 'Fehler bei der Abmeldung' }); }
   };
 
   const loadFood = async () => {
@@ -194,7 +195,7 @@ export default function SelfServiceView() {
   };
 
   const submitDonation = async () => {
-    if (!donationFoodId || !donationQuantity) return alert('Artikel und Menge auswaehlen!');
+    if (!donationFoodId || !donationQuantity) return await modal.alert({ title: 'Hinweis', message: 'Artikel und Menge auswählen!' });
     try {
       const res = await fetch('/api/food/donations', {
         method: 'POST',
@@ -202,16 +203,16 @@ export default function SelfServiceView() {
         body: JSON.stringify({ foodItemId: donationFoodId, quantity: parseInt(donationQuantity), note: donationNote || null }),
       });
       if (res.ok) {
-        alert('Spende eingetragen!');
+        await modal.alert({ title: 'Erfolg', message: 'Spende eingetragen!' });
         setDonationFoodId(0);
         setDonationQuantity('');
         setDonationNote('');
         await loadFood();
       } else {
         const err = await res.json();
-        alert(err.error || 'Fehler');
+        await modal.alert({ title: 'Fehler', message: err.error || 'Fehler' });
       }
-    } catch { alert('Fehler beim Eintragen'); }
+    } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Eintragen' }); }
   };
 
   const removeCommitment = (slotId: number) => {
@@ -221,9 +222,9 @@ export default function SelfServiceView() {
   };
 
   const commitSlot = async (slotId: number, foodItemId?: number | null) => {
-    if (!foodItemId) return alert('Kein Artikel verfügbar!');
+    if (!foodItemId) return await modal.alert({ title: 'Hinweis', message: 'Kein Artikel verfügbar!' });
     const qty = slotCommitments[slotId] ?? 0;
-    if (qty <= 0) return alert('Bitte Menge eingeben!');
+    if (qty <= 0) return await modal.alert({ title: 'Hinweis', message: 'Bitte Menge eingeben!' });
     try {
       const res = await fetch('/api/food/donations', {
         method: 'POST',
@@ -231,37 +232,37 @@ export default function SelfServiceView() {
         body: JSON.stringify({ foodItemId: Number(foodItemId), quantity: qty, slotId }),
       });
       if (res.ok) {
-        alert('Zusage eingetragen!');
+        await modal.alert({ title: 'Erfolg', message: 'Zusage eingetragen!' });
         const newCommitments: Record<number, number> = {};
         Object.entries(slotCommitments).forEach(([k, v]) => { if (Number(k) !== slotId) newCommitments[Number(k)] = v; });
         setSlotCommitments(newCommitments);
         await loadFood();
       } else {
         const err = await res.json();
-        alert(err.error || 'Fehler');
+        await modal.alert({ title: 'Fehler', message: err.error || 'Fehler' });
       }
-    } catch { alert('Fehler beim Eintragen'); }
+    } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Eintragen' }); }
   };
 
   const cancelDonation = async (id: number) => {
-    if (!confirm('Spende loeschen?')) return;
+    if (!(await modal.confirm({ title: 'Spende löschen', message: 'Möchtest du diese Spende wirklich löschen?', variant: 'danger' }))) return;
     try {
       const res = await fetch('/api/food/donations/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
-      if (res.ok) { alert('Geloescht!'); await loadFood(); }
-    } catch { alert('Fehler'); }
+      if (res.ok) { await modal.alert({ title: 'Erfolg', message: 'Gelöscht!' }); await loadFood(); }
+    } catch { await modal.alert({ title: 'Fehler', message: 'Fehler' }); }
   };
 
   const changePassword = async () => {
-    if (!currentPassword || !newPassword) { alert('Bitte beide Felder ausfuellen'); return; }
+    if (!currentPassword || !newPassword) { await modal.alert({ title: 'Hinweis', message: 'Bitte beide Felder ausfüllen' }); return; }
     try {
       const res = await fetch('/api/auth/password', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
-      if (res.ok) { alert('Passwort geaendert!'); setMenuOpen(false); setCurrentPassword(''); setNewPassword(''); }
-      else { const err = await res.json(); alert(err.error); }
-    } catch { alert('Fehler bei der Passwort-Aenderung'); }
+      if (res.ok) { await modal.alert({ title: 'Erfolg', message: 'Passwort geändert!' }); setMenuOpen(false); setCurrentPassword(''); setNewPassword(''); }
+      else { const err = await res.json(); await modal.alert({ title: 'Fehler', message: err.error }); }
+    } catch { await modal.alert({ title: 'Fehler', message: 'Fehler bei der Passwort-Änderung' }); }
   };
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -290,8 +291,8 @@ export default function SelfServiceView() {
             <input type="password" placeholder="Neues Passwort" value={resetNewPassword} onChange={e => setResetNewPassword(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <input type="password" placeholder="Passwort bestaetigen" value={resetNewPasswordConfirm} onChange={e => setResetNewPasswordConfirm(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <button onClick={async () => {
-              if (resetNewPassword.length < 6) { alert('Passwort muss mindestens 6 Zeichen haben'); return; }
-              if (resetNewPassword !== resetNewPasswordConfirm) { alert('Passwoerter stimmen nicht ueberein'); return; }
+              if (resetNewPassword.length < 6) { await modal.alert({ title: 'Hinweis', message: 'Passwort muss mindestens 6 Zeichen haben' }); return; }
+              if (resetNewPassword !== resetNewPasswordConfirm) { await modal.alert({ title: 'Hinweis', message: 'Passwörter stimmen nicht überein' }); return; }
               try {
                 const res = await fetch('/api/auth/reset-password', {
                   method: 'POST',
@@ -300,12 +301,12 @@ export default function SelfServiceView() {
                 });
                 const data = await res.json();
                 if (res.ok) {
-                  alert('Passwort erfolgreich zurueckgesetzt! Du kannst dich jetzt anmelden.');
+                  await modal.alert({ title: 'Erfolg', message: 'Passwort erfolgreich zurückgesetzt! Du kannst dich jetzt anmelden.' });
                   setShowResetPassword(false);
                 } else {
-                  alert(data.error || 'Fehler beim Zuruecksetzen');
+                  await modal.alert({ title: 'Fehler', message: data.error || 'Fehler beim Zurücksetzen' });
                 }
-              } catch { alert('Fehler beim Zuruecksetzen'); }
+              } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Zurücksetzen' }); }
             }} style={{ padding: '16px', background: clubAccent, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Passwort zuruecksetzen</button>
             <button onClick={() => setShowResetPassword(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Zurueck</button>
           </div>
@@ -328,7 +329,7 @@ export default function SelfServiceView() {
             <input type="email" placeholder="Email-Adresse" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             {forgotMessage && <div style={{ padding: '12px 16px', background: '#d1e7dd', borderRadius: 10, fontSize: 14, color: '#0f5132', whiteSpace: 'pre-line' }}>{forgotMessage}</div>}
             <button onClick={async () => {
-              if (!forgotEmail) { alert('Bitte Email eingeben'); return; }
+              if (!forgotEmail) { await modal.alert({ title: 'Hinweis', message: 'Bitte Email eingeben' }); return; }
               setForgotMessage('');
               try {
                 const res = await fetch('/api/auth/forgot-password', {
@@ -341,9 +342,9 @@ export default function SelfServiceView() {
                   setForgotMessage(data.message + '\n\n(Hinweis: In der Entwicklungsumgebung wurde der Link im Server-Log ausgegeben.)');
                   setTimeout(() => setShowForgotPassword(false), 5000);
                 } else {
-                  alert(data.error);
+                  await modal.alert({ title: 'Fehler', message: data.error });
                 }
-              } catch { alert('Fehler beim Senden'); }
+              } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Senden' }); }
             }} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Link senden</button>
             <button onClick={() => setShowForgotPassword(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Zurueck zum Login</button>
           </div>
@@ -421,10 +422,10 @@ export default function SelfServiceView() {
               </span>
             </label>
             <button onClick={async () => {
-              if (!regName || !regEmail || !regPassword) { alert('Bitte alle Pflichtfelder ausfuellen'); return; }
-              if (regPassword !== regPasswordConfirm) { alert('Passwoerter stimmen nicht ueberein'); return; }
-              if (regPassword.length < 6) { alert('Passwort muss mindestens 6 Zeichen haben'); return; }
-              if (!consentGiven) { alert('Bitte Datenschutzerklärung akzeptieren'); return; }
+              if (!regName || !regEmail || !regPassword) { await modal.alert({ title: 'Hinweis', message: 'Bitte alle Pflichtfelder ausfüllen' }); return; }
+              if (regPassword !== regPasswordConfirm) { await modal.alert({ title: 'Hinweis', message: 'Passwörter stimmen nicht überein' }); return; }
+              if (regPassword.length < 6) { await modal.alert({ title: 'Hinweis', message: 'Passwort muss mindestens 6 Zeichen haben' }); return; }
+              if (!consentGiven) { await modal.alert({ title: 'Hinweis', message: 'Bitte Datenschutzerklärung akzeptieren' }); return; }
               try {
                 const res = await fetch('/api/auth/register', {
                   method: 'POST',
@@ -437,11 +438,11 @@ export default function SelfServiceView() {
                   localStorage.setItem('token', data.token); localStorage.setItem('volunteer', JSON.stringify(data.volunteer));
                   setShowRegisterForm(false);
                   setRegName(''); setRegEmail(''); setRegPhone(''); setRegPassword(''); setRegPasswordConfirm('');
-                  alert('Registrierung erfolgreich!');
+                  await modal.alert({ title: 'Erfolg', message: 'Registrierung erfolgreich!' });
                   const res2 = await fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + data.token } });
                   if (res2.ok) { const d = await res2.json(); setShifts(d.shifts); setVolunteerShifts(d.volunteerShifts); }
-                } else { const err = await res.json(); alert(err.error); }
-              } catch { alert('Fehler bei der Registrierung'); }
+                } else { const err = await res.json(); await modal.alert({ title: 'Fehler', message: err.error }); }
+              } catch { await modal.alert({ title: 'Fehler', message: 'Fehler bei der Registrierung' }); }
             }} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Registrieren</button>
             <button onClick={() => setShowRegisterForm(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Zurueck zum Login</button>
           </div>
@@ -494,12 +495,12 @@ export default function SelfServiceView() {
                   setVolunteer(data);
                   localStorage.setItem('volunteer', JSON.stringify(data));
                   setShowProfile(false);
-                  alert('Profil aktualisiert!');
+                  await modal.alert({ title: 'Erfolg', message: 'Profil aktualisiert!' });
                 } else {
                   const err = await res.json();
-                  alert(err.error);
+                  await modal.alert({ title: 'Fehler', message: err.error });
                 }
-              } catch { alert('Fehler beim Aktualisieren'); }
+              } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Aktualisieren' }); }
             }} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Speichern</button>
             <button onClick={() => setShowProfile(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Abbrechen</button>
           </div>
@@ -546,48 +547,45 @@ export default function SelfServiceView() {
               setMenuOpen(false);
               try {
                 const r = await fetch('/api/auth/export', { headers: { Authorization: 'Bearer ' + token } });
-                if (!r.ok) { alert('Export fehlgeschlagen'); return; }
+                if (!r.ok) { await modal.alert({ title: 'Fehler', message: 'Export fehlgeschlagen' }); return; }
                 const data = await r.json();
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url; a.download = `turnier-planer-daten-${new Date().toISOString().slice(0,10)}.json`;
                 a.click(); URL.revokeObjectURL(url);
-              } catch { alert('Export fehlgeschlagen'); }
+              } catch { await modal.alert({ title: 'Fehler', message: 'Export fehlgeschlagen' }); }
             }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>📥 Meine Daten exportieren</button>
-            <button onClick={() => {
+            <button onClick={async () => {
               setMenuOpen(false);
-              const pw = prompt('Neues Passwort:');
-              if (pw && pw.length >= 6) {
-                const cp = prompt('Aktuelles Passwort:');
-                if (cp) {
-                  fetch('/api/auth/password', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-                    body: JSON.stringify({ currentPassword: cp, newPassword: pw }),
-                  }).then(r => r.json()).then(d => {
-                    if (d.error) alert(d.error); else alert('Passwort geaendert!');
-                  });
-                }
-              }
+              const result = await modal.form({ title: 'Passwort ändern', fields: [{ key: 'currentPassword', label: 'Aktuelles Passwort', type: 'password' }, { key: 'newPassword', label: 'Neues Passwort (min. 6 Zeichen)', type: 'password' }] });
+              if (!result) return;
+              const cp = result.currentPassword as string;
+              const np = result.newPassword as string;
+              if (!cp || !np || np.length < 6) { await modal.alert({ title: 'Hinweis', message: 'Passwort muss mindestens 6 Zeichen haben' }); return; }
+              try {
+                const r = await fetch('/api/auth/password', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ currentPassword: cp, newPassword: np }) });
+                if (r.ok) { await modal.alert({ title: 'Erfolg', message: 'Passwort geändert!' });
+                } else { const d = await r.json(); await modal.alert({ title: 'Fehler', message: d.error }); }
+              } catch { await modal.alert({ title: 'Fehler', message: 'Fehler bei der Passwort-Änderung' }); }
             }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>🔑 Passwort ändern</button>
             <button onClick={async () => {
               setMenuOpen(false);
-              if (!confirm('Bist du sicher, dass du deine Einwilligung widerrufen möchtest? Deine Daten werden nicht gelöscht, aber sie können nicht mehr verarbeitet werden.')) return;
+              if (!(await modal.confirm({ title: 'Einwilligung widerrufen', message: 'Bist du sicher, dass du deine Einwilligung widerrufen möchtest? Deine Daten werden nicht gelöscht, aber sie können nicht mehr verarbeitet werden.', variant: 'warning' }))) return;
               try {
                 const r = await fetch('/api/auth/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ consentGiven: false }) });
-                if (r.ok) alert('Einwilligung widerrufen. Deine Daten werden nicht gelöscht, aber die Verarbeitung eingestellt.');
-                else alert('Fehler beim Widerrufen');
-              } catch { alert('Fehler beim Widerrufen'); }
+                if (r.ok) { await modal.alert({ title: 'Erfolg', message: 'Einwilligung widerrufen. Deine Daten werden nicht gelöscht, aber die Verarbeitung eingestellt.' });
+                } else { await modal.alert({ title: 'Fehler', message: 'Fehler beim Widerrufen' }); }
+              } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Widerrufen' }); }
             }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#856404' }}>⚠️ Einwilligung widerrufen</button>
             <button onClick={async () => {
               setMenuOpen(false);
-              if (!confirm('Bist du sicher, dass du dein Konto löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden. Alle personenbezogenen Daten werden entfernt.')) return;
+              if (!(await modal.confirm({ title: 'Konto löschen', message: 'Bist du sicher, dass du dein Konto löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden. Alle personenbezogenen Daten werden entfernt.', variant: 'danger' }))) return;
               try {
                 const r = await fetch('/api/auth/account', { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
-                if (r.ok) { alert('Dein Konto wurde gelöscht.'); logout(); }
-                else { const d = await r.json(); alert(d.error || 'Fehler'); }
-              } catch { alert('Fehler beim Löschen'); }
+                if (r.ok) { await modal.alert({ title: 'Erfolg', message: 'Dein Konto wurde gelöscht.' }); logout(); }
+                else { const d = await r.json(); await modal.alert({ title: 'Fehler', message: d.error || 'Fehler' }); }
+              } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Löschen' }); }
             }} style={{ width: '100%', padding: '10px 16px', background: '#fff3f3', border: '2px solid #dc3545', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#dc3545', fontWeight: 'bold' }}>🗑️ Konto löschen (Art. 17 DSGVO)</button>
             <button onClick={() => { setMenuOpen(false); setShowRegisterForm(false); logout(); }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#dc3545' }}>🚪 Abmelden</button>
           </div>

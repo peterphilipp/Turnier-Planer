@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { modal } from './admin/Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getTournaments, getVolunteers, getZeitSlots, getShifts, getVolunteerShifts, apiPost, apiDelete, apiPatch } from '../api';
 
@@ -178,7 +179,7 @@ export default function SchedulerView() {
       vs.slot === slotName &&
       (!slot.arbeitsbereichId || String(vs.arbeitsbereichId ?? vs.areaId) === String(slot.arbeitsbereichId))
     );
-    if (existing) return alert(`${volunteers.find(v => v.id === parseInt(selectedVolunteer))?.name} ist an diesem Tag bereits in diesem Slot.`);
+    if (existing) return await modal.alert({ title: 'Konflikt', message: `${volunteers.find(v => v.id === parseInt(selectedVolunteer))?.name} ist an diesem Tag bereits in diesem Slot.` });
 
     const area = slot.arbeitsbereich;
     await apiPost('/api/volunteer-shifts', {
@@ -310,7 +311,7 @@ export default function SchedulerView() {
             </div>
             <div style={{ alignSelf: 'flex-end' }}>
               <button onClick={async () => {
-                if (!selectedVolunteer) return alert('Bitte Helfer wählen!');
+                if (!selectedVolunteer) return await modal.alert({ title: 'Hinweis', message: 'Bitte Helfer wählen!' });
                 const slotsToAssign = selectedArea
                   ? areaSlots
                   : filteredSlots;
@@ -338,9 +339,9 @@ export default function SchedulerView() {
                 }
                 if (created > 0) {
                   queryClient.invalidateQueries({ queryKey: ['volunteerShifts', selectedTournament] });
-                  alert(`${created} Schicht${created > 1 ? 'en' : ''} für ${volunteers.find(v => v.id === parseInt(selectedVolunteer))?.name} zugewiesen.`);
+                  await modal.alert({ title: 'Erfolg', message: `${created} Schicht${created > 1 ? 'en' : ''} für ${volunteers.find(v => v.id === parseInt(selectedVolunteer))?.name} zugewiesen.` });
                 } else {
-                  alert('Helfer ist an diesem Tag bereits für alle Slots eingeschichtet.');
+                  await modal.alert({ title: 'Hinweis', message: 'Helfer ist an diesem Tag bereits für alle Slots eingeschichtet.' });
                 }
               }} style={{ padding: '6px 14px', background: '#198754', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold' }}>
                 ✅ Alle freien Slots belegen
@@ -434,7 +435,7 @@ export default function SchedulerView() {
                               await assignToSlot(slot.id);
                               const name = volunteers.find(v => v.id === parseInt(selectedVolunteer))?.name || 'Helfer';
                               const slotName = slot.zeitslot?.name || slot.slot || '–';
-                              alert(`✅ ${name} → ${slotName}`);
+                              await modal.alert({ title: 'Erfolg', message: `${name} → ${slotName}` });
                             }}
                               style={{ width: '100%', marginTop: 4, padding: '4px 0', background: '#d1e7dd', color: '#0f5132', border: '1px solid #a3cfbb', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
                               + {volunteers.find(v => v.id === parseInt(selectedVolunteer))?.name}

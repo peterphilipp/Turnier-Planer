@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getYearGroups, apiPost, apiPatch, apiDelete } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, YearGroup } from '../shared';
@@ -17,7 +18,7 @@ export default function Jahrgaenge({ adminPrimary }: { adminPrimary: string }) {
   const [form, setForm] = useState({ name: '', birthYearStart: 0, birthYearEnd: 0, order: 0, isActive: true });
 
   const save = async () => {
-    if (!form.name || !form.birthYearStart || !form.birthYearEnd) return alert('Alle Felder ausfüllen!');
+    if (!form.name || !form.birthYearStart || !form.birthYearEnd) return await modal.alert({ title: 'Hinweis', message: 'Alle Felder ausfüllen!' });
     
     try {
       let result;
@@ -31,12 +32,12 @@ export default function Jahrgaenge({ adminPrimary }: { adminPrimary: string }) {
       setForm({ name: '', birthYearStart: 0, birthYearEnd: 0, order: 0, isActive: true });
       setEditingId(null);
     } catch (err: any) {
-      alert('Fehler: ' + (err.message || 'Unbekannter Fehler'));
+      await modal.alert({ title: 'Fehler', message: 'Fehler: ' + (err as Error).message });
     }
   };
 
   const deleteItem = async (id: number) => {
-    if (!confirm('Jahrgang löschen?')) return;
+    if (!(await modal.confirm({ title: 'Jahrgang löschen', message: 'Möchtest du diesen Jahrgang wirklich löschen?', variant: 'danger' }))) return;
     await apiDelete(`/api/year-groups/${id}`);
     queryClient.invalidateQueries({ queryKey: ['yearGroups'] });
   };

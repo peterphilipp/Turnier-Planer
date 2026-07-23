@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiPatch, getBrackets } from '../../../api';
 import { tdStyle, thStyle, btnStyle, Tournament, KnockoutBracket } from '../shared';
@@ -28,7 +29,9 @@ export default function TurnierModus({ tournament }: Props) {
   const handleModeChange = async (modus: string) => {
     if (!tournament) return;
     
-    if (!confirm(`Turnier-Modus auf "${MODI.find(m => m.value === modus)?.label}" ändern?\n\nAlle bestehenden Spiele und Tabellen werden dabei NICHT gelöscht, aber neu generiert.`)) {
+    if (!(await modal.confirm({ title: 'Turniermodus ändern', message: `Turnier-Modus auf "${MODI.find(m => m.value === modus)?.label}" ändern?
+
+Alle bestehenden Spiele und Tabellen werden dabei NICHT gelöscht, aber neu generiert.`, variant: 'warning' }))) {
       return;
     }
 
@@ -38,7 +41,7 @@ export default function TurnierModus({ tournament }: Props) {
       queryClient.invalidateQueries({ queryKey: ['tournaments'] });
       queryClient.invalidateQueries({ queryKey: ['brackets'] });
     } catch (err) {
-      alert('Fehler beim Ändern des Modus: ' + err);
+      await modal.alert({ title: 'Fehler', message: 'Fehler beim Ändern des Modus: ' + (err as Error).message });
     } finally {
       setGenerating(false);
     }
