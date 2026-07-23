@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getZeitSlots, apiPost, apiPatch, apiDelete } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, Zeitslot } from '../shared';
@@ -11,7 +12,7 @@ export default function Zeitslots({ adminPrimary }: { adminPrimary: string }) {
   const [editingZs, setEditingZs] = useState<number | null>(null);
 
   const saveZeitslot = async () => {
-    if (!zsForm.name.trim()) return alert('Name erforderlich!');
+    if (!zsForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
     if (editingZs) { await apiPatch(`/api/zeit-slots/${editingZs}`, zsForm); }
     else { await apiPost('/api/zeit-slots', zsForm); }
     queryClient.invalidateQueries({ queryKey: ['zeitSlots'] });
@@ -20,7 +21,7 @@ export default function Zeitslots({ adminPrimary }: { adminPrimary: string }) {
   };
 
   const deleteZeitslot = async (id: number) => {
-    if (!confirm('Zeitslot löschen?')) return;
+    if (!(await modal.confirm({ title: 'Zeitslot löschen', message: 'Möchtest du diesen Zeitslot wirklich löschen?', variant: 'danger' }))) return;
     await apiDelete(`/api/zeit-slots/${id}`);
     queryClient.invalidateQueries({ queryKey: ['zeitSlots'] });
   };

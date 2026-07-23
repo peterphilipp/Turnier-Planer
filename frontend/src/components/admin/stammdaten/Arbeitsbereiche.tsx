@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getArbeitsbereiche, apiPost, apiPatch, apiDelete } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, Arbeitsbereich } from '../shared';
@@ -14,7 +15,7 @@ export default function Arbeitsbereiche({ adminPrimary }: { adminPrimary: string
   const [emojiPicker, setEmojiPicker] = useState(false);
 
   const saveArbeitsbereich = async () => {
-    if (!abForm.name.trim()) return alert('Name erforderlich!');
+    if (!abForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
     if (editingAb) { await apiPatch(`/api/arbeitsbereiche/${editingAb}`, abForm); }
     else { await apiPost('/api/arbeitsbereiche', abForm); }
     queryClient.invalidateQueries({ queryKey: ['arbeitsbereiche'] });
@@ -23,7 +24,7 @@ export default function Arbeitsbereiche({ adminPrimary }: { adminPrimary: string
   };
 
   const deleteArbeitsbereich = async (id: number) => {
-    if (!confirm('Bereich löschen?')) return;
+    if (!(await modal.confirm({ title: 'Bereich löschen', message: 'Möchtest du diesen Bereich wirklich löschen?', variant: 'danger' }))) return;
     await apiDelete(`/api/arbeitsbereiche/${id}`);
     queryClient.invalidateQueries({ queryKey: ['arbeitsbereiche'] });
   };

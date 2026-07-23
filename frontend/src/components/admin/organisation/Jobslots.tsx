@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getShifts, getArbeitsbereiche, getZeitSlots, apiPost, apiPatch, apiDelete } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, Shift, Arbeitsbereich, Zeitslot, Tournament } from '../shared';
@@ -24,7 +25,7 @@ export default function Jobslots({ selectedTournament, tournament, adminPrimary 
 
   const saveSlot = async () => {
     if (!selectedTournament || slotForm.dates.length === 0 || !slotForm.zeitslotId || slotForm.arbeitsbereichIds.length === 0) {
-      return alert('Bitte Datum, Zeitslot und mindestens einen Bereich wählen.');
+      return await modal.alert({ title: 'Hinweis', message: 'Bitte Datum, Zeitslot und mindestens einen Bereich wählen.' });
     }
     
     const zs = zeitSlots.find(z => z.id === slotForm.zeitslotId);
@@ -63,7 +64,7 @@ export default function Jobslots({ selectedTournament, tournament, adminPrimary 
   };
 
   const deleteSlot = async (id: number) => {
-    if (!confirm('Job-Slot löschen?')) return;
+    if (!(await modal.confirm({ title: 'Job-Slot löschen', message: 'Möchtest du diesen Job-Slot wirklich löschen?', variant: 'danger' }))) return;
     await apiDelete(`/api/shifts/${id}`);
     queryClient.invalidateQueries({ queryKey: ['shifts', selectedTournament] });
   };

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getClubs, getTournamentClubs, addTournamentClub, removeTournamentClub, apiPost, apiDelete } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, Club, Team } from '../shared';
@@ -85,7 +86,7 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
   };
 
   const handleDeleteTeam = async (teamId: number) => {
-    if (!confirm('Team löschen?')) return;
+    if (!(await modal.confirm({ title: 'Team löschen', message: 'Möchtest du dieses Team wirklich löschen?', variant: 'danger' }))) return;
     await apiDelete(`/api/teams/${teamId}`);
     queryClient.invalidateQueries({ queryKey: ['teams'] });
   };

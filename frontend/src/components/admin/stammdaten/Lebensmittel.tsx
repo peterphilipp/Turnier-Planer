@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getFoodCategories, getFoodItems, apiPost, apiPatch, apiDelete } from '../../../api';
 import type { FoodCategory, FoodItem } from '../shared';
@@ -18,7 +19,7 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
   const { data: foodItems = [] } = useQuery<FoodItem[]>({ queryKey: ['foodItems'], queryFn: getFoodItems });
 
   const saveFoodCategory = async () => {
-    if (!foodCatForm.name.trim()) return alert('Name erforderlich!');
+    if (!foodCatForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
     if (editingFoodCat) {
       await apiPatch(`/api/food/categories/${editingFoodCat}`, foodCatForm);
     } else {
@@ -30,15 +31,15 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
   };
 
   const deleteFoodCategory = async (id: number) => {
-    if (!confirm('Kategorie wirklich löschen?')) return;
+    if (!(await modal.confirm({ title: 'Kategorie löschen', message: 'Möchtest du diese Kategorie wirklich löschen?', variant: 'danger' }))) return;
     await apiDelete(`/api/food/categories/${id}`);
     queryClient.invalidateQueries({ queryKey: ['foodCategories'] });
     queryClient.invalidateQueries({ queryKey: ['foodItems'] });
   };
 
   const saveFoodItem = async () => {
-    if (!foodItemForm.name.trim()) return alert('Name erforderlich!');
-    if (foodItemForm.categoryId === 0) return alert('Kategorie wählen!');
+    if (!foodItemForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
+    if (foodItemForm.categoryId === 0) return await modal.alert({ title: 'Hinweis', message: 'Kategorie wählen!' });
     if (editingFoodItem) {
       await apiPatch(`/api/food/items/${editingFoodItem}`, foodItemForm);
     } else {
@@ -51,7 +52,7 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
   };
 
   const deleteFoodItem = async (id: number) => {
-    if (!confirm('Artikel wirklich löschen?')) return;
+    if (!(await modal.confirm({ title: 'Artikel löschen', message: 'Möchtest du diesen Artikel wirklich löschen?', variant: 'danger' }))) return;
     await apiDelete(`/api/food/items/${id}`);
     queryClient.invalidateQueries({ queryKey: ['foodItems'] });
     queryClient.invalidateQueries({ queryKey: ['foodCategories'] });

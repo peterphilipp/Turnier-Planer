@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getVolunteers, apiPost, apiPatch, apiDelete } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, Volunteer } from '../shared';
@@ -11,7 +12,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
   const [editingVol, setEditingVol] = useState<number | null>(null);
 
   const saveVolunteer = async () => {
-    if (!volForm.name.trim()) return alert('Name erforderlich!');
+    if (!volForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
     if (editingVol) {
       await apiPatch(`/api/volunteers/${editingVol}`, { ...volForm, roles: ['Helfer'] });
     } else {
@@ -23,7 +24,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
   };
 
   const deleteVolunteer = async (id: number) => {
-    if (!confirm('Helfer löschen? Alle Einsätze werden entfernt.')) return;
+    if (!(await modal.confirm({ title: 'Helfer löschen', message: 'Helfer löschen? Alle Einsätze werden entfernt.', variant: 'danger' }))) return;
     await apiDelete(`/api/volunteers/${id}`);
     queryClient.invalidateQueries({ queryKey: ['volunteers'] });
   };
@@ -63,10 +64,12 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
               <td style={tdStyle}>
                 <button onClick={() => { setEditingVol(v.id); setVolForm({ name: v.name, email: v.email || '', phone: v.phone || '' }); }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', marginRight: 6 }}>✏️</button>
                 <button onClick={async () => {
-                  const pw = prompt('Neues Passwort für ' + v.name + ':');
-                  if (!pw) return;
-                  await apiPatch(`/api/volunteers/${v.id}/password`, { password: pw });
-                  alert('✅ Passwort gesetzt!');
+                  const result = await modal.form({ title: 'Passwort ändern', fields: [{ key: 'password', label: 'Neues Passwort', type: 'password' }] });
+                  if (!result) return;
+                  const newPassword = result?.password;
+                  if (!newPassword) return;
+                  await apiPatch(`/api/volunteers/${v.id}/password`, { password: newPassword });
+                  await modal.alert({ title: 'Erfolg', message: 'Passwort gesetzt!' });
                 }} style={{ ...btnStyle, background: '#e9ecef', border: 'none', marginRight: 6 }} title="Passwort setzen">🔑</button>
                 <button onClick={() => deleteVolunteer(v.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>🗑️</button>
               </td>

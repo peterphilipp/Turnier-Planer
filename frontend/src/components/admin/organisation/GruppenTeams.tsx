@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiPost, apiPatch, apiDelete } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, Group, Team } from '../shared';
@@ -48,20 +49,20 @@ export default function GruppenTeams({ tournamentId, yearGroupId }: Props) {
   });
 
   const handleAddGroup = async () => {
-    if (!newGroup.trim() || !tournamentId) return alert('Gruppenname erforderlich!');
+    if (!newGroup.trim() || !tournamentId) return await modal.alert({ title: 'Hinweis', message: 'Gruppenname erforderlich!' });
     await apiPost('/api/groups', { name: newGroup.trim(), tournamentId });
     setNewGroup('');
     queryClient.invalidateQueries({ queryKey: ['groups'] });
   };
 
   const handleDeleteGroup = async (id: number) => {
-    if (!confirm('Gruppe löschen? Alle zugewiesenen Teams werden ebenfalls gelöscht.')) return;
+    if (!(await modal.confirm({ title: 'Gruppe löschen', message: 'Gruppe löschen? Alle zugewiesenen Teams werden ebenfalls gelöscht.', variant: 'danger' }))) return;
     await apiDelete(`/api/groups/${id}`);
     queryClient.invalidateQueries({ queryKey: ['groups'] });
   };
 
   const handleAddTeam = async (groupId: number) => {
-    if (!newTeamName.trim()) return alert('Teamname erforderlich!');
+    if (!newTeamName.trim()) return await modal.alert({ title: 'Hinweis', message: 'Teamname erforderlich!' });
     await apiPost('/api/teams', { name: newTeamName.trim(), groupId });
     setNewTeamName('');
     setShowTeamForm(null);
@@ -69,7 +70,7 @@ export default function GruppenTeams({ tournamentId, yearGroupId }: Props) {
   };
 
   const handleDeleteTeam = async (id: number) => {
-    if (!confirm('Team löschen?')) return;
+    if (!(await modal.confirm({ title: 'Team löschen', message: 'Möchtest du dieses Team wirklich löschen?', variant: 'danger' }))) return;
     await apiDelete(`/api/teams/${id}`);
     queryClient.invalidateQueries({ queryKey: ['groups'] });
   };
