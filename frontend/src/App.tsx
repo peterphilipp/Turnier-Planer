@@ -28,7 +28,7 @@ import { Tournament } from './components/admin/shared';
 
 type View = 'admin' | 'selfservice' | 'privacy';
 type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
-type SpielplanTab = 'teilnehmer' | 'felder' | 'turnier-tage' | 'gruppen-teams' | 'spielplan' | 'modus';
+type SpielplanTab = 'teilnehmer' | 'felder' | 'turnier-tage' | 'gruppen-teams' | 'spielplan-gruppenphase' | 'spielplan-ko' | 'modus';
 type OrgTab = 'uebersicht' | 'jobslots' | 'buchungen' | 'lebensmittel-slots';
 type StammTab = 'turniere' | 'vereine' | 'arbeitsbereiche' | 'zeitslots' | 'helfer' | 'lebensmittel' | 'jahrgaenge';
 
@@ -210,9 +210,13 @@ export default function App() {
             style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'modus' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'modus' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
             ⚙️ Turnier-Modus
           </button>
-          <button onClick={() => setActiveSpielplanTab('spielplan')}
-            style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'spielplan' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'spielplan' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-            ⚽ Spielplan
+          <button onClick={() => setActiveSpielplanTab('spielplan-gruppenphase')}
+            style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'spielplan-gruppenphase' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'spielplan-gruppenphase' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+            📊 Gruppenphase
+          </button>
+          <button onClick={() => setActiveSpielplanTab('spielplan-ko')}
+            style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'spielplan-ko' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'spielplan-ko' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+            🏆 KO-Phase
           </button>
         </nav>
       )}
@@ -257,7 +261,8 @@ export default function App() {
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'felder' && <Felder tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'teilnehmer' && <Teilnehmer tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} tournament={tournaments.find(t => t.id === selectedTournamentId) || null} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'modus' && <TurnierModus tournament={tournaments.find(t => t.id === selectedTournamentId) || null} selectedYearGroupId={selectedYearGroupId} yearGroups={(tournaments.find(t => t.id === selectedTournamentId)?.yearGroups as any) || []} />}
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan' && <Spielplan tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan-gruppenphase' && <Spielplan tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} phase="gruppenphase" />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan-ko' && <Spielplan tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} phase="ko" />}
         
         {activeMainTab === 'organisation' && activeOrgTab === 'uebersicht' && <Uebersicht selectedTournament={selectedTournamentId} />}
         {activeMainTab === 'organisation' && activeOrgTab === 'buchungen' && <Buchungen selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
