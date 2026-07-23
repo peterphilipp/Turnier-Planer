@@ -30,6 +30,7 @@ import timeSlotRoutes from './routes/timeslot.routes.js';
 import fieldRoutes from './routes/field.routes.js';
 import standingsRoutes from './routes/standings.routes.js';
 import knockoutBracketRoutes from './routes/knockoutBracket.routes.js';
+import tournamentClubRoutes from './routes/tournamentClub.routes.js';
 // Middleware imports
 import errorHandler from './middleware/errorHandler.js';
 
@@ -54,6 +55,7 @@ app.use('/api/auth', passwordRoutes);
 app.use('/api/clubs', clubRoutes);
 app.use('/api/self', selfRoutes);
 app.use('/api/knockout-brackets', knockoutBracketRoutes);
+app.use('/api/tournament-clubs', tournamentClubRoutes);
 app.use('/api/food', foodRoutes);
 app.use('/api/food-donation-slots', foodDonationSlotRoutes);
 app.use('/api/year-groups', yearGroupRoutes);

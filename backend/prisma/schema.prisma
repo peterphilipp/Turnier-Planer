@@ -27,6 +27,7 @@ model Tournament {
   donations       FoodDonation[]
   foodDonationSlots FoodDonationSlot[]
   timeSlots       TimeSlot[]
+  tournamentClubs TournamentClub[]
   fields          Field[]
   standings       StandingsEntry[]
   brackets        KnockoutBracket[]
@@ -44,6 +45,7 @@ model Club {
   accentColor     String      @default("#198754") @map("accent_color")
   tournaments     Tournament[]
   teams           Team[]
+  tournamentClubs TournamentClub[]
 
   @@map("clubs")
 }
@@ -355,4 +357,15 @@ model StandingsEntry {
 
   @@unique([teamId, tournamentId])
   @@map("standings_entries")
+}
+
+model TournamentClub {
+  id           Int        @id @default(autoincrement())
+  tournamentId Int        @map("tournament_id")
+  clubId       Int        @map("club_id")
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  club         Club       @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, clubId])
+  @@map("tournament_clubs")
 }

@@ -22,6 +22,12 @@ export const getArbeitsbereiche = () => apiFetch('/api/arbeitsbereiche');
 export const getZeitSlots = () => apiFetch('/api/zeit-slots');
 export const getVolunteers = (tournamentId?: number | null) => apiFetch(tournamentId ? `/api/volunteers?tournamentId=${tournamentId}` : '/api/volunteers');
 export const getClubs = () => apiFetch('/api/clubs').catch(() => []); // Fallback if clubs endpoint doesn't exist
+export const getTournamentClubs = (tournamentId: number | null) =>
+  tournamentId ? apiFetch(`/api/tournament-clubs?tournamentId=${tournamentId}`) : Promise.resolve([]);
+export const addTournamentClub = (tournamentId: number, clubId: number) =>
+  apiPost('/api/tournament-clubs', { tournamentId, clubId });
+export const removeTournamentClub = (tournamentId: number, clubId: number) =>
+  apiDelete(`/api/tournament-clubs?tournamentId=${tournamentId}&clubId=${clubId}`);
 
 export const getShifts = (tournamentId?: string | number | null) => 
   tournamentId ? apiFetch(`/api/shifts?tournamentId=${tournamentId}`) : Promise.resolve([]);
