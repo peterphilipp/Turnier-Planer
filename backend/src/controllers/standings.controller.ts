@@ -1,0 +1,109 @@
+import { Request, Response } from 'express';
+import prisma from '../config/prisma.js';
+
+/**
+ * Berechnet die Tabelle für ein Turnier neu.
+ * Liest alle Matches mit status === "gespielt" aus und aggregiert die Werte pro Team.
+ */
+export const recalculateStandings = async (req: Request, res: Response) => {
+  const tournamentId = parseInt(req.params.tournamentId as string);
+  
+  if (!tournamentId) {
+    return res.status(400).json({ error: 'tournamentId erforderlich' });
+  }
+
+  // Alle gespielten Matches des Turniers
+  const matches = await prisma.match.findMany({
+    where: { tournamentId, status: 'gespielt', scoreA: { not: null }, scoreB: { not: null } },
+    include: { teamA: true, teamB: true }
+  });
+
+  // Aggregation pro Team
+  const teamStats = new Map<number, { played: number; won: number; drawn: number; lost: number; goalsFor: number; goalsAgainst: number }>();
+
+  for (const m of matches) {
+    // Team A stats
+    let a = teamStats.get(m.teamAId);
+    if (!a) { a = { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0 }; teamStats.set(m.teamAId, a); }
+    a.played++;
+    const scoreA = m.scoreA ?? 0;
+    const scoreB = m.scoreB ?? 0;
+    a.goalsFor += scoreA;
+    a.goalsAgainst += scoreB;
+    if (scoreA > scoreB) a.won++;
+    else if (scoreA === scoreB) a.drawn++;
+    else a.lost++;
+
+    // Team B stats
+    let b = teamStats.get(m.teamBId);
+    if (!b) { b = { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0 }; teamStats.set(m.teamBId, b); }
+    b.played++;
+    b.goalsFor += scoreB;
+    b.goalsAgainst += scoreA;
+    if (scoreB > scoreA) b.won++;
+    else if (scoreB === scoreA) b.drawn++;
+    else b.lost++;
+  }
+
+  // Upsert für jedes Team
+  const entries = await Promise.all(
+    Array.from(teamStats.entries()).map(async ([teamId, stats]) => {
+      const points = (stats.won * 3) + stats.drawn;
+      return prisma.standingsEntry.upsert({
+        where: { teamId_tournamentId: { teamId, tournamentId } },
+        update: { ...stats, points },
+        create: { teamId, tournamentId, ...stats, points }
+      });
+    })
+  );
+
+  // Positionen berechnen (nach Punkten DESC, dann Torverhältnis DESC)
+  const sorted = entries.sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    const diffA = a.goalsFor - a.goalsAgainst;
+    const diffB = b.goalsFor - b.goalsAgainst;
+    if (diffB !== diffA) return diffB - diffA;
+    return b.goalsFor - a.goalsFor;
+  });
+
+  for (let i = 0; i < sorted.length; i++) {
+    await prisma.standingsEntry.update({
+      where: { id: sorted[i].id },
+      data: { position: i + 1 }
+    });
+  }
+
+  return res.json(sorted);
+};
+
+export const getStandings = async (req: Request, res: Response) => {
+  const tournamentId = parseInt(req.params.tournamentId as string);
+  
+  if (!tournamentId) {
+    return res.status(400).json({ error: 'tournamentId erforderlich' });
+  }
+
+  // Falls keine Einträge existieren, triggere Neuberechnung
+  const existing = await prisma.standingsEntry.findMany({ where: { tournamentId } });
+  if (existing.length === 0) {
+    return res.json(await recalculateStandings(req, res));
+  }
+
+  // Positionen aktualisieren
+  const sorted = [...existing].sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    const diffA = a.goalsFor - a.goalsAgainst;
+    const diffB = b.goalsFor - b.goalsAgainst;
+    if (diffB !== diffA) return diffB - diffA;
+    return b.goalsFor - a.goalsFor;
+  });
+
+  for (let i = 0; i < sorted.length; i++) {
+    await prisma.standingsEntry.update({
+      where: { id: sorted[i].id },
+      data: { position: i + 1 }
+    });
+  }
+
+  return res.json(sorted);
+};

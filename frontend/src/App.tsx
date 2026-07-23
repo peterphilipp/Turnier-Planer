@@ -18,10 +18,15 @@ import Jobslots from './components/admin/organisation/Jobslots';
 import Buchungen from './components/admin/organisation/Buchungen';
 import Uebersicht from './components/admin/organisation/Uebersicht';
 import LebensmittelSlots from './components/admin/organisation/LebensmittelSlots';
+import TurnierTage from './components/admin/organisation/TurnierTage';
+import GruppenTeams from './components/admin/organisation/GruppenTeams';
+import Teilnehmer from './components/admin/organisation/Teilnehmer';
+import TurnierModus from './components/admin/organisation/TurnierModus';
 import { Tournament } from './components/admin/shared';
 
 type View = 'admin' | 'selfservice' | 'privacy';
 type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
+type SpielplanTab = 'teilnehmer' | 'turnier-tage' | 'gruppen-teams' | 'spielplan' | 'modus';
 type OrgTab = 'uebersicht' | 'jobslots' | 'buchungen' | 'lebensmittel-slots';
 type StammTab = 'turniere' | 'vereine' | 'arbeitsbereiche' | 'zeitslots' | 'helfer' | 'lebensmittel' | 'jahrgaenge';
 
@@ -44,6 +49,7 @@ export default function App() {
   const [view, setView] = useState<View>(getInitialView());
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('spielplan');
   
+  const [activeSpielplanTab, setActiveSpielplanTab] = useState<SpielplanTab>('turnier-tage');
   const [activeOrgTab, setActiveOrgTab] = useState<OrgTab>('uebersicht');
   const [activeStammTab, setActiveStammTab] = useState<StammTab>('turniere');
   
@@ -144,11 +150,49 @@ export default function App() {
         </button>
       </nav>
 
-      {/* LEVEL 2: SUB-NAVIGATION */}
+      {/* LEVEL 2: SUB-NAVIGATION – SPIELPLAN */}
+      {activeMainTab === 'spielplan' && (
+        <div>
+          {/* Turnierauswahl */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <label style={{ fontWeight: 'bold', fontSize: 13 }}>Aktives Turnier:</label>
+            <select
+              value={selectedTournamentId || ''}
+              onChange={e => setSelectedTournamentId(e.target.value ? parseInt(e.target.value) : null)}
+              style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 6, minWidth: 280 }}
+            >
+              <option value="">-- Bitte wählen --</option>
+              {tournaments.map(t => (
+                <option key={t.id} value={t.id}>{t.name} ({new Date(t.startDate).toLocaleDateString('de-DE')})</option>
+              ))}
+            </select>
+          </div>
+          <nav style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+            <button onClick={() => setActiveSpielplanTab('teilnehmer')}
+              style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'teilnehmer' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'teilnehmer' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+              📋 Teilnehmer
+            </button>
+            <button onClick={() => setActiveSpielplanTab('turnier-tage')}
+              style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'turnier-tage' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'turnier-tage' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+              📅 Turnier-Tage
+            </button>
+            <button onClick={() => setActiveSpielplanTab('gruppen-teams')}
+              style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'gruppen-teams' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'gruppen-teams' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+              👥 Gruppen & Teams
+            </button>
+            <button onClick={() => setActiveSpielplanTab('modus')}
+              style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'modus' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'modus' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+              ⚙️ Turnier-Modus
+            </button>
+          </nav>
+        </div>
+      )}
+
+      {/* LEVEL 2: SUB-NAVIGATION – ORGANISATION */}
       {activeMainTab === 'organisation' && (
         <div>
           {/* Turnierauswahl */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
             <label style={{ fontWeight: 'bold', fontSize: 13 }}>Aktives Turnier:</label>
             <select
               value={selectedTournamentId || ''}
@@ -196,7 +240,16 @@ export default function App() {
 
       {/* CONTENT AREA */}
       <main>
-        {activeMainTab === 'spielplan' && <TournamentView />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'teilnehmer' && <Teilnehmer tournamentId={selectedTournamentId} />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'turnier-tage' && <TurnierTage tournamentId={selectedTournamentId} />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'gruppen-teams' && <GruppenTeams tournamentId={selectedTournamentId} />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'modus' && <TurnierModus tournament={tournaments.find(t => t.id === selectedTournamentId) || null} />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan' && (
+          <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: '600', color: '#212529' }}>⚽ Spielplan (Matches)</h3>
+            <p style={{ color: '#666' }}>Wird in Phase 1 Schritt 4 implementiert.</p>
+          </div>
+        )}
         
         {activeMainTab === 'organisation' && activeOrgTab === 'uebersicht' && <Uebersicht selectedTournament={selectedTournamentId} />}
         {activeMainTab === 'organisation' && activeOrgTab === 'buchungen' && <Buchungen selectedTournament={selectedTournamentId} adminPrimary="#198754" />}

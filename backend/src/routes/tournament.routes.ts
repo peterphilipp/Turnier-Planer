@@ -5,6 +5,7 @@ import {
   getTournamentById,
   createTournament,
   updateTournament,
+  updateTournamentMode,
   updateTournamentStatus,
   deleteTournament,
   tournamentSchema
@@ -15,8 +16,9 @@ const router = Router();
 router.get('/', getTournaments);
 router.get('/:id', getTournamentById);
 router.post('/', validate(tournamentSchema), createTournament);
-router.patch('/:id', validate(tournamentSchema.partial()), updateTournament);
+router.patch('/:id', updateTournament);
 router.patch('/:id/status', updateTournamentStatus);
+router.patch('/:id/mode', updateTournamentMode);
 router.delete('/:id', deleteTournament);
 
 export default router;

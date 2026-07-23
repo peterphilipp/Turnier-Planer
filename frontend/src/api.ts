@@ -39,6 +39,26 @@ export const getFoodDonationSlots = (tournamentId?: number | null) =>
 // ===================== Year Groups =====================
 export const getYearGroups = () => apiFetch('/api/year-groups');
 
+// ===================== Tournament (Phase 1) =====================
+export const getTimeSlots = (tournamentId: number | null) => 
+  tournamentId ? apiFetch(`/api/time-slots?tournamentId=${tournamentId}`) : Promise.resolve([]);
+export const getFields = (tournamentId: number | null) => 
+  tournamentId ? apiFetch(`/api/fields?tournamentId=${tournamentId}`) : Promise.resolve([]);
+export const getStandings = (tournamentId: number | null) => 
+  tournamentId ? apiFetch(`/api/standings/${tournamentId}`) : Promise.resolve([]);
+export const recalculateStandings = (tournamentId: number) => 
+  apiFetch(`/api/standings/${tournamentId}/recalculate`, { method: 'POST' });
+export const getGroups = (tournamentId: number | null) => 
+  tournamentId ? apiFetch(`/api/groups/${tournamentId}`) : Promise.resolve([]);
+export const getTeamsByGroup = (groupId: number | null) => 
+  groupId ? apiFetch(`/api/teams?groupId=${groupId}`) : Promise.resolve([]);
+export const getTeamsByTournament = (tournamentId: number | null) =>
+  tournamentId ? apiFetch(`/api/teams?tournamentId=${tournamentId}`) : Promise.resolve([]);
+
+// ===================== Knockout Brackets =====================
+export const getBrackets = (tournamentId: number | null) => 
+  tournamentId ? apiFetch(`/api/knockout-brackets?tournamentId=${tournamentId}`) : Promise.resolve([]);
+
 // ===================== Mutations (Generic) =====================
 export const apiPost = (url: string, data: any) => 
   apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });

@@ -82,7 +82,7 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
             <th style={thStyle}>Von</th>
             <th style={thStyle}>Bis</th>
             <th style={thStyle}>Status</th>
-            <th style={thStyle}>Aktion</th>
+            <th style={thStyle}>Jahrgänge</th>
           </tr>
         </thead>
         <tbody>

@@ -26,6 +26,10 @@ import selfRoutes from './routes/self.routes.js';
 import foodRoutes from './routes/food.routes.js';
 import foodDonationSlotRoutes from './routes/foodDonationSlot.routes.js';
 import yearGroupRoutes from './routes/yearGroup.routes.js';
+import timeSlotRoutes from './routes/timeslot.routes.js';
+import fieldRoutes from './routes/field.routes.js';
+import standingsRoutes from './routes/standings.routes.js';
+import knockoutBracketRoutes from './routes/knockoutBracket.routes.js';
 // Middleware imports
 import errorHandler from './middleware/errorHandler.js';
 
@@ -49,9 +53,13 @@ app.use('/api/health', healthRoutes);
 app.use('/api/auth', passwordRoutes);
 app.use('/api/clubs', clubRoutes);
 app.use('/api/self', selfRoutes);
+app.use('/api/knockout-brackets', knockoutBracketRoutes);
 app.use('/api/food', foodRoutes);
 app.use('/api/food-donation-slots', foodDonationSlotRoutes);
 app.use('/api/year-groups', yearGroupRoutes);
+app.use('/api/time-slots', timeSlotRoutes);
+app.use('/api/fields', fieldRoutes);
+app.use('/api/standings', standingsRoutes);
 // ===================== Serve Frontend (SPA) =====================
 const distPath = path.resolve(__dirname, '../dist');
 app.use(express.static(distPath));
