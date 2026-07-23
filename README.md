@@ -61,18 +61,6 @@ graph TD
 | Deployment    | Docker Compose + GitHub Actions      |
 | CI/CD         | GHCR (GitHub Container Registry)     |
 
-### Tech Stack
-
-| Schicht       | Technologie                          |
-|---------------|--------------------------------------|
-| Frontend      | React 18 + Vite + TypeScript         |
-| Backend       | Express.js + tsx (TypeScript Runtime)|
-| Datenbank     | SQLite + Prisma ORM                  |
-| Auth          | JWT (`jsonwebtoken`) + bcrypt        |
-| E-Mail        | Resend API                           |
-| Deployment    | Docker Compose + GitHub Actions      |
-| CI/CD         | GHCR (GitHub Container Registry)     |
-
 ### Zwei Ansichten über URL-Routing
 
 Die Anwendung bietet zwei getrennte Oberflächen, die **über eine einzige Domain** gesteuert werden:
