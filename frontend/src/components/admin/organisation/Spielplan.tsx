@@ -13,15 +13,22 @@ export default function Spielplan({ tournamentId, yearGroupId }: Props) {
   const [editingScore, setEditingScore] = useState<{ matchId: number; side: 'A' | 'B'; value: string } | null>(null);
 
   // Matches laden (nur für selected yearGroup)
-  const { data: matches = [] } = useQuery<Match[]>({
-    queryKey: ['matches', tournamentId, yearGroupId],
+  const { data: allMatches = [] } = useQuery<Match[]>({
+    queryKey: ['matches', tournamentId],
     queryFn: async () => {
-      if (!tournamentId || !yearGroupId) return [];
-      const res = await fetch(`/api/matches?tournamentId=${tournamentId}&yearGroupId=${yearGroupId}`);
+      if (!tournamentId) return [];
+      const res = await fetch(`/api/matches/${tournamentId}`);
       return res.json().catch(() => []);
     },
-    enabled: !!tournamentId && !!yearGroupId,
+    enabled: !!tournamentId,
   });
+
+  // Nach yearGroupId filtern (Backend filtert nicht danach)
+  const matches = Array.isArray(allMatches) ? (
+    yearGroupId
+      ? allMatches.filter(m => m.yearGroupId === yearGroupId)
+      : allMatches
+  ) : [];
 
   // TimeSlots und Fields für Labels
   const { data: timeSlots = [] } = useQuery<TimeSlot[]>({
