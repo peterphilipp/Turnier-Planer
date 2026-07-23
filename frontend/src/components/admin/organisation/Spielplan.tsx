@@ -67,9 +67,15 @@ export default function Spielplan({ tournamentId, yearGroupId }: Props) {
 
   // Matches nach Datum und TimeSlot gruppieren
   const matchesByDateAndSlot: Record<string, Match[]> = {};
+  const unassignedMatches: Match[] = [];
+  
   for (const m of matches) {
+    if (!m.timeSlotId) {
+      unassignedMatches.push(m);
+      continue;
+    }
     const slot = timeSlots.find(s => s.id === m.timeSlotId);
-    if (!slot) continue;
+    if (!slot) { unassignedMatches.push(m); continue; }
     const key = `${slot.date}_${slot.startTime}`;
     if (!matchesByDateAndSlot[key]) matchesByDateAndSlot[key] = [];
     matchesByDateAndSlot[key].push(m);
@@ -125,13 +131,22 @@ export default function Spielplan({ tournamentId, yearGroupId }: Props) {
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: '600', color: '#212557' }}>⚽ Spielplan</h3>
       
-      {sortedKeys.length === 0 ? (
+      {matches.length === 0 ? (
         <div style={{ padding: 32, textAlign: 'center', color: '#666' }}>
           <p style={{ fontSize: 48, margin: '0 0 16px 0' }}>📋</p>
           <p>Noch keine Spiele geplant.</p>
           <p style={{ fontSize: 13 }}>Gehe zu "Modus" und generiere den Spielplan.</p>
         </div>
       ) : (
+        unassignedMatches.length > 0 && (
+          <div key="unassigned" style={{ marginBottom: 24, padding: 16, background: '#fff3cd', borderRadius: 12, border: '1px solid #ffc107' }}>
+            <h4 style={{ margin: '0 0 8px 0', fontSize: 15, color: '#856404' }}>⚠️ {unassignedMatches.length} Spiel(e) ohne Zeit/Zuweisung</h4>
+            <p style={{ margin: 0, fontSize: 13, color: '#856404' }}>Diese Spiele wurden generiert aber noch keiner Zeit und keinem Feld zugewiesen.</p>
+          </div>
+        )
+      )}
+      
+      {sortedKeys.length > 0 && (
         sortedKeys.map(key => {
           const [date, time] = key.split('_');
           const slotMatches = matchesByDateAndSlot[key];
@@ -248,6 +263,20 @@ export default function Spielplan({ tournamentId, yearGroupId }: Props) {
             </div>
           );
         })
+      )}
+      
+      {unassignedMatches.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <h4 style={{ margin: '0 0 12px 0', fontSize: 15, color: '#856404' }}>⚠️ Nicht zugewiesene Spiele</h4>
+          {unassignedMatches.map(match => (
+            <div key={match.id} style={{ border: '1px solid #ffc107', borderRadius: 12, padding: 16, background: '#fff8e1', marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>{getTeamName(match.teamAId)} vs {getTeamName(match.teamBId)}</span>
+                <span style={{ fontSize: 12, color: '#856404' }}>{match.phase}</span>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

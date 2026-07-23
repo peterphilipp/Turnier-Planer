@@ -223,6 +223,10 @@ export default function App() {
               style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'modus' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'modus' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
               ⚙️ Turnier-Modus
             </button>
+            <button onClick={() => setActiveSpielplanTab('spielplan')}
+              style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'spielplan' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'spielplan' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+              ⚽ Spielplan
+            </button>
           </nav>
         </div>
       )}
