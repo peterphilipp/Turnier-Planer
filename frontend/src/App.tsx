@@ -4,6 +4,7 @@ import { getTournaments } from './api';
 
 import SelfServiceView from './components/SelfServiceView';
 import TournamentView from './components/TournamentView';
+import Privacy from './components/Privacy';
 
 import Turniere from './components/admin/stammdaten/Turniere';
 import Arbeitsbereiche from './components/admin/stammdaten/Arbeitsbereiche';
@@ -19,7 +20,7 @@ import Uebersicht from './components/admin/organisation/Uebersicht';
 import LebensmittelSlots from './components/admin/organisation/LebensmittelSlots';
 import { Tournament } from './components/admin/shared';
 
-type View = 'admin' | 'selfservice';
+type View = 'admin' | 'selfservice' | 'privacy';
 type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
 type OrgTab = 'uebersicht' | 'jobslots' | 'buchungen' | 'lebensmittel-slots';
 type StammTab = 'turniere' | 'vereine' | 'arbeitsbereiche' | 'zeitslots' | 'helfer' | 'lebensmittel' | 'jahrgaenge';
@@ -32,6 +33,7 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const viewParam = params.get('view');
     if (viewParam === 'admin') return 'admin';
+    if (viewParam === 'privacy') return 'privacy';
     if (viewParam === 'selfservice') return 'selfservice';
     // Sonst nach Hostname schauen
     const host = window.location.hostname.toLowerCase();
@@ -61,11 +63,16 @@ export default function App() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (view === 'admin') params.set('view', 'admin');
+      else if (view === 'privacy') params.set('view', 'privacy');
       else params.delete('view');
       const url = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
       window.history.replaceState({}, '', url);
     }
   }, [view]);
+
+  if (view === 'privacy') {
+    return <Privacy />;
+  }
 
   if (view === 'selfservice') {
     return (
@@ -86,6 +93,10 @@ export default function App() {
           >
             ⚙️ Admin-Bereich
           </button>
+          <br />
+          <a href="?view=privacy" style={{ fontSize: 12, color: '#999', textDecoration: 'underline' }}>
+            Datenschutzerklärung
+          </a>
         </div>
       </div>
     );
@@ -112,6 +123,9 @@ export default function App() {
         >
           ← Helfer-Bereich
         </button>
+        <a href="?view=privacy" style={{ fontSize: 12, color: '#6c757d', textDecoration: 'underline' }}>
+          Datenschutzerklärung
+        </a>
       </div>
 
       {/* LEVEL 1: HAUPT-NAVIGATION */}

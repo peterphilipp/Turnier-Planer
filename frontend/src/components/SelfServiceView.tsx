@@ -35,6 +35,7 @@ export default function SelfServiceView() {
   const [regPassword, setRegPassword] = useState('');
   const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
   const [regChildren, setRegChildren] = useState<{ childName: string; childYear: string }[]>([{ childName: '', childYear: '' }]);
+  const [consentGiven, setConsentGiven] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
@@ -408,10 +409,22 @@ export default function SelfServiceView() {
             </div>
             <input type="password" placeholder="Passwort" value={regPassword} onChange={e => setRegPassword(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <input type="password" placeholder="Passwort bestaetigen" value={regPasswordConfirm} onChange={e => setRegPasswordConfirm(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            <label style={{ display: 'flex', alignItems: 'start', gap: 8, padding: '10px 12px', background: consentGiven ? '#e7f3ff' : '#fff', border: consentGiven ? '2px solid #0d6efd' : '2px solid #e9ecef', borderRadius: 10, cursor: 'pointer', fontSize: 13, color: '#555', lineHeight: 1.4 }}>
+              <input type="checkbox" checked={consentGiven} onChange={e => setConsentGiven(e.target.checked)} style={{ marginTop: 2, flexShrink: 0, width: 18, height: 18, cursor: 'pointer' }} />
+              <span>
+                Ich habe die{' '}
+                <a href="?view=privacy" target="_blank" rel="noopener noreferrer" style={{ color: '#0d6efd', textDecoration: 'underline', fontWeight: 'bold' }}>
+                  Datenschutzerklärung
+                </a>{' '}
+                gelesen und stimme der Verarbeitung meiner Daten zu.{' '}
+                <span style={{ color: '#dc3545' }}>*</span>
+              </span>
+            </label>
             <button onClick={async () => {
               if (!regName || !regEmail || !regPassword) { alert('Bitte alle Pflichtfelder ausfuellen'); return; }
               if (regPassword !== regPasswordConfirm) { alert('Passwoerter stimmen nicht ueberein'); return; }
               if (regPassword.length < 6) { alert('Passwort muss mindestens 6 Zeichen haben'); return; }
+              if (!consentGiven) { alert('Bitte Datenschutzerklärung akzeptieren'); return; }
               try {
                 const res = await fetch('/api/auth/register', {
                   method: 'POST',
@@ -524,6 +537,19 @@ export default function SelfServiceView() {
               setEditPhone(volunteer?.phone || '');
               setEditChildren((volunteer?.children || []).map(c => ({ childName: c.childName, childYear: String(c.childYear) })) || [{ childName: '', childYear: '' }]);
             }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>👤 Profil bearbeiten</button>
+            <button onClick={async () => {
+              setMenuOpen(false);
+              try {
+                const r = await fetch('/api/auth/export', { headers: { Authorization: 'Bearer ' + token } });
+                if (!r.ok) { alert('Export fehlgeschlagen'); return; }
+                const data = await r.json();
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = `turnier-planer-daten-${new Date().toISOString().slice(0,10)}.json`;
+                a.click(); URL.revokeObjectURL(url);
+              } catch { alert('Export fehlgeschlagen'); }
+            }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>📥 Meine Daten exportieren</button>
             <button onClick={() => {
               setMenuOpen(false);
               const pw = prompt('Neues Passwort:');
