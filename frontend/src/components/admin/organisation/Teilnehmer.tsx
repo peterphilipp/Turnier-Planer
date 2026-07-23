@@ -37,8 +37,15 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
     teams.filter(t => t.clubId).forEach(t => clubsWithTeams.add(t.clubId!));
   }
 
-  // Verfügbare Vereine (nicht als teilnehmend markiert)
-  const availableClubs = allClubs.filter(c => !tournamentClubIds.includes(c.id));
+  // Vereine die bereits Teams haben → auch als teilnehmend markieren
+  const participatingClubIds = new Set<number>(tournamentClubIds);
+  if (yearGroupId) {
+    teams.filter(t => t.yearGroupId === yearGroupId && t.clubId).forEach(t => participatingClubIds.add(t.clubId!));
+  } else {
+    teams.filter(t => t.clubId).forEach(t => participatingClubIds.add(t.clubId!));
+  }
+
+  // Alle Vereine anzeigen (Checkbox zeigt Teilnahme-Status)
 
   const handleToggleClub = async (clubId: number) => {
     if (!tournamentId) return;
@@ -119,7 +126,7 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
           🏅 Vereine auswählen (mehrere möglich)
         </h4>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 8 }}>
-          {availableClubs.map(club => (
+          {allClubs.map(club => (
             <label 
               key={club.id}
               style={{ 
@@ -127,8 +134,8 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
                 alignItems: 'center', 
                 gap: 10, 
                 padding: '12px 16px', 
-                background: tournamentClubIds.includes(club.id) ? '#e7f3ff' : '#f8f9fa',
-                border: `2px solid ${tournamentClubIds.includes(club.id) ? '#0d6efd' : '#dee2e6'}`,
+                background: participatingClubIds.has(club.id) ? '#e7f3ff' : '#f8f9fa',
+                border: `2px solid ${participatingClubIds.has(club.id) ? '#0d6efd' : '#dee2e6'}`,
                 borderRadius: 10, 
                 cursor: 'pointer',
                 transition: 'all 0.2s'
@@ -136,7 +143,7 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
             >
               <input 
                 type="checkbox" 
-                checked={tournamentClubIds.includes(club.id)}
+                checked={participatingClubIds.has(club.id)}
                 onChange={() => handleToggleClub(club.id)}
                 style={{ width: 18, height: 18, cursor: 'pointer' }}
               />
@@ -161,6 +168,9 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: '600', color: '#212529', fontSize: 14 }}>{club.name}</div>
                 {club.city && <div style={{ fontSize: 12, color: '#6c757d' }}>{club.city}</div>}
+                {participatingClubIds.has(club.id) && (
+                  <span style={{ fontSize: 11, color: '#0d6efd', fontWeight: '500' }}>✓ teilnehmend</span>
+                )}
               </div>
             </label>
           ))}
