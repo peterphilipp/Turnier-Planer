@@ -5,8 +5,14 @@ export const getFields = async (req: Request, res: Response) => {
   const tournamentId = parseInt(String(req.query.tournamentId));
   if (!tournamentId) return res.status(400).json({ error: 'tournamentId erforderlich' });
   
+  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId)) : null;
+  
+  const where: any = { tournamentId };
+  if (yearGroupId) where.yearGroupId = yearGroupId;
+  
   const fields = await prisma.field.findMany({
-    where: { tournamentId },
+    where,
+    include: { yearGroup: true },
     orderBy: { name: 'asc' }
   });
   return res.json(fields);
@@ -22,14 +28,14 @@ export const getFieldById = async (req: Request, res: Response) => {
 };
 
 export const createField = async (req: Request, res: Response) => {
-  const { tournamentId, name, status } = req.body;
+  const { tournamentId, yearGroupId, name, status } = req.body;
   
   if (!tournamentId || !name) {
     return res.status(400).json({ error: 'tournamentId und name erforderlich' });
   }
 
   const field = await prisma.field.create({
-    data: { tournamentId, name, status: status || 'verfügbar' },
+    data: { tournamentId, yearGroupId: yearGroupId || null, name, status: status || 'verfügbar' },
     include: { matches: true }
   });
   res.status(201).json(field);
