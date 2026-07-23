@@ -83,6 +83,10 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
         setExtractedColors({ primary: toHex(sorted[0][0]), secondary: toHex(sorted[1][0]), accent: toHex(sorted[2][0]) });
       }
     };
+    img.onerror = () => {
+      console.error('Farbanalyse fehlgeschlagen');
+      alert('Farbanalyse konnte nicht durchgeführt werden.');
+    };
     img.src = imgSrc;
   };
 
@@ -134,7 +138,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
         {/* Extrahierte Farben */}
         {extractedColors && clubLogo && (
           <div style={{ flex: 1, minWidth: 200 }}>
-            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎨 Vorschlag (Logo-Analyse)</label>
+            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎨 Vorschlag (Logo-Analyse) — Strategie {colorStrategyIndex + 1}/4</label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
               {(['primary', 'secondary', 'accent'] as const).map(key => (
                 <div key={key} style={{ textAlign: 'center' }}>
@@ -158,7 +162,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
                   extractColors(clubLogo, next);
                 }
               }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', fontSize: 12, padding: '4px 10px' }}>
-                🔄 Neu analysieren
+                🔄 Strategie {colorStrategyIndex + 1} → {Math.min(colorStrategyIndex + 2, 4)}
               </button>
             </div>
           </div>
