@@ -20,7 +20,7 @@ import Uebersicht from './components/admin/organisation/Uebersicht';
 import Spielplan from './components/admin/organisation/Spielplan';
 import LebensmittelSlots from './components/admin/organisation/LebensmittelSlots';
 import TurnierTage from './components/admin/organisation/TurnierTage';
-import GruppenTeams from './components/admin/organisation/GruppenTeams';
+
 import Teilnehmer from './components/admin/organisation/Teilnehmer';
 import Felder from './components/admin/organisation/Felder';
 import TurnierModus from './components/admin/organisation/TurnierModus';
@@ -28,7 +28,7 @@ import { Tournament } from './components/admin/shared';
 
 type View = 'admin' | 'selfservice' | 'privacy';
 type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
-type SpielplanTab = 'teilnehmer' | 'felder' | 'turnier-tage' | 'gruppen-teams' | 'spielplan-gruppenphase' | 'spielplan-ko' | 'modus';
+type SpielplanTab = 'teilnehmer' | 'felder' | 'turnier-tage' | 'gruppen-teams' | 'spielplan-gruppenphase' | 'spielplan-ko' | 'modus' | 'gruppen-verwalten';
 type OrgTab = 'uebersicht' | 'jobslots' | 'buchungen' | 'lebensmittel-slots';
 type StammTab = 'turniere' | 'vereine' | 'arbeitsbereiche' | 'zeitslots' | 'helfer' | 'lebensmittel' | 'jahrgaenge';
 
@@ -259,7 +259,7 @@ export default function App() {
       <main>
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'turnier-tage' && <TurnierTage tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} yearGroups={(tournaments.find(t => t.id === selectedTournamentId)?.yearGroups as any) || []} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'felder' && <Felder tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'teilnehmer' && <Teilnehmer tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} tournament={tournaments.find(t => t.id === selectedTournamentId) || null} />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'teilnehmer' && <Teilnehmer tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} tournament={(tournaments.find(t => t.id === selectedTournamentId) as any) || null} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'modus' && <TurnierModus tournament={tournaments.find(t => t.id === selectedTournamentId) || null} selectedYearGroupId={selectedYearGroupId} yearGroups={(tournaments.find(t => t.id === selectedTournamentId)?.yearGroups as any) || []} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan-gruppenphase' && <Spielplan tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} phase="gruppenphase" />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan-ko' && <Spielplan tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} phase="ko" />}

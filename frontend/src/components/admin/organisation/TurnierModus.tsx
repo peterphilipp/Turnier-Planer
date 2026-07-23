@@ -68,7 +68,7 @@ export default function TurnierModus({ tournament, selectedYearGroupId, yearGrou
         qualificationRule: qualRule
       });
       queryClient.invalidateQueries({ queryKey: ['tournaments'] });
-      modal.alert({ title: 'Erfolg', message: 'Einstellungen gespeichert. Bitte den Spielplan unten neu generieren!', variant: 'success' });
+      modal.alert({ title: 'Erfolg', message: 'Einstellungen gespeichert. Bitte den Spielplan unten neu generieren!' });
     } catch (err) {
       modal.alert({ title: 'Fehler', message: 'Konnte die Anzahl nicht speichern: ' + (err as Error).message });
     }
