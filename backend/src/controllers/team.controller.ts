@@ -42,6 +42,12 @@ export const teamSchema = z.object({
 
 export const createTeam = async (req: Request, res: Response) => {
   const t = await prisma.team.create({ data: req.body });
+  
+  if (t.yearGroupId) {
+    await prisma.match.deleteMany({ where: { yearGroupId: t.yearGroupId } });
+    await prisma.standingsEntry.deleteMany({ where: { team: { yearGroupId: t.yearGroupId } } });
+  }
+  
   res.status(201).json(t);
 };
 
@@ -54,6 +60,14 @@ export const updateTeam = async (req: Request, res: Response) => {
 };
 
 export const deleteTeam = async (req: Request, res: Response) => {
-  await prisma.team.delete({ where: { id: parseInt(String(req.params.id)) } });
+  const teamId = parseInt(String(req.params.id));
+  const team = await prisma.team.findUnique({ where: { id: teamId } });
+  
+  if (team?.yearGroupId) {
+    await prisma.match.deleteMany({ where: { yearGroupId: team.yearGroupId } });
+    await prisma.standingsEntry.deleteMany({ where: { team: { yearGroupId: team.yearGroupId } } });
+  }
+  
+  await prisma.team.delete({ where: { id: teamId } });
   return res.status(204).send();
 };

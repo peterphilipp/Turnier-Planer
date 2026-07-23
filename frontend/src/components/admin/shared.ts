@@ -17,7 +17,21 @@ export const shadeColor = (color: string, percent: number) => {
 
 export const statusBadge = (status: string) => status === 'aktiv' ? '🟢' : status === 'beendet' ? '🟡' : '⚪';
 
-export interface Tournament { id: number; name: string; startDate: string; endDate: string; status: string; turnierModus: string; clubId: number | null; yearGroupIds?: number[]; club: { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string } | null; yearGroups: { id: number; name: string; birthYearStart: number; birthYearEnd: number }[]; }
+export interface Tournament {
+  id: number;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  turnierModus: string;
+  teamsAdvancingPerGroup: number;
+  playoutAllPlacements: boolean;
+  thirdPlaceMatch: boolean;
+  qualificationRule: string | null;
+  clubId: number | null;
+  club?: Club | null;
+  yearGroups?: YearGroup[];
+}
 export interface Shift { id: number; tournamentId: number; date: string; zeitslotId: number | null; slot: string; arbeitsbereichId: number | null; maxVolunteers: number; description: string | null; zeitslot: { id: number; name: string; startTime: string; endTime: string; color: string; order: number } | null; arbeitsbereich: { id: number; name: string; icon: string; color: string } | null; }
 export interface Arbeitsbereich { id: number; name: string; icon: string; color: string; minVolunteers: number; maxVolunteers: number; }
 export interface Zeitslot { id: number; name: string; startTime: string; endTime: string; color: string; order: number; }

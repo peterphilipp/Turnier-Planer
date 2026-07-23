@@ -6,6 +6,7 @@ const router = Router();
 router.get('/', ctrl.getTimeSlots);
 router.get('/:id', ctrl.getTimeSlotById);
 router.post('/', ctrl.createTimeSlot);
+router.put('/bulk', ctrl.bulkUpdateTimeSlots);
 router.patch('/:id', ctrl.updateTimeSlot);
 router.delete('/:id', ctrl.deleteTimeSlot);
 

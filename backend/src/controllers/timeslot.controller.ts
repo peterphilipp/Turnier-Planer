@@ -22,7 +22,7 @@ export const getTimeSlotById = async (req: Request, res: Response) => {
 };
 
 export const createTimeSlot = async (req: Request, res: Response) => {
-  const { tournamentId, date, startTime, endTime, label, order } = req.body;
+  const { tournamentId, date, startTime, endTime, label, order, yearGroupId } = req.body;
   
   if (!tournamentId || !date || !startTime || !endTime) {
     return res.status(400).json({ error: 'tournamentId, date, startTime, endTime erforderlich' });
@@ -31,6 +31,7 @@ export const createTimeSlot = async (req: Request, res: Response) => {
   const slot = await prisma.timeSlot.create({
     data: {
       tournamentId,
+      yearGroupId: yearGroupId || null,
       date: new Date(date),
       startTime,
       endTime,
@@ -51,10 +52,57 @@ export const updateTimeSlot = async (req: Request, res: Response) => {
     data: body,
     include: { matches: true }
   });
+
+  if (slot.yearGroupId) {
+    await prisma.match.deleteMany({ where: { yearGroupId: slot.yearGroupId } });
+    await prisma.standingsEntry.deleteMany({ where: { team: { yearGroupId: slot.yearGroupId } } });
+  }
+
   return res.json(slot);
 };
 
 export const deleteTimeSlot = async (req: Request, res: Response) => {
-  await prisma.timeSlot.delete({ where: { id: parseInt(String(req.params.id)) } });
+  const id = parseInt(String(req.params.id));
+  const slot = await prisma.timeSlot.findUnique({ where: { id } });
+  
+  if (slot?.yearGroupId) {
+    await prisma.match.deleteMany({ where: { yearGroupId: slot.yearGroupId } });
+    await prisma.standingsEntry.deleteMany({ where: { team: { yearGroupId: slot.yearGroupId } } });
+  }
+
+  await prisma.timeSlot.delete({ where: { id } });
   return res.status(204).send();
+};
+
+export const bulkUpdateTimeSlots = async (req: Request, res: Response) => {
+  const { tournamentId, yearGroupId, slots } = req.body;
+  if (!tournamentId || !yearGroupId || !Array.isArray(slots)) {
+    return res.status(400).json({ error: 'tournamentId, yearGroupId, und slots Array erforderlich' });
+  }
+
+  // Delete matches and standings to reset schedule
+  await prisma.match.deleteMany({ where: { yearGroupId } });
+  await prisma.standingsEntry.deleteMany({ where: { team: { yearGroupId } } });
+
+  // Delete old time slots
+  await prisma.timeSlot.deleteMany({ where: { tournamentId, yearGroupId } });
+
+  // Create new time slots
+  if (slots.length > 0) {
+    const dataToInsert = slots.map((s: any, idx: number) => ({
+      tournamentId,
+      yearGroupId,
+      date: new Date(s.date),
+      startTime: s.startTime,
+      endTime: s.endTime,
+      label: s.label || 'Spielphase',
+      order: idx
+    }));
+
+    await prisma.timeSlot.createMany({
+      data: dataToInsert
+    });
+  }
+
+  return res.status(200).json({ message: 'Zeitslots aktualisiert' });
 };

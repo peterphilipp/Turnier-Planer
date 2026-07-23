@@ -14,8 +14,12 @@ model Tournament {
   startDate       DateTime         @map("start_date")
   endDate         DateTime         @map("end_date")
   status          String           @default("aktiv") @map("status")
-  turnierModus    String           @default("GRUPPEN_KO") @map("turnier_modus")
-  createdAt       DateTime         @default(now()) @map("created_at")
+  turnierModus           String    @default("GRUPPEN_KO") @map("turnier_modus")
+  teamsAdvancingPerGroup Int       @default(2) @map("teams_advancing_per_group")
+  playoutAllPlacements   Boolean   @default(false) @map("playout_all_placements")
+  thirdPlaceMatch        Boolean   @default(true)  @map("third_place_match")
+  qualificationRule      String?   @map("qualification_rule")
+  createdAt              DateTime  @default(now()) @map("created_at")
   clubId          Int?             @map("club_id")
   club            Club?            @relation(fields: [clubId], references: [id])
   yearGroups      YearGroup[]      @relation("TournamentYearGroups")
@@ -90,8 +94,10 @@ model Match {
   bracketId    Int?       @map("bracket_id")
   timeSlotId   Int?       @map("time_slot_id")
   fieldId      Int?       @map("field_id")
-  teamAId      Int        @map("team_a_id")
-  teamBId      Int        @map("team_b_id")
+  teamAId      Int?       @map("team_a_id")
+  teamBId      Int?       @map("team_b_id")
+  placeholderA String?    @map("placeholder_a")
+  placeholderB String?    @map("placeholder_b")
   scoreA       Int?       @map("score_a")
   scoreB       Int?       @map("score_b")
   phase        String     @default("Gruppenphase") @map("phase")
@@ -105,8 +111,8 @@ model Match {
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   timeSlot     TimeSlot?  @relation(fields: [timeSlotId], references: [id])
   field        Field?     @relation(fields: [fieldId], references: [id])
-  teamA        Team       @relation("teamAMatches", fields: [teamAId], references: [id])
-  teamB        Team       @relation("teamBMatches", fields: [teamBId], references: [id])
+  teamA        Team?      @relation("teamAMatches", fields: [teamAId], references: [id])
+  teamB        Team?      @relation("teamBMatches", fields: [teamBId], references: [id])
   yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id])
 
   @@map("matches")
@@ -280,6 +286,8 @@ model YearGroup {
   teams           Team[]
   fields          Field[]
   matches         Match[]
+  timeSlots       TimeSlot[]
+  brackets        KnockoutBracket[]
 
   @@map("year_groups")
 }
@@ -307,6 +315,7 @@ model FoodDonationSlot {
 model TimeSlot {
   id           Int        @id @default(autoincrement())
   tournamentId Int        @map("tournament_id")
+  yearGroupId  Int?       @map("year_group_id")
   date         DateTime   @map("date")
   startTime    String     @map("start_time")
   endTime      String     @map("end_time")
@@ -314,6 +323,7 @@ model TimeSlot {
   order        Int        @default(0)
   matches      Match[]
   tournament   Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  yearGroup    YearGroup?  @relation(fields: [yearGroupId], references: [id])
 
   @@map("time_slots")
 }
@@ -334,7 +344,9 @@ model Field {
 model KnockoutBracket {
   id           Int        @id @default(autoincrement())
   tournamentId Int        @map("tournament_id")
+  yearGroupId  Int?       @map("year_group_id")
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id])
   name         String     // "Sieger-Bracket", "Verlierer-Runde-1"
   runde        String     // "Halbfinale", "Finale", etc.
   order        Int        @default(0)

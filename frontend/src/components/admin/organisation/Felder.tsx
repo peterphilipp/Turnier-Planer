@@ -133,7 +133,7 @@ export default function Felder({ tournamentId, yearGroupId }: Props) {
           </thead>
           <tbody>
             {fields.map((field, idx) => (
-              <tr key={field.id} style={{ background: statusColors[field.status] || '#fff' }}>
+              <tr key={field.id} style={{ background: idx % 2 === 0 ? '#fff' : 'rgba(0,0,0,0.02)' }}>
                 <td style={{ ...tdStyle, fontWeight: 'bold', color: '#6c757d' }}>{idx + 1}</td>
                 <td style={tdStyle}>{field.name}</td>
                 <td style={tdStyle}>

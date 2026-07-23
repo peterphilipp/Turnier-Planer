@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getClubs, getTournamentClubs, addTournamentClub, removeTournamentClub, apiPost, apiDelete } from '../../../api';
+import { getClubs, getTournamentClubs, addTournamentClub, removeTournamentClub, apiPost, apiDelete, apiPatch } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, Club, Team } from '../shared';
 
 interface Props {
@@ -13,6 +13,18 @@ interface Props {
 export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Props) {
   const queryClient = useQueryClient();
   const [teamForms, setTeamForms] = useState<Record<number, string>>({});
+  const [newGroup, setNewGroup] = useState('');
+  
+  const { data: groups = [] } = useQuery<any[]>({
+    queryKey: ['groups', tournamentId, yearGroupId],
+    queryFn: async () => {
+      if (!tournamentId) return [];
+      let url = `/api/groups/${tournamentId}`;
+      if (yearGroupId) url += `?yearGroupId=${yearGroupId}`;
+      return fetch(url).then(r => r.ok ? r.json() : []);
+    },
+    enabled: !!tournamentId && !!yearGroupId
+  });
   
   const { data: allClubs = [] } = useQuery<Club[]>({ queryKey: ['clubs'], queryFn: getClubs });
   const { data: teams = [] } = useQuery<Team[]>({
@@ -44,12 +56,30 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
   const teamsByClub: Record<string, Team[]> = {};
   if (yearGroupId) {
     allClubs.forEach(club => {
-      const clubTeams = safeTeams.filter(t => t.clubId === club.id);
-      if (clubTeams.length > 0) {
+      if (participatingClubIds.has(club.id)) {
+        const clubTeams = safeTeams.filter(t => t.clubId === club.id);
         teamsByClub[`${club.id}_${yearGroupId}`] = clubTeams;
       }
     });
   }
+
+  const handleAddGroup = async () => {
+    if (!newGroup.trim() || !tournamentId || !yearGroupId) return;
+    await apiPost('/api/groups', { name: newGroup.trim(), tournamentId, yearGroupId });
+    setNewGroup('');
+    queryClient.invalidateQueries({ queryKey: ['groups'] });
+  };
+
+  const handleDeleteGroup = async (id: number) => {
+    if (!(await modal.confirm({ title: 'Gruppe löschen', message: 'Möchtest du diese Gruppe wirklich löschen?', variant: 'danger' }))) return;
+    await apiDelete(`/api/groups/${id}`);
+    queryClient.invalidateQueries({ queryKey: ['groups'] });
+  };
+
+  const handleAssignTeamToGroup = async (teamId: number, groupId: number | null) => {
+    await apiPatch(`/api/teams/${teamId}`, { groupId });
+    queryClient.invalidateQueries({ queryKey: ['teams'] });
+  };
 
   const handleToggleClub = async (clubId: number) => {
     if (!tournamentId) return;
@@ -117,16 +147,9 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h3 style={{ margin: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>📋 Teilnehmer-Verwaltung</h3>
         <span style={{ fontSize: 14, color: '#6c757d' }}>
-          {Object.keys(teamsByClub).length} Vereine · {teams.length} Teams insgesamt
+          {Object.keys(teamsByClub).length} teilnehmende Vereine · {teams.length} angemeldete Teams
         </span>
       </div>
-
-      {/* Jahrgang-Anzeige */}
-      {selectedYearGroup && (
-        <div style={{ marginBottom: 20, padding: '8px 16px', background: '#e7f3ff', borderRadius: 8, display: 'inline-block' }}>
-          <span style={{ fontSize: 13, color: '#0d6efd', fontWeight: 'bold' }}>📅 {selectedYearGroup.name}</span>
-        </div>
-      )}
 
       {/* Vereins-Auswahl */}
       <div style={{ marginBottom: 24 }}>
@@ -185,6 +208,38 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
         </div>
       </div>
 
+      {/* GRUPPEN-VERWALTUNG */}
+      <div style={{ marginBottom: 30, padding: 20, background: '#f8f9fa', borderRadius: 12, border: '1px solid #dee2e6' }}>
+        <h4 style={{ margin: '0 0 16px 0', fontSize: 15, fontWeight: '600', color: '#495057' }}>
+          🗂️ Gruppen verwalten (für K.O.-Modus erforderlich)
+        </h4>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+          <input 
+            type="text" 
+            value={newGroup}
+            onChange={e => setNewGroup(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAddGroup()}
+            placeholder="Neue Gruppe (z.B. 'Gruppe A')"
+            style={{ ...inputStyle, width: 250 }}
+          />
+          <button 
+            onClick={handleAddGroup} 
+            style={{ ...btnStyle, background: '#0d6efd', color: '#fff', border: 'none' }}
+          >+ Hinzufügen</button>
+        </div>
+        
+        {groups.length > 0 && (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {groups.map(g => (
+              <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', padding: '6px 12px', borderRadius: 20, border: '1px solid #ced4da', fontSize: 14 }}>
+                <strong style={{ color: '#212529' }}>{g.name}</strong>
+                <button onClick={() => handleDeleteGroup(g.id)} style={{ background: 'transparent', border: 'none', color: '#dc3545', cursor: 'pointer', padding: '0 4px', fontSize: 16, lineHeight: 1 }}>&times;</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Teams pro Verein */}
       {Object.keys(teamsByClub).length > 0 && (
         <div style={{ marginBottom: 24 }}>
@@ -219,18 +274,16 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
                     </span>
                   )}
                   <strong style={{ fontSize: 14, color: '#212529' }}>{club.name}</strong>
-                  <span style={{ fontSize: 11, background: '#e7f3ff', color: '#0d6efd', padding: '2px 8px', borderRadius: 4 }}>
-                    📅 {selectedYearGroup?.name}
-                  </span>
                   <span style={{ fontSize: 12, color: '#6c757d' }}>({clubTeams.length} Teams)</span>
                 </div>
 
                 {/* Team-Liste */}
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginLeft: 40 }}>
+                <table style={{ width: 'calc(100% - 40px)', borderCollapse: 'collapse', marginLeft: 40 }}>
                   <thead>
                     <tr>
-                      <th style={thStyle}>#</th>
+                      <th style={{ ...thStyle, width: 40 }}>#</th>
                       <th style={thStyle}>Teamname</th>
+                      <th style={{ ...thStyle, width: 220 }}>Gruppe</th>
                       <th style={{ ...thStyle, width: 60 }}>Aktion</th>
                     </tr>
                   </thead>
@@ -239,6 +292,18 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
                       <tr key={team.id} style={{ background: idx % 2 === 0 ? '#fff' : 'rgba(0,0,0,0.02)' }}>
                         <td style={{ ...tdStyle, fontWeight: 'bold', color: '#6c757d', width: 40 }}>{idx + 1}</td>
                         <td style={tdStyle}>{team.name}</td>
+                        <td style={tdStyle}>
+                          <select
+                            value={team.groupId || ''}
+                            onChange={(e) => handleAssignTeamToGroup(team.id, e.target.value ? parseInt(e.target.value) : null)}
+                            style={{ padding: '6px', borderRadius: 6, border: '1px solid #ced4da', fontSize: 13, background: !team.groupId ? '#fff3cd' : '#fff' }}
+                          >
+                            <option value="">-- Keine --</option>
+                            {groups.map(g => (
+                              <option key={g.id} value={g.id}>{g.name}</option>
+                            ))}
+                          </select>
+                        </td>
                         <td style={tdStyle}>
                           <button 
                             onClick={() => handleDeleteTeam(team.id)} 
@@ -277,7 +342,7 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
           💡 <strong>So funktioniert's:</strong><br/>
           1. Vereine anklicken die am Turnier teilnehmen<br/>
           2. Pro Verein automatisch Teams anlegen (TSV Holm 1, TSV Holm 2...)<br/>
-          3. In "👥 Gruppen & Teams" die Teams den Gruppen zuweisen
+          3. Erstelle oben Gruppen und weise diese den Teams direkt in der Tabelle zu
         </p>
       </div>
     </div>

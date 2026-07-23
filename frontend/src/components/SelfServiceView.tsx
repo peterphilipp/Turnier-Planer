@@ -571,15 +571,6 @@ export default function SelfServiceView() {
             }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>🔑 Passwort ändern</button>
             <button onClick={async () => {
               setMenuOpen(false);
-              if (!(await modal.confirm({ title: 'Einwilligung widerrufen', message: 'Bist du sicher, dass du deine Einwilligung widerrufen möchtest? Deine Daten werden nicht gelöscht, aber sie können nicht mehr verarbeitet werden.', variant: 'warning' }))) return;
-              try {
-                const r = await fetch('/api/auth/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ consentGiven: false }) });
-                if (r.ok) { await modal.alert({ title: 'Erfolg', message: 'Einwilligung widerrufen. Deine Daten werden nicht gelöscht, aber die Verarbeitung eingestellt.' });
-                } else { await modal.alert({ title: 'Fehler', message: 'Fehler beim Widerrufen' }); }
-              } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Widerrufen' }); }
-            }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#856404' }}>⚠️ Einwilligung widerrufen</button>
-            <button onClick={async () => {
-              setMenuOpen(false);
               if (!(await modal.confirm({ title: 'Konto löschen', message: 'Bist du sicher, dass du dein Konto löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden. Alle personenbezogenen Daten werden entfernt.', variant: 'danger' }))) return;
               try {
                 const r = await fetch('/api/auth/account', { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });

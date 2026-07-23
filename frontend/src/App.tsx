@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { getTournaments } from './api';
 
 import SelfServiceView from './components/SelfServiceView';
-import TournamentView from './components/TournamentView';
 import Privacy from './components/Privacy';
 
 import Turniere from './components/admin/stammdaten/Turniere';
@@ -119,23 +118,25 @@ export default function App() {
       {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ margin: 0 }}>⚽ Turnierplaner – Admin</h1>
-        <button
-          onClick={() => setView('selfservice')}
-          style={{
-            padding: '8px 16px',
-            background: '#6c757d',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: 13
-          }}
-        >
-          ← Helfer-Bereich
-        </button>
-        <a href="?view=privacy" style={{ fontSize: 12, color: '#6c757d', textDecoration: 'underline' }}>
-          Datenschutzerklärung
-        </a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <a href="?view=privacy" style={{ fontSize: 12, color: '#6c757d', textDecoration: 'underline' }}>
+            Datenschutzerklärung
+          </a>
+          <button
+            onClick={() => setView('selfservice')}
+            style={{
+              padding: '8px 16px',
+              background: '#6c757d',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontSize: 13
+            }}
+          >
+            ← Helfer-Bereich
+          </button>
+        </div>
       </div>
 
       {/* LEVEL 1: HAUPT-NAVIGATION */}
@@ -154,119 +155,88 @@ export default function App() {
         </button>
       </nav>
 
-      {/* LEVEL 2: SUB-NAVIGATION – SPIELPLAN */}
-      {activeMainTab === 'spielplan' && (
-        <div>
-          {/* Turnierauswahl + Jahrgang */}
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <label style={{ fontWeight: 'bold', fontSize: 13 }}>Turnier:</label>
+      {/* KONTEXT-LEISTE FÜR TURNIER UND JAHRGANG */}
+      <div style={{ display: 'flex', gap: 16, background: '#f8f9fa', padding: '16px 20px', borderRadius: 12, border: '1px solid #dee2e6', marginBottom: 24, alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <label style={{ fontWeight: 'bold', fontSize: 14, color: '#495057' }}>Aktives Turnier:</label>
+          <select
+            value={selectedTournamentId || ''}
+            onChange={e => { setSelectedTournamentId(e.target.value ? parseInt(e.target.value) : null); setSelectedYearGroupId(null); }}
+            style={{ padding: '8px 12px', border: '1px solid #ced4da', borderRadius: 6, minWidth: 260, fontSize: 14, background: '#fff' }}
+          >
+            <option value="">-- Bitte wählen --</option>
+            {tournaments.map(t => (
+              <option key={t.id} value={t.id}>{t.name} ({new Date(t.startDate).toLocaleDateString('de-DE')})</option>
+            ))}
+          </select>
+        </div>
+
+        {selectedTournamentId && (
+          <>
+            <div style={{ width: 1, height: 30, background: '#dee2e6', margin: '0 8px' }}></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <label style={{ fontWeight: 'bold', fontSize: 14, color: '#495057' }}>Jahrgang:</label>
               <select
-                value={selectedTournamentId || ''}
-                onChange={e => { setSelectedTournamentId(e.target.value ? parseInt(e.target.value) : null); setSelectedYearGroupId(null); }}
-                style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 6, minWidth: 280 }}
+                value={selectedYearGroupId || ''}
+                onChange={e => setSelectedYearGroupId(e.target.value ? parseInt(e.target.value) : null)}
+                style={{ padding: '8px 12px', border: '1px solid #ced4da', borderRadius: 6, minWidth: 200, fontSize: 14, background: '#fff' }}
               >
-                <option value="">-- Bitte wählen --</option>
-                {tournaments.map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
+                <option value="">-- Alle --</option>
+                {tournaments.find(t => t.id === selectedTournamentId)?.yearGroups?.map(yg => (
+                  <option key={yg.id} value={yg.id}>{yg.name}</option>
                 ))}
               </select>
             </div>
-            {selectedTournamentId && (() => {
-              const tournament = tournaments.find(t => t.id === selectedTournamentId);
-              if (!tournament || !tournament.yearGroups?.length) return null;
-              return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <label style={{ fontWeight: 'bold', fontSize: 13 }}>📅 Jahrgang:</label>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    {tournament.yearGroups.map(yg => (
-                      <button
-                        key={yg.id}
-                        onClick={() => setSelectedYearGroupId(selectedYearGroupId === yg.id ? null : yg.id)}
-                        style={{
-                          padding: '5px 14px',
-                          cursor: 'pointer',
-                          background: selectedYearGroupId === yg.id ? '#0d6efd' : '#e9ecef',
-                          color: selectedYearGroupId === yg.id ? '#fff' : '#333',
-                          border: 'none',
-                          borderRadius: 6,
-                          fontSize: 13,
-                          fontWeight: selectedYearGroupId === yg.id ? 'bold' : 'normal'
-                        }}
-                      >
-                        {yg.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-          <nav style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-            <button onClick={() => setActiveSpielplanTab('teilnehmer')}
-              style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'teilnehmer' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'teilnehmer' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-              📋 Teilnehmer
-            </button>
-            <button onClick={() => setActiveSpielplanTab('felder')}
-              style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'felder' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'felder' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-              ⚽ Spielfelder
-            </button>
-            <button onClick={() => setActiveSpielplanTab('turnier-tage')}
-              style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'turnier-tage' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'turnier-tage' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-              📅 Turnier-Tage
-            </button>
-            <button onClick={() => setActiveSpielplanTab('gruppen-teams')}
-              style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'gruppen-teams' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'gruppen-teams' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-              👥 Gruppen & Teams
-            </button>
-            <button onClick={() => setActiveSpielplanTab('modus')}
-              style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'modus' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'modus' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-              ⚙️ Turnier-Modus
-            </button>
-            <button onClick={() => setActiveSpielplanTab('spielplan')}
-              style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'spielplan' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'spielplan' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-              ⚽ Spielplan
-            </button>
-          </nav>
-        </div>
+          </>
+        )}
+      </div>
+
+      {/* LEVEL 2: SUB-NAVIGATION – SPIELPLAN */}
+      {activeMainTab === 'spielplan' && (
+        <nav style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+          <button onClick={() => setActiveSpielplanTab('turnier-tage')}
+            style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'turnier-tage' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'turnier-tage' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+            📅 Turnier-Tage
+          </button>
+          <button onClick={() => setActiveSpielplanTab('felder')}
+            style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'felder' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'felder' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+            ⚽ Spielfelder
+          </button>
+          <button onClick={() => setActiveSpielplanTab('teilnehmer')}
+            style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'teilnehmer' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'teilnehmer' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+            📋 Teilnehmer
+          </button>
+          <button onClick={() => setActiveSpielplanTab('modus')}
+            style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'modus' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'modus' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+            ⚙️ Turnier-Modus
+          </button>
+          <button onClick={() => setActiveSpielplanTab('spielplan')}
+            style={{ padding: '6px 16px', cursor: 'pointer', background: activeSpielplanTab === 'spielplan' ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === 'spielplan' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+            ⚽ Spielplan
+          </button>
+        </nav>
       )}
 
       {/* LEVEL 2: SUB-NAVIGATION – ORGANISATION */}
       {activeMainTab === 'organisation' && (
-        <div>
-          {/* Turnierauswahl */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-            <label style={{ fontWeight: 'bold', fontSize: 13 }}>Aktives Turnier:</label>
-            <select
-              value={selectedTournamentId || ''}
-              onChange={e => setSelectedTournamentId(e.target.value ? parseInt(e.target.value) : null)}
-              style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 6, minWidth: 280 }}
-            >
-              <option value="">-- Bitte wählen --</option>
-              {tournaments.map(t => (
-                <option key={t.id} value={t.id}>{t.name} ({new Date(t.startDate).toLocaleDateString('de-DE')})</option>
-              ))}
-            </select>
-          </div>
-          <nav style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-            <button onClick={() => setActiveOrgTab('uebersicht')}
-              style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'uebersicht' ? '#198754' : '#e9ecef', color: activeOrgTab === 'uebersicht' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-              Übersicht
-            </button>
-            <button onClick={() => setActiveOrgTab('buchungen')}
-              style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'buchungen' ? '#198754' : '#e9ecef', color: activeOrgTab === 'buchungen' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-              Dienstplan & Zuweisung
-            </button>
-            <button onClick={() => setActiveOrgTab('jobslots')}
-              style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'jobslots' ? '#198754' : '#e9ecef', color: activeOrgTab === 'jobslots' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-              Job-Slots
-            </button>
-            <button onClick={() => setActiveOrgTab('lebensmittel-slots')}
-              style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'lebensmittel-slots' ? '#198754' : '#e9ecef', color: activeOrgTab === 'lebensmittel-slots' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
-              Lebensmittel-Slots
-            </button>
-          </nav>
-        </div>
+        <nav style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+          <button onClick={() => setActiveOrgTab('uebersicht')}
+            style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'uebersicht' ? '#198754' : '#e9ecef', color: activeOrgTab === 'uebersicht' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+            Übersicht
+          </button>
+          <button onClick={() => setActiveOrgTab('buchungen')}
+            style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'buchungen' ? '#198754' : '#e9ecef', color: activeOrgTab === 'buchungen' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+            Dienstplan & Zuweisung
+          </button>
+          <button onClick={() => setActiveOrgTab('jobslots')}
+            style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'jobslots' ? '#198754' : '#e9ecef', color: activeOrgTab === 'jobslots' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+            Job-Slots
+          </button>
+          <button onClick={() => setActiveOrgTab('lebensmittel-slots')}
+            style={{ padding: '6px 16px', cursor: 'pointer', background: activeOrgTab === 'lebensmittel-slots' ? '#198754' : '#e9ecef', color: activeOrgTab === 'lebensmittel-slots' ? '#fff' : '#000', border: 'none', borderRadius: 6, fontSize: 14 }}>
+            Lebensmittel-Slots
+          </button>
+        </nav>
       )}
 
       {activeMainTab === 'stammdaten' && (
@@ -283,10 +253,9 @@ export default function App() {
 
       {/* CONTENT AREA */}
       <main>
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'teilnehmer' && <Teilnehmer tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} tournament={tournaments.find(t => t.id === selectedTournamentId) || null} />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'turnier-tage' && <TurnierTage tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} yearGroups={(tournaments.find(t => t.id === selectedTournamentId)?.yearGroups as any) || []} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'felder' && <Felder tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'turnier-tage' && <TurnierTage tournamentId={selectedTournamentId} />}
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'gruppen-teams' && <GruppenTeams tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'teilnehmer' && <Teilnehmer tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} tournament={tournaments.find(t => t.id === selectedTournamentId) || null} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'modus' && <TurnierModus tournament={tournaments.find(t => t.id === selectedTournamentId) || null} selectedYearGroupId={selectedYearGroupId} yearGroups={(tournaments.find(t => t.id === selectedTournamentId)?.yearGroups as any) || []} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan' && <Spielplan tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
         

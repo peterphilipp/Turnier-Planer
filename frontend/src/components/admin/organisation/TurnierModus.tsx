@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiPatch, getBrackets, generateMatchesForYearGroup } from '../../../api';
-import { tdStyle, thStyle, btnStyle, Tournament, KnockoutBracket, YearGroup } from '../shared';
+import { tdStyle, thStyle, btnStyle, inputStyle, Tournament, KnockoutBracket, YearGroup } from '../shared';
 
 interface Props {
   tournament: Tournament | null;
@@ -20,6 +20,16 @@ const MODI = [
 export default function TurnierModus({ tournament, selectedYearGroupId, yearGroups }: Props) {
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState(false);
+  const [advancingCount, setAdvancingCount] = useState(tournament?.teamsAdvancingPerGroup || 2);
+  const [playoutAll, setPlayoutAll] = useState(tournament?.playoutAllPlacements || false);
+  const [thirdPlace, setThirdPlace] = useState(tournament?.thirdPlaceMatch ?? true);
+  const [qualRule, setQualRule] = useState(tournament?.qualificationRule || 'BEST_THIRDS');
+  const [params, setParams] = useState({
+    matchDuration: 15,
+    halves: 1,
+    halftimeBreak: 5,
+    breakDuration: 5
+  });
 
   const { data: brackets = [] } = useQuery<KnockoutBracket[]>({
     queryKey: ['brackets', tournament?.id],
@@ -31,7 +41,7 @@ export default function TurnierModus({ tournament, selectedYearGroupId, yearGrou
   const handleModeChange = async (modus: string) => {
     if (!tournament) return;
     
-    if (!(await modal.confirm({ title: 'Turniermodus ändern', message: `Turnier-Modus auf "${MODI.find(m => m.value === modus)?.label}" ändern?\n\nAlle bestehenden Spiele und Tabellen werden dabei NICHT gelöscht, aber neu generiert.`, variant: 'warning' }))) {
+    if (!(await modal.confirm({ title: 'Turniermodus ändern', message: `Turnier-Modus auf "${MODI.find(m => m.value === modus)?.label}" ändern?\n\nACHTUNG: Alle bestehenden Spiele und Tabellen für dieses Turnier werden dabei GELÖSCHT!`, variant: 'warning' }))) {
       return;
     }
 
@@ -47,7 +57,25 @@ export default function TurnierModus({ tournament, selectedYearGroupId, yearGrou
     }
   };
 
+  const handleUpdateSettings = async () => {
+    if (!tournament) return;
+    try {
+      await apiPatch(`/api/tournaments/${tournament.id}/mode`, { 
+        turnierModus: tournament.turnierModus, 
+        teamsAdvancingPerGroup: advancingCount,
+        playoutAllPlacements: playoutAll,
+        thirdPlaceMatch: thirdPlace,
+        qualificationRule: qualRule
+      });
+      queryClient.invalidateQueries({ queryKey: ['tournaments'] });
+      modal.alert({ title: 'Erfolg', message: 'Einstellungen gespeichert. Bitte den Spielplan unten neu generieren!', variant: 'success' });
+    } catch (err) {
+      modal.alert({ title: 'Fehler', message: 'Konnte die Anzahl nicht speichern: ' + (err as Error).message });
+    }
+  };
+
   const handleGenerateMatches = async () => {
+    if (!tournament) return;
     if (!selectedYearGroupId) {
       await modal.alert({ title: 'Hinweis', message: 'Bitte wähle oben einen Jahrgang aus, bevor du den Spielplan generierst.' });
       return;
@@ -61,8 +89,31 @@ export default function TurnierModus({ tournament, selectedYearGroupId, yearGrou
 
     setGenerating(true);
     try {
-      const result = await generateMatchesForYearGroup(tournament!.id, selectedYearGroupId);
+      const payload = {
+        yearGroupId: selectedYearGroupId,
+        ...params
+      };
+      
+      const res = await fetch(`/api/tournaments/${tournament.id}/generate-matches`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Fehler beim Generieren');
+      }
+      
+      const result = await res.json();
+      
+      // Speichere die Timing-Parameter im LocalStorage für die Anzeige im Spielplan
+      localStorage.setItem(`tournament_${tournament.id}_yearGroup_${selectedYearGroupId}_timing`, JSON.stringify(params));
+      
       queryClient.invalidateQueries({ queryKey: ['brackets'] });
+      queryClient.invalidateQueries({ queryKey: ['matches'] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['standings'] });
       await modal.alert({ title: 'Erfolg', message: `✅ ${result.message}` });
     } catch (err) {
       await modal.alert({ title: 'Fehler', message: 'Fehler beim Generieren: ' + (err as Error).message });
@@ -89,6 +140,74 @@ export default function TurnierModus({ tournament, selectedYearGroupId, yearGrou
         <div style={{ marginTop: 8, padding: '8px 16px', background: '#0d6efd', color: '#fff', borderRadius: 8, display: 'inline-block', fontWeight: '600' }}>
           {MODI.find(m => m.value === tournament.turnierModus)?.label || tournament.turnierModus}
         </div>
+
+        {(tournament.turnierModus === 'GRUPPEN_KO' || tournament.turnierModus === 'KO') && (
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #dee2e6' }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: 14, color: '#212529' }}>Details zum K.O.-System</h4>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {tournament.turnierModus === 'GRUPPEN_KO' && (
+                <div>
+                  <label style={{ fontSize: 13, color: '#495057', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>
+                    Wie viele Mannschaften kommen pro Gruppe weiter?
+                  </label>
+                  <input 
+                    type="number" min="1" value={advancingCount} 
+                    onChange={e => setAdvancingCount(parseInt(e.target.value) || 2)} 
+                    style={{ ...inputStyle, width: 100 }} 
+                  />
+                </div>
+              )}
+
+              {tournament.turnierModus === 'GRUPPEN_KO' && (
+                <div>
+                  <label style={{ fontSize: 13, color: '#495057', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>
+                    Übernahmeregel (falls Qualifikanten nicht aufgehen)
+                  </label>
+                  <select 
+                    value={qualRule} 
+                    onChange={e => setQualRule(e.target.value)}
+                    style={{ ...inputStyle, width: 250 }}
+                  >
+                    <option value="BEST_THIRDS">Beste Gruppendritte rücken auf</option>
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label style={{ fontSize: 13, color: '#495057', fontWeight: 'bold', display: 'block', marginBottom: 6 }}>
+                  Platzierungsspiele
+                </label>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                  <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={playoutAll} 
+                      onChange={e => { setPlayoutAll(e.target.checked); if(e.target.checked) setThirdPlace(true); }}
+                    />
+                    Alle K.O.-Plätze ausspielen (Trostrunde)
+                  </label>
+                  <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, cursor: playoutAll ? 'not-allowed' : 'pointer', opacity: playoutAll ? 0.5 : 1 }}>
+                    <input 
+                      type="checkbox" 
+                      checked={thirdPlace} 
+                      onChange={e => setThirdPlace(e.target.checked)}
+                      disabled={playoutAll}
+                    />
+                    Spiel um Platz 3
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 8 }}>
+                <button 
+                  onClick={handleUpdateSettings}
+                  style={{ ...btnStyle, background: '#198754', color: '#fff', border: 'none' }}
+                >Einstellungen speichern</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modus-Auswahl */}
@@ -128,9 +247,30 @@ export default function TurnierModus({ tournament, selectedYearGroupId, yearGrou
         
         {selectedYearGroupId ? (
           <>
-            <p style={{ margin: '0 0 12px 0', fontSize: 13, color: '#15803d' }}>
-              📍 Aktueller Kontext: <strong>{yearGroups.find(y => y.id === selectedYearGroupId)?.name}</strong>
-            </p>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Spieldauer pro Halbzeit (Min)</label>
+                <input type="number" min="1" value={params.matchDuration} onChange={e => setParams({...params, matchDuration: parseInt(e.target.value)||1})} style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 6, width: 180 }} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Anzahl Halbzeiten</label>
+                <select value={params.halves} onChange={e => setParams({...params, halves: parseInt(e.target.value)})} style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 6, width: 150 }}>
+                  <option value={1}>1 Halbzeit</option>
+                  <option value={2}>2 Halbzeiten</option>
+                </select>
+              </div>
+              {params.halves > 1 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Halbzeitpause (Min)</label>
+                  <input type="number" min="0" value={params.halftimeBreak} onChange={e => setParams({...params, halftimeBreak: parseInt(e.target.value)||0})} style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 6, width: 140 }} />
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Pause nach Spiel (Min)</label>
+                <input type="number" min="0" value={params.breakDuration} onChange={e => setParams({...params, breakDuration: parseInt(e.target.value)||0})} style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 6, width: 150 }} />
+              </div>
+            </div>
+
             <button
               onClick={handleGenerateMatches}
               disabled={generating}
@@ -152,9 +292,9 @@ export default function TurnierModus({ tournament, selectedYearGroupId, yearGrou
           💡 <strong>Wichtig:</strong> Bevor du den Spielplan generierst, musst du Teams anlegen!
         </p>
         <ol style={{ margin: '8px 0 0 0', paddingLeft: 20, fontSize: 13, color: '#856404' }}>
-          <li style={{ marginBottom: 4 }}>📋 <strong>Teilnehmer:</strong> Vereine anklicken + pro Verein "✓ Hinzufügen" klicken (erzeugt z.B. "TSV Holm 1")</li>
-          <li style={{ marginBottom: 4 }}>👥 <strong>Gruppen & Teams:</strong> Falls du Gruppen willst → Teams den Gruppen zuweisen</li>
-          <li>⚙️ <strong>Hier:</strong> Modus wählen + "Spielplan generieren" klicken</li>
+          <li style={{ marginBottom: 4 }}>📋 <strong>Teilnehmer:</strong> Vereine anklicken. Das System legt automatisch ein erstes Team (z.B. "TSV Holm 1") an. Bei Bedarf kannst du dort noch weitere Teams ergänzen.</li>
+          <li style={{ marginBottom: 4 }}>👥 <strong>Gruppen & Teams:</strong> Falls du Gruppen willst → Teams im Dropdown auswählen und den Gruppen zuweisen.</li>
+          <li>⚙️ <strong>Hier:</strong> Modus wählen + Spieldauer einstellen + "Spielplan generieren" klicken</li>
         </ol>
       </div>
 

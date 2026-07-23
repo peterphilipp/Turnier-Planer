@@ -8,7 +8,7 @@ export default function Privacy() {
       <h1 style={{ color: '#333', borderBottom: '2px solid #0d6efd', paddingBottom: 12 }}>Datenschutzerklärung</h1>
 
       <p style={{ color: '#666', fontSize: 14, marginBottom: 24 }}>
-        Stand: Juli 2025 &nbsp;|&nbsp; Verantwortlich: Peter Philipp
+        Stand: Juli 2026 &nbsp;|&nbsp; Verantwortlich: Peter Philipp
       </p>
 
       {[
