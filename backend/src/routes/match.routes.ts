@@ -5,6 +5,7 @@ import {
   createMatch,
   updateMatch,
   advanceKO,
+  assignKOTeams,
   deleteMatch,
   matchSchema
 } from '../controllers/match.controller.js';
@@ -16,5 +17,6 @@ router.post('/', validate(matchSchema), createMatch);
 router.patch('/:id', validate(matchSchema.partial()), updateMatch);
 router.delete('/:id', deleteMatch);
 router.post('/:id/advance', advanceKO);
+router.post('/assign-ko-teams', assignKOTeams);
 
 export default router;

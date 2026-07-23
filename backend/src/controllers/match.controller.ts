@@ -106,6 +106,112 @@ export const advanceKO = async (req: Request, res: Response) => {
   return res.json(match);
 };
 
+// Teams aus Gruppenphase in KO-Spiele zuweisen basierend auf Platzhalter-Text (z.B. "1. Gruppe A")
+export const assignKOTeams = async (req: Request, res: Response) => {
+  const { tournamentId, yearGroupId } = req.body;
+
+  if (!tournamentId || !yearGroupId) {
+    return res.status(400).json({ error: 'tournamentId und yearGroupId erforderlich' });
+  }
+
+  // Alle Gruppen-Matches laden (nur für diese yearGroup)
+  const gruppenMatches = await prisma.match.findMany({
+    where: { tournamentId, yearGroupId, phase: { contains: 'Gruppe', or: { equals: 'Liga' } }, status: 'gespielt' }
+  });
+
+  if (gruppenMatches.length === 0) {
+    return res.status(400).json({ error: 'Keine gespielten Gruppenspiele gefunden. Bitte zuerst alle Spiele absolvieren.' });
+  }
+
+  // Standings pro Gruppe berechnen
+  const groupStats = new Map<string, Map<number, { played: number; won: number; drawn: number; lost: number; goalsFor: number; goalsAgainst: number }>>();
+
+  for (const match of gruppenMatches) {
+    if (!match.phase || !match.teamAId || !match.teamBId || match.scoreA === null || match.scoreB === null) continue;
+
+    const phase = match.phase;
+    if (!groupStats.has(phase)) groupStats.set(phase, new Map());
+
+    [match.teamAId, match.teamBId].forEach((teamId, idx) => {
+      let stats = groupStats.get(phase)?.get(teamId);
+      if (!stats) { stats = { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0 }; groupStats.get(phase)?.set(teamId, stats); }
+      stats.played++;
+      const gf = idx === 0 ? match.scoreA : match.scoreB;
+      const ga = idx === 0 ? match.scoreB : match.scoreA;
+      stats.goalsFor += gf!;
+      stats.goalsAgainst += ga!;
+      if (gf! > ga!) stats.won++;
+      else if (gf! === ga!) stats.drawn++;
+      else stats.lost++;
+    });
+  }
+
+  // Pro Gruppe sortierte Teams erstellen
+  const groupRankings: Record<string, number[]> = {};
+  for (const [groupName, stats] of groupStats) {
+    const ranked = Array.from(stats.entries())
+      .map(([teamId, s]) => ({ teamId, ...s, points: s.won * 3 + s.drawn }))
+      .sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        const diffA = a.goalsFor - a.goalsAgainst;
+        const diffB = b.goalsFor - b.goalsAgainst;
+        if (diffB !== diffA) return diffB - diffA;
+        return b.goalsFor - a.goalsFor;
+      })
+      .map(x => x.teamId);
+    groupRankings[groupName] = ranked;
+  }
+
+  // Alle KO-Matches laden und Teams zuweisen
+  const koMatches = await prisma.match.findMany({
+    where: { tournamentId, yearGroupId },
+    orderBy: { id: 'asc' }
+  });
+
+  let updatedCount = 0;
+
+  for (const match of koMatches) {
+    if (!match.placeholderA && !match.placeholderB) continue; // Kein Platzhalter → skip
+
+    const updateData: any = {};
+
+    // placeholderA parsen: "1. Gruppe A" → position=1, group="Gruppe A"
+    if (match.placeholderA) {
+      const matchPosGroup = match.placeholderA.match(/^(\d+)\.\s*(.+)$/);
+      if (matchPosGroup) {
+        const pos = parseInt(matchPosGroup[1]);
+        const groupName = matchPosGroup[2].trim();
+        const ranking = groupRankings[groupName];
+        if (ranking && ranking[pos - 1]) {
+          updateData.teamAId = ranking[pos - 1];
+          updatedCount++;
+        }
+      }
+    }
+
+    // placeholderB parsen
+    if (match.placeholderB) {
+      const matchPosGroup = match.placeholderB.match(/^(\d+)\.\s*(.+)$/);
+      if (matchPosGroup) {
+        const pos = parseInt(matchPosGroup[1]);
+        const groupName = matchPosGroup[2].trim();
+        const ranking = groupRankings[groupName];
+        if (ranking && ranking[pos - 1]) {
+          updateData.teamBId = ranking[pos - 1];
+          updatedCount++;
+        }
+      }
+    }
+
+    // Nur aktualisieren wenn sich was geändert hat
+    if (Object.keys(updateData).length > 0) {
+      await prisma.match.update({ where: { id: match.id }, data: updateData });
+    }
+  }
+
+  return res.json({ success: true, updatedCount });
+};
+
 export const updateMatch = async (req: Request, res: Response) => {
   const body = req.body;
   if (body.time) body.time = new Date(body.time);

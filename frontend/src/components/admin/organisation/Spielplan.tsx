@@ -192,12 +192,26 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
     }
   };
 
-  const advanceMatch = async (matchId: number) => {
+  const advanceMatch = async () => {
     try {
-      if (tournamentId && yearGroupId) {
-        await apiPatch(`/api/matches/${matchId}/advance`, {});
+      if (!tournamentId || !yearGroupId) {
+        alert('Bitte Turnier und Jahrgang auswählen');
+        return;
       }
-      queryClient.invalidateQueries({ queryKey: ['matches', tournamentId] });
+      // Teams aus Gruppenphase in KO-Spiele zuweisen
+      const res = await fetch(`/api/matches/assign-ko-teams`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tournamentId, yearGroupId })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert('Fehler: ' + (err.error || 'Teams konnten nicht zugewiesen werden'));
+        return;
+      }
+      // Nach Zuweisung alle KO-Matches auf "geplant" setzen
+      await queryClient.invalidateQueries({ queryKey: ['matches', tournamentId] });
+      alert('✅ Teams erfolgreich aus der Gruppenphase übernommen!');
     } catch (e) {
       alert('Fehler beim Fortsetzen: ' + (e as Error).message);
     }
@@ -390,6 +404,25 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: '600', color: '#212557' }}>🏆 KO-Phase</h3>
       
+      {/* Einmaliger Button zum Übernehmen der Teams aus der Gruppenphase */}
+      <div style={{ marginBottom: 16 }}>
+        <button
+          onClick={advanceMatch}
+          style={{
+            padding: '8px 20px',
+            background: '#198754',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontSize: 14,
+            fontWeight: '600'
+          }}
+        >
+          📋 Teams aus Gruppenphase übernehmen
+        </button>
+      </div>
+      
       {koMatches.length === 0 ? (
         <div style={{ padding: 32, textAlign: 'center', color: '#666' }}>
           <p style={{ fontSize: 48, margin: '0 0 16px 0' }}>🏆</p>
@@ -484,25 +517,6 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
                 </div>
               </div>
               
-              {/* Advance button for KO matches */}
-              {match.status === 'abgeschlossen' && (
-                <div style={{ marginTop: 8, textAlign: 'right' }}>
-                  <button 
-                    onClick={() => advanceMatch(match.id)}
-                    style={{ 
-                      padding: '4px 12px', 
-                      background: '#0d6efd', 
-                      color: '#fff', 
-                      border: 'none', 
-                      borderRadius: 6, 
-                      cursor: 'pointer',
-                      fontSize: 12
-                    }}
-                  >
-                    ▶ Nächste Runde fortsetzen
-                  </button>
-                </div>
-              )}
             </div>
           ))}
         </div>
