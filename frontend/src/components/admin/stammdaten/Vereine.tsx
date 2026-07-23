@@ -7,10 +7,12 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
   const queryClient = useQueryClient();
   const { data: clubs = [] } = useQuery<Club[]>({ queryKey: ['clubs'], queryFn: getClubs });
   
-  const [clubForm, setClubForm] = useState({ name: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' });
+  const [clubForm, setClubForm] = useState({ name: '', city: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' });
   const [editingClub, setEditingClub] = useState<number | null>(null);
   const [clubLogo, setClubLogo] = useState<string | null>(null);
   const [extractedColors, setExtractedColors] = useState<{ primary: string; secondary: string; accent: string } | null>(null);
+  // Temporäre Farbreihenfolge für Tausch-Funktion
+  const [colorOrder, setColorOrder] = useState<('primary' | 'secondary' | 'accent')[]>(['primary', 'secondary', 'accent']);
   const [colorStrategyIndex, setColorStrategyIndex] = useState(0);
   const [analysisCount, setAnalysisCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -27,6 +29,15 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
     }
   }, [extractedColors]);
 
+  // Farben zwischen Positionen tauschen (1↔2, 2↔3, 1↔3)
+  const swapColors = (posA: number, posB: number) => {
+    setColorOrder(prev => {
+      const next = [...prev];
+      [next[posA], next[posB]] = [next[posB], next[posA]];
+      return next;
+    });
+  };
+
   // Reset der Analyse-Strategie
   const resetAnalysis = () => {
     setColorStrategyIndex(0);
@@ -36,8 +47,9 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
   const saveClub = async () => {
     if (!clubForm.name.trim()) return alert('Name erforderlich!');
     
-    const data: { name: string; primaryColor: string; secondaryColor: string; accentColor: string; logo?: string } = {
+    const data: { name: string; city?: string | null; primaryColor: string; secondaryColor: string; accentColor: string; logo?: string } = {
       name: clubForm.name,
+      city: clubForm.city || undefined,
       primaryColor: clubForm.primaryColor,
       secondaryColor: clubForm.secondaryColor,
       accentColor: clubForm.accentColor
@@ -50,7 +62,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
     }
     queryClient.invalidateQueries({ queryKey: ['clubs'] });
     resetAnalysis();
-    setClubForm({ name: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' });
+    setClubForm({ name: '', city: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' });
     setClubLogo(null);
     setEditingClub(null);
   };
@@ -165,77 +177,130 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
       <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>🛡️ Vereine & Clubs</h3>
       
-      {/* Vereinsname */}
+      {/* Vereinsname + Stadt */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Vereinsname</label>
+          <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="TSV Musterhausen" style={{ ...inputStyle, width: '100%' }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Stadt</label>
+          <input value={clubForm.city} onChange={e => setClubForm({ ...clubForm, city: e.target.value })} placeholder="Musterstadt" style={{ ...inputStyle, width: '100%' }} />
+        </div>
+      </div>
+
+      {/* Alle 3 Farben mit Tausch-Funktion */}
       <div style={{ marginBottom: 12 }}>
-        <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Vereinsname</label>
-        <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="TSV Musterhausen" style={{ ...inputStyle, width: '100%' }} />
-      </div>
+        <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold', display: 'block', marginBottom: 8 }}>🎨 Farbkombination (Positionen tauschbar)</label>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            {/* Position 1 */}
+            <div style={{ textAlign: 'center', minWidth: 70 }}>
+              <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Pos. 1</div>
+              <input
+                type="color"
+                value={extractedColors ? extractedColors[colorOrder[0]] : clubForm.primaryColor}
+                onChange={e => {
+                  if (extractedColors) {
+                    const key = colorOrder[0];
+                    setExtractedColors({ ...extractedColors, [key]: e.target.value });
+                  } else {
+                    setClubForm(prev => ({ ...prev, primaryColor: e.target.value }));
+                  }
+                }}
+                style={{ width: 48, height: 36, padding: 0, border: '2px solid #dee2e6', borderRadius: 6, cursor: 'pointer' }}
+              />
+            </div>
 
-      {/* Primärfarbe + Logo */}
-      <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Primärfarbe</label>
-          <input type="color" value={clubForm.primaryColor} onChange={e => setClubForm({ ...clubForm, primaryColor: e.target.value, secondaryColor: shadeColor(e.target.value, -20) })} style={{ width: 60, height: 42, padding: 0, border: '1px solid #dee2e6', borderRadius: 8, cursor: 'pointer' }} />
-        </div>
+            {/* Tausch-Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <button onClick={() => swapColors(0, 1)} title="Pos. 1 ↔ Pos. 2" style={{ ...btnStyle, background: '#f8f9fa', border: '1px solid #dee2e6', fontSize: 14, padding: '2px 6px', cursor: 'pointer' }}>⇅</button>
+              <button onClick={() => swapColors(0, 2)} title="Pos. 1 ↔ Pos. 3" style={{ ...btnStyle, background: '#f8f9fa', border: '1px solid #dee2e6', fontSize: 14, padding: '2px 6px', cursor: 'pointer' }}>⇅</button>
+            </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Logo</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {clubLogo ? (
-              <img src={clubLogo} alt="Preview" style={{ width: 42, height: 42, borderRadius: 8, objectFit: 'contain', border: '1px solid #dee2e6', background: '#fff' }} />
-            ) : (
-              <div style={{ width: 42, height: 42, borderRadius: 8, background: '#e9ecef', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', fontSize: 20 }}>🛡️</div>
-            )}
-            <input type="file" accept="image/*" ref={fileInputRef} onChange={handleLogoUpload} style={{ display: 'none' }} />
-            <button onClick={() => fileInputRef.current?.click()} style={{ ...btnStyle, background: '#fff' }}>Bild wählen</button>
-            {clubLogo && <button onClick={() => { setClubLogo(null); setClubForm({ ...clubForm, logo: '' }); setExtractedColors(null); }} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>X</button>}
-          </div>
-        </div>
-      </div>
+            {/* Position 2 */}
+            <div style={{ textAlign: 'center', minWidth: 70 }}>
+              <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Pos. 2</div>
+              <input
+                type="color"
+                value={extractedColors ? extractedColors[colorOrder[1]] : clubForm.secondaryColor}
+                onChange={e => {
+                  if (extractedColors) {
+                    const key = colorOrder[1];
+                    setExtractedColors({ ...extractedColors, [key]: e.target.value });
+                  } else {
+                    setClubForm(prev => ({ ...prev, secondaryColor: e.target.value }));
+                  }
+                }}
+                style={{ width: 48, height: 36, padding: 0, border: '2px solid #dee2e6', borderRadius: 6, cursor: 'pointer' }}
+              />
+            </div>
 
-      {/* Extrahierte Farben */}
-      {extractedColors && clubLogo && (
-        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #dee2e6' }}>
-          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎨 Vorschlag (Logo-Analyse) — {analysisCount > 0 ? `Analyse ${analysisCount} (${strategies[colorStrategyIndex]?.name || 'Standard'})` : 'Erste Analyse'} ({colorStrategyIndex + 1}/4)
-            <span style={{ fontSize: 11, color: '#28a745', marginLeft: 8 }}>✓ Auto-Sync aktiv</span></label>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-              {(['primary', 'secondary', 'accent'] as const).map(key => (
-                <div key={key} style={{ textAlign: 'center' }}>
-                  <input
-                    type="color"
-                    value={extractedColors[key]}
-                    onChange={e => {
-                      setExtractedColors({ ...extractedColors, [key]: e.target.value });
-                      const clubKey = key === 'primary' ? 'primaryColor' : key === 'secondary' ? 'secondaryColor' : 'accentColor';
-                      setClubForm({ ...clubForm, [clubKey]: e.target.value });
-                    }}
-                    style={{ width: 36, height: 28, padding: 0, border: '1px solid #dee2e6', borderRadius: 4, cursor: 'pointer' }}
-                  />
-                </div>
-              ))}
-              <button onClick={() => {
-                setClubForm({ ...clubForm, primaryColor: extractedColors.primary, secondaryColor: extractedColors.secondary, accentColor: extractedColors.accent });
-              }} style={{ ...btnStyle, background: '#e7f3ff', color: '#0d6efd', border: 'none', fontSize: 12, padding: '4px 10px' }}>
-                ✓ Übernehmen
-              </button>
+            {/* Tausch-Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <button onClick={() => swapColors(1, 0)} title="Pos. 2 ↔ Pos. 1" style={{ ...btnStyle, background: '#f8f9fa', border: '1px solid #dee2e6', fontSize: 14, padding: '2px 6px', cursor: 'pointer' }}>⇅</button>
+              <button onClick={() => swapColors(1, 2)} title="Pos. 2 ↔ Pos. 3" style={{ ...btnStyle, background: '#f8f9fa', border: '1px solid #dee2e6', fontSize: 14, padding: '2px 6px', cursor: 'pointer' }}>⇅</button>
+            </div>
+
+            {/* Position 3 */}
+            <div style={{ textAlign: 'center', minWidth: 70 }}>
+              <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Pos. 3</div>
+              <input
+                type="color"
+                value={extractedColors ? extractedColors[colorOrder[2]] : clubForm.accentColor}
+                onChange={e => {
+                  if (extractedColors) {
+                    const key = colorOrder[2];
+                    setExtractedColors({ ...extractedColors, [key]: e.target.value });
+                  } else {
+                    setClubForm(prev => ({ ...prev, accentColor: e.target.value }));
+                  }
+                }}
+                style={{ width: 48, height: 36, padding: 0, border: '2px solid #dee2e6', borderRadius: 6, cursor: 'pointer' }}
+              />
+            </div>
+
+            {/* Analyse-Steuerung */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginLeft: 8 }}>
+              {extractedColors && (
+                <button onClick={() => {
+                  setClubForm({ ...clubForm, primaryColor: extractedColors.primary, secondaryColor: extractedColors.secondary, accentColor: extractedColors.accent });
+                }} style={{ ...btnStyle, background: '#e7f3ff', color: '#0d6efd', border: 'none', fontSize: 12, padding: '4px 10px' }}>
+                  ✓ Übernehmen
+                </button>
+              )}
               <button onClick={() => {
                 if (!clubLogo) { alert('Bitte zuerst ein Logo hochladen!'); return; }
-                const next = colorStrategyIndex + 1;
+                const next = analysisCount === 0 ? 0 : colorStrategyIndex + 1;
                 setColorStrategyIndex(next);
                 extractColors(clubLogo, next);
               }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', fontSize: 12, padding: '4px 10px' }}>
-                🔄 Strategie {colorStrategyIndex + 1} → {Math.min(colorStrategyIndex + 2, 4)}
+                {analysisCount === 0 ? '🔄 Logo analysieren' : `🔄 Strategie ${colorStrategyIndex + 1} → ${Math.min(colorStrategyIndex + 2, 4)}`}
               </button>
             </div>
-          </div>
-        )}
+        </div>
+      </div>
+
+      {/* Logo Upload */}
+      <div style={{ marginBottom: 12 }}>
+        <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Logo</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+            {clubLogo ? (
+              <img src={clubLogo} alt="Preview" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'contain', border: '1px solid #dee2e6', background: '#fff' }} />
+            ) : (
+              <div style={{ width: 48, height: 48, borderRadius: 8, background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', fontSize: 20 }}>🛡️</div>
+            )}
+            <input type="file" accept="image/*" ref={fileInputRef} onChange={handleLogoUpload} style={{ display: 'none' }} />
+            <button onClick={() => fileInputRef.current?.click()} style={{ ...btnStyle, background: '#fff' }}>Bild wählen</button>
+            {clubLogo && <button onClick={() => { setClubLogo(null); setClubForm({ ...clubForm, logo: '' }); setExtractedColors(null); setColorOrder(['primary', 'secondary', 'accent']); }} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>✕</button>}
+        </div>
+      </div>
 
       {/* Speichern/Abbrechen */}
       <div style={{ display: 'flex', gap: 10, marginTop: 16, paddingTop: 12, borderTop: '1px solid #dee2e6' }}>
         <button onClick={saveClub} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: '600', fontSize: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', height: 42 }}>
           {editingClub ? '💾 Speichern' : '➕ Verein anlegen'}
         </button>
-        {editingClub && <button onClick={() => { resetAnalysis(); setEditingClub(null); setClubForm({ name: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' }); setClubLogo(null); }} style={{ ...btnStyle, background: '#e9ecef', height: 42 }}>Abbrechen</button>}
+        {editingClub && <button onClick={() => { resetAnalysis(); setEditingClub(null); setClubForm({ name: '', city: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' }); setClubLogo(null); }} style={{ ...btnStyle, background: '#e9ecef', height: 42 }}>Abbrechen</button>}
       </div>
     </div>
 
@@ -252,6 +317,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
             )}
             <div style={{ flex: 1 }}>
               <h4 style={{ margin: '0 0 4px 0', fontSize: 16, color: '#212529' }}>{club.name}</h4>
+              {club.city && <div style={{ fontSize: 13, color: '#6c757d' }}>📍 {club.city}</div>}
               <div style={{ display: 'flex', gap: 6 }}>
                 <span style={{ width: 16, height: 16, borderRadius: '50%', background: club.primaryColor, display: 'inline-block' }}></span>
                 <span style={{ width: 16, height: 16, borderRadius: '50%', background: club.secondaryColor, display: 'inline-block' }}></span>
@@ -259,7 +325,12 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button onClick={() => { resetAnalysis(); setEditingClub(club.id); setClubForm({ name: club.name, primaryColor: club.primaryColor, secondaryColor: club.secondaryColor, accentColor: club.accentColor, logo: club.logo || '' }); setClubLogo(club.logo); if (club.logo) extractColors(club.logo); }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none' }}>✏️</button>
+              <button onClick={() => {
+                resetAnalysis();
+                setEditingClub(club.id);
+                setClubForm({ name: club.name, city: club.city || '', primaryColor: club.primaryColor, secondaryColor: club.secondaryColor, accentColor: club.accentColor, logo: club.logo || '' });
+                setClubLogo(club.logo);
+              }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none' }}>✏️</button>
               <button onClick={() => deleteClub(club.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>🗑️</button>
             </div>
           </div>
