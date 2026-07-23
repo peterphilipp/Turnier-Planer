@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 export const matchSchema = z.object({
   tournamentId: z.number().int().positive(),
+  yearGroupId: z.number().int().positive().nullable().optional(),
   timeSlotId: z.number().int().positive().nullable().optional(),
   fieldId: z.number().int().positive().nullable().optional(),
   teamAId: z.number().int().positive(),
