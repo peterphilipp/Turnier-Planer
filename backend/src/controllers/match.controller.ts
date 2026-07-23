@@ -121,9 +121,8 @@ export const updateMatch = async (req: Request, res: Response) => {
     include: { teamA: true, teamB: true, timeSlot: true, field: true }
   });
   
-  if ((body.scoreA !== undefined || body.scoreB !== undefined) && body.status === 'gespielt') {
-    await recalculateStandingsForTournament(m.tournamentId);
-  }
+  // Standings werden jetzt client-seitig neu geladen (React Query)
+  // Hier nur das Match zurückgeben
   
   return res.json(m);
 };

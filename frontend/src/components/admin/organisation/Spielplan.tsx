@@ -59,12 +59,15 @@ export default function Spielplan({ tournamentId, yearGroupId }: Props) {
     for (const t of teamsRaw) { teamsMap[t.id] = t; }
   }
 
-  // Tabelle laden
+  // Tabelle laden (mit yearGroupId Filter)
   const { data: standings } = useQuery<StandingsEntry[]>({
     queryKey: ['standings', tournamentId, yearGroupId],
     queryFn: async () => {
       if (!tournamentId) return [];
-      const res = await fetch(`/api/standings/${tournamentId}`);
+      const url = yearGroupId 
+        ? `/api/standings/${tournamentId}?yearGroupId=${yearGroupId}`
+        : `/api/standings/${tournamentId}`;
+      const res = await fetch(url);
       return res.json().catch(() => []);
     },
     enabled: !!tournamentId && showTable,
@@ -109,12 +112,18 @@ export default function Spielplan({ tournamentId, yearGroupId }: Props) {
   const handleScoreChange = async (matchId: number, side: 'A' | 'B', value: string) => {
     if (value === '') return;
     const numVal = parseInt(value);
-    if (!isNaN(numVal) && numVal >= 0 && tournamentId && yearGroupId) {
-      await apiPatch(`/api/matches/${matchId}`, { 
-        [`score${side}`]: numVal,
-        status: 'gespielt'
-      });
-      queryClient.invalidateQueries({ queryKey: ['matches', tournamentId, yearGroupId] });
+    if (!isNaN(numVal) && numVal >= 0 && tournamentId) {
+      try {
+        await apiPatch(`/api/matches/${matchId}`, { 
+          [`score${side}`]: numVal,
+          status: 'gespielt'
+        });
+        // Alle relevanten Queries invalidieren
+        queryClient.invalidateQueries({ queryKey: ['matches', tournamentId] });
+        queryClient.invalidateQueries({ queryKey: ['standings', tournamentId, yearGroupId] });
+      } catch (e) {
+        console.error('Score speichern fehlgeschlagen:', e);
+      }
     }
   };
 
