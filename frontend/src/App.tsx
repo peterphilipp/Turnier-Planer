@@ -18,6 +18,7 @@ import Jahrgaenge from './components/admin/stammdaten/Jahrgaenge';
 import Jobslots from './components/admin/organisation/Jobslots';
 import Buchungen from './components/admin/organisation/Buchungen';
 import Uebersicht from './components/admin/organisation/Uebersicht';
+import Spielplan from './components/admin/organisation/Spielplan';
 import LebensmittelSlots from './components/admin/organisation/LebensmittelSlots';
 import TurnierTage from './components/admin/organisation/TurnierTage';
 import GruppenTeams from './components/admin/organisation/GruppenTeams';
@@ -283,12 +284,7 @@ export default function App() {
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'turnier-tage' && <TurnierTage tournamentId={selectedTournamentId} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'gruppen-teams' && <GruppenTeams tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'modus' && <TurnierModus tournament={tournaments.find(t => t.id === selectedTournamentId) || null} selectedYearGroupId={selectedYearGroupId} yearGroups={(tournaments.find(t => t.id === selectedTournamentId)?.yearGroups as any) || []} />}
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan' && (
-          <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: '600', color: '#212529' }}>⚽ Spielplan (Matches)</h3>
-            <p style={{ color: '#666' }}>Wird in Phase 1 Schritt 4 implementiert.</p>
-          </div>
-        )}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan' && <Spielplan tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
         
         {activeMainTab === 'organisation' && activeOrgTab === 'uebersicht' && <Uebersicht selectedTournament={selectedTournamentId} />}
         {activeMainTab === 'organisation' && activeOrgTab === 'buchungen' && <Buchungen selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
