@@ -153,8 +153,9 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
               </button>
               <button onClick={() => {
                 if (clubLogo) {
-                  setColorStrategyIndex(prev => prev + 1);
-                  extractColors(clubLogo, colorStrategyIndex + 1);
+                  const next = colorStrategyIndex + 1;
+                  setColorStrategyIndex(next);
+                  extractColors(clubLogo, next);
                 }
               }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', fontSize: 12, padding: '4px 10px' }}>
                 🔄 Neu analysieren
