@@ -10,7 +10,7 @@ interface Shift {
 }
 interface VolunteerShift { id: number; volunteerId: number; date: string; slot: string; role: string; areaId: string | null; shiftId: number | null; shift: { id: number; date: string; slot: string; zeitslot: { name: string; startTime: string; endTime: string; color: string } | null; arbeitsbereich: { name: string; icon: string; color: string } | null; arbeitsbereichId: number | null; maxVolunteers: number; } | null; }
 interface VolunteerChild { id: number; childName: string; childYear: number; }
-interface Volunteer { id: number; name: string; email: string | null; phone: string | null; childName: string | null; childYear: number | null; tournamentId: number | null; children?: VolunteerChild[]; }
+interface Volunteer { id: number; name: string; email: string | null; phone: string | null; childName: string | null; childYear: number | null; tournamentId: number | null; consentGiven?: boolean; consentDate?: string; children?: VolunteerChild[]; }
 interface Club { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
 interface FoodCategory { id: number; name: string; icon: string; items: { id: number; name: string; price: string | null; unit: string }[]; }
 interface FoodDonation { id: number; foodItemId: number; quantity: number; note: string | null; createdAt: string; foodDonationSlotId: number | null; foodItem: { id: number; name: string; unit: string; category: { id: number; name: string; icon: string } } | null; }
@@ -429,7 +429,7 @@ export default function SelfServiceView() {
                 const res = await fetch('/api/auth/register', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ name: regName, email: regEmail, phone: regPhone || null, password: regPassword, children: regChildren.filter(c => c.childName || c.childYear).map(c => ({ childName: c.childName || null, childYear: c.childYear ? parseInt(c.childYear) : null })) }),
+                  body: JSON.stringify({ name: regName, email: regEmail, phone: regPhone || null, password: regPassword, children: regChildren.filter(c => c.childName || c.childYear).map(c => ({ childName: c.childName || null, childYear: c.childYear ? parseInt(c.childYear) : null })), consentGiven: true }),
                 });
                 if (res.ok) {
                   const data = await res.json();
@@ -477,6 +477,11 @@ export default function SelfServiceView() {
               ))}
               <button type="button" onClick={() => setEditChildren([...editChildren, { childName: '', childYear: '' }])} style={{ ...btnStyle, background: '#f8f9fa', border: '1px dashed #adb5bd', color: '#495057', padding: '8px 12px', fontSize: 14, marginTop: 4 }}>➕ Kind hinzufügen</button>
             </div>
+            {volunteer?.consentGiven && (
+              <div style={{ padding: '10px 14px', background: '#e7f3ff', borderRadius: 8, fontSize: 13, color: '#0d6efd' }}>
+                ✅ Einwilligung zur Datenverarbeitung erteilt am {volunteer.consentDate ? new Date(volunteer.consentDate).toLocaleDateString('de-DE') : '—'}
+              </div>
+            )}
             <button onClick={async () => {
               try {
                 const res = await fetch('/api/auth/profile', {
@@ -566,6 +571,24 @@ export default function SelfServiceView() {
                 }
               }
             }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>🔑 Passwort ändern</button>
+            <button onClick={async () => {
+              setMenuOpen(false);
+              if (!confirm('Bist du sicher, dass du deine Einwilligung widerrufen möchtest? Deine Daten werden nicht gelöscht, aber sie können nicht mehr verarbeitet werden.')) return;
+              try {
+                const r = await fetch('/api/auth/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ consentGiven: false }) });
+                if (r.ok) alert('Einwilligung widerrufen. Deine Daten werden nicht gelöscht, aber die Verarbeitung eingestellt.');
+                else alert('Fehler beim Widerrufen');
+              } catch { alert('Fehler beim Widerrufen'); }
+            }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#856404' }}>⚠️ Einwilligung widerrufen</button>
+            <button onClick={async () => {
+              setMenuOpen(false);
+              if (!confirm('Bist du sicher, dass du dein Konto löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden. Alle personenbezogenen Daten werden entfernt.')) return;
+              try {
+                const r = await fetch('/api/auth/account', { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+                if (r.ok) { alert('Dein Konto wurde gelöscht.'); logout(); }
+                else { const d = await r.json(); alert(d.error || 'Fehler'); }
+              } catch { alert('Fehler beim Löschen'); }
+            }} style={{ width: '100%', padding: '10px 16px', background: '#fff3f3', border: '2px solid #dc3545', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#dc3545', fontWeight: 'bold' }}>🗑️ Konto löschen (Art. 17 DSGVO)</button>
             <button onClick={() => { setMenuOpen(false); setShowRegisterForm(false); logout(); }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#dc3545' }}>🚪 Abmelden</button>
           </div>
         )}

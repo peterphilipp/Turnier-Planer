@@ -22,7 +22,7 @@ export interface Shift { id: number; tournamentId: number; date: string; zeitslo
 export interface Arbeitsbereich { id: number; name: string; icon: string; color: string; minVolunteers: number; maxVolunteers: number; }
 export interface Zeitslot { id: number; name: string; startTime: string; endTime: string; color: string; order: number; }
 export interface VolunteerShift { id: number; volunteerId: number; tournamentId: number | null; date: string; slot: string; role: string; areaId: number | null; shiftId: number | null; arbeitsbereichId?: number | null; arbeitsbereich: { id: number; name: string; icon: string; color: string } | null; volunteer?: { id: number; name: string; roles: string[]; phone?: string }; }
-export interface Volunteer { id: number; name: string; email: string | null; phone: string | null; roles: string[]; tournamentId: number | null; }
+export interface Volunteer { id: number; name: string; email: string | null; phone: string | null; roles: string[]; tournamentId: number | null; consentGiven?: boolean; consentDate?: string; children?: { childName: string; childYear: number }[]; }
 export interface Club { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
 export interface FoodCategory { id: number; name: string; icon: string; order: number; items: FoodItem[]; }
 export interface FoodItem { id: number; categoryId: number; name: string; price: string | null; unit: string; category?: { id: number; name: string; icon: string }; }
