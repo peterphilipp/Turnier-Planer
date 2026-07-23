@@ -31,6 +31,12 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
       : allMatches
   ) : [];
 
+  console.log('DEBUG Spielplan:', { tournamentId, yearGroupId, phase, total: allMatchesFiltered.length });
+  if (allMatchesFiltered.length > 0) {
+    const phases = Array.from(new Set(allMatchesFiltered.map(m => m.phase)));
+    console.log('DEBUG Phasen:', phases);
+  }
+
   // Unterscheidung: Gruppenspiele haben Phase die mit "Gruppe" beginnt oder "Liga"
   const isGroupPhase = (phaseVal: string | null) => phaseVal != null && (phaseVal.startsWith('Gruppe') || phaseVal === 'Liga');
 
@@ -44,10 +50,7 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
     ? allMatchesFiltered.filter(m => !isGroupPhase(m.phase) && m.phase != null)
     : [];
 
-  console.log('DEBUG Spielplan:', { tournamentId, yearGroupId, phase, total: allMatchesFiltered.length, gruppen: gruppenMatches.length, ko: koMatches.length });
-  if (phase === 'ko' && koMatches.length > 0) {
-    console.log('DEBUG KO matches:', koMatches.map(m => ({ id: m.id, phase: m.phase })));
-  }
+  console.log('DEBUG Ergebnis:', { gruppen: gruppenMatches.length, ko: koMatches.length });
 
   // Fields für Labels
   const { data: fields = [] } = useQuery<Field[]>({
