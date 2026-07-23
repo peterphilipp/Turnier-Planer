@@ -52,67 +52,110 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
   ];
 
   // Canvas-basierte Farbanalyse mit mehreren Strategien
-  const extractColors = (imgSrc: string, strategy?: number) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d')!;
-      canvas.width = 100;
-      canvas.height = 100;
-      ctx.drawImage(img, 0, 0, 100, 100);
-      const data = ctx.getImageData(0, 0, 100, 100).data;
+  const extractColors = (imgSrc: string, strategyIndex?: number) => {
+    console.log('🔍 extractColors aufgerufen:', !!imgSrc, 'Strategie:', strategyIndex);
+    
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = () => {
+        console.log('✅ Bild geladen:', img.width, 'x', img.height);
+        
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { console.error('Kein Canvas Context'); return; }
+        
+        canvas.width = 100;
+        canvas.height = 100;
+        ctx.drawImage(img, 0, 0, 100, 100);
+        const imageData = ctx.getImageData(0, 0, 100, 100).data;
+        console.log('📊 Pixel-Daten gelesen:', imageData.length, 'Werte');
 
+        // Verschiedene Quantisierungs-Strategien für bessere Ergebnisse
+        const strategies = [
+          { step: 32, skip: 8, minBrightness: 50, name: 'Standard' },
+          { step: 64, skip: 16, minBrightness: 80, name: 'Grob (weniger Farben)' },
+          { step: 16, skip: 4, minBrightness: 20, name: 'Fein (mehr Nuancen)' },
+          { step: 48, skip: 32, minBrightness: 100, name: 'Extrem grob' },
+        ];
 
+        const s = strategyIndex !== undefined ? strategies[strategyIndex % strategies.length] : strategies[0];
+        console.log(`🎯 Strategie ${strategyIndex ?? 0}: step=${s.step}, skip=${s.skip}, minBrightness=${s.minBrightness}`);
 
-      const s = strategy !== undefined ? strategies[strategy % strategies.length] : strategies[0];
-      console.log(`Farbanalyse Strategie ${strategy ?? 0}: step=${s.step}, skip=${s.skip}, minBrightness=${s.minBrightness}`);
+        // Farben sammeln mit gewählter Strategie
+        const colorMap: Record<string, number> = {};
+        let totalPixels = 0;
+        for (let i = 0; i < imageData.length; i += s.skip * 4) {
+          const r = imageData[i];
+          const g = imageData[i + 1];
+          const b = imageData[i + 2];
+          totalPixels++;
+          
+          // Helle Farben bevorzugen
+          if (r < s.minBrightness && g < s.minBrightness && b < s.minBrightness) continue;
+          
+          let qr = Math.round(r / s.step) * s.step;
+          let qg = Math.round(g / s.step) * s.step;
+          let qb = Math.round(b / s.step) * s.step;
+          qr = Math.min(qr, 255); qg = Math.min(qg, 255); qb = Math.min(qb, 255);
+          
+          const key = `${qr},${qg},${qb}`;
+          colorMap[key] = (colorMap[key] || 0) + 1;
+        }
 
-      // Farben sammeln mit gewählter Strategie
-      const colorMap: Record<string, number> = {};
-      for (let i = 0; i < data.length; i += s.skip) {
-        let r = Math.round(data[i] / s.step) * s.step;
-        let g = Math.round(data[i + 1] / s.step) * s.step;
-        let b = Math.round(data[i + 2] / s.step) * s.step;
-        if (r < s.minBrightness && g < s.minBrightness && b < s.minBrightness) continue;
-        r = Math.min(r, 255); g = Math.min(g, 255); b = Math.min(b, 255);
-        const key = `${r},${g},${b}`;
-        colorMap[key] = (colorMap[key] || 0) + 1;
-      }
+        console.log(`📈 ${totalPixels} Pixel analysiert, ${Object.keys(colorMap).length} eindeutige Farben gefunden`);
 
-      // Sortiert nach Häufigkeit, Top 3
-      const sorted = Object.entries(colorMap).sort((a, b) => b[1] - a[1]).slice(0, 3);
-      if (sorted.length >= 3) {
-        const toHex = (rgb: string) => '#' + rgb.split(',').map(c => parseInt(c).toString(16).padStart(2, '0')).join('');
-        const result = { primary: toHex(sorted[0][0]), secondary: toHex(sorted[1][0]), accent: toHex(sorted[2][0]) };
-        console.log(`✅ Farben extrahiert (Strategie ${strategy ?? 0} - ${s.name}):`, result);
-        setExtractedColors(result);
-        setAnalysisCount(prev => prev + 1);
-      } else {
-        console.warn(`⚠️ Nur ${sorted.length} Farben gefunden, benötigt >= 3`);
-      }
-    };
-    img.onerror = () => {
-      console.error('Farbanalyse fehlgeschlagen');
-      alert('Farbanalyse konnte nicht durchgeführt werden.');
-    };
-    img.src = imgSrc;
+        // Sortiert nach Häufigkeit, Top 3
+        const sorted = Object.entries(colorMap).sort((a, b) => b[1] - a[1]).slice(0, 3);
+        console.log(`🏆 Top 3:`, sorted.map(([k, v]) => `${k} (${v})`));
+
+        if (sorted.length >= 3) {
+          const toHex = (rgb: string) => '#' + rgb.split(',').map(c => parseInt(c).toString(16).padStart(2, '0')).join('');
+          const result = { primary: toHex(sorted[0][0]), secondary: toHex(sorted[1][0]), accent: toHex(sorted[2][0]) };
+          console.log(`✅ Farben extrahiert (Strategie ${strategyIndex ?? 0} - ${s.name}):`, result);
+          setExtractedColors(result);
+          setAnalysisCount(prev => prev + 1);
+        } else {
+          console.warn(`⚠️ Nur ${sorted.length} Farben gefunden, benötigt >= 3`);
+          alert('Das Logo hat nicht genug verschiedene Farben für eine Analyse.');
+        }
+      };
+
+      img.onerror = () => {
+        console.error('❌ Bild konnte nicht geladen werden');
+        alert('Bild konnte nicht verarbeitet werden.');
+      };
+      
+      img.src = imgSrc;
+    } catch (err) {
+      console.error('❌ Farbanalyse fehlgeschlagen:', err);
+      alert('Farbanalyse konnte nicht durchgeführt werden: ' + (err as Error).message);
+    }
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('📁 handleLogoUpload aufgerufen');
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setClubLogo(base64);
-        setColorStrategyIndex(0);
-        setExtractedColors(null);
-        setClubForm({ ...clubForm, logo: base64 });
+    if (!file) { console.warn('Keine Datei ausgewählt'); return; }
+    console.log('📄 Datei:', file.name, file.size, 'bytes');
+    
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      console.log('✅ File gelesen, Länge:', base64.length);
+      setClubLogo(base64);
+      setColorStrategyIndex(0);
+      setExtractedColors(null);
+      setAnalysisCount(0);
+      setClubForm({ ...clubForm, logo: base64 });
+      console.log('🔍 Rufe extractColors auf...');
+      setTimeout(() => {
+        console.log('⏰ extractColors nach Timeout');
         extractColors(base64);
-      };
-      reader.readAsDataURL(file);
-    }
+      }, 100);
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -147,7 +190,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
         {/* Extrahierte Farben */}
         {extractedColors && clubLogo && (
           <div style={{ flex: 1, minWidth: 200 }}>
-            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎨 Vorschlag (Logo-Analyse) — {analysisCount > 0 ? `Analyse ${analysisCount} (${strategies[colorStrategyIndex]?.name || ''})` : 'Erste Analyse'}</label>
+            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎨 Vorschlag (Logo-Analyse) — {analysisCount > 0 ? `Analyse ${analysisCount} (${strategies[colorStrategyIndex]?.name || 'Standard'})` : 'Erste Analyse'} ({colorStrategyIndex + 1}/4)</label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
               {(['primary', 'secondary', 'accent'] as const).map(key => (
                 <div key={key} style={{ textAlign: 'center' }}>
@@ -165,11 +208,14 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
                 ✓ Übernehmen
               </button>
               <button onClick={() => {
-                if (clubLogo) {
-                  const next = colorStrategyIndex + 1;
-                  setColorStrategyIndex(next);
-                  extractColors(clubLogo, next);
-                }
+                console.log('🔄 Neu analysieren geklickt');
+                console.log('   clubLogo:', !!clubLogo);
+                console.log('   colorStrategyIndex:', colorStrategyIndex);
+                if (!clubLogo) { alert('Bitte zuerst ein Logo hochladen!'); return; }
+                const next = colorStrategyIndex + 1;
+                setColorStrategyIndex(next);
+                console.log('   Nächste Strategie:', next, '(', strategies[next % strategies.length]?.name || '?', ')');
+                extractColors(clubLogo, next);
               }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', fontSize: 12, padding: '4px 10px' }}>
                 🔄 Strategie {colorStrategyIndex + 1} → {Math.min(colorStrategyIndex + 2, 4)}
               </button>
