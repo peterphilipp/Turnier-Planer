@@ -9,7 +9,7 @@ export const groupSchema = z.object({
 
 export const getGroupsByTournament = async (req: Request, res: Response) => {
   const gs = await prisma.group.findMany({
-    where: { tournamentId: parseInt(req.params.tournamentId) },
+    where: { tournamentId: parseInt(String(req.params.tournamentId)) },
     include: { teams: true }
   });
   return res.json(gs || []);
@@ -20,7 +20,16 @@ export const createGroup = async (req: Request, res: Response) => {
   res.status(201).json(g);
 };
 
+export const updateGroup = async (req: Request, res: Response) => {
+  const g = await prisma.group.update({
+    where: { id: parseInt(String(req.params.id)) },
+    data: req.body,
+    include: { teams: true }
+  });
+  return res.json(g);
+};
+
 export const deleteGroup = async (req: Request, res: Response) => {
-  await prisma.group.delete({ where: { id: parseInt(req.params.id) } });
+  await prisma.group.delete({ where: { id: parseInt(String(req.params.id)) } });
   return res.status(204).send();
 };
