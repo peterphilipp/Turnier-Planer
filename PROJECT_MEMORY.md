@@ -254,3 +254,17 @@ services:
 1. **Vereine.tsx Layout**: Logo-Upload und Farbanalyse eine Zeile nach unten verschieben (Editzeile zu voll)
 2. **Docker Rebuild**: `docker compose up -d --build` um alle Änderungen zu deployen
 3. **Testing**: Logo-Farbanalyse mit verschiedenen Logos testen
+
+---
+
+# ⚠️ WICHTIGE REGELN (User Preferences)
+
+## UI/UX Regeln
+- **Keine browser-native `alert()` oder `confirm()` verwenden!** Immer das bestehende `modal.alert()` System aus `../Modal` nutzen
+- Modal-System: `import { modal } from '../Modal'` → `await modal.alert({ title, message })`
+- Alle UI-Meldungen müssen als modale Dialoge dargestellt werden (keine systemstandard Popups)
+- **Nicht-interaktiv**: Keine `prompt()` oder native Browser-Dialoge
+
+## Debugging/Loop Rules
+- Bei wiederholten Loop-Warnungen des Users: Sofort die Loop unterbrechen und direkt implementieren
+- Nicht mehrere Male dieselben grep-Befehle ausführen - direkt zum Fix übergehen

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiPatch } from '../../../api';
 import { Match, TimeSlot, Field, Team } from '../shared';
+import { modal } from '../Modal';
 
 interface Props {
   tournamentId: number | null;
@@ -187,7 +188,7 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
   const advanceMatch = async () => {
     try {
       if (!tournamentId || !yearGroupId) {
-        alert('Bitte Turnier und Jahrgang auswählen');
+        await modal.alert({ title: 'Hinweis', message: 'Bitte Turnier und Jahrgang auswählen' });
         return;
       }
       // Teams aus Gruppenphase in KO-Spiele zuweisen
@@ -198,14 +199,14 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert('Fehler: ' + (err.error || 'Teams konnten nicht zugewiesen werden'));
+        await modal.alert({ title: 'Fehler', message: err.error || 'Teams konnten nicht zugewiesen werden' });
         return;
       }
-      // Nach Zuweisung alle KO-Matches auf "geplant" setzen
+      // Nach Zuweisung alle KO-Matches neu laden
       await queryClient.invalidateQueries({ queryKey: ['matches', tournamentId] });
-      alert('✅ Teams erfolgreich aus der Gruppenphase übernommen!');
+      await modal.alert({ title: 'Erfolg', message: '✅ Teams erfolgreich aus der Gruppenphase übernommen!' });
     } catch (e) {
-      alert('Fehler beim Fortsetzen: ' + (e as Error).message);
+      await modal.alert({ title: 'Fehler', message: 'Fehler beim Fortsetzen: ' + (e as Error).message });
     }
   };
 
