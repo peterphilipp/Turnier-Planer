@@ -178,6 +178,35 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
           status: 'gespielt'
         });
         queryClient.invalidateQueries({ queryKey: ['matches', tournamentId] });
+
+        // Prüfen ob alle Gruppenspiele abgeschlossen sind → KO-Teams aktualisieren
+        const allRes = await fetch(`/api/matches/${tournamentId}`);
+        const allMatches = await allRes.json();
+        const gruppenMatchesForCheck = Array.isArray(allMatches) ? (
+          yearGroupId
+            ? allMatches.filter(m => m.yearGroupId === yearGroupId && (m.phase?.startsWith('Gruppe') || m.phase === 'Liga'))
+            : allMatches.filter(m => m.phase?.startsWith('Gruppe') || m.phase === 'Liga')
+        ) : [];
+
+        const alleAbgeschlossen = gruppenMatchesForCheck.length > 0 && 
+          gruppenMatchesForCheck.every(m => m.status === 'gespielt' || m.scoreA !== null);
+
+        if (alleAbgeschlossen) {
+          // KO-Teams automatisch aktualisieren
+          try {
+            const koRes = await fetch(`/api/matches/assign-ko-teams`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ tournamentId, yearGroupId })
+            });
+            if (koRes.ok) {
+              await queryClient.invalidateQueries({ queryKey: ['matches', tournamentId] });
+              alert('✅ Alle Gruppenspiele abgeschlossen! KO-Teams wurden automatisch aktualisiert.');
+            }
+          } catch (e) {
+            console.error('KO-Team-Aktualisierung fehlgeschlagen:', e);
+          }
+        }
       } catch (e) {
         console.error('Score speichern fehlgeschlagen:', e);
       }
