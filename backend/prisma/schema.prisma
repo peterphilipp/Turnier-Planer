@@ -89,6 +89,8 @@ model Volunteer {
   password        String?          @map("password")
   roles           String
   tournamentId    Int?             @map("tournament_id")
+  consentGiven    Boolean          @default(false) @map("consent_given")
+  consentDate     DateTime?        @map("consent_date")
   shifts          VolunteerShift[]
   resetTokens     PasswordResetToken[]
   foodDonations   FoodDonation[]

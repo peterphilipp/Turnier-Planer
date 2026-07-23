@@ -263,6 +263,51 @@ router.patch('/password', async (req, res, next) => {
   }
 });
 
+// DELETE /api/auth/account – Löschung nach Art. 17 DSGVO
+router.delete('/account', async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Nicht authentifiziert' });
+    }
+    const token = authHeader.split(' ')[1];
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET) as { volunteerId: number };
+    } catch {
+      return res.status(401).json({ error: 'Ungültiger Token' });
+    }
+
+    const volunteer = await prisma.volunteer.findUnique({ where: { id: decoded.volunteerId } });
+    if (!volunteer) return res.status(404).json({ error: 'Nicht gefunden' });
+
+    // Bestehende Einsätze archivieren (nicht löschen – rechtliche Aufbewahrung)
+    await prisma.volunteerShift.updateMany({
+      where: { volunteerId: decoded.volunteerId },
+      data: { volunteerId: null }
+    });
+
+    // Spenden verknüpfung lösen
+    await prisma.foodDonation.updateMany({
+      where: { volunteerId: decoded.volunteerId },
+      data: { volunteerId: null }
+    });
+
+    // Kinder löschen
+    await prisma.volunteerChild.deleteMany({ where: { volunteerId: decoded.volunteerId } });
+
+    // Reset-Tokens löschen
+    await prisma.passwordResetToken.deleteMany({ where: { volunteerId: decoded.volunteerId } });
+
+    // Konto löschen (Passwort wird bcrypt-gehashet, nicht umkehrbar)
+    await prisma.volunteer.delete({ where: { id: decoded.volunteerId } });
+
+    res.json({ message: 'Dein Konto wurde erfolgreich gelöscht. Alle personenbezogenen Daten wurden entfernt.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PATCH /api/auth/profile
 router.patch('/profile', async (req, res, next) => {
   try {
@@ -278,13 +323,17 @@ router.patch('/profile', async (req, res, next) => {
       return res.status(401).json({ error: 'Ungültiger Token' });
     }
 
-    const { name, email, phone, childName, childYear, children } = req.body;
+    const { name, email, phone, childName, childYear, children, consentGiven } = req.body;
     const updateData: any = {};
     if (name) updateData.name = name;
     if (email) updateData.email = email;
     if (phone !== undefined) updateData.phone = phone;
     if (childName !== undefined) updateData.childName = childName || null;
     if (childYear !== undefined) updateData.childYear = childYear ? parseInt(childYear) : null;
+    if (consentGiven !== undefined) {
+      updateData.consentGiven = consentGiven;
+      updateData.consentDate = consentGiven ? new Date() : null;
+    }
 
     // Kinder aktualisieren
     if (children && Array.isArray(children)) {
@@ -314,8 +363,9 @@ router.patch('/profile', async (req, res, next) => {
 // POST /api/auth/register
 router.post('/register', async (req, res, next) => {
   try {
-    const { name, email, phone, password, childName, childYear, children } = req.body;
+    const { name, email, phone, password, childName, childYear, children, consentGiven } = req.body;
     if (!name || !email || !password) return res.status(400).json({ error: 'Fehlende Pflichtfelder' });
+    if (consentGiven !== true) return res.status(400).json({ error: 'Datenschutzerklärung muss akzeptiert werden' });
 
     const existing = await prisma.volunteer.findFirst({ where: { email } });
     if (existing) return res.status(409).json({ error: 'Email wird bereits verwendet' });
@@ -335,7 +385,9 @@ router.post('/register', async (req, res, next) => {
       childYear: childYear ? parseInt(childYear) : null,
       password: hashed,
       roles: '["Helfer"]',
-      tournamentId: activeTournament?.id || null
+      tournamentId: activeTournament?.id || null,
+      consentGiven: true,
+      consentDate: new Date()
     };
 
     // Kinder erstellen
