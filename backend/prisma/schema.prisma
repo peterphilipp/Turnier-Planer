@@ -43,6 +43,7 @@ model Club {
   secondaryColor  String      @default("#6c757d") @map("secondary_color")
   accentColor     String      @default("#198754") @map("accent_color")
   tournaments     Tournament[]
+  teams           Team[]
 
   @@map("clubs")
 }
@@ -61,13 +62,15 @@ model Group {
 model Team {
   id              Int             @id @default(autoincrement())
   name            String
-  groupId         Int             @map("group_id")
+  groupId         Int?            @map("group_id")
   tournamentId    Int?            @map("tournament_id")
+  clubId          Int?            @map("club_id")
+  club            Club?           @relation(fields: [clubId], references: [id], onDelete: Cascade)
   goalsFor        Int             @default(0) @map("goals_for")
   goalsAgainst    Int             @default(0) @map("goals_against")
   matchesAsA      Match[]         @relation("teamAMatches")
   matchesAsB      Match[]         @relation("teamBMatches")
-  group           Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group           Group?          @relation(fields: [groupId], references: [id])
   standingsEntry  StandingsEntry?   @relation("teamStandings")
   bracketTyp      String?           @map("bracket_typ")
 
