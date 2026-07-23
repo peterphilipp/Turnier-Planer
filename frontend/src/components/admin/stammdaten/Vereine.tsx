@@ -199,14 +199,14 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
       <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>🛡️ Vereine & Clubs</h3>
       
       {/* Vereinsname + Stadt */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-        <div style={{ flex: 1 }}>
-          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Vereinsname</label>
-          <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="TSV Musterhausen" style={{ ...inputStyle, width: '100%' }} />
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>Vereinsname</label>
+          <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="TSV Musterhausen" style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
         </div>
-        <div style={{ flex: 1 }}>
-          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Stadt</label>
-          <input value={clubForm.city} onChange={e => setClubForm({ ...clubForm, city: e.target.value })} placeholder="Musterstadt" style={{ ...inputStyle, width: '100%' }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>Stadt</label>
+          <input value={clubForm.city} onChange={e => setClubForm({ ...clubForm, city: e.target.value })} placeholder="Musterstadt" style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
         </div>
       </div>
 
