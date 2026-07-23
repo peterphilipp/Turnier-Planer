@@ -155,13 +155,6 @@ async function generateGruppenKO(tournamentId: number, yearGroupId?: number) {
     return { message: 'Keine Gruppen für diesen Jahrgang gefunden. Bitte zuerst unter "Gruppen & Teams" anlegen.', matchesCreated: 0 };
   }
   
-  // TimeSlots und Fields holen für automatische Zuweisung
-  const timeSlots = await prisma.timeSlot.findMany({
-    where: { tournamentId },
-    orderBy: { date: 'asc', startTime: 'asc' }
-  });
-  let slotIndex = 0;
-  
   // Für jede Gruppe Gruppenspiele generieren (Jeder gegen jeden)
   for (const group of groups) {
     const teams = await prisma.team.findMany({ where: { groupId: group.id, yearGroupId } });
@@ -171,13 +164,10 @@ async function generateGruppenKO(tournamentId: number, yearGroupId?: number) {
     // Jeder gegen jeden in der Gruppe
     for (let i = 0; i < teams.length; i++) {
       for (let j = i + 1; j < teams.length; j++) {
-        const timeSlotId = timeSlots.length > 0 ? timeSlots[slotIndex % timeSlots.length].id : undefined;
-        const fieldId = undefined; // Feld wird manuell zugewiesen
         await prisma.match.create({
           data: {
             tournamentId,
             yearGroupId: yearGroupId || undefined,
-            timeSlotId,
             teamAId: teams[i].id,
             teamBId: teams[j].id,
             phase: `${group.name}`,
@@ -186,7 +176,6 @@ async function generateGruppenKO(tournamentId: number, yearGroupId?: number) {
           }
         });
         matchesCreated++;
-        slotIndex++;
       }
     }
 
@@ -211,13 +200,6 @@ async function generateKO(tournamentId: number, yearGroupId?: number) {
   
   if (teams.length < 2) return { message: 'Mindestens 2 Teams benötigt für K.O.', matchesCreated: 0, bracketsCreated: 0 };
 
-  // TimeSlots holen für automatische Zuweisung
-  const timeSlots = await prisma.timeSlot.findMany({
-    where: { tournamentId },
-    orderBy: { date: 'asc', startTime: 'asc' }
-  });
-  let slotIndex = 0;
-
   // Bracket erstellen
   const bracket = await prisma.knockoutBracket.create({
     data: { tournamentId, name: 'Sieger-Bracket', runde: 'Erste Runde', order: 1 }
@@ -226,12 +208,10 @@ async function generateKO(tournamentId: number, yearGroupId?: number) {
   // Paarungen generieren (1vs2, 3vs4, ...)
   let matchesCreated = 0;
   for (let i = 0; i < teams.length - 1; i += 2) {
-    const timeSlotId = timeSlots.length > 0 ? timeSlots[slotIndex % timeSlots.length].id : undefined;
     await prisma.match.create({
       data: {
         tournamentId,
         yearGroupId: yearGroupId || undefined,
-        timeSlotId,
         teamAId: teams[i].id,
         teamBId: teams[i + 1]?.id || teams[0].id, // Bye wenn ungerade Anzahl
         phase: 'K.O.',
@@ -243,7 +223,6 @@ async function generateKO(tournamentId: number, yearGroupId?: number) {
       }
     });
     matchesCreated++;
-    slotIndex++;
   }
 
   return { message: `K.O.-Bracket mit ${matchesCreated} Spielen erstellt`, matchesCreated, bracketsCreated: 1 };
@@ -258,22 +237,13 @@ async function generateLiga(tournamentId: number, yearGroupId?: number) {
   
   if (teams.length < 2) return { message: 'Mindestens 2 Teams benötigt für Liga', matchesCreated, bracketsCreated: 0 };
 
-  // TimeSlots holen für automatische Zuweisung
-  const timeSlots = await prisma.timeSlot.findMany({
-    where: { tournamentId },
-    orderBy: { date: 'asc', startTime: 'asc' }
-  });
-  let slotIndex = 0;
-
   // Jeder gegen jeden
   for (let i = 0; i < teams.length; i++) {
     for (let j = i + 1; j < teams.length; j++) {
-      const timeSlotId = timeSlots.length > 0 ? timeSlots[slotIndex % timeSlots.length].id : undefined;
       await prisma.match.create({
         data: {
           tournamentId,
           yearGroupId: yearGroupId || undefined,
-          timeSlotId,
           teamAId: teams[i].id,
           teamBId: teams[j].id,
           phase: 'Liga',
@@ -282,7 +252,6 @@ async function generateLiga(tournamentId: number, yearGroupId?: number) {
         }
       });
       matchesCreated++;
-      slotIndex++;
     }
   }
 
@@ -307,13 +276,6 @@ async function generateDoppelKO(tournamentId: number, yearGroupId?: number) {
   
   if (teams.length < 2) return { message: 'Mindestens 2 Teams benötigt für Doppel-K.O.', matchesCreated, bracketsCreated: 0 };
 
-  // TimeSlots holen für automatische Zuweisung
-  const timeSlots = await prisma.timeSlot.findMany({
-    where: { tournamentId },
-    orderBy: { date: 'asc', startTime: 'asc' }
-  });
-  let slotIndex = 0;
-
   // Sieger-Bracket
   const siegerBracket = await prisma.knockoutBracket.create({
     data: { tournamentId, name: 'Sieger-Bracket', runde: 'Erste Runde', order: 1 }
@@ -329,12 +291,10 @@ async function generateDoppelKO(tournamentId: number, yearGroupId?: number) {
 
   // Erste Runde Sieger-Bracket
   for (let i = 0; i < teams.length - 1; i += 2) {
-    const timeSlotId = timeSlots.length > 0 ? timeSlots[slotIndex % timeSlots.length].id : undefined;
     await prisma.match.create({
       data: {
         tournamentId,
         yearGroupId: yearGroupId || undefined,
-        timeSlotId,
         teamAId: teams[i].id,
         teamBId: teams[i + 1]?.id || teams[0].id,
         phase: 'Doppel-K.O.',
@@ -346,7 +306,6 @@ async function generateDoppelKO(tournamentId: number, yearGroupId?: number) {
       }
     });
     matchesCreated++;
-    slotIndex++;
   }
 
   return { message: `Doppel-K.O. mit Sieger-Bracket + ${verliererRunden} Verlierer-Runde(n) erstellt`, matchesCreated, bracketsCreated: 1 + verliererRunden };
