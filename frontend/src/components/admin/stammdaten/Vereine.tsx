@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getClubs, apiPost, apiPut, apiDelete } from '../../../api';
 import { tdStyle, thStyle, btnStyle, inputStyle, shadeColor, Club } from '../shared';
@@ -15,6 +15,18 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
   const [analysisCount, setAnalysisCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Sync extractedColors → clubForm wenn sich Farben ändern
+  useEffect(() => {
+    if (extractedColors) {
+      setClubForm(prev => ({
+        ...prev,
+        primaryColor: extractedColors.primary,
+        secondaryColor: extractedColors.secondary,
+        accentColor: extractedColors.accent
+      }));
+    }
+  }, [extractedColors]);
+
   // Reset der Analyse-Strategie
   const resetAnalysis = () => {
     setColorStrategyIndex(0);
@@ -22,9 +34,18 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
   };
 
   const saveClub = async () => {
+    console.log('💾 saveClub aufgerufen');
+    console.log('   clubForm:', clubForm);
     if (!clubForm.name.trim()) return alert('Name erforderlich!');
-    const data: { name: string; primaryColor: string; secondaryColor: string; accentColor: string; logo?: string } = { name: clubForm.name, primaryColor: clubForm.primaryColor, secondaryColor: clubForm.secondaryColor, accentColor: clubForm.accentColor };
+    
+    const data: { name: string; primaryColor: string; secondaryColor: string; accentColor: string; logo?: string } = {
+      name: clubForm.name,
+      primaryColor: clubForm.primaryColor,
+      secondaryColor: clubForm.secondaryColor,
+      accentColor: clubForm.accentColor
+    };
     if (clubForm.logo) data.logo = clubForm.logo;
+    console.log('   Sende:', data);
     if (editingClub) {
       await apiPut(`/api/clubs/${editingClub}`, data);
     } else {
@@ -190,7 +211,8 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
         {/* Extrahierte Farben */}
         {extractedColors && clubLogo && (
           <div style={{ flex: 1, minWidth: 200 }}>
-            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎨 Vorschlag (Logo-Analyse) — {analysisCount > 0 ? `Analyse ${analysisCount} (${strategies[colorStrategyIndex]?.name || 'Standard'})` : 'Erste Analyse'} ({colorStrategyIndex + 1}/4)</label>
+            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎨 Vorschlag (Logo-Analyse) — {analysisCount > 0 ? `Analyse ${analysisCount} (${strategies[colorStrategyIndex]?.name || 'Standard'})` : 'Erste Analyse'} ({colorStrategyIndex + 1}/4)
+              <span style={{ fontSize: 11, color: '#28a745', marginLeft: 8 }}>✓ Auto-Sync aktiv</span></label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
               {(['primary', 'secondary', 'accent'] as const).map(key => (
                 <div key={key} style={{ textAlign: 'center' }}>
