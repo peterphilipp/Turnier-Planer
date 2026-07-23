@@ -114,10 +114,10 @@ export const assignKOTeams = async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'tournamentId und yearGroupId erforderlich' });
   }
 
-  // Alle Gruppen-Matches laden (nur für diese yearGroup)
+  // Alle gespielten Matches laden und im Code filtern (Prisma unterstützt kein contains+or)
   const gruppenMatches = await prisma.match.findMany({
-    where: { tournamentId, yearGroupId, phase: { contains: 'Gruppe', or: { equals: 'Liga' } }, status: 'gespielt' }
-  });
+    where: { tournamentId, yearGroupId, status: 'gespielt' }
+  }).then(m => m.filter(match => match.phase && (match.phase.startsWith('Gruppe') || match.phase === 'Liga')));
 
   if (gruppenMatches.length === 0) {
     return res.status(400).json({ error: 'Keine gespielten Gruppenspiele gefunden. Bitte zuerst alle Spiele absolvieren.' });
