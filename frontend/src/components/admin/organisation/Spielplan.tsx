@@ -31,17 +31,17 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
       : allMatches
   ) : [];
 
-  // Unterscheidung: KO-Spiele haben ein runde-Feld, Gruppenspiele nicht
-  const isKoMatch = (m: Match) => m.runde != null && m.runde.trim() !== '';
+  // Unterscheidung: Gruppenspiele haben Phase die mit "Gruppe" beginnt oder "Liga"
+  const isGroupPhase = (phase: string | null) => phase != null && (phase.startsWith('Gruppe') || phase === 'Liga');
 
-  // Nur Gruppenphase-Matches (kein runde)
+  // Nur Gruppenphase-Matches
   const gruppenMatches = phase === 'gruppenphase' 
-    ? allMatchesFiltered.filter(m => !isKoMatch(m))
+    ? allMatchesFiltered.filter(m => isGroupPhase(m.phase))
     : [];
 
-  // Nur KO-Matches (mit runde)
+  // Nur KO-Matches (alles was keine Gruppe/Liga ist)
   const koMatches = phase === 'ko'
-    ? allMatchesFiltered.filter(m => isKoMatch(m))
+    ? allMatchesFiltered.filter(m => !isGroupPhase(m.phase) && m.phase != null)
     : [];
 
   // Fields für Labels
