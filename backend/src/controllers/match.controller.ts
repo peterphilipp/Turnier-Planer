@@ -233,43 +233,76 @@ export const updateMatch = async (req: Request, res: Response) => {
     if (bracket) {
       // Sieger und Verlierer bestimmen
       const siegerId = m.scoreA > m.scoreB ? m.teamAId : m.teamBId;
-      const verliererId = m.scoreA > m.scoreB ? m.teamBId : m.teamAId;
+      
+      if (!siegerId) return res.json(m);
 
-      if (siegerId && bracket.order < 4) { // Nur bis Halbfinale (order=3) → Finale (order=4)
-        const nextRundeOrder = bracket.order + 1;
-        const nextBracket = await prisma.knockoutBracket.findFirst({
-          where: { tournamentId: bracket.tournamentId, order: nextRundeOrder }
-        });
+      // Phase parsen um nächste Runde zu finden
+      // Viertelfinale → Halbfinale → Finale → Platzierungsspiele
+      const phase = m.phase || '';
+      let nextPhase: string | null = null;
+      
+      if (phase.startsWith('Viertelfinale')) {
+        nextPhase = 'Halbfinale';
+      } else if (phase.startsWith('Halbfinale') && !phase.includes('Platz 5-8')) {
+        // Nur die echten Halbfinale (nicht Platzierung)
+        if (phase === 'Halbfinale 1' || phase === 'Halbfinale 2') {
+          nextPhase = 'Finale';
+        }
+      } else if (phase === 'Finale') {
+        nextPhase = 'Spiel um Platz 3'; // Finale → Platz 3
+      } else if (phase.startsWith('Spiel um Platz')) {
+        // Nach Platz-Spielen: nichts mehr
+        return res.json(m);
+      }
 
-        if (nextBracket) {
-          // Alle Matches der nächsten Runde laden
-          const existingMatches = await prisma.match.findMany({
-            where: { bracketId: nextBracket.id },
-            orderBy: { id: 'asc' }
+      if (!nextPhase) return res.json(m);
+
+      // Alle KO-Matches des Turniers laden
+      const allKoMatches = await prisma.match.findMany({
+        where: { tournamentId: bracket.tournamentId },
+        orderBy: { id: 'asc' }
+      });
+
+      // Matches der nächsten Runde finden (die noch kein TeamA haben)
+      const nextRoundMatches = allKoMatches.filter(match => 
+        match.phase && match.phase.startsWith(nextPhase) && !match.teamAId
+      );
+
+      if (nextRoundMatches.length === 0) {
+        // Neues Match erstellen für nächste Runde
+        let newMatch: any;
+        if (nextPhase === 'Finale') {
+          newMatch = await prisma.match.create({
+            data: { tournamentId: bracket.tournamentId, phase: 'Finale', time: new Date() }
           });
-
-          // Freies Slot finden oder neues Match erstellen
-          let freeMatch = existingMatches.find(match => !match.teamAId);
-          if (!freeMatch) {
-            const matchCount = Math.ceil(existingMatches.length / 2);
-            freeMatch = await prisma.match.create({
-              data: {
-                tournamentId: bracket.tournamentId,
-                bracketId: nextBracket.id,
-                teamAId: 0,
-                teamBId: 0,
-                time: new Date()
-              }
+        } else if (nextPhase === 'Spiel um Platz 3') {
+          newMatch = await prisma.match.create({
+            data: { tournamentId: bracket.tournamentId, phase: 'Spiel um Platz 3', time: new Date() }
+          });
+        } else {
+          // Halbfinale - nächstes freie finden
+          const hf1 = allKoMatches.find(m => m.phase === 'Halbfinale 1');
+          if (!hf1?.teamAId) {
+            newMatch = await prisma.match.create({
+              data: { tournamentId: bracket.tournamentId, phase: 'Halbfinale 1', time: new Date() }
             });
-          }
-
-          // Sieger in TeamA oder TeamB setzen (je nach Position)
-          const slotInRunde = existingMatches.findIndex(match => match.id === freeMatch?.id);
-          if (slotInRunde % 2 === 0) {
-            await prisma.match.update({ where: { id: freeMatch!.id }, data: { teamAId: siegerId } });
           } else {
-            await prisma.match.update({ where: { id: freeMatch!.id }, data: { teamBId: siegerId } });
+            const hf2 = allKoMatches.find(m => m.phase === 'Halbfinale 2');
+            if (!hf2?.teamAId) {
+              newMatch = await prisma.match.create({
+                data: { tournamentId: bracket.tournamentId, phase: 'Halbfinale 2', time: new Date() }
+              });
+            }
           }
+        }
+        if (newMatch && siegerId) {
+          await prisma.match.update({ where: { id: newMatch.id }, data: { teamAId: siegerId } });
+        }
+      } else {
+        // Sieger in erstes freies Match der nächsten Runde setzen
+        const target = nextRoundMatches[0];
+        if (target) {
+          await prisma.match.update({ where: { id: target.id }, data: { teamAId: siegerId } });
         }
       }
     }
