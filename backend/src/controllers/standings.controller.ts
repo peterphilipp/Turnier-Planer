@@ -7,14 +7,17 @@ import prisma from '../config/prisma.js';
  */
 export const recalculateStandings = async (req: Request, res: Response) => {
   const tournamentId = parseInt(req.params.tournamentId as string);
+  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId)) : null;
   
   if (!tournamentId) {
     return res.status(400).json({ error: 'tournamentId erforderlich' });
   }
 
-  // Alle gespielten Matches des Turniers
+  // Alle gespielten Matches des Turniers (oder nur eines Jahrgangs)
   const matches = await prisma.match.findMany({
-    where: { tournamentId, status: 'gespielt', scoreA: { not: null }, scoreB: { not: null } },
+    where: yearGroupId 
+      ? { tournamentId, yearGroupId, status: 'gespielt', scoreA: { not: null }, scoreB: { not: null } }
+      : { tournamentId, status: 'gespielt', scoreA: { not: null }, scoreB: { not: null } },
     include: { teamA: true, teamB: true }
   });
 
@@ -78,6 +81,7 @@ export const recalculateStandings = async (req: Request, res: Response) => {
 
 export const getStandings = async (req: Request, res: Response) => {
   const tournamentId = parseInt(req.params.tournamentId as string);
+  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId)) : null;
   
   if (!tournamentId) {
     return res.status(400).json({ error: 'tournamentId erforderlich' });
@@ -90,7 +94,7 @@ export const getStandings = async (req: Request, res: Response) => {
   }
 
   // Positionen aktualisieren
-  const sorted = [...existing].sort((a, b) => {
+  let sorted = [...existing].sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     const diffA = a.goalsFor - a.goalsAgainst;
     const diffB = b.goalsFor - b.goalsAgainst;
@@ -103,6 +107,16 @@ export const getStandings = async (req: Request, res: Response) => {
       where: { id: sorted[i].id },
       data: { position: i + 1 }
     });
+  }
+
+  // Falls yearGroupId angegeben → nur Teams dieses Jahrgangs filtern
+  if (yearGroupId) {
+    const teamsInYearGroup = await prisma.team.findMany({
+      where: { tournamentId, yearGroupId },
+      select: { id: true }
+    });
+    const teamIds = new Set(teamsInYearGroup.map(t => t.id));
+    sorted = sorted.filter(e => teamIds.has(e.teamId));
   }
 
   return res.json(sorted);
