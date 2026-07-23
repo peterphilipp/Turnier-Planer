@@ -6,6 +6,7 @@ import {
   createTournament,
   updateTournament,
   updateTournamentMode,
+  generateMatchesForYearGroup,
   updateTournamentStatus,
   deleteTournament,
   tournamentSchema
@@ -19,6 +20,7 @@ router.post('/', validate(tournamentSchema), createTournament);
 router.patch('/:id', updateTournament);
 router.patch('/:id/status', updateTournamentStatus);
 router.patch('/:id/mode', updateTournamentMode);
+router.post('/:id/generate-matches', generateMatchesForYearGroup);
 router.delete('/:id', deleteTournament);
 
 export default router;

@@ -61,6 +61,10 @@ export const getTeamsByGroup = (groupId: number | null) =>
 export const getTeamsByTournament = (tournamentId: number | null) =>
   tournamentId ? apiFetch(`/api/teams?tournamentId=${tournamentId}`) : Promise.resolve([]);
 
+// ===================== Match Generation (Phase 1) =====================
+export const generateMatchesForYearGroup = (tournamentId: number, yearGroupId: number) => 
+  apiPost(`/api/tournaments/${tournamentId}/generate-matches`, { yearGroupId });
+
 // ===================== Knockout Brackets =====================
 export const getBrackets = (tournamentId: number | null) => 
   tournamentId ? apiFetch(`/api/knockout-brackets?tournamentId=${tournamentId}`) : Promise.resolve([]);
