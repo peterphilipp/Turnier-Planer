@@ -5,23 +5,28 @@ import { tdStyle, thStyle, btnStyle, inputStyle, Field } from '../shared';
 
 interface Props {
   tournamentId: number | null;
+  yearGroupId: number | null;
 }
 
-export default function Felder({ tournamentId }: Props) {
+export default function Felder({ tournamentId, yearGroupId }: Props) {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: 'Feld 1', status: 'verfügbar' });
 
   const { data: fields = [] } = useQuery<Field[]>({
-    queryKey: ['fields', tournamentId],
-    queryFn: () => getFields(tournamentId),
+    queryKey: ['fields', tournamentId, yearGroupId],
+    queryFn: () => {
+      let url = `/api/fields?tournamentId=${tournamentId}`;
+      if (yearGroupId) url += `&yearGroupId=${yearGroupId}`;
+      return fetch(url).then(r => r.json()).catch(() => []);
+    },
     enabled: !!tournamentId,
   });
 
   const handleSave = async () => {
     if (!tournamentId || !form.name.trim()) return alert('Feldname erforderlich!');
     
-    await apiPost('/api/fields', { ...form, tournamentId });
+    await apiPost('/api/fields', { ...form, tournamentId, yearGroupId: yearGroupId || null });
     queryClient.invalidateQueries({ queryKey: ['fields'] });
     setShowForm(false);
     setForm({ name: 'Feld 1', status: 'verfügbar' });

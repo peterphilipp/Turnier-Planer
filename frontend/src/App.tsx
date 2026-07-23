@@ -267,8 +267,8 @@ export default function App() {
 
       {/* CONTENT AREA */}
       <main>
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'teilnehmer' && <Teilnehmer tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'felder' && <Felder tournamentId={selectedTournamentId} />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'teilnehmer' && <Teilnehmer tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} tournament={tournaments.find(t => t.id === selectedTournamentId) || null} />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'felder' && <Felder tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'turnier-tage' && <TurnierTage tournamentId={selectedTournamentId} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'gruppen-teams' && <GruppenTeams tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'modus' && <TurnierModus tournament={tournaments.find(t => t.id === selectedTournamentId) || null} />}

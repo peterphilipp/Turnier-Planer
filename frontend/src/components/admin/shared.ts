@@ -33,5 +33,5 @@ export interface Field { id: number; tournamentId: number; name: string; status:
 export interface StandingsEntry { id: number; teamId: number; tournamentId: number; played: number; won: number; drawn: number; lost: number; goalsFor: number; goalsAgainst: number; points: number; position: number; team?: Team | null; }
 export interface Match { id: number; tournamentId: number; timeSlotId: number | null; fieldId: number | null; teamAId: number; teamBId: number; scoreA: number | null; scoreB: number | null; phase: string; status: string; time: string; teamA?: Team | null; teamB?: Team | null; timeSlot?: TimeSlot | null; field?: Field | null; }
 export interface Group { id: number; name: string; tournamentId: number; teams?: Team[]; }
-export interface Team { id: number; name: string; groupId: number | null; tournamentId: number | null; clubId: number | null; club?: Club | null; goalsFor: number; goalsAgainst: number; group?: Group | null; }
+export interface Team { id: number; name: string; groupId: number | null; tournamentId: number | null; yearGroupId: number | null; clubId: number | null; club?: Club | null; yearGroup?: { id: number; name: string }; goalsFor: number; goalsAgainst: number; group?: Group | null; }
 export interface KnockoutBracket { id: number; tournamentId: number; name: string; runde: string; order: number; matches: Match[]; }

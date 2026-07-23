@@ -274,6 +274,7 @@ model YearGroup {
   tournaments       Tournament[]   @relation("TournamentYearGroups")
   groups          Group[]
   teams           Team[]
+  fields          Field[]
 
   @@map("year_groups")
 }
@@ -315,10 +316,12 @@ model TimeSlot {
 model Field {
   id           Int        @id @default(autoincrement())
   tournamentId Int        @map("tournament_id")
+  yearGroupId  Int?       @map("year_group_id")
   name         String     @default("Feld 1")
   status       String     @default("verfügbar") @map("status")
   matches      Match[]
   tournament   Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id])
 
   @@map("fields")
 }
