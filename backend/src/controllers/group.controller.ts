@@ -4,13 +4,20 @@ import { z } from 'zod';
 
 export const groupSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
-  tournamentId: z.number().int().positive()
+  tournamentId: z.number().int().positive(),
+  yearGroupId: z.number().int().positive().nullable().optional()
 });
 
 export const getGroupsByTournament = async (req: Request, res: Response) => {
+  const tournamentId = parseInt(String(req.params.tournamentId));
+  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId)) : null;
+  
+  const where: any = { tournamentId };
+  if (yearGroupId) where.yearGroupId = yearGroupId;
+  
   const gs = await prisma.group.findMany({
-    where: { tournamentId: parseInt(String(req.params.tournamentId)) },
-    include: { teams: true }
+    where,
+    include: { teams: true, yearGroup: true }
   });
   return res.json(gs || []);
 };

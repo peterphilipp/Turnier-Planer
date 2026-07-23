@@ -5,9 +5,10 @@ import { tdStyle, thStyle, btnStyle, inputStyle, Group, Team } from '../shared';
 
 interface Props {
   tournamentId: number | null;
+  yearGroupId: number | null;
 }
 
-export default function GruppenTeams({ tournamentId }: Props) {
+export default function GruppenTeams({ tournamentId, yearGroupId }: Props) {
   const queryClient = useQueryClient();
   
   // State für neue Gruppe/Team
@@ -16,19 +17,29 @@ export default function GruppenTeams({ tournamentId }: Props) {
   const [newTeamName, setNewTeamName] = useState('');
 
   const { data: groups = [] } = useQuery<Group[]>({
-    queryKey: ['groups', tournamentId],
-    queryFn: () => fetch(`/api/groups/${tournamentId}`).then(r => r.json()).catch(() => []),
+    queryKey: ['groups', tournamentId, yearGroupId],
+    queryFn: () => {
+      let url = `/api/groups/${tournamentId}`;
+      if (yearGroupId) url += `&yearGroupId=${yearGroupId}`;
+      return fetch(url).then(r => r.json()).catch(() => []);
+    },
     enabled: !!tournamentId,
     staleTime: 5000
   });
 
   const { data: allTeams = {} as Record<number, Team[]> } = useQuery<Record<number, Team[]>>({
-    queryKey: ['teams'],
+    queryKey: ['teams', tournamentId, yearGroupId],
     queryFn: async () => {
       if (!tournamentId) return {};
+      let url = `/api/teams?tournamentId=${tournamentId}`;
+      if (yearGroupId) url += `&yearGroupId=${yearGroupId}`;
+      const allTeamsList = await fetch(url).then(r => r.json()).catch(() => []);
+      
+      // Gruppieren nach groupId
       const result: Record<number, Team[]> = {};
-      for (const group of groups) {
-        result[group.id] = await fetch(`/api/teams?groupId=${group.id}`).then(r => r.json()).catch(() => []);
+      for (const team of allTeamsList) {
+        if (!result[team.groupId || 0]) result[team.groupId || 0] = [];
+        result[team.groupId || 0].push(team);
       }
       return result;
     },

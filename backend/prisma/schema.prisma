@@ -53,7 +53,9 @@ model Group {
   name         String
   order        Int        @default(0)
   tournamentId Int        @map("tournament_id")
+  yearGroupId  Int?       @map("year_group_id")
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id])
   teams        Team[]
 
   @@map("groups")
@@ -64,6 +66,7 @@ model Team {
   name            String
   groupId         Int?            @map("group_id")
   tournamentId    Int?            @map("tournament_id")
+  yearGroupId     Int?            @map("year_group_id")
   clubId          Int?            @map("club_id")
   club            Club?           @relation(fields: [clubId], references: [id], onDelete: Cascade)
   goalsFor        Int             @default(0) @map("goals_for")
@@ -71,6 +74,7 @@ model Team {
   matchesAsA      Match[]         @relation("teamAMatches")
   matchesAsB      Match[]         @relation("teamBMatches")
   group           Group?          @relation(fields: [groupId], references: [id])
+  yearGroup       YearGroup?      @relation(fields: [yearGroupId], references: [id])
   standingsEntry  StandingsEntry?   @relation("teamStandings")
   bracketTyp      String?           @map("bracket_typ")
 
@@ -268,6 +272,8 @@ model YearGroup {
   isActive        Boolean            @default(true) @map("is_active")
   foodDonationSlots FoodDonationSlot[]
   tournaments       Tournament[]   @relation("TournamentYearGroups")
+  groups          Group[]
+  teams           Team[]
 
   @@map("year_groups")
 }

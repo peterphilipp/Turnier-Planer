@@ -5,17 +5,22 @@ import { tdStyle, thStyle, btnStyle, inputStyle, Club, Team } from '../shared';
 
 interface Props {
   tournamentId: number | null;
+  yearGroupId: number | null;
 }
 
-export default function Teilnehmer({ tournamentId }: Props) {
+export default function Teilnehmer({ tournamentId, yearGroupId }: Props) {
   const queryClient = useQueryClient();
   const [selectedClubIds, setSelectedClubIds] = useState<number[]>([]);
   const [teamForms, setTeamForms] = useState<Record<number, string>>({});
   
   const { data: allClubs = [] } = useQuery<Club[]>({ queryKey: ['clubs'], queryFn: getClubs });
   const { data: teams = [] } = useQuery<Team[]>({
-    queryKey: ['teams', tournamentId],
-    queryFn: () => fetch(`/api/teams?tournamentId=${tournamentId}`).then(r => r.json()).catch(() => []),
+    queryKey: ['teams', tournamentId, yearGroupId],
+    queryFn: () => {
+      let url = `/api/teams?tournamentId=${tournamentId}`;
+      if (yearGroupId) url += `&yearGroupId=${yearGroupId}`;
+      return fetch(url).then(r => r.json()).catch(() => []);
+    },
     enabled: !!tournamentId,
   });
 

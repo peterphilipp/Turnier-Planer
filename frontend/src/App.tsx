@@ -55,6 +55,7 @@ export default function App() {
   const [activeStammTab, setActiveStammTab] = useState<StammTab>('turniere');
   
   const [selectedTournamentId, setSelectedTournamentId] = useState<number | null>(null);
+  const [selectedYearGroupId, setSelectedYearGroupId] = useState<number | null>(null);
   
   const { data: tournaments = [] } = useQuery<Tournament[]>({ queryKey: ['tournaments'], queryFn: getTournaments });
 
@@ -154,19 +155,40 @@ export default function App() {
       {/* LEVEL 2: SUB-NAVIGATION – SPIELPLAN */}
       {activeMainTab === 'spielplan' && (
         <div>
-          {/* Turnierauswahl */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-            <label style={{ fontWeight: 'bold', fontSize: 13 }}>Aktives Turnier:</label>
-            <select
-              value={selectedTournamentId || ''}
-              onChange={e => setSelectedTournamentId(e.target.value ? parseInt(e.target.value) : null)}
-              style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 6, minWidth: 280 }}
-            >
-              <option value="">-- Bitte wählen --</option>
-              {tournaments.map(t => (
-                <option key={t.id} value={t.id}>{t.name} ({new Date(t.startDate).toLocaleDateString('de-DE')})</option>
-              ))}
-            </select>
+          {/* Turnierauswahl + Jahrgang */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontWeight: 'bold', fontSize: 13 }}>Turnier:</label>
+              <select
+                value={selectedTournamentId || ''}
+                onChange={e => { setSelectedTournamentId(e.target.value ? parseInt(e.target.value) : null); setSelectedYearGroupId(null); }}
+                style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 6, minWidth: 280 }}
+              >
+                <option value="">-- Bitte wählen --</option>
+                {tournaments.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+            {selectedTournamentId && (() => {
+              const tournament = tournaments.find(t => t.id === selectedTournamentId);
+              if (!tournament || !tournament.yearGroups?.length) return null;
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label style={{ fontWeight: 'bold', fontSize: 13 }}>📅 Jahrgang:</label>
+                  <select
+                    value={selectedYearGroupId || ''}
+                    onChange={e => setSelectedYearGroupId(e.target.value ? parseInt(e.target.value) : null)}
+                    style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 6, minWidth: 200 }}
+                  >
+                    <option value="">Alle Jahrgänge</option>
+                    {tournament.yearGroups.map(yg => (
+                      <option key={yg.id} value={yg.id}>{yg.name}</option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })()}
           </div>
           <nav style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
             <button onClick={() => setActiveSpielplanTab('teilnehmer')}
@@ -245,10 +267,10 @@ export default function App() {
 
       {/* CONTENT AREA */}
       <main>
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'teilnehmer' && <Teilnehmer tournamentId={selectedTournamentId} />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'teilnehmer' && <Teilnehmer tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'felder' && <Felder tournamentId={selectedTournamentId} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'turnier-tage' && <TurnierTage tournamentId={selectedTournamentId} />}
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'gruppen-teams' && <GruppenTeams tournamentId={selectedTournamentId} />}
+        {activeMainTab === 'spielplan' && activeSpielplanTab === 'gruppen-teams' && <GruppenTeams tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'modus' && <TurnierModus tournament={tournaments.find(t => t.id === selectedTournamentId) || null} />}
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan' && (
           <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
