@@ -39,8 +39,9 @@ router.post('/forgot-password', async (req, res, next) => {
     if (process.env.RESEND_API_KEY) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);
+        const emailFrom = process.env.EMAIL_FROM || 'Turnier-Planer <noreply@turnier-planer.mygate.dedyn.io>';
         await resend.emails.send({
-          from: 'Turnier-Planer <noreply@turnier-planer.mygate.dedyn.io>',
+          from: emailFrom,
           to: volunteer.email,
           subject: 'Passwort zurücksetzen',
           html: `

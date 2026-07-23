@@ -85,8 +85,9 @@ export default function App() {
 
   if (view === 'selfservice') {
     return (
-      <div>
+      <>
         <SelfServiceView />
+        <ModalRoot />
         <div style={{ textAlign: 'center', padding: 20 }}>
           <button
             onClick={() => setView('admin')}
@@ -107,14 +108,14 @@ export default function App() {
             Datenschutzerklärung
           </a>
         </div>
-      </div>
+      </>
     );
   }
 
   const primaryColor = '#0d6efd';
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', fontFamily: 'system-ui, sans-serif', padding: 20 }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: 20 }}>
       {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ margin: 0 }}>⚽ Turnierplaner – Admin</h1>

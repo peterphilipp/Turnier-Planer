@@ -4,6 +4,8 @@ import {
   getMatchesByTournament,
   createMatch,
   updateMatch,
+  resetMatch,
+  toggleCompleted,
   advanceKO,
   assignKOTeams,
   deleteMatch,
@@ -18,5 +20,7 @@ router.patch('/:id', validate(matchSchema.partial()), updateMatch);
 router.delete('/:id', deleteMatch);
 router.post('/:id/advance', advanceKO);
 router.post('/assign-ko-teams', assignKOTeams);
+router.post('/:id/reset', resetMatch);
+router.patch('/:id/toggle-completed', toggleCompleted);
 
 export default router;

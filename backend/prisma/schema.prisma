@@ -105,6 +105,9 @@ model Match {
   bracketTyp   String?    @map("bracket_typ")     // "sieger" oder "verlierer" (für DOPPEL_KO)
   siegerId     Int?       @map("sieger_id")       // ID des Siegers
   verliererId  Int?       @map("verlierer_id")    // ID des Verlierers
+  stage        Int?       @map("stage")           // Runden-Nummer (1=erste Runde, 2=zweite, etc.)
+  upperBound   Int?       @map("upper_bound")     // KO-Bracket: obere Grenze des Platzbereichs
+  lowerBound   Int?       @map("lower_bound")     // KO-Bracket: untere Grenze des Platzbereichs
   bracket      KnockoutBracket? @relation("KnockoutMatches", fields: [bracketId], references: [id])
   status       String     @default("geplant") @map("status")
   time         DateTime

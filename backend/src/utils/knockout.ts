@@ -148,6 +148,6 @@ export function generateKnockoutTree(
     previousRoundNodes = nextRoundNodes;
   }
   
-  // Clean up internal properties before returning
-  return matches.map(({ upperBound, lowerBound, ...rest }) => rest);
+  // Keep upperBound/lowerBound for KO propagation in updateMatch
+  return matches;
 }

@@ -16,7 +16,7 @@ export const matchSchema = z.object({
   bracketTyp: z.enum(['sieger', 'verlierer']).nullable().optional(),
   siegerId: z.number().int().positive().nullable().optional(),
   verliererId: z.number().int().positive().nullable().optional(),
-  status: z.enum(['geplant', 'gespielt', 'abgesagt']).optional(),
+  status: z.enum(['geplant', 'gespielt', 'abgeschlossen', 'abgesagt']).optional(),
   time: z.string().datetime().or(z.date())
 });
 
@@ -227,7 +227,7 @@ export const updateMatch = async (req: Request, res: Response) => {
     include: { teamA: true, teamB: true, timeSlot: true, field: true }
   });
 
-  // Wenn KO-Ergebnis gespeichert wurde → Sieger und Verlierer weitergeben
+  // KO-Ergebnis → Sieger/Verlierer in nächste Runde propagieren
   if (m.bracketId && m.scoreA !== null && m.scoreB !== null) {
     const bracket = await prisma.knockoutBracket.findUnique({ where: { id: m.bracketId } });
     if (!bracket) return res.json(m);
@@ -238,103 +238,345 @@ export const updateMatch = async (req: Request, res: Response) => {
     
     if (!siegerId || !verliererId) return res.json(m);
 
-    // Alle KO-Matches des Turniers laden
-    const allKoMatches = await prisma.match.findMany({
-      where: { tournamentId: bracket.tournamentId },
-      orderBy: { id: 'asc' }
+    // Alle KO-Matches laden (mit bounds!)
+    const koMatches = await prisma.match.findMany({
+      where: { tournamentId: bracket.tournamentId }
     });
 
-    const phase = m.phase || '';
+    const currentUpper = m.upperBound;
+    const currentLower = m.lowerBound;
+    
+    if (!currentUpper || !currentLower) return res.json(m);
 
-    // Viertelfinale → Sieger ins Halbfinale, Verlierer ins Trostrunde
-    if (phase.startsWith('Viertelfinale')) {
-      // Sieger → nächstes freies Halbfinale
-      const hfMatches = allKoMatches.filter(match => 
-        match.phase === 'Halbfinale 1' || match.phase === 'Halbfinale 2'
-      );
-      let targetHf = hfMatches.find(m => !m.teamAId);
-      if (!targetHf) {
-        // Neues Halbfinale erstellen
-        const hfNum = hfMatches.filter(m => m.phase === 'Halbfinale 1').length > 0 ? 2 : 1;
-        targetHf = await prisma.match.create({
-          data: { tournamentId: bracket.tournamentId, phase: `Halbfinale ${hfNum}`, time: new Date() }
-        });
-      }
-      if (targetHf) {
-        await prisma.match.update({ where: { id: targetHf.id }, data: { teamAId: siegerId } });
-      }
+    // Nur propagieren wenn nicht bereits Finale oder Platzierungsspiel erreicht
+    // bounds [1,1] = Finale, bounds [3,4] = Spiel um Platz 3 (keine weitere Aufteilung möglich)
+    if (currentUpper !== currentLower && currentUpper + 1 < currentLower) {
+      const midPoint = Math.floor((currentUpper + currentLower) / 2);
 
-      // Verlierer → nächstes freies Trostrunde-Halbfinale
-      const trostMatches = allKoMatches.filter(match => 
-        match.phase && match.phase.startsWith('Halbfinale Platz 5-8')
-      );
-      let targetTrost = trostMatches.find(m => !m.teamAId);
-      if (!targetTrost) {
-        const trostNum = trostMatches.filter(m => m.phase === 'Halbfinale Platz 5-8 (1)').length > 0 ? 2 : 1;
-        targetTrost = await prisma.match.create({
-          data: { tournamentId: bracket.tournamentId, phase: `Halbfinale Platz 5-8 (${trostNum})`, time: new Date() }
-        });
+      // === Schritt 1: Finde die Position dieses Matches innerhalb seiner Bounds-Gruppe ===
+      // Alle aktuellen Matches mit gleichen bounds, sortiert nach id
+      const sameBoundsGroup = koMatches
+        .filter(km => km.bracketId === bracket.id && 
+                     km.stage === (m.stage || 0) &&
+                     km.upperBound === currentUpper && 
+                     km.lowerBound === currentLower)
+        .sort((a, b) => a.id - b.id);
+      
+      // Index dieses Matches innerhalb der Gruppe
+      let myIndexInGroup = -1;
+      for (let i = 0; i < sameBoundsGroup.length; i++) {
+        if (sameBoundsGroup[i].id === m.id) { myIndexInGroup = i; break; }
       }
-      if (targetTrost) {
-        await prisma.match.update({ where: { id: targetTrost.id }, data: { teamAId: verliererId } });
-      }
-    }
-    // Halbfinale → Sieger ins Finale, Verlierer ins Spiel um Platz X
-    else if ((phase === 'Halbfinale 1' || phase === 'Halbfinale 2')) {
-      // Sieger → nächstes freies Finale-Slot
-      const finaleMatches = allKoMatches.filter(match => match.phase === 'Finale');
-      let targetFinale = finaleMatches.find(m => !m.teamAId);
-      if (!targetFinale) {
-        targetFinale = await prisma.match.create({
-          data: { tournamentId: bracket.tournamentId, phase: 'Finale', time: new Date() }
-        });
-      }
-      if (targetFinale) {
-        await prisma.match.update({ where: { id: targetFinale.id }, data: { teamAId: siegerId } });
+      
+      // Welches Pair innerhalb der Gruppe? (jedes Paar geht in ein nächstes Match)
+      const pairIndex = Math.floor(myIndexInGroup / 2);
+      const isEvenSlot = myIndexInGroup % 2 === 0; // teamA oder teamB?
+
+      // === Schritt 2: Finde/erstelle das Ziel-Match für den Sieger ===
+      const winnerBoundsKey = `${currentUpper}-${midPoint}`;
+      const nextRoundMatches = koMatches
+        .filter(km => km.bracketId === bracket.id && km.stage === (m.stage || 0) + 1)
+        .sort((a, b) => a.id - b.id);
+      
+      // Gruppiere nächste Runde nach bounds
+      const nextGroups: Map<string, typeof koMatches> = new Map();
+      for (const km of nextRoundMatches) {
+        const key = `${km.upperBound}-${km.lowerBound}`;
+        if (!nextGroups.has(key)) nextGroups.set(key, []);
+        nextGroups.get(key).push(km);
       }
 
-      // Verlierer → nächstes freies Spiel um Platz X
-      const platzMatches = allKoMatches.filter(match => 
-        match.phase && match.phase.startsWith('Spiel um Platz')
-      );
-      let targetPlatz = null;
-      if (phase === 'Halbfinale 1') {
-        // Verlierer HF1 → Spiel um Platz 5
-        targetPlatz = platzMatches.find(m => m.phase === 'Spiel um Platz 5' && !m.teamAId);
-        if (!targetPlatz) {
-          targetPlatz = await prisma.match.create({
-            data: { tournamentId: bracket.tournamentId, phase: 'Spiel um Platz 5', time: new Date() }
+      // pairIndex-tes Match in der winner bounds group ist das Ziel
+      let targetWinner = null;
+      const winnerGroup = nextGroups.get(winnerBoundsKey) || [];
+      if (pairIndex < winnerGroup.length) {
+        targetWinner = winnerGroup[pairIndex];
+      }
+      
+      if (!targetWinner) {
+        // Match existiert noch nicht → erstellen
+        const nextStage = (m.stage || 0) + 1;
+        targetWinner = await prisma.match.create({
+          data: {
+            tournamentId: bracket.tournamentId,
+            yearGroupId: bracket.yearGroupId,
+            bracketId: bracket.id,
+            stage: nextStage,
+            phase: winnerBoundsKey.split('-')[0] === '1' && midPoint === 1 
+              ? 'Finale' 
+              : `Spiel um Platz ${currentUpper}`,
+            status: 'geplant',
+            upperBound: currentUpper,
+            lowerBound: midPoint,
+            time: new Date()
+          }
+        });
+      }
+      if (targetWinner) {
+        // Team in teamA oder teamB setzen je nach Position im Pair
+        const updated = await prisma.match.findUnique({ where: { id: targetWinner.id } });
+        if (!updated) return res.json(m);
+        
+        if (isEvenSlot && !updated.teamAId) {
+          await prisma.match.update({ where: { id: targetWinner.id }, data: { teamAId: siegerId } });
+        } else if (!isEvenSlot && !updated.teamBId) {
+          await prisma.match.update({ where: { id: targetWinner.id }, data: { teamBId: siegerId } });
+        }
+      }
+
+      // === Schritt 3: Finde/erstelle das Ziel-Match für den Verlierer (nur bei playouts) ===
+      const loserBoundsKey = `${midPoint + 1}-${currentLower}`;
+      const loserGroup = nextGroups.get(loserBoundsKey) || [];
+      
+      if (loserGroup.length > 0 || (midPoint + 1 < currentLower)) {
+        let targetLoser = null;
+        if (pairIndex < loserGroup.length) {
+          targetLoser = loserGroup[pairIndex];
+        }
+        
+        if (!targetLoser && midPoint + 1 < currentLower) {
+          const nextStage = (m.stage || 0) + 1;
+          targetLoser = await prisma.match.create({
+            data: {
+              tournamentId: bracket.tournamentId,
+              yearGroupId: bracket.yearGroupId,
+              bracketId: bracket.id,
+              stage: nextStage,
+              phase: midPoint + 1 === currentLower
+                ? `Spiel um Platz ${midPoint + 1}`
+                : `Platzierung ${midPoint + 1}-${currentLower}`,
+              status: 'geplant',
+              upperBound: midPoint + 1,
+              lowerBound: currentLower,
+              time: new Date()
+            }
           });
         }
-      } else {
-        // Verlierer HF2 → Spiel um Platz 7
-        targetPlatz = platzMatches.find(m => m.phase === 'Spiel um Platz 7' && !m.teamAId);
-        if (!targetPlatz) {
-          targetPlatz = await prisma.match.create({
-            data: { tournamentId: bracket.tournamentId, phase: 'Spiel um Platz 7', time: new Date() }
-          });
+        if (targetLoser) {
+          const updated = await prisma.match.findUnique({ where: { id: targetLoser.id } });
+          if (!updated) return res.json(m);
+          
+          // Loser: teamA wenn even slot, teamB wenn odd slot
+          if (isEvenSlot && !updated.teamAId) {
+            await prisma.match.update({ where: { id: targetLoser.id }, data: { teamAId: verliererId } });
+          } else if (!isEvenSlot && !updated.teamBId) {
+            await prisma.match.update({ where: { id: targetLoser.id }, data: { teamBId: verliererId } });
+          }
         }
-      }
-      if (targetPlatz) {
-        await prisma.match.update({ where: { id: targetPlatz.id }, data: { teamAId: verliererId } });
-      }
-    }
-    // Finale → Verlierer ins Spiel um Platz 3
-    else if (phase === 'Finale') {
-      const platz3Matches = allKoMatches.filter(match => match.phase === 'Spiel um Platz 3');
-      let targetPlatz3 = platz3Matches.find(m => !m.teamAId);
-      if (!targetPlatz3) {
-        targetPlatz3 = await prisma.match.create({
-          data: { tournamentId: bracket.tournamentId, phase: 'Spiel um Platz 3', time: new Date() }
-        });
-      }
-      if (targetPlatz3) {
-        await prisma.match.update({ where: { id: targetPlatz3.id }, data: { teamAId: verliererId } });
       }
     }
   }
 
   return res.json(m);
+};
+
+/**
+ * Match-Ergebnis zurücksetzen (Fehleingabe korrigieren)
+ * - scoreA/scoreB auf null
+ * - status zurück auf 'geplant'
+ * - Bei KO-Matches: propagierte Teams aus downstream-Matches entfernen
+ * - Standings neu berechnen
+ */
+export const resetMatch = async (req: Request, res: Response) => {
+  const matchId = parseInt(String(req.params.id));
+  
+  // Match laden
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    include: { teamA: true, teamB: true }
+  });
+
+  if (!match) {
+    return res.status(404).json({ error: 'Match nicht gefunden' });
+  }
+
+  // Prüfen ob Match überhaupt gespielt ist
+  if (match.scoreA === null || match.scoreB === null || match.status !== 'gespielt') {
+    return res.json({ message: 'Match war bereits nicht gespielt', match });
+  }
+
+  const wasKO = !!match.bracketId;
+  const tournamentId = match.tournamentId;
+
+  // Match zurücksetzen
+  const resetted = await prisma.match.update({
+    where: { id: matchId },
+    data: {
+      scoreA: null,
+      scoreB: null,
+      status: 'geplant',
+      siegerId: null,
+      verliererId: null
+    }
+  });
+
+  // === KO-Propagation / Gruppenphase-Effekt rückgängig machen ===
+  if (wasKO) {
+    await undoKOPropagation(matchId);
+  } else {
+    // Gruppenspiel zurückgesetzt → alle KO-Matches für dieses Turnier leeren
+    await clearAllKOMatches(tournamentId, match.yearGroupId);
+  }
+
+  // Standings neu berechnen
+  await recalculateStandingsForTournament(tournamentId);
+
+  return res.json({
+    message: wasKO 
+      ? 'KO-Match zurückgesetzt, downstream-Matches geleert' 
+      : 'Gruppenspiel zurückgesetzt, KO-Phase komplett geleert',
+    match: resetted
+  });
+};
+
+/**
+ * Alle KO-Matches für ein Turnier leeren (wenn Gruppenspiel zurückgesetzt wird)
+ */
+async function clearAllKOMatches(tournamentId: number, yearGroupId: number | null) {
+  const koMatches = await prisma.match.findMany({
+    where: { tournamentId }
+  });
+
+  // Alle KO-Matches mit Teams zurücksetzen (rekursiv)
+  for (const match of koMatches) {
+    if (!match.bracketId) continue; // Kein KO-Match
+    
+    const hasTeams = !!(match.teamAId || match.teamBId);
+    if (!hasTeams) continue;
+
+    await prisma.match.update({
+      where: { id: match.id },
+      data: {
+        teamAId: null,
+        teamBId: null,
+        scoreA: null,
+        scoreB: null,
+        status: 'geplant',
+        siegerId: null,
+        verliererId: null
+      }
+    });
+  }
+}
+
+/**
+ * Rekursiv alle downstream-Matches durchgehen und Teams entfernen,
+ * die nur von diesem Match abhängen.
+ */
+async function undoKOPropagation(matchId: number) {
+  const match = await prisma.match.findUnique({ where: { id: matchId } });
+  if (!match || !match.bracketId) return;
+
+  // Finde alle Matches in der nächsten Runde die dieses Match als Quelle haben
+  const koMatches = await prisma.match.findMany({
+    where: { tournamentId: match.tournamentId }
+  });
+
+  const currentUpper = match.upperBound;
+  const currentLower = match.lowerBound;
+  
+  if (!currentUpper || !currentLower) return;
+
+  const midPoint = Math.floor((currentUpper + currentLower) / 2);
+
+  // === Winner-Ziel: [upperBound, midPoint] ===
+  const winnerBoundsKey = `${currentUpper}-${midPoint}`;
+  const nextRoundMatches = koMatches
+    .filter(m => m.bracketId === match.bracketId && m.stage === (match.stage || 0) + 1)
+    .sort((a, b) => a.id - b.id);
+
+  // Gruppiere nächste Runde nach bounds
+  const nextGroups: Map<string, typeof koMatches> = new Map();
+  for (const m of nextRoundMatches) {
+    const key = `${m.upperBound}-${m.lowerBound}`;
+    if (!nextGroups.has(key)) nextGroups.set(key, []);
+    nextGroups.get(key).push(m);
+  }
+
+  // Finde die Position dieses Matches in seiner Gruppe
+  const sameBoundsGroup = koMatches
+    .filter(m => m.bracketId === match.bracketId && 
+                 m.stage === (match.stage || 0) &&
+                 m.upperBound === currentUpper && 
+                 m.lowerBound === currentLower)
+    .sort((a, b) => a.id - b.id);
+
+  let myIndexInGroup = -1;
+  for (let i = 0; i < sameBoundsGroup.length; i++) {
+    if (sameBoundsGroup[i].id === matchId) { myIndexInGroup = i; break; }
+  }
+
+  const pairIndex = Math.floor(myIndexInGroup / 2);
+  const isEvenSlot = myIndexInGroup % 2 === 0;
+
+  // Winner-Ziel-Match finden und teamA/teamB entfernen wenn es nur von diesem Match kommt
+  const winnerGroup = nextGroups.get(winnerBoundsKey) || [];
+  if (pairIndex < winnerGroup.length) {
+    const targetWinner = winnerGroup[pairIndex];
+    await removeTeamFromDownstream(targetWinner.id, isEvenSlot ? 'teamA' : 'teamB');
+  }
+
+  // Loser-Ziel-Match finden und teamA/teamB entfernen wenn es nur von diesem Match kommt
+  const loserBoundsKey = `${midPoint + 1}-${currentLower}`;
+  const loserGroup = nextGroups.get(loserBoundsKey) || [];
+  if (pairIndex < loserGroup.length) {
+    const targetLoser = loserGroup[pairIndex];
+    await removeTeamFromDownstream(targetLoser.id, isEvenSlot ? 'teamA' : 'teamB');
+  }
+}
+
+/**
+ * Entfernt ein Team aus einem downstream-Match und geht rekursiv weiter,
+ * wenn dadurch das nächste Match leer wird.
+ */
+async function removeTeamFromDownstream(matchId: number, slot: 'teamA' | 'teamB') {
+  const match = await prisma.match.findUnique({ where: { id: matchId } });
+  if (!match) return;
+
+  // Team entfernen
+  const updateData: any = {};
+  updateData[slot] = null;
+  
+  // Wenn beide Teams weg sind, Match zurücksetzen
+  if (!updateData.teamAId && !updateData.teamBId) {
+    updateData.scoreA = null;
+    updateData.scoreB = null;
+    updateData.status = 'geplant';
+    updateData.siegerId = null;
+    updateData.verliererId = null;
+  }
+
+  await prisma.match.update({ where: { id: matchId }, data: updateData });
+
+  // Wenn Match gespielt war, rekursiv weiter (weitere downstream-Matches leeren)
+  if (match.status === 'gespielt' && match.bracketId) {
+    await undoKOPropagation(matchId);
+  }
+}
+
+/**
+ * Spiel als abgeschlossen markieren/unmarkieren (für die UI-Trennung)
+ */
+export const toggleCompleted = async (req: Request, res: Response) => {
+  const matchId = parseInt(String(req.params.id));
+  
+  const match = await prisma.match.findUnique({ where: { id: matchId } });
+  if (!match) {
+    return res.status(404).json({ error: 'Match nicht gefunden' });
+  }
+
+  // Nur gespielte Spiele können abgeschlossen werden
+  if (match.scoreA === null || match.scoreB === null) {
+    return res.json({ message: 'Spiel muss gespielt sein', completed: false, match });
+  }
+
+  const newStatus = match.status === 'abgeschlossen' ? 'gespielt' : 'abgeschlossen';
+  const updated = await prisma.match.update({
+    where: { id: matchId },
+    data: { status: newStatus }
+  });
+
+  return res.json({ completed: newStatus === 'abgeschlossen', match: updated });
 };
 
 export const deleteMatch = async (req: Request, res: Response) => {
@@ -353,6 +595,9 @@ async function recalculateStandingsForTournament(tournamentId: number) {
   for (const m of matches) {
     const scoreA = m.scoreA ?? 0;
     const scoreB = m.scoreB ?? 0;
+    
+    // Nur wenn beide Teams existieren
+    if (!m.teamAId || !m.teamBId) continue;
     
     let a = teamStats.get(m.teamAId);
     if (!a) { a = { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0 }; teamStats.set(m.teamAId, a); }

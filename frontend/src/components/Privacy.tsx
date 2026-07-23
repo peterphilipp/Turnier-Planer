@@ -4,7 +4,7 @@ export default function Privacy() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   return (
-    <div style={{ maxWidth: 800, margin: '40px auto', padding: 20, fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ maxWidth: 800, margin: '40px auto', padding: 20, }}>
       <h1 style={{ color: '#333', borderBottom: '2px solid #0d6efd', paddingBottom: 12 }}>Datenschutzerklärung</h1>
 
       <p style={{ color: '#666', fontSize: 14, marginBottom: 24 }}>

@@ -162,7 +162,7 @@ export default function SelfServiceView() {
     if (!(await modal.confirm({ title: 'Schicht abmelden', message: 'Möchtest du dich von dieser Schicht abmelden?', variant: 'warning' }))) return;
     try {
       const res = await fetch('/api/self/unassign/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
-      if (res.ok) { await loadAvailable(); await modal.alert({ title: 'Erfolg', message: 'Abgemeldet!' }); }
+      if (res.ok) { await loadAvailable(); }
     } catch { await modal.alert({ title: 'Fehler', message: 'Fehler bei der Abmeldung' }); }
   };
 
@@ -248,8 +248,8 @@ export default function SelfServiceView() {
     if (!(await modal.confirm({ title: 'Spende löschen', message: 'Möchtest du diese Spende wirklich löschen?', variant: 'danger' }))) return;
     try {
       const res = await fetch('/api/food/donations/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
-      if (res.ok) { await modal.alert({ title: 'Erfolg', message: 'Gelöscht!' }); await loadFood(); }
-    } catch { await modal.alert({ title: 'Fehler', message: 'Fehler' }); }
+      if (res.ok) { await loadFood(); }
+    } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Löschen' }); }
   };
 
   const changePassword = async () => {
@@ -280,7 +280,7 @@ export default function SelfServiceView() {
   /* ===== RESET PASSWORD SCREEN ===== */
   if (showResetPassword) {
     return (
-      <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + clubAccent + ' 0%, ' + shadeColor(clubAccent, -30) + ' 100%)', boxSizing: 'border-box' }}>
+      <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + clubAccent + ' 0%, ' + shadeColor(clubAccent, -30) + ' 100%)', boxSizing: 'border-box' }}>
         <div style={{ background: '#fff', borderRadius: 16, padding: isMobile ? 24 : 40, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
           <div style={{ textAlign: 'center', marginBottom: 24 }}>
             <div style={{ fontSize: isMobile ? 48 : 64, marginBottom: 8 }}>🔑</div>
@@ -318,7 +318,7 @@ export default function SelfServiceView() {
   /* ===== FORGOT PASSWORD SCREEN ===== */
   if (!isLoggedIn && showForgotPassword) {
     return (
-      <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + shadeColor(clubPrimary, 30) + ' 0%, ' + clubPrimary + ' 100%)', boxSizing: 'border-box' }}>
+      <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + shadeColor(clubPrimary, 30) + ' 0%, ' + clubPrimary + ' 100%)', boxSizing: 'border-box' }}>
         <div style={{ background: '#fff', borderRadius: 16, padding: isMobile ? 24 : 40, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
           <div style={{ textAlign: 'center', marginBottom: 24 }}>
             <div style={{ fontSize: isMobile ? 48 : 64, marginBottom: 8 }}>📧</div>
@@ -356,7 +356,7 @@ export default function SelfServiceView() {
   /* ===== LOGIN SCREEN ===== */
   if (!isLoggedIn && !showRegisterForm && !showForgotPassword) {
     return (
-      <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + clubPrimary + ' 0%, ' + shadeColor(clubPrimary, -30) + ' 100%)', boxSizing: 'border-box' }}>
+      <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + clubPrimary + ' 0%, ' + shadeColor(clubPrimary, -30) + ' 100%)', boxSizing: 'border-box' }}>
         <div style={{ background: '#fff', borderRadius: 16, padding: isMobile ? 24 : 40, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
           <div style={{ textAlign: 'center', marginBottom: 24 }}>
             {clubLogo ? (
@@ -384,7 +384,7 @@ export default function SelfServiceView() {
   /* ===== REGISTER SCREEN ===== */
   if (showRegisterForm) {
     return (
-      <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + shadeColor(clubPrimary, 30) + ' 0%, ' + clubPrimary + ' 100%)', boxSizing: 'border-box' }}>
+      <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + shadeColor(clubPrimary, 30) + ' 0%, ' + clubPrimary + ' 100%)', boxSizing: 'border-box' }}>
         <div style={{ background: '#fff', borderRadius: 16, padding: isMobile ? 24 : 40, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
           <div style={{ textAlign: 'center', marginBottom: 24 }}>
             <div style={{ fontSize: isMobile ? 48 : 64, marginBottom: 8 }}>📝</div>
@@ -454,7 +454,7 @@ export default function SelfServiceView() {
   /* ===== PROFIL BEARBEITEN ===== */
   if (showProfile) {
     return (
-      <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + shadeColor(clubPrimary, 30) + ' 0%, ' + clubPrimary + ' 100%)', boxSizing: 'border-box' }}>
+      <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + shadeColor(clubPrimary, 30) + ' 0%, ' + clubPrimary + ' 100%)', boxSizing: 'border-box' }}>
         <div style={{ background: '#fff', borderRadius: 16, padding: isMobile ? 24 : 40, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
           <div style={{ textAlign: 'center', marginBottom: 24 }}>
             <div style={{ fontSize: isMobile ? 48 : 64, marginBottom: 8 }}>👤</div>
@@ -511,7 +511,7 @@ export default function SelfServiceView() {
 
   /* ===== DASHBOARD ===== */
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 480, margin: '0 auto', padding: isMobile ? 16 : 24, background: '#f0f2f5', minHeight: '100vh', boxSizing: 'border-box' }}>
+    <div style={{ maxWidth: 480, margin: '0 auto', padding: isMobile ? 16 : 24, background: '#f0f2f5', minHeight: '100vh', boxSizing: 'border-box' }}>
       {/* Header mit Logo, Name & Hamburger */}
       <div style={{ background: 'linear-gradient(135deg, ' + clubPrimary + ' 0%, ' + shadeColor(clubPrimary, -20) + ' 100%)', borderRadius: 16, padding: isMobile ? 16 : 20, marginBottom: 20, color: '#fff', position: 'relative' }}>
         <button

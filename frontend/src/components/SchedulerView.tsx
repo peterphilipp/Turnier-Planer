@@ -226,7 +226,7 @@ export default function SchedulerView() {
   const btnStyle: React.CSSProperties = { padding: '4px 10px', cursor: 'pointer', border: '1px solid #ced4da', borderRadius: 4, background: '#e9ecef', fontSize: 12 };
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
       <h2 style={{ marginBottom: 16 }}>📅 Dienstplan</h2>
 
       {/* Turnier-Auswahl */}

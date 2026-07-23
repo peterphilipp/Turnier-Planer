@@ -240,11 +240,10 @@ async function scheduleAndSaveMatches(
     if (match.teamBId) teamsPlayingInCurrentSlot.add(match.teamBId);
 
     const field = fields[currentFieldIdx];
-    const { stage, ...matchData } = match;
 
     await prisma.match.create({
       data: {
-        ...matchData,
+        ...match,
         time: currentTime,
         fieldId: field.id
       }

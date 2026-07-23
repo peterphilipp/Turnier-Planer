@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 export type ModalType = 'confirm' | 'alert' | 'form' | null;
@@ -32,43 +32,24 @@ interface FormOpts {
   cancelText?: string;
 }
 
-// ─── Context ─────────────────────────────────────────────────────────────
-const ModalContext = new (class {
-  state: { type: ModalType; opts: any } = { type: null, opts: {} };
-  listeners: Set<() => void> = new Set();
+// ─── Global state (works outside React components) ───────────────────────
+let _modalState: { type: ModalType; opts: any } = { type: null, opts: {} };
+let _confirmResolve: ((value: boolean) => void) | null = null;
+let _alertResolve: (() => void) | null = null;
+let _formResolve: ((value: Record<string, any>) => void) | null = null;
+let _listeners: (() => void)[] = [];
 
-  open(type: 'confirm', opts: ConfirmOpts): Promise<boolean>;
-  open(type: 'alert', opts: AlertOpts): Promise<void>;
-  open(type: 'form', opts: FormOpts): Promise<Record<string, any>>;
-  open(type: ModalType, opts: any): Promise<any> {
-    return new Promise((resolve) => {
-      this.state = { type, opts };
-      this.listeners.forEach(fn => fn());
+function triggerUpdate() {
+  _listeners.forEach(l => l());
+}
 
-      const close = (result: any) => {
-        this.state = { type: null, opts: {} };
-        this.listeners.forEach(fn => fn());
-        resolve(result);
-      };
-
-      if (type === 'confirm') {
-        (window as any).__modalConfirmResolve = close;
-      } else if (type === 'alert') {
-        (window as any).__modalAlertResolve = close;
-      } else if (type === 'form') {
-        (window as any).__modalFormResolve = close;
-      }
-    });
-  }
-
-  subscribe(fn: () => void) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
-})();
-
-export const useModal = () => ModalContext;
+function clearState() {
+  _modalState = { type: null, opts: {} };
+  triggerUpdate();
+}
 
 // ─── Confirm Dialog ──────────────────────────────────────────────────────
 function ConfirmDialog({ opts }: { opts: ConfirmOpts }) {
-  const modal = useModal();
   const [loading, setLoading] = useState(false);
 
   const variantStyles = {
@@ -79,18 +60,21 @@ function ConfirmDialog({ opts }: { opts: ConfirmOpts }) {
   const style = variantStyles[opts.variant || 'warning'];
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}>
-      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 32px 24px', maxWidth: 420, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+    <div 
+      onClick={(e) => { if (e.target === e.currentTarget && _confirmResolve) _confirmResolve(false); }}
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+    >
+      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 32px 24px', maxWidth: 420, width: '92%', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', margin: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
           <span style={{ fontSize: 28 }}>{style.icon}</span>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#212529' }}>{opts.title}</h3>
         </div>
         <p style={{ margin: '0 0 24px', fontSize: 14, color: '#495057', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{opts.message}</p>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button onClick={() => (window as any).__modalConfirmResolve(false)} style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #dee2e6', background: '#fff', color: '#495057', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          <button onClick={() => { if (_confirmResolve) _confirmResolve(false); }} style={{ padding: '12px 24px', borderRadius: 8, border: '1px solid #dee2e6', background: '#fff', color: '#495057', fontSize: 14, fontWeight: 500, cursor: 'pointer', minWidth: 100 }}>
             {opts.cancelText || 'Abbrechen'}
           </button>
-          <button onClick={() => { setLoading(true); (window as any).__modalConfirmResolve(true); }} disabled={loading} style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: loading ? '#6c757d' : style.accent, color: opts.variant === 'warning' ? '#212529' : '#fff', fontSize: 14, fontWeight: 600, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1 }} >
+          <button onClick={() => { setLoading(true); if (_confirmResolve) _confirmResolve(true); }} disabled={loading} style={{ padding: '12px 24px', borderRadius: 8, border: 'none', background: loading ? '#6c757d' : style.accent, color: opts.variant === 'warning' ? '#212529' : '#fff', fontSize: 14, fontWeight: 600, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1, minWidth: 100 }} >
             {loading ? '\u23F3\uFE0F' : (opts.confirmText || 'Best\u00E4tigen')}
           </button>
         </div>
@@ -101,14 +85,16 @@ function ConfirmDialog({ opts }: { opts: ConfirmOpts }) {
 
 // ─── Alert Dialog ────────────────────────────────────────────────────────
 function AlertDialog({ opts }: { opts: AlertOpts }) {
-  const modal = useModal();
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}>
-      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 32px 24px', maxWidth: 420, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+    <div 
+      onClick={(e) => { if (e.target === e.currentTarget && _alertResolve) _alertResolve(); }}
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+    >
+      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 32px 24px', maxWidth: 420, width: '92%', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', margin: 'auto' }}>
         <h3 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 600, color: '#212529' }}>{opts.title}</h3>
         <p style={{ margin: '0 0 24px', fontSize: 14, color: '#495057', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{opts.message}</p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button onClick={() => (window as any).__modalAlertResolve()} style={{ padding: '10px 28px', borderRadius: 8, border: 'none', background: '#0d6efd', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          <button onClick={() => { if (_alertResolve) _alertResolve(); }} style={{ padding: '12px 32px', borderRadius: 8, border: 'none', background: '#0d6efd', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', minWidth: 100 }}>
             {opts.okText || 'OK'}
           </button>
         </div>
@@ -119,33 +105,35 @@ function AlertDialog({ opts }: { opts: AlertOpts }) {
 
 // ─── Form Dialog ─────────────────────────────────────────────────────────
 function FormDialog({ opts }: { opts: FormOpts }) {
-  const modal = useModal();
   const [values, setValues] = useState<Record<string, any>>({});
 
   const handleChange = (key: string, val: any) => setValues(prev => ({ ...prev, [key]: val }));
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}>
-      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 32px 24px', maxWidth: 480, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+    <div 
+      onClick={(e) => { if (e.target === e.currentTarget && _formResolve) _formResolve({}); }}
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+    >
+      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 32px 24px', maxWidth: 480, width: '92%', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', margin: 'auto' }}>
         <h3 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 600, color: '#212529' }}>{opts.title}</h3>
         {opts.fields.map(f => (
           <div key={f.key} style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#495057', marginBottom: 4 }}>{f.label}</label>
             {f.type === 'select' && f.options ? (
-              <select value={values[f.key] || ''} onChange={e => handleChange(f.key, e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, background: '#fff' }}>
+              <select value={values[f.key] || ''} onChange={e => handleChange(f.key, e.target.value)} style={{ width: '100%', padding: '12px 12px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, background: '#fff', minHeight: 44 }}>
                 <option value="">Bitte w\u00E4hlen...</option>
                 {f.options.map(o => <option key={String(o.value)} value={o.value}>{o.label}</option>)}
               </select>
             ) : (
-              <input type={f.type || 'text'} placeholder={f.placeholder} value={values[f.key] || ''} onChange={e => handleChange(f.key, e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14 }} />
+              <input type={f.type || 'text'} placeholder={f.placeholder} value={values[f.key] || ''} onChange={e => handleChange(f.key, e.target.value)} style={{ width: '100%', padding: '12px 12px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, minHeight: 44 }} />
             )}
           </div>
         ))}
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
-          <button onClick={() => (window as any).__modalFormResolve(null)} style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #dee2e6', background: '#fff', color: '#495057', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20, flexWrap: 'wrap' }}>
+          <button onClick={() => { if (_formResolve) _formResolve({}); }} style={{ padding: '12px 24px', borderRadius: 8, border: '1px solid #dee2e6', background: '#fff', color: '#495057', fontSize: 14, fontWeight: 500, cursor: 'pointer', minWidth: 100 }}>
             {opts.cancelText || 'Abbrechen'}
           </button>
-          <button onClick={() => (window as any).__modalFormResolve(values)} style={{ padding: '10px 28px', borderRadius: 8, border: 'none', background: '#0d6efd', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+          <button onClick={() => { if (_formResolve) _formResolve(values); }} style={{ padding: '12px 32px', borderRadius: 8, border: 'none', background: '#0d6efd', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', minWidth: 100 }}>
             {opts.submitText || 'Speichern'}
           </button>
         </div>
@@ -154,11 +142,19 @@ function FormDialog({ opts }: { opts: FormOpts }) {
   );
 }
 
-// ─── Root Component (render once in App.tsx) ─────────────────────────────
+// ─── ModalRoot (syncs with global state via pub/sub) ────────────────────────
 export function ModalRoot() {
-  const [state, setState] = useState(ModalContext.state);
-
-  useModal().subscribe(() => setState({ ...ModalContext.state }));
+  const [state, setState] = useState(_modalState);
+  
+  useEffect(() => {
+    const handler = () => {
+      setState({ ..._modalState });
+    };
+    _listeners.push(handler);
+    return () => { 
+      _listeners = _listeners.filter(l => l !== handler); 
+    };
+  }, []);
 
   if (!state.type) return null;
 
@@ -168,9 +164,36 @@ export function ModalRoot() {
   return null;
 }
 
-// ─── Convenience helpers ─────────────────────────────────────────────────
+// ─── Backward-compatible modal API ───────────────────────────────────────
 export const modal = {
-  confirm: (opts: Omit<ConfirmOpts, 'type'>) => ModalContext.open('confirm', opts),
-  alert: (opts: Omit<AlertOpts, 'type'>) => ModalContext.open('alert', opts),
-  form: (opts: Omit<FormOpts, 'type'>) => ModalContext.open('form', opts),
+  confirm: (opts: Omit<ConfirmOpts, 'type'>): Promise<boolean> => {
+    _modalState = { type: 'confirm', opts };
+    triggerUpdate();
+    return new Promise((resolve) => { 
+      _confirmResolve = (val) => {
+        clearState();
+        resolve(val);
+      }; 
+    });
+  },
+  alert: (opts: Omit<AlertOpts, 'type'>): Promise<void> => {
+    _modalState = { type: 'alert', opts };
+    triggerUpdate();
+    return new Promise((resolve) => { 
+      _alertResolve = () => {
+        clearState();
+        resolve();
+      }; 
+    });
+  },
+  form: (opts: Omit<FormOpts, 'type'>): Promise<Record<string, any>> => {
+    _modalState = { type: 'form', opts };
+    triggerUpdate();
+    return new Promise((resolve) => { 
+      _formResolve = (val) => {
+        clearState();
+        resolve(val);
+      }; 
+    });
+  },
 };

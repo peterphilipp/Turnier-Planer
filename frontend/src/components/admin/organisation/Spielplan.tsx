@@ -14,6 +14,16 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
   const queryClient = useQueryClient();
   const [editingScore, setEditingScore] = useState<{ matchId: number; side: 'A' | 'B'; value: string } | null>(null);
 
+  // Matches als abgeschlossen markieren/unmarkieren
+  const handleToggleCompleted = async (matchId: number) => {
+    try {
+      await apiPatch(`/api/matches/${matchId}/toggle-completed`, {});
+      queryClient.invalidateQueries({ queryKey: ['matches', tournamentId] });
+    } catch (e) {
+      console.error('Toggle completed fehlgeschlagen:', e);
+    }
+  };
+
   // Matches laden (nur für selected yearGroup)
   const { data: allMatches = [] } = useQuery<Match[]>({
     queryKey: ['matches', tournamentId],
@@ -44,6 +54,16 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
   const koMatches = phase === 'ko'
     ? allMatchesFiltered.filter(m => !isGroupPhase(m.phase) && m.phase != null)
     : [];
+
+  // Matches nach Status filtern: offen/laufend vs abgeschlossen
+  const isCompleted = (m: Match) => m.status === 'abgeschlossen';
+  const isOpenOrRunning = (m: Match) => !isCompleted(m);
+
+  const openGruppenMatches = gruppenMatches.filter(isOpenOrRunning).sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  const completedGruppenMatches = gruppenMatches.filter(isCompleted).sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+  const openKOMatches = koMatches.filter(isOpenOrRunning).sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  const completedKOMatches = koMatches.filter(isCompleted).sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
 
   // Fields für Labels
   const { data: fields = [] } = useQuery<Field[]>({
@@ -102,10 +122,23 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
       // Stats pro Team berechnen
       const stats = new Map<number, { played: number; won: number; drawn: number; lost: number; goalsFor: number; goalsAgainst: number }>();
       
+      // Zuerst ALLE Teams aus den Matches dieser Gruppe sammeln (auch ungespielte!)
       gruppenMatches.forEach(m => {
         if (m.phase !== groupPhase) return;
-        const scoreA = m.scoreA ?? 0;
-        const scoreB = m.scoreB ?? 0;
+        [m.teamAId, m.teamBId].forEach((teamId) => {
+          if (!teamId) return;
+          let s = stats.get(teamId);
+          if (!s) { s = { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0 }; stats.set(teamId, s); }
+        });
+      });
+      
+      // Dann nur gespielte Spiele zählen
+      gruppenMatches.forEach(m => {
+        if (m.phase !== groupPhase) return;
+        if (m.scoreA === null || m.scoreB === null) return;
+        
+        const scoreA = m.scoreA;
+        const scoreB = m.scoreB;
         
         [m.teamAId, m.teamBId].forEach((teamId, idx) => {
           if (!teamId) return;
@@ -183,6 +216,170 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
         console.error('Score speichern fehlgeschlagen:', e);
       }
     }
+  };
+
+  const handleResetMatch = async (matchId: number, matchPhase: string | null) => {
+    const confirmed = await modal.confirm({
+      title: 'Spiel-Ergebnis zurücksetzen?',
+      message: `Das Ergebnis von "${matchPhase || 'Spiel'}" wird gelöscht. Alle daraus resultierenden Änderungen (Aufsteiger, KO-Propagation) werden rückgängig gemacht.`
+    });
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/matches/${matchId}/reset`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        await modal.alert({ title: 'Fehler', message: err.error || 'Reset fehlgeschlagen' });
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: ['matches', tournamentId] });
+      await modal.alert({ title: 'Erfolg', message: '✅ Spiel-Ergebnis wurde zurückgesetzt.' });
+    } catch (e) {
+      await modal.alert({ title: 'Fehler', message: 'Reset fehlgeschlagen: ' + (e as Error).message });
+    }
+  };
+
+  // ============ MATCH CARD RENDERING ============
+  const renderMatchCard = (match: Match, index: number) => {
+    const isCompleted = match.status === 'abgeschlossen';
+    return (
+    <div key={match.id} style={{ 
+      border: `1px solid ${isCompleted ? '#dee2e6' : '#d1fae5'}`, 
+      borderRadius: 8, 
+      padding: '8px 12px',
+      background: isCompleted ? '#f8f9fa' : match.status === 'gespielt' ? '#fff8f0' : '#fff',
+      opacity: isCompleted ? 0.7 : 1,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12
+    }}>
+      {/* Links: Nummer + Uhrzeit/Feld */}
+      <div style={{ minWidth: 130, flexShrink: 0 }}>
+        <span style={{ 
+          fontWeight: 'bold',
+          color: isCompleted ? '#adb5bd' : '#059669',
+          fontSize: 14
+        }}>#{index + 1}</span>
+        <div style={{ fontSize: 11, color: '#6c757d', marginTop: 2 }}>
+          🕒 {new Date(match.time).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+          {' · '}
+          📍 {getFieldLabel(match.fieldId)}
+        </div>
+      </div>
+
+      {/* Phase-Badge */}
+      <span style={{ 
+        padding: '2px 8px', 
+        borderRadius: 4, 
+        background: match.status === 'abgeschlossen' ? '#d1fae5' : '#fff3e0',
+        fontSize: 11,
+        fontWeight: '600',
+        flexShrink: 0
+      }}>
+        {match.runde ? `📋 ${match.runde}` : match.phase}
+      </span>
+
+      {/* Team A */}
+      <div style={{ fontSize: 13, fontWeight: '500', minWidth: 120, flexShrink: 1 }}>
+        {getTeamName(match.teamAId)}
+      </div>
+
+      {/* Score */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          min="0"
+          value={editingScore?.matchId === match.id && editingScore.side === 'A' ? editingScore.value : (match.scoreA ?? '')}
+          onChange={(e) => {
+            const val = e.target.value.replace(/[^0-9]/g, '');
+            setEditingScore({ matchId: match.id, side: 'A', value: val });
+          }}
+          onBlur={() => { if (editingScore?.matchId === match.id && editingScore.side === 'A') handleScoreChange(match.id, 'A', editingScore.value); }}
+          onFocus={() => setEditingScore({ matchId: match.id, side: 'A', value: String(match.scoreA ?? '') })}
+          style={{ 
+            width: 36, 
+            padding: '4px 2px', 
+            textAlign: 'center', 
+            border: '1px solid #dee2e6', 
+            borderRadius: 4, 
+            fontSize: 15, 
+            fontWeight: 'bold'
+          }}
+        />
+        <span style={{ color: '#adb5bd' }}>:</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          min="0"
+          value={editingScore?.matchId === match.id && editingScore.side === 'B' ? editingScore.value : (match.scoreB ?? '')}
+          onChange={(e) => {
+            const val = e.target.value.replace(/[^0-9]/g, '');
+            setEditingScore({ matchId: match.id, side: 'B', value: val });
+          }}
+          onBlur={() => { if (editingScore?.matchId === match.id && editingScore.side === 'B') handleScoreChange(match.id, 'B', editingScore.value); }}
+          onFocus={() => setEditingScore({ matchId: match.id, side: 'B', value: String(match.scoreB ?? '') })}
+          style={{ 
+            width: 36, 
+            padding: '4px 2px', 
+            textAlign: 'center', 
+            border: '1px solid #dee2e6', 
+            borderRadius: 4, 
+            fontSize: 15, 
+            fontWeight: 'bold'
+          }}
+        />
+      </div>
+
+      {/* Team B */}
+      <div style={{ fontSize: 13, fontWeight: '500', minWidth: 120, flexShrink: 1, textAlign: 'right' }}>
+        {getTeamName(match.teamBId)}
+      </div>
+
+      {/* Reset-Button */}
+      {match.scoreA !== null && match.scoreB !== null && match.status !== 'abgeschlossen' && (
+        <button
+          onClick={() => handleResetMatch(match.id, match.phase)}
+          title="Spiel-Ergebnis zurücksetzen"
+          style={{
+            padding: '3px 8px',
+            background: '#fff3cd',
+            border: '1px solid #ffc107',
+            borderRadius: 4,
+            cursor: 'pointer',
+            fontSize: 11,
+            fontWeight: '500',
+            color: '#664d03',
+            flexShrink: 0
+          }}
+        >
+          ↺ Reset
+        </button>
+      )}
+
+      {/* Toggle */}
+      {match.scoreA !== null && match.scoreB !== null && (
+        <button
+          onClick={() => handleToggleCompleted(match.id)}
+          title={match.status === 'abgeschlossen' ? 'Als offen markieren' : 'Als abgeschlossen markieren'}
+          style={{
+            padding: '2px 6px',
+            background: match.status === 'abgeschlossen' ? '#e9ecef' : '#d1fae5',
+            border: `1px solid ${match.status === 'abgeschlossen' ? '#adb5bd' : '#86efac'}`,
+            borderRadius: 4,
+            cursor: 'pointer',
+            fontSize: 11,
+            color: match.status === 'abgeschlossen' ? '#6c757d' : '#059669',
+            flexShrink: 0
+          }}
+        >
+          {match.status === 'abgeschlossen' ? '○ Wieder öffnen' : '✓ Abschließen'}
+        </button>
+      )}
+    </div>
+    );
   };
 
   const advanceMatch = async () => {
@@ -294,98 +491,23 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
               🟩 = Aufsteiger in die KO-Phase (Top {advancingPerGroup})
             </div>
 
-            {/* Gruppenspiele */}
-            <h4 style={{ margin: '24px 0 8px 0', fontSize: 15, fontWeight: '600', color: '#212557' }}>📅 Spiele</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {gruppenMatches.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()).map(match => (
-                <div key={match.id} style={{ 
-                  border: '1px solid #e9ecef', 
-                  borderRadius: 12, 
-                  padding: 16,
-                  background: match.status === 'abgeschlossen' ? '#f8fff8' : match.status === 'in_spiel' ? '#fff8f0' : '#fff'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, fontSize: 12, color: '#666' }}>
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <span style={{ fontWeight: 'bold', color: '#495057' }}>
-                        🕒 {new Date(match.time).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr
-                      </span>
-                      <span>📍 {getFieldLabel(match.fieldId)}</span>
-                    </div>
-                    <span style={{ 
-                      padding: '2px 8px', 
-                      borderRadius: 4, 
-                      background: '#e7f5ff',
-                      fontSize: 11,
-                      fontWeight: '600'
-                    }}>
-                      {match.runde ? `📋 ${match.runde}` : match.phase}
-                    </span>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    {/* Team A */}
-                    <div style={{ flex: 1, fontSize: 14, fontWeight: '500' }}>
-                      {getTeamName(match.teamAId)}
-                    </div>
-                    
-                    {/* Score Input - nur Zahlen */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        min="0"
-                        value={editingScore?.matchId === match.id && editingScore.side === 'A' ? editingScore.value : (match.scoreA ?? '')}
-                        onChange={(e) => {
-                          // Nur Zahlen erlauben
-                          const val = e.target.value.replace(/[^0-9]/g, '');
-                          setEditingScore({ matchId: match.id, side: 'A', value: val });
-                        }}
-                        onBlur={() => { if (editingScore?.matchId === match.id && editingScore.side === 'A') handleScoreChange(match.id, 'A', editingScore.value); }}
-                        onFocus={() => setEditingScore({ matchId: match.id, side: 'A', value: String(match.scoreA ?? '') })}
-                        style={{ 
-                          width: 50, 
-                          padding: '6px 8px', 
-                          textAlign: 'center', 
-                          border: '2px solid #dee2e6', 
-                          borderRadius: 6, 
-                          fontSize: 16, 
-                          fontWeight: 'bold'
-                        }}
-                      />
-                      <span style={{ color: '#adb5bd', fontSize: 18 }}>:</span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        min="0"
-                        value={editingScore?.matchId === match.id && editingScore.side === 'B' ? editingScore.value : (match.scoreB ?? '')}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/[^0-9]/g, '');
-                          setEditingScore({ matchId: match.id, side: 'B', value: val });
-                        }}
-                        onBlur={() => { if (editingScore?.matchId === match.id && editingScore.side === 'B') handleScoreChange(match.id, 'B', editingScore.value); }}
-                        onFocus={() => setEditingScore({ matchId: match.id, side: 'B', value: String(match.scoreB ?? '') })}
-                        style={{ 
-                          width: 50, 
-                          padding: '6px 8px', 
-                          textAlign: 'center', 
-                          border: '2px solid #dee2e6', 
-                          borderRadius: 6, 
-                          fontSize: 16, 
-                          fontWeight: 'bold'
-                        }}
-                      />
-                    </div>
-                    
-                    {/* Team B */}
-                    <div style={{ flex: 1, fontSize: 14, fontWeight: '500', textAlign: 'right' }}>
-                      {getTeamName(match.teamBId)}
-                    </div>
-                  </div>
-                </div>
-              ))}
+            {/* Offene/laufende Spiele */}
+            <div style={{ marginTop: 24 }}>
+              <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: '600', color: '#212557' }}>📅 Offene & laufende Spiele</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {openGruppenMatches.map((match, i) => renderMatchCard(match, i))}
+              </div>
             </div>
+
+            {/* Abgeschlossene Spiele */}
+            {completedGruppenMatches.length > 0 && (
+              <div style={{ marginTop: 24 }}>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: '600', color: '#6c757d' }}>🔘 Abgeschlossene Spiele</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {completedGruppenMatches.map((match, i) => renderMatchCard(match, i))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -423,96 +545,27 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
           <p style={{ fontSize: 13 }}>Generiere die KO-Phase im "Modus"-Tab nach Abschluss der Gruppenphase.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {koMatches.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()).map(match => (
-            <div key={match.id} style={{ 
-              border: '1px solid #e9ecef', 
-              borderRadius: 12, 
-              padding: 16,
-              background: match.status === 'abgeschlossen' ? '#f8fff8' : match.status === 'in_spiel' ? '#fff8f0' : '#fff'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, fontSize: 12, color: '#666' }}>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <span style={{ fontWeight: 'bold', color: '#495057' }}>
-                    🕒 {new Date(match.time).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr
-                  </span>
-                  <span>📍 {getFieldLabel(match.fieldId)}</span>
-                </div>
-                <span style={{ 
-                  padding: '2px 8px', 
-                  borderRadius: 4, 
-                  background: '#fff3e0',
-                  fontSize: 11,
-                  fontWeight: '600'
-                }}>
-                  {match.runde ? `📋 ${match.runde}` : match.phase}
-                </span>
+        <>
+          {/* Offene/laufende KO-Spiele */}
+          {openKOMatches.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: '600', color: '#212557' }}>📅 Offene & laufende KO-Spiele</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {openKOMatches.map((match, i) => renderMatchCard(match, i))}
               </div>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                {/* Team A */}
-                <div style={{ flex: 1, fontSize: 14, fontWeight: '500' }}>
-                  {getTeamName(match.teamAId)}
-                </div>
-                
-                {/* Score Input - nur Zahlen */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    min="0"
-                    value={editingScore?.matchId === match.id && editingScore.side === 'A' ? editingScore.value : (match.scoreA ?? '')}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9]/g, '');
-                      setEditingScore({ matchId: match.id, side: 'A', value: val });
-                    }}
-                    onBlur={() => { if (editingScore?.matchId === match.id && editingScore.side === 'A') handleScoreChange(match.id, 'A', editingScore.value); }}
-                    onFocus={() => setEditingScore({ matchId: match.id, side: 'A', value: String(match.scoreA ?? '') })}
-                    style={{ 
-                      width: 50, 
-                      padding: '6px 8px', 
-                      textAlign: 'center', 
-                      border: '2px solid #dee2e6', 
-                      borderRadius: 6, 
-                      fontSize: 16, 
-                      fontWeight: 'bold'
-                    }}
-                  />
-                  <span style={{ color: '#adb5bd', fontSize: 18 }}>:</span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    min="0"
-                    value={editingScore?.matchId === match.id && editingScore.side === 'B' ? editingScore.value : (match.scoreB ?? '')}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9]/g, '');
-                      setEditingScore({ matchId: match.id, side: 'B', value: val });
-                    }}
-                    onBlur={() => { if (editingScore?.matchId === match.id && editingScore.side === 'B') handleScoreChange(match.id, 'B', editingScore.value); }}
-                    onFocus={() => setEditingScore({ matchId: match.id, side: 'B', value: String(match.scoreB ?? '') })}
-                    style={{ 
-                      width: 50, 
-                      padding: '6px 8px', 
-                      textAlign: 'center', 
-                      border: '2px solid #dee2e6', 
-                      borderRadius: 6, 
-                      fontSize: 16, 
-                      fontWeight: 'bold'
-                    }}
-                  />
-                </div>
-                
-                {/* Team B */}
-                <div style={{ flex: 1, fontSize: 14, fontWeight: '500', textAlign: 'right' }}>
-                  {getTeamName(match.teamBId)}
-                </div>
-              </div>
-              
             </div>
-          ))}
-        </div>
+          )}
+
+          {/* Abgeschlossene KO-Spiele */}
+          {completedKOMatches.length > 0 && (
+            <div style={{ marginTop: 24 }}>
+              <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: '600', color: '#6c757d' }}>🔘 Abgeschlossene KO-Spiele</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {completedKOMatches.map((match, i) => renderMatchCard(match, i))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
