@@ -61,7 +61,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
       // Sortiert nach Häufigkeit, Top 3
       const sorted = Object.entries(colorMap).sort((a, b) => b[1] - a[1]).slice(0, 3);
       if (sorted.length >= 3) {
-        const toHex = (rgb: string) => '#' + rgb.split(',').map(c => parseInt(c).toString(16).padStart(2, '0')).join('');
+        const toHex = (rgb: string) => '#' + rgb.split(',').map(c => Math.min(parseInt(c), 255).toString(16).padStart(2, '0')).join('');
         setExtractedColors({ primary: toHex(sorted[0][0]), secondary: toHex(sorted[1][0]), accent: toHex(sorted[2][0]) });
       }
     };
