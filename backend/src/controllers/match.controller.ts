@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../config/prisma.js';
 import { logMatchScoreUpdated, logMatchReset } from '../utils/logger.js';
 import { computeKoPropagation } from '../utils/knockout.js';
@@ -239,28 +240,32 @@ export const resetMatch = async (req: Request, res: Response) => {
   const wasKO = !!match.bracketId;
   const tournamentId = match.tournamentId;
 
-  // Match zurücksetzen
-  const resetted = await prisma.match.update({
-    where: { id: matchId },
-    data: {
-      scoreA: null,
-      scoreB: null,
-      status: 'geplant',
-      siegerId: null,
-      verliererId: null
+  // Zurücksetzen + Rückabwicklung der KO-Propagation + Standings-Neuberechnung
+  // atomar: bricht ein Schritt ab, bleibt kein inkonsistenter Zwischenzustand.
+  const resetted = await prisma.$transaction(async (tx) => {
+    const r = await tx.match.update({
+      where: { id: matchId },
+      data: {
+        scoreA: null,
+        scoreB: null,
+        status: 'geplant',
+        siegerId: null,
+        verliererId: null
+      }
+    });
+
+    // === KO-Propagation / Gruppenphase-Effekt rückgängig machen ===
+    if (wasKO) {
+      await undoKOPropagation(tx, matchId);
+    } else {
+      // Gruppenspiel zurückgesetzt → alle KO-Matches für dieses Turnier leeren
+      await clearAllKOMatches(tx, tournamentId, match.yearGroupId);
     }
-  });
 
-  // === KO-Propagation / Gruppenphase-Effekt rückgängig machen ===
-  if (wasKO) {
-    await undoKOPropagation(matchId);
-  } else {
-    // Gruppenspiel zurückgesetzt → alle KO-Matches für dieses Turnier leeren
-    await clearAllKOMatches(tournamentId, match.yearGroupId);
-  }
-
-  // Standings neu berechnen
-  await recalculateStandingsForTournament(tournamentId);
+    // Standings neu berechnen
+    await recalculateStandingsForTournament(tx, tournamentId);
+    return r;
+  }, { timeout: 15000 });
 
   logMatchReset(matchId, match.tournament?.name || '');
 
@@ -275,19 +280,19 @@ export const resetMatch = async (req: Request, res: Response) => {
 /**
  * Alle KO-Matches für ein Turnier leeren (wenn Gruppenspiel zurückgesetzt wird)
  */
-async function clearAllKOMatches(tournamentId: number, yearGroupId: number | null) {
-  const koMatches = await prisma.match.findMany({
+async function clearAllKOMatches(tx: Prisma.TransactionClient, tournamentId: number, yearGroupId: number | null) {
+  const koMatches = await tx.match.findMany({
     where: { tournamentId }
   });
 
   // Alle KO-Matches mit Teams zurücksetzen (rekursiv)
   for (const match of koMatches) {
     if (!match.bracketId) continue; // Kein KO-Match
-    
+
     const hasTeams = !!(match.teamAId || match.teamBId);
     if (!hasTeams) continue;
 
-    await prisma.match.update({
+    await tx.match.update({
       where: { id: match.id },
       data: {
         teamAId: null,
@@ -306,11 +311,11 @@ async function clearAllKOMatches(tournamentId: number, yearGroupId: number | nul
  * Rekursiv alle downstream-Matches durchgehen und Teams entfernen,
  * die nur von diesem Match abhängen.
  */
-async function undoKOPropagation(matchId: number) {
-  const match = await prisma.match.findUnique({ where: { id: matchId } });
+async function undoKOPropagation(tx: Prisma.TransactionClient, matchId: number) {
+  const match = await tx.match.findUnique({ where: { id: matchId } });
   if (!match || !match.bracketId) return;
 
-  const koMatches = await prisma.match.findMany({
+  const koMatches = await tx.match.findMany({
     where: { tournamentId: match.tournamentId, bracketId: { not: null } }
   });
 
@@ -330,7 +335,7 @@ async function undoKOPropagation(matchId: number) {
   );
 
   for (const t of targets) {
-    await removeTeamFromDownstream(t.targetMatchId, t.slot);
+    await removeTeamFromDownstream(tx, t.targetMatchId, t.slot);
   }
 }
 
@@ -338,8 +343,8 @@ async function undoKOPropagation(matchId: number) {
  * Entfernt ein Team aus einem downstream-Match und geht rekursiv weiter,
  * wenn dadurch das nächste Match leer wird.
  */
-async function removeTeamFromDownstream(matchId: number, slot: 'teamA' | 'teamB') {
-  const match = await prisma.match.findUnique({ where: { id: matchId } });
+async function removeTeamFromDownstream(tx: Prisma.TransactionClient, matchId: number, slot: 'teamA' | 'teamB') {
+  const match = await tx.match.findUnique({ where: { id: matchId } });
   if (!match) return;
 
   const wasPlayed = match.status === 'gespielt';
@@ -350,7 +355,7 @@ async function removeTeamFromDownstream(matchId: number, slot: 'teamA' | 'teamB'
   const remainingB = slot === 'teamB' ? null : match.teamBId;
   const bothEmpty = !remainingA && !remainingB;
 
-  await prisma.match.update({
+  await tx.match.update({
     where: { id: matchId },
     data: {
       ...(slot === 'teamA' ? { teamAId: null } : { teamBId: null }),
@@ -362,7 +367,7 @@ async function removeTeamFromDownstream(matchId: number, slot: 'teamA' | 'teamB'
 
   // War dieses Match bereits gespielt, dessen eigene Weitergabe ebenfalls rückgängig machen
   if (wasPlayed && match.bracketId) {
-    await undoKOPropagation(matchId);
+    await undoKOPropagation(tx, matchId);
   }
 }
 
@@ -396,9 +401,9 @@ export const deleteMatch = async (req: Request, res: Response) => {
   return res.status(204).send();
 };
 
-async function recalculateStandingsForTournament(tournamentId: number) {
+async function recalculateStandingsForTournament(tx: Prisma.TransactionClient, tournamentId: number) {
   // Nur Gruppen-/Liga-Spiele (bracketId: null) fließen in die Tabelle ein, keine K.O.-Spiele.
-  const matches = await prisma.match.findMany({
+  const matches = await tx.match.findMany({
     where: { tournamentId, bracketId: null, status: 'gespielt', scoreA: { not: null }, scoreB: { not: null } },
     include: { teamA: true, teamB: true }
   });
@@ -434,7 +439,7 @@ async function recalculateStandingsForTournament(tournamentId: number) {
   const entries = await Promise.all(
     Array.from(teamStats.entries()).map(async ([teamId, stats]) => {
       const points = (stats.won * 3) + stats.drawn;
-      return prisma.standingsEntry.upsert({
+      return tx.standingsEntry.upsert({
         where: { teamId_tournamentId: { teamId, tournamentId } },
         update: { ...stats, points },
         create: { teamId, tournamentId, ...stats, points }
@@ -451,7 +456,7 @@ async function recalculateStandingsForTournament(tournamentId: number) {
   });
 
   for (let i = 0; i < sorted.length; i++) {
-    await prisma.standingsEntry.update({
+    await tx.standingsEntry.update({
       where: { id: sorted[i].id },
       data: { position: i + 1 }
     });
