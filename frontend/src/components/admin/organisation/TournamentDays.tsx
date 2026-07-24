@@ -30,9 +30,25 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
     return <div style={{ background: '#fff', padding: 32, borderRadius: 16, textAlign: 'center', color: '#666' }}>Bitte oben ein Turnier auswählen.</div>;
   }
 
-  const sync = async () => { await syncTournamentWorkAreas(tid); qc.invalidateQueries({ queryKey: ['t-work-areas', tid] }); };
+  // Einheitliche Fehlerbehandlung für alle Mutationen (401 -> klarer Hinweis, kein Uncaught).
+  const guard = async (fn: () => Promise<void>) => {
+    try { await fn(); }
+    catch (e: any) {
+      await modal.alert({
+        title: e?.status === 401 ? 'Sitzung abgelaufen' : 'Fehler',
+        message: e?.status === 401
+          ? 'Bitte melde dich neu an – dein Token ist ungültig oder abgelaufen.'
+          : (e?.message || 'Aktion fehlgeschlagen')
+      });
+    }
+  };
 
-  const addDay = async () => {
+  const sync = () => guard(async () => {
+    await syncTournamentWorkAreas(tid);
+    qc.invalidateQueries({ queryKey: ['t-work-areas', tid] });
+  });
+
+  const addDay = () => guard(async () => {
     if (!dayDraft.date) { await modal.alert({ title: 'Hinweis', message: 'Bitte ein Datum wählen.' }); return; }
     await createTournamentDay({
       tournamentId: tid,
@@ -43,23 +59,19 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
     });
     setDayDraft({ date: '', label: 'Turnier', templateId: '' });
     qc.invalidateQueries({ queryKey: ['t-days', tid] });
-  };
+  });
 
-  const removeDay = async (d: TournamentDay) => {
+  const removeDay = (d: TournamentDay) => guard(async () => {
     if (!(await modal.confirm({ title: 'Tag löschen', message: 'Tag inkl. Slots und daraus erzeugter Shifts löschen?', variant: 'danger' }))) return;
     await deleteTournamentDay(d.id);
     refreshAll();
-  };
+  });
 
-  const doGenerate = async () => {
-    try {
-      const res = await generateShifts(tid);
-      await modal.alert({ title: 'Fertig', message: `${res.created} neue Schicht(en) erzeugt (${res.existing} bereits vorhanden).` });
-      qc.invalidateQueries({ queryKey: ['shifts', tid] });
-    } catch (e: any) {
-      await modal.alert({ title: 'Fehler', message: e?.message || 'Generierung fehlgeschlagen' });
-    }
-  };
+  const doGenerate = () => guard(async () => {
+    const res = await generateShifts(tid);
+    await modal.alert({ title: 'Fertig', message: `${res.created} neue Schicht(en) erzeugt (${res.existing} bereits vorhanden).` });
+    qc.invalidateQueries({ queryKey: ['shifts', tid] });
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -75,15 +87,15 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
           {areas.map(a => (
             <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '6px 0', borderBottom: '1px solid #f1f3f5', opacity: a.active ? 1 : 0.5 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 200 }}>
-                <input type="checkbox" checked={a.active} onChange={async e => { await updateTournamentWorkArea(a.id, { active: e.target.checked }); qc.invalidateQueries({ queryKey: ['t-work-areas', tid] }); }} />
+                <input type="checkbox" checked={a.active} onChange={e => guard(async () => { await updateTournamentWorkArea(a.id, { active: e.target.checked }); qc.invalidateQueries({ queryKey: ['t-work-areas', tid] }); })} />
                 <span style={{ fontWeight: 600 }}>{a.icon} {a.name}</span>
               </label>
               <span style={{ fontSize: 13, color: '#666' }}>Helfer:</span>
               <input type="number" min={0} defaultValue={a.minVolunteers} style={{ ...inputStyle, width: 64 }}
-                onBlur={async e => { await updateTournamentWorkArea(a.id, { minVolunteers: parseInt(e.target.value) || 0 }); }} />
+                onBlur={e => guard(async () => { await updateTournamentWorkArea(a.id, { minVolunteers: parseInt(e.target.value) || 0 }); })} />
               <span>–</span>
               <input type="number" min={0} defaultValue={a.maxVolunteers} style={{ ...inputStyle, width: 64 }}
-                onBlur={async e => { await updateTournamentWorkArea(a.id, { maxVolunteers: parseInt(e.target.value) || 0 }); }} />
+                onBlur={e => guard(async () => { await updateTournamentWorkArea(a.id, { maxVolunteers: parseInt(e.target.value) || 0 }); })} />
               {(a.operatingStartMin != null || a.operatingEndMin != null) && (
                 <span style={{ fontSize: 12, color: '#999' }}>
                   Betrieb: {a.operatingStartMin != null ? minToTime(a.operatingStartMin) : '–'}…{a.operatingEndMin != null ? minToTime(a.operatingEndMin) : '–'}
