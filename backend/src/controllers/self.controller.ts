@@ -26,12 +26,31 @@ export const getAvailable = async (req: Request, res: Response) => {
     where: { id: userId },
     include: { children: true }
   });
-  if (!user || !user.tournamentId) {
+  
+  if (!user) return res.status(404).json({ error: 'User nicht gefunden' });
+
+  let targetTournamentId = user.tournamentId;
+
+  // Wenn kein Turnier zugewiesen, das neueste aktive Turnier nehmen
+  if (!targetTournamentId) {
+    const latestActive = await prisma.tournament.findFirst({
+      where: { status: 'aktiv' },
+      orderBy: { startDate: 'desc' }
+    });
+    if (latestActive) {
+      targetTournamentId = latestActive.id;
+      // Optional: Direkt beim User speichern, damit er in Zukunft fest zugeordnet ist
+      await prisma.user.update({ where: { id: userId }, data: { tournamentId: targetTournamentId } });
+      user.tournamentId = targetTournamentId;
+    }
+  }
+
+  if (!targetTournamentId) {
     return res.json({ shifts: [], volunteerShifts: [], volunteer: null });
   }
 
   const shiftsRaw = await prisma.shift.findMany({
-    where: { tournamentId: user.tournamentId },
+    where: { tournamentId: targetTournamentId },
     include: { globalTimeSlot: true, workArea: true }
   });
   // Alias für Frontend-Kompatibilität
@@ -42,7 +61,7 @@ export const getAvailable = async (req: Request, res: Response) => {
   }));
 
   const volunteerShiftsRaw = await prisma.volunteerShift.findMany({
-    where: { tournamentId: user.tournamentId },
+    where: { tournamentId: targetTournamentId },
     include: { 
       user: { select: { id: true, name: true } }, 
       shift: { 
@@ -68,7 +87,12 @@ export const getAvailable = async (req: Request, res: Response) => {
     } : null
   }));
 
-  res.json({ shifts, volunteerShifts, volunteer: user });
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: targetTournamentId },
+    include: { club: true }
+  });
+
+  res.json({ shifts, volunteerShifts, volunteer: user, tournament });
 };
 
 export const assignShift = async (req: Request, res: Response) => {
@@ -100,7 +124,7 @@ export const assignShift = async (req: Request, res: Response) => {
   const vs = await prisma.volunteerShift.create({
     data: {
       userId,
-      tournamentId: user.tournamentId,
+      tournamentId: shift.tournamentId,
       shiftId,
       date: new Date(date),
       slot: shift.zeitslot ? `${shift.zeitslot.name} (${shift.zeitslot.startTime}-${shift.zeitslot.endTime})` : 'Unbekannt',

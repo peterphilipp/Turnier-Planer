@@ -19,8 +19,13 @@ export const getShifts = async (req: Request, res: Response) => {
       include: { globalTimeSlot: true, workArea: true },
       orderBy: { date: 'asc' }
     });
-    // Alias globalTimeSlot -> zeitslot für Frontend-Kompatibilität
-    const mapped = shifts.map(s => ({ ...s, zeitslot: s.globalTimeSlot }));
+    // Alias globalTimeSlot -> zeitslot und workArea -> arbeitsbereich für Frontend-Kompatibilität
+    const mapped = shifts.map(s => ({ 
+      ...s, 
+      zeitslot: s.globalTimeSlot,
+      arbeitsbereich: s.workArea,
+      slot: s.globalTimeSlot ? `${s.globalTimeSlot.name} (${s.globalTimeSlot.startTime} - ${s.globalTimeSlot.endTime})` : ''
+    }));
     return res.json(mapped);
   }
   return res.json([]);

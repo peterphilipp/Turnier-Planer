@@ -28,6 +28,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   const [loginPassword, setLoginPassword] = useState('');
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [volunteerShifts, setVolunteerShifts] = useState<VolunteerShift[]>([]);
+  const [tournament, setTournament] = useState<any>(null);
   const [filterDate, setFilterDate] = useState('');
   const [busy, setBusy] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
@@ -92,7 +93,13 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
         }
         fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + savedToken } })
           .then(r => r.ok ? r.json() : Promise.resolve(null))
-          .then(d => { if (d) { setShifts(d.shifts); setVolunteerShifts(d.volunteerShifts); } })
+          .then(d => { 
+            if (d) { 
+              setShifts(d.shifts); 
+              setVolunteerShifts(d.volunteerShifts); 
+              if (d.tournament) setTournament(d.tournament);
+            } 
+          })
           .catch(() => {});
       } catch {
         localStorage.removeItem('token');
@@ -140,7 +147,12 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
         fetchClubColors(vol.tournamentId);
       }
       const res2 = await fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + data.token } });
-      if (res2.ok) { const data2 = await res2.json(); setShifts(data2.shifts); setVolunteerShifts(data2.volunteerShifts); }
+      if (res2.ok) { 
+        const data2 = await res2.json(); 
+        setShifts(data2.shifts); 
+        setVolunteerShifts(data2.volunteerShifts); 
+        if (data2.tournament) setTournament(data2.tournament);
+      }
     } catch { await modal.alert({ title: 'Fehler', message: 'Login fehlgeschlagen' }); }
   };
 
@@ -153,7 +165,12 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     setBusy(true);
     try {
       const res = await fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + ctxToken } });
-      if (res.ok) { const data = await res.json(); setShifts(data.shifts); setVolunteerShifts(data.volunteerShifts); }
+      if (res.ok) { 
+        const data = await res.json(); 
+        setShifts(data.shifts); 
+        setVolunteerShifts(data.volunteerShifts); 
+        if (data.tournament) setTournament(data.tournament);
+      }
     } finally { setBusy(false); }
   };
 
@@ -445,7 +462,12 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                   setRegName(''); setRegEmail(''); setRegPhone(''); setRegPassword(''); setRegPasswordConfirm('');
                   await modal.alert({ title: 'Erfolg', message: 'Registrierung erfolgreich!' });
                   const res2 = await fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + data.token } });
-                  if (res2.ok) { const d = await res2.json(); setShifts(d.shifts); setVolunteerShifts(d.volunteerShifts); }
+                  if (res2.ok) { 
+                    const d = await res2.json(); 
+                    setShifts(d.shifts); 
+                    setVolunteerShifts(d.volunteerShifts); 
+                    if (d.tournament) setTournament(d.tournament);
+                  }
                 } else { const err = await res.json(); await modal.alert({ title: 'Fehler', message: err.error }); }
               } catch { await modal.alert({ title: 'Fehler', message: 'Fehler bei der Registrierung' }); }
             }} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Registrieren</button>
@@ -670,7 +692,21 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
           {busy && <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>Lade Jobs...</div>}
 
           {!busy && shifts.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 40, background: '#fff', borderRadius: 12, color: '#666' }}>Keine Jobs verfügbar.</div>
+            <div style={{ padding: 40, background: '#fff', borderRadius: 16, textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+              {tournament ? (
+                <>
+                  <span style={{ fontSize: 40 }}>📅</span>
+                  <h3 style={{ marginTop: 16 }}>{tournament.name}</h3>
+                  <p style={{ color: '#666' }}>Für dieses Turnier sind momentan noch keine Job-Slots oder Schichten eingetragen. Sobald die Organisation Schichten freigibt, werden sie hier erscheinen.</p>
+                </>
+              ) : (
+                <>
+                  <span style={{ fontSize: 40 }}>🏝️</span>
+                  <h3 style={{ marginTop: 16 }}>Aktuell keine offenen Schichten</h3>
+                  <p style={{ color: '#666' }}>Momentan gibt es keine Turniere, für die Helfer gesucht werden.</p>
+                </>
+              )}
+            </div>
           )}
 
           {!busy && shifts.length > 0 && (
