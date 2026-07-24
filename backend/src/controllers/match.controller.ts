@@ -18,7 +18,14 @@ export const matchSchema = z.object({
   siegerId: z.number().int().positive().nullable().optional(),
   verliererId: z.number().int().positive().nullable().optional(),
   status: z.enum(['geplant', 'gespielt', 'abgeschlossen', 'abgesagt']).optional(),
-  time: z.string().datetime().or(z.date())
+  time: z.string().datetime().or(z.date()),
+  // K.O.-/Bracket-Felder (werden beim manuellen Anlegen/Bearbeiten evtl. mitgesendet)
+  bracketId: z.number().int().positive().nullable().optional(),
+  stage: z.number().int().nullable().optional(),
+  upperBound: z.number().int().nullable().optional(),
+  lowerBound: z.number().int().nullable().optional(),
+  placeholderA: z.string().nullable().optional(),
+  placeholderB: z.string().nullable().optional()
 });
 
 export const getMatchesByTournament = async (req: Request, res: Response) => {

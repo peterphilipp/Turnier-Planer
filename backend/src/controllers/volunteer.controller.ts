@@ -10,6 +10,7 @@ export const volunteerSchema = z.object({
   phone: z.string().optional().or(z.literal('')),
   role: z.enum(['HELPER', 'ORGANIZER', 'ADMIN']).optional(),
   isPrimaryAdmin: z.boolean().optional(),
+  password: z.string().min(1).optional(),
   tournamentId: z.number().int().nullable().optional()
 });
 
