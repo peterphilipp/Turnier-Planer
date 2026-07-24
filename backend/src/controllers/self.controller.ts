@@ -17,6 +17,10 @@ const getUserId = (req: Request): number | null => {
   }
 };
 
+/** Minuten seit Mitternacht → "HH:MM". */
+const minToTime = (m: number): string =>
+  `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
 export const getAvailable = async (req: Request, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: 'Nicht authentifiziert' });
@@ -48,43 +52,18 @@ export const getAvailable = async (req: Request, res: Response) => {
     return res.json({ shifts: [], volunteerShifts: [], volunteer: null });
   }
 
-  const shiftsRaw = await prisma.shift.findMany({
+  const shifts = await prisma.shift.findMany({
     where: { tournamentId: targetTournamentId },
-    include: { globalTimeSlot: true, workArea: true }
+    include: { day: true, daySlot: true, workArea: true }
   });
-  // Alias für Frontend-Kompatibilität
-  const shifts = shiftsRaw.map(s => ({
-    ...s,
-    zeitslot: s.globalTimeSlot,
-    arbeitsbereich: s.workArea
-  }));
 
-  const volunteerShiftsRaw = await prisma.volunteerShift.findMany({
+  const volunteerShifts = await prisma.volunteerShift.findMany({
     where: { tournamentId: targetTournamentId },
-    include: { 
-      user: { select: { id: true, name: true } }, 
-      shift: { 
-        select: {
-          id: true,
-          date: true,
-          zeitslotId: true,
-          arbeitsbereichId: true,
-          maxVolunteers: true,
-          globalTimeSlot: true,
-          workArea: true
-        }
-      } 
+    include: {
+      user: { select: { id: true, name: true } },
+      shift: { include: { day: true, daySlot: true, workArea: true } }
     }
   });
-  // Alias für Frontend-Kompatibilität
-  const volunteerShifts = volunteerShiftsRaw.map(vs => ({
-    ...vs,
-    shift: vs.shift ? {
-      ...vs.shift,
-      zeitslot: vs.shift.globalTimeSlot,
-      arbeitsbereich: vs.shift.workArea
-    } : null
-  }));
 
   const tournament = await prisma.tournament.findUnique({
     where: { id: targetTournamentId },
@@ -98,41 +77,37 @@ export const assignShift = async (req: Request, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: 'Nicht authentifiziert' });
 
-  const { shiftId, date } = req.body;
-  if (!shiftId || !date) return res.status(400).json({ error: 'shiftId und date erforderlich' });
+  const { shiftId } = req.body;
+  if (!shiftId) return res.status(400).json({ error: 'shiftId erforderlich' });
 
-  const shiftRaw = await prisma.shift.findUnique({ where: { id: shiftId }, include: { globalTimeSlot: true, workArea: true } });
-  const shift = shiftRaw ? {
-    ...shiftRaw,
-    zeitslot: shiftRaw.globalTimeSlot,
-    arbeitsbereich: shiftRaw.workArea
-  } : null;
+  const shift = await prisma.shift.findUnique({ where: { id: shiftId }, include: { day: true, daySlot: true, workArea: true } });
   if (!shift) return res.status(404).json({ error: 'Shift nicht gefunden' });
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return res.status(404).json({ error: 'User nicht gefunden' });
 
-  // Prüfen, ob der User für denselben Zeitraum schon woanders eingeteilt ist (vereinfacht)
-  const existing = await prisma.volunteerShift.findFirst({
-    where: { userId, date: new Date(date), shiftId }
-  });
+  // Bereits für diesen Job-Slot eingetragen?
+  const existing = await prisma.volunteerShift.findFirst({ where: { userId, shiftId } });
   if (existing) {
     return res.status(400).json({ error: 'Du bist für diesen Job-Slot bereits eingetragen.' });
   }
+
+  const shiftDate = shift.day?.date ?? new Date();
+  const slotLabel = shift.daySlot ? `${minToTime(shift.daySlot.startMin)}-${minToTime(shift.daySlot.endMin)}` : 'Unbekannt';
 
   const vs = await prisma.volunteerShift.create({
     data: {
       userId,
       tournamentId: shift.tournamentId,
       shiftId,
-      date: new Date(date),
-      slot: shift.zeitslot ? `${shift.zeitslot.name} (${shift.zeitslot.startTime}-${shift.zeitslot.endTime})` : 'Unbekannt',
-      role: 'Helfer',
-      areaId: shift.arbeitsbereichId ? String(shift.arbeitsbereichId) : null
+      date: shiftDate,
+      slot: slotLabel,
+      role: shift.workArea?.name || 'Helfer',
+      areaId: String(shift.tournamentWorkAreaId)
     }
   });
 
-  logJobAssigned(userId, user.name || '', shiftId, date);
+  logJobAssigned(userId, user.name || '', shiftId, shiftDate.toISOString());
   res.json(vs);
 };
 

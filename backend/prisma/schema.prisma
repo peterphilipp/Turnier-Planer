@@ -25,6 +25,8 @@ model Tournament {
   hasSponsor             Boolean            @default(false) @map("has_sponsor")
   sponsorName            String?            @map("sponsor_name")
   sponsorUrl             String?            @map("sponsor_url")
+  estimatedVisitors      Int?               @map("estimated_visitors")
+  teamCount              Int?               @map("team_count")
   fields                 Field[]
   foodDonationSlots      FoodDonationSlot[]
   donations              FoodDonation[]
@@ -33,6 +35,8 @@ model Tournament {
   matches                Match[]
   materials              MaterialItem[]
   shifts                 Shift[]
+  tournamentDays         TournamentDay[]
+  tournamentWorkAreas    TournamentWorkArea[]
   standings              StandingsEntry[]
   timeSlots              TimeSlot[]
   tournamentClubs        TournamentClub[]
@@ -194,45 +198,130 @@ model VolunteerShift {
 }
 
 model WorkArea {
-  id            Int     @id @default(autoincrement())
-  name          String
-  icon          String  @default("📍")
-  minVolunteers Int     @default(2) @map("min_volunteers")
-  maxVolunteers Int     @default(8) @map("max_volunteers")
-  color         String  @default("#3b98f8")
-  shifts        Shift[]
+  id                Int                     @id @default(autoincrement())
+  name              String
+  icon              String                  @default("📍")
+  minVolunteers     Int                     @default(2) @map("min_volunteers")
+  maxVolunteers     Int                     @default(8) @map("max_volunteers")
+  color             String                  @default("#3b98f8")
+  operatingStartMin Int?                    @map("operating_start_min")
+  operatingEndMin   Int?                    @map("operating_end_min")
+  isObsolete        Boolean                 @default(false) @map("is_obsolete")
+  catalogSlots      GlobalDaySlotWorkArea[]
 
   @@map("arbeitsbereiche")
 }
 
-model GlobalTimeSlot {
-  id        Int     @id @default(autoincrement())
-  name      String
-  startTime String  @map("start_time")
-  endTime   String  @map("end_time")
-  color     String  @default("#3b98f8")
-  order     Int     @default(0)
-  shifts    Shift[]
+// ---------- Tag-Vorlagen-Katalog (global, Stammdaten) ----------
+model GlobalDayTemplate {
+  id         Int             @id @default(autoincrement())
+  name       String
+  isObsolete Boolean         @default(false) @map("is_obsolete")
+  createdAt  DateTime        @default(now()) @map("created_at")
+  slots      GlobalDaySlot[]
 
-  @@map("zeit_slots")
+  @@map("global_day_templates")
+}
+
+model GlobalDaySlot {
+  id         Int                     @id @default(autoincrement())
+  templateId Int                     @map("template_id")
+  startMin   Int                     @map("start_min")
+  endMin     Int                     @map("end_min")
+  label      String?
+  color      String                  @default("#3b98f8")
+  order      Int                     @default(0)
+  template   GlobalDayTemplate       @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  workAreas  GlobalDaySlotWorkArea[]
+
+  @@index([templateId])
+  @@map("global_day_slots")
+}
+
+model GlobalDaySlotWorkArea {
+  id           Int           @id @default(autoincrement())
+  globalSlotId Int           @map("global_slot_id")
+  workAreaId   Int           @map("work_area_id")
+  order        Int           @default(0)
+  slot         GlobalDaySlot @relation(fields: [globalSlotId], references: [id], onDelete: Cascade)
+  workArea     WorkArea      @relation(fields: [workAreaId], references: [id], onDelete: Cascade)
+
+  @@unique([globalSlotId, workAreaId])
+  @@index([workAreaId])
+  @@map("global_day_slot_work_areas")
+}
+
+// ---------- Turnier-Instanzen (Snapshot pro Turnier) ----------
+model TournamentWorkArea {
+  id                Int        @id @default(autoincrement())
+  tournamentId      Int        @map("tournament_id")
+  sourceWorkAreaId  Int?       @map("source_work_area_id")
+  name              String
+  icon              String     @default("📍")
+  color             String     @default("#3b98f8")
+  minVolunteers     Int        @default(2) @map("min_volunteers")
+  maxVolunteers     Int        @default(8) @map("max_volunteers")
+  operatingStartMin Int?       @map("operating_start_min")
+  operatingEndMin   Int?       @map("operating_end_min")
+  active            Boolean    @default(true)
+  tournament        Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  shifts            Shift[]
+
+  @@index([tournamentId])
+  @@map("tournament_work_areas")
+}
+
+model TournamentDay {
+  id               Int        @id @default(autoincrement())
+  tournamentId     Int        @map("tournament_id")
+  date             DateTime
+  order            Int        @default(0)
+  label            String?
+  sourceTemplateId Int?       @map("source_template_id")
+  tournament       Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  slots            DaySlot[]
+  shifts           Shift[]
+
+  @@index([tournamentId])
+  @@map("tournament_days")
+}
+
+model DaySlot {
+  id              Int           @id @default(autoincrement())
+  tournamentDayId Int           @map("tournament_day_id")
+  startMin        Int           @map("start_min")
+  endMin          Int           @map("end_min")
+  label           String?
+  color           String        @default("#3b98f8")
+  order           Int           @default(0)
+  day             TournamentDay @relation(fields: [tournamentDayId], references: [id], onDelete: Cascade)
+  shifts          Shift[]
+
+  @@index([tournamentDayId])
+  @@map("day_slots")
 }
 
 model Shift {
-  id               Int              @id @default(autoincrement())
-  tournamentId     Int              @map("tournament_id")
-  date             DateTime
-  zeitslotId       Int?             @map("zeit_slot_id")
-  arbeitsbereichId Int?             @map("arbeitsbereich_id")
-  maxVolunteers    Int              @default(8) @map("max_volunteers")
-  description      String?          @map("description")
-  tournament       Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  workArea         WorkArea?        @relation(fields: [arbeitsbereichId], references: [id], onDelete: Cascade)
-  globalTimeSlot   GlobalTimeSlot?  @relation(fields: [zeitslotId], references: [id], onDelete: Cascade)
-  volunteerShifts  VolunteerShift[]
+  id                   Int                @id @default(autoincrement())
+  tournamentId         Int                @map("tournament_id")
+  tournamentDayId      Int                @map("tournament_day_id")
+  daySlotId            Int                @map("day_slot_id")
+  tournamentWorkAreaId Int                @map("tournament_work_area_id")
+  startMin             Int?               @map("start_min")
+  endMin               Int?               @map("end_min")
+  minVolunteers        Int                @default(2) @map("min_volunteers")
+  maxVolunteers        Int                @default(8) @map("max_volunteers")
+  description          String?            @map("description")
+  tournament           Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  day                  TournamentDay      @relation(fields: [tournamentDayId], references: [id], onDelete: Cascade)
+  daySlot              DaySlot            @relation(fields: [daySlotId], references: [id], onDelete: Cascade)
+  workArea             TournamentWorkArea @relation(fields: [tournamentWorkAreaId], references: [id], onDelete: Cascade)
+  volunteerShifts      VolunteerShift[]
 
   @@index([tournamentId])
-  @@index([arbeitsbereichId])
-  @@index([zeitslotId])
+  @@index([tournamentDayId])
+  @@index([daySlotId])
+  @@index([tournamentWorkAreaId])
   @@map("shifts")
 }
 

@@ -57,14 +57,15 @@ export const getDeleteImpact = async (req: Request, res: Response) => {
       }
 
       case 'timeSlot': {
-        const shifts = await prisma.shift.count({ where: { zeitslotId: numId } });
-        if (shifts > 0) impact.push(`${shifts} Helferschicht(en) (Struktur)`);
+        // Altes GlobalTimeSlot-System entfernt – keine Struktur-Impact-Analyse mehr.
         break;
       }
 
       case 'workArea': {
-        const shifts = await prisma.shift.count({ where: { arbeitsbereichId: numId } });
-        if (shifts > 0) impact.push(`${shifts} Helferschicht(en) (Struktur)`);
+        const catalogUses = await prisma.globalDaySlotWorkArea.count({ where: { workAreaId: numId } });
+        const snapshots = await prisma.tournamentWorkArea.count({ where: { sourceWorkAreaId: numId } });
+        if (catalogUses > 0) impact.push(`${catalogUses} Tag-Vorlagen-Zuordnung(en)`);
+        if (snapshots > 0) impact.push(`in ${snapshots} Turnier(en) übernommen`);
         break;
       }
 

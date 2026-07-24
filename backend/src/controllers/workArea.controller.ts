@@ -29,25 +29,18 @@ export const updateWorkArea = async (req: Request, res: Response) => {
 };
 
 export const deleteWorkArea = async (req: Request, res: Response) => {
-  const usedShifts = await prisma.shift.findMany({
-    where: { arbeitsbereichId: parseInt(req.params.id as string) },
-    include: { tournament: true }
-  });
-  const activeShifts = usedShifts.filter(s => s.tournament && s.tournament.status === 'aktiv');
-  
-  if (activeShifts.length > 0) {
+  const areaId = parseInt(req.params.id as string);
+
+  // Turnier-Snapshots (TournamentWorkArea) sind eigenständige Kopien und bleiben
+  // beim Löschen des Katalog-Eintrags unberührt. Blockiert wird nur, wenn der
+  // Bereich noch in Tag-Vorlagen referenziert wird.
+  const catalogUses = await prisma.globalDaySlotWorkArea.count({ where: { workAreaId: areaId } });
+  if (catalogUses > 0) {
     return res.status(409).json({
-      error: 'WorkArea wird noch in einem aktiven Turnier verwendet.',
-      activeTournaments: activeShifts.map(s => ({ id: s.tournament.id, name: s.tournament.name }))
+      error: catalogUses + ' Tag-Vorlage(n) verwenden diesen Arbeitsbereich. Bitte dort entfernen oder den Bereich als obsolet markieren.'
     });
   }
-  
-  if (usedShifts.length > 0) {
-    return res.status(409).json({
-      error: usedShifts.length + ' bestehende Schicht(en) verwenden diesen Bereich.'
-    });
-  }
-  
-  await prisma.workArea.delete({ where: { id: parseInt(req.params.id as string) } });
+
+  await prisma.workArea.delete({ where: { id: areaId } });
   return res.status(204).send();
 };

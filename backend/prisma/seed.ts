@@ -70,9 +70,9 @@ const foodCategories = [
 ];
 
 const workAreas = [
-  { name: "Verkaufsstand", icon: "🏪", minVolunteers: 1, maxVolunteers: 3, color: "#0d6efd" },
-  { name: "Küche", icon: "☕", minVolunteers: 1, maxVolunteers: 3, color: "#e74c3c" },
-  { name: "Grillstand", icon: "🔥", minVolunteers: 1, maxVolunteers: 3, color: "#e67e22" },
+  { name: "Verkaufsstand", icon: "🏪", minVolunteers: 1, maxVolunteers: 3, color: "#0d6efd", operatingStartMin: 540, operatingEndMin: 1020 },
+  { name: "Küche", icon: "☕", minVolunteers: 1, maxVolunteers: 3, color: "#e74c3c", operatingStartMin: 480, operatingEndMin: 1020 },
+  { name: "Grillstand", icon: "🔥", minVolunteers: 1, maxVolunteers: 3, color: "#e67e22", operatingStartMin: 600, operatingEndMin: 1020 },
   { name: "Pfandrückgabe", icon: "📦", minVolunteers: 1, maxVolunteers: 2, color: "#27ae60" },
   { name: "Hüpfburg", icon: "🎪", minVolunteers: 1, maxVolunteers: 2, color: "#8e44ad" },
   { name: "Torschussradar", icon: "🎯", minVolunteers: 1, maxVolunteers: 2, color: "#f39c12" },
@@ -81,6 +81,30 @@ const workAreas = [
   { name: "Aufbau/Abbau", icon: "🔧", minVolunteers: 2, maxVolunteers: 8, color: "#3b98f8" },
   { name: "Fußballgolf", icon: "⚽", minVolunteers: 1, maxVolunteers: 2, color: "#3b98f8" },
   { name: "Springer", icon: "✅", minVolunteers: 1, maxVolunteers: 2, color: "#3b98f8" }
+];
+
+// Tag-Vorlagen-Katalog (Zeiten in Minuten seit Mitternacht: 540 = 09:00)
+const dayTemplates = [
+  {
+    name: 'Aufbautag',
+    slots: [
+      { startMin: 480, endMin: 720, label: 'Vormittag', areas: ['Aufbau/Abbau'] },
+      { startMin: 780, endMin: 960, label: 'Nachmittag', areas: ['Aufbau/Abbau'] }
+    ]
+  },
+  {
+    name: 'Turniertag Standard',
+    slots: [
+      { startMin: 540, endMin: 780, label: 'Vormittag', areas: ['Verkaufsstand', 'Küche', 'Grillstand', 'Pfandrückgabe'] },
+      { startMin: 780, endMin: 1020, label: 'Nachmittag', areas: ['Verkaufsstand', 'Küche', 'Grillstand', 'Torschussradar'] }
+    ]
+  },
+  {
+    name: 'Abbautag',
+    slots: [
+      { startMin: 540, endMin: 780, label: 'Abbau', areas: ['Aufbau/Abbau', 'Pfandrückgabe'] }
+    ]
+  }
 ];
 
 async function main() {
@@ -124,6 +148,34 @@ async function main() {
     console.log('✅ Work Areas seeded.');
   } else {
     console.log(`⏩ Work Areas already exist (${existingWorkAreas}). Skipping.`);
+  }
+
+  const existingTemplates = await prisma.globalDayTemplate.count();
+  if (existingTemplates === 0) {
+    console.log('🌱 Seeding Day Templates...');
+    const areas = await prisma.workArea.findMany();
+    const areaByName = new Map(areas.map(a => [a.name, a.id] as const));
+    for (const tmpl of dayTemplates) {
+      const createdTemplate = await prisma.globalDayTemplate.create({ data: { name: tmpl.name } });
+      let slotOrder = 0;
+      for (const slot of tmpl.slots) {
+        const createdSlot = await prisma.globalDaySlot.create({
+          data: { templateId: createdTemplate.id, startMin: slot.startMin, endMin: slot.endMin, label: slot.label, order: slotOrder++ }
+        });
+        let areaOrder = 0;
+        for (const areaName of slot.areas) {
+          const workAreaId = areaByName.get(areaName);
+          if (workAreaId) {
+            await prisma.globalDaySlotWorkArea.create({
+              data: { globalSlotId: createdSlot.id, workAreaId, order: areaOrder++ }
+            });
+          }
+        }
+      }
+    }
+    console.log('✅ Day Templates seeded.');
+  } else {
+    console.log(`⏩ Day Templates already exist (${existingTemplates}). Skipping.`);
   }
 }
 
