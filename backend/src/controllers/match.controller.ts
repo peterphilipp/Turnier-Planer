@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 import { logMatchScoreUpdated, logMatchReset } from '../utils/logger.js';
+import { computeKoPropagation } from '../utils/knockout.js';
 import { z } from 'zod';
 
 export const matchSchema = z.object({
@@ -48,70 +49,6 @@ export const createMatch = async (req: Request, res: Response) => {
 
   const m = await prisma.match.create({ data: body, include: { teamA: true, teamB: true, timeSlot: true, field: true } });
   res.status(201).json(m);
-};
-
-/**
- * K.O.-Weitergabe: Wenn ein Match gespielt ist, nächstes Match automatisch aktualisieren.
- */
-export const advanceKO = async (req: Request, res: Response) => {
-  const matchId = parseInt(String(req.params.id as string));
-  const { siegerId, verliererId } = req.body;
-
-  if (!siegerId || !verliererId) {
-    return res.status(400).json({ error: 'siegerId und verliererId erforderlich' });
-  }
-
-  // Match aktualisieren
-  const match = await prisma.match.update({
-    where: { id: matchId },
-    data: { status: 'gespielt', siegerId, verliererId },
-    include: { teamA: true, teamB: true }
-  });
-
-  // Nächstes Match in der gleichen Bracket-Runde finden
-  if (match.bracketId) {
-    const bracket = await prisma.knockoutBracket.findUnique({ where: { id: match.bracketId } });
-    if (bracket) {
-      const nextRundeOrder = bracket.order + 1;
-      const nextBracket = await prisma.knockoutBracket.findFirst({
-        where: { tournamentId: bracket.tournamentId, order: nextRundeOrder }
-      });
-
-      if (nextBracket) {
-        // Freies Slot in nächster Runde finden
-        const existingMatches = await prisma.match.findMany({
-          where: { bracketId: nextBracket.id },
-          orderBy: { id: 'asc' }
-        });
-
-        // Prüfen ob ein freies Slot existiert (noch kein TeamA)
-        let freeMatch = existingMatches.find(m => !m.teamAId);
-        if (!freeMatch) {
-          // Neues Match erstellen
-          const matchCount = Math.ceil(existingMatches.length / 2);
-          freeMatch = await prisma.match.create({
-            data: {
-              tournamentId: bracket.tournamentId,
-              bracketId: nextBracket.id,
-              teamAId: 0,
-              teamBId: 0,
-              time: new Date()
-            }
-          });
-        }
-
-        // Sieger in TeamA oder TeamB setzen (je nach Position)
-        const slotInRunde = existingMatches.findIndex(m => m.id === freeMatch?.id);
-        if (slotInRunde % 2 === 0) {
-          await prisma.match.update({ where: { id: freeMatch!.id }, data: { teamAId: siegerId } });
-        } else {
-          await prisma.match.update({ where: { id: freeMatch!.id }, data: { teamBId: siegerId } });
-        }
-      }
-    }
-  }
-
-  return res.json(match);
 };
 
 // Teams aus Gruppenphase in KO-Spiele zuweisen basierend auf Platzhalter-Text (z.B. "1. Gruppe A")
@@ -237,149 +174,37 @@ export const updateMatch = async (req: Request, res: Response) => {
 
   // KO-Ergebnis → Sieger/Verlierer in nächste Runde propagieren
   if (m.bracketId && m.scoreA !== null && m.scoreB !== null) {
-    const bracket = await prisma.knockoutBracket.findUnique({ where: { id: m.bracketId } });
-    if (!bracket) return res.json(m);
-    
-    logMatchScoreUpdated(
-      parseInt(String(req.params.id as string)),
-      m.teamA?.name || '',
-      m.scoreA,
-      m.teamB?.name || '',
-      m.scoreB
-    );
+    logMatchScoreUpdated(m.id, m.teamA?.name || '', m.scoreA, m.teamB?.name || '', m.scoreB);
 
-    // Sieger und Verlierer bestimmen
-    const siegerId = m.scoreA > m.scoreB ? m.teamAId : m.teamBId;
-    const verliererId = m.scoreA > m.scoreB ? m.teamBId : m.teamAId;
-    
-    if (!siegerId || !verliererId) return res.json(m);
-
-    // Alle KO-Matches laden (mit bounds!)
+    // Alle KO-Matches dieses Turniers laden (nur Bracket-Spiele)
     const koMatches = await prisma.match.findMany({
-      where: { tournamentId: bracket.tournamentId }
+      where: { tournamentId: m.tournamentId, bracketId: { not: null } }
     });
 
-    const currentUpper = m.upperBound;
-    const currentLower = m.lowerBound;
-    
-    if (!currentUpper || !currentLower) return res.json(m);
+    // Reine Logik bestimmt Ziel-Matches + Slots (siehe utils/knockout.ts + Tests)
+    const assignments = computeKoPropagation(
+      {
+        id: m.id, bracketId: m.bracketId, stage: m.stage,
+        upperBound: m.upperBound, lowerBound: m.lowerBound,
+        teamAId: m.teamAId, teamBId: m.teamBId, scoreA: m.scoreA, scoreB: m.scoreB
+      },
+      koMatches.map(k => ({
+        id: k.id, bracketId: k.bracketId, stage: k.stage,
+        upperBound: k.upperBound, lowerBound: k.lowerBound
+      }))
+    );
 
-    // Nur propagieren wenn nicht bereits Finale oder Platzierungsspiel erreicht
-    // bounds [1,1] = Finale, bounds [3,4] = Spiel um Platz 3 (keine weitere Aufteilung möglich)
-    if (currentUpper !== currentLower && currentUpper + 1 < currentLower) {
-      const midPoint = Math.floor((currentUpper + currentLower) / 2);
-
-      // === Schritt 1: Finde die Position dieses Matches innerhalb seiner Bounds-Gruppe ===
-      // Alle aktuellen Matches mit gleichen bounds, sortiert nach id
-      const sameBoundsGroup = koMatches
-        .filter(km => km.bracketId === bracket.id && 
-                     km.stage === (m.stage || 0) &&
-                     km.upperBound === currentUpper && 
-                     km.lowerBound === currentLower)
-        .sort((a, b) => a.id - b.id);
-      
-      // Index dieses Matches innerhalb der Gruppe
-      let myIndexInGroup = -1;
-      for (let i = 0; i < sameBoundsGroup.length; i++) {
-        if (sameBoundsGroup[i].id === m.id) { myIndexInGroup = i; break; }
-      }
-      
-      // Welches Pair innerhalb der Gruppe? (jedes Paar geht in ein nächstes Match)
-      const pairIndex = Math.floor(myIndexInGroup / 2);
-      const isEvenSlot = myIndexInGroup % 2 === 0; // teamA oder teamB?
-
-      // === Schritt 2: Finde/erstelle das Ziel-Match für den Sieger ===
-      const winnerBoundsKey = `${currentUpper}-${midPoint}`;
-      const nextRoundMatches = koMatches
-        .filter(km => km.bracketId === bracket.id && km.stage === (m.stage || 0) + 1)
-        .sort((a, b) => a.id - b.id);
-      
-      // Gruppiere nächste Runde nach bounds
-      const nextGroups: Map<string, typeof koMatches> = new Map();
-      for (const km of nextRoundMatches) {
-        const key = `${km.upperBound}-${km.lowerBound}`;
-        if (!nextGroups.has(key)) nextGroups.set(key, []);
-        nextGroups.get(key)!.push(km);
-      }
-
-      // pairIndex-tes Match in der winner bounds group ist das Ziel
-      let targetWinner = null;
-      const winnerGroup = nextGroups.get(winnerBoundsKey) || [];
-      if (pairIndex < winnerGroup.length) {
-        targetWinner = winnerGroup[pairIndex];
-      }
-      
-      if (!targetWinner) {
-        // Match existiert noch nicht → erstellen
-        const nextStage = (m.stage || 0) + 1;
-        targetWinner = await prisma.match.create({
-          data: {
-            tournamentId: bracket.tournamentId,
-            yearGroupId: bracket.yearGroupId,
-            bracketId: bracket.id,
-            stage: nextStage,
-            phase: winnerBoundsKey.split('-')[0] === '1' && midPoint === 1 
-              ? 'Finale' 
-              : `Spiel um Platz ${currentUpper}`,
-            status: 'geplant',
-            upperBound: currentUpper,
-            lowerBound: midPoint,
-            time: new Date()
-          }
-        });
-      }
-      if (targetWinner) {
-        // Team in teamA oder teamB setzen je nach Position im Pair
-        const updated = await prisma.match.findUnique({ where: { id: targetWinner.id } });
-        if (!updated) return res.json(m);
-        
-        if (isEvenSlot && !updated.teamAId) {
-          await prisma.match.update({ where: { id: targetWinner.id }, data: { teamAId: siegerId } });
-        } else if (!isEvenSlot && !updated.teamBId) {
-          await prisma.match.update({ where: { id: targetWinner.id }, data: { teamBId: siegerId } });
-        }
-      }
-
-      // === Schritt 3: Finde/erstelle das Ziel-Match für den Verlierer (nur bei playouts) ===
-      const loserBoundsKey = `${midPoint + 1}-${currentLower}`;
-      const loserGroup = nextGroups.get(loserBoundsKey) || [];
-      
-      if (loserGroup.length > 0 || (midPoint + 1 < currentLower)) {
-        let targetLoser = null;
-        if (pairIndex < loserGroup.length) {
-          targetLoser = loserGroup[pairIndex];
-        }
-        
-        if (!targetLoser && midPoint + 1 < currentLower) {
-          const nextStage = (m.stage || 0) + 1;
-          targetLoser = await prisma.match.create({
-            data: {
-              tournamentId: bracket.tournamentId,
-              yearGroupId: bracket.yearGroupId,
-              bracketId: bracket.id,
-              stage: nextStage,
-              phase: midPoint + 1 === currentLower
-                ? `Spiel um Platz ${midPoint + 1}`
-                : `Platzierung ${midPoint + 1}-${currentLower}`,
-              status: 'geplant',
-              upperBound: midPoint + 1,
-              lowerBound: currentLower,
-              time: new Date()
-            }
-          });
-        }
-        if (targetLoser) {
-          const updated = await prisma.match.findUnique({ where: { id: targetLoser.id } });
-          if (!updated) return res.json(m);
-          
-          // Loser: teamA wenn even slot, teamB wenn odd slot
-          if (isEvenSlot && !updated.teamAId) {
-            await prisma.match.update({ where: { id: targetLoser.id }, data: { teamAId: verliererId } });
-          } else if (!isEvenSlot && !updated.teamBId) {
-            await prisma.match.update({ where: { id: targetLoser.id }, data: { teamBId: verliererId } });
-          }
-        }
-      }
+    if (assignments.length > 0) {
+      // Sieger/Verlierer atomar in die Ziel-Slots eintragen (Überschreiben erlaubt,
+      // damit eine korrigierte Ergebnis-Eingabe korrekt neu propagiert)
+      await prisma.$transaction(
+        assignments.map(a =>
+          prisma.match.update({
+            where: { id: a.targetMatchId },
+            data: a.slot === 'teamA' ? { teamAId: a.teamId } : { teamBId: a.teamId }
+          })
+        )
+      );
     }
   }
 
@@ -485,61 +310,27 @@ async function undoKOPropagation(matchId: number) {
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || !match.bracketId) return;
 
-  // Finde alle Matches in der nächsten Runde die dieses Match als Quelle haben
   const koMatches = await prisma.match.findMany({
-    where: { tournamentId: match.tournamentId }
+    where: { tournamentId: match.tournamentId, bracketId: { not: null } }
   });
 
-  const currentUpper = match.upperBound;
-  const currentLower = match.lowerBound;
-  
-  if (!currentUpper || !currentLower) return;
+  // Dieselbe Ziel-Logik wie beim Propagieren verwenden (garantierte Symmetrie).
+  // Teams/Scores sind hier irrelevant – wir brauchen nur die Ziel-Positionen/Slots;
+  // daher Dummy-Werte, die einen eindeutigen "Sieger" erzeugen.
+  const targets = computeKoPropagation(
+    {
+      id: match.id, bracketId: match.bracketId, stage: match.stage,
+      upperBound: match.upperBound, lowerBound: match.lowerBound,
+      teamAId: match.teamAId ?? -1, teamBId: match.teamBId ?? -2, scoreA: 1, scoreB: 0
+    },
+    koMatches.map(k => ({
+      id: k.id, bracketId: k.bracketId, stage: k.stage,
+      upperBound: k.upperBound, lowerBound: k.lowerBound
+    }))
+  );
 
-  const midPoint = Math.floor((currentUpper + currentLower) / 2);
-
-  // === Winner-Ziel: [upperBound, midPoint] ===
-  const winnerBoundsKey = `${currentUpper}-${midPoint}`;
-  const nextRoundMatches = koMatches
-    .filter(m => m.bracketId === match.bracketId && m.stage === (match.stage || 0) + 1)
-    .sort((a, b) => a.id - b.id);
-
-  // Gruppiere nächste Runde nach bounds
-  const nextGroups: Map<string, typeof koMatches> = new Map();
-  for (const m of nextRoundMatches) {
-    const key = `${m.upperBound}-${m.lowerBound}`;
-    if (!nextGroups.has(key)) nextGroups.set(key, []);
-    nextGroups.get(key)!.push(m);
-  }
-
-  // Finde die Position dieses Matches in seiner Gruppe
-  const sameBoundsGroup = koMatches
-    .filter(m => m.bracketId === match.bracketId && 
-                 m.stage === (match.stage || 0) &&
-                 m.upperBound === currentUpper && 
-                 m.lowerBound === currentLower)
-    .sort((a, b) => a.id - b.id);
-
-  let myIndexInGroup = -1;
-  for (let i = 0; i < sameBoundsGroup.length; i++) {
-    if (sameBoundsGroup[i].id === matchId) { myIndexInGroup = i; break; }
-  }
-
-  const pairIndex = Math.floor(myIndexInGroup / 2);
-  const isEvenSlot = myIndexInGroup % 2 === 0;
-
-  // Winner-Ziel-Match finden und teamA/teamB entfernen wenn es nur von diesem Match kommt
-  const winnerGroup = nextGroups.get(winnerBoundsKey) || [];
-  if (pairIndex < winnerGroup.length) {
-    const targetWinner = winnerGroup[pairIndex];
-    await removeTeamFromDownstream(targetWinner.id, isEvenSlot ? 'teamA' : 'teamB');
-  }
-
-  // Loser-Ziel-Match finden und teamA/teamB entfernen wenn es nur von diesem Match kommt
-  const loserBoundsKey = `${midPoint + 1}-${currentLower}`;
-  const loserGroup = nextGroups.get(loserBoundsKey) || [];
-  if (pairIndex < loserGroup.length) {
-    const targetLoser = loserGroup[pairIndex];
-    await removeTeamFromDownstream(targetLoser.id, isEvenSlot ? 'teamA' : 'teamB');
+  for (const t of targets) {
+    await removeTeamFromDownstream(t.targetMatchId, t.slot);
   }
 }
 
@@ -551,23 +342,26 @@ async function removeTeamFromDownstream(matchId: number, slot: 'teamA' | 'teamB'
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match) return;
 
-  // Team entfernen
-  const updateData: any = {};
-  updateData[slot] = null;
-  
-  // Wenn beide Teams weg sind, Match zurücksetzen
-  if (!updateData.teamAId && !updateData.teamBId) {
-    updateData.scoreA = null;
-    updateData.scoreB = null;
-    updateData.status = 'geplant';
-    updateData.siegerId = null;
-    updateData.verliererId = null;
-  }
+  const wasPlayed = match.status === 'gespielt';
 
-  await prisma.match.update({ where: { id: matchId }, data: updateData });
+  // Verbleibende Teams NACH dem Entfernen berechnen (Fix: vorher wurde immer
+  // fälschlich "beide leer" angenommen und der Score stets zurückgesetzt).
+  const remainingA = slot === 'teamA' ? null : match.teamAId;
+  const remainingB = slot === 'teamB' ? null : match.teamBId;
+  const bothEmpty = !remainingA && !remainingB;
 
-  // Wenn Match gespielt war, rekursiv weiter (weitere downstream-Matches leeren)
-  if (match.status === 'gespielt' && match.bracketId) {
+  await prisma.match.update({
+    where: { id: matchId },
+    data: {
+      ...(slot === 'teamA' ? { teamAId: null } : { teamBId: null }),
+      ...(bothEmpty
+        ? { scoreA: null, scoreB: null, status: 'geplant', siegerId: null, verliererId: null }
+        : {})
+    }
+  });
+
+  // War dieses Match bereits gespielt, dessen eigene Weitergabe ebenfalls rückgängig machen
+  if (wasPlayed && match.bracketId) {
     await undoKOPropagation(matchId);
   }
 }
