@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getYearGroups, apiPost, apiPatch, apiDelete } from '../../../api';
-import { btnStyleSecondary, YearGroup, useSortableData } from '../shared';
+import { btnStyleSecondary, YearGroup, useSortableData, confirmWithImpact } from '../shared';
 import EditModal from '../EditModal';
 
 export default function Jahrgaenge({ adminPrimary }: { adminPrimary: string }) {
@@ -30,9 +30,9 @@ export default function Jahrgaenge({ adminPrimary }: { adminPrimary: string }) {
     } catch (err: any) { await modal.alert({ title: 'Fehler', message: 'Fehler: ' + (err as Error).message }); }
   };
 
-  const deleteItem = async (id: number) => {
-    if (!(await modal.confirm({ title: 'Jahrgang löschen', message: 'Möchtest du diesen Jahrgang wirklich löschen?', variant: 'danger' }))) return;
-    await apiDelete(`/api/year-groups/${id}`);
+  const deleteItem = async (yg: YearGroup) => {
+    if (!(await confirmWithImpact('yearGroup', yg.id, yg.name))) return;
+    await apiDelete(`/api/year-groups/${yg.id}`);
     queryClient.invalidateQueries({ queryKey: ['yearGroups'] });
   };
 
@@ -73,7 +73,7 @@ export default function Jahrgaenge({ adminPrimary }: { adminPrimary: string }) {
                 <td style={{ padding: '8px 12px' }}>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <button onClick={() => openEdit(yg)} style={{ width: 40, height: 40, border: 'none', background: '#fff3cd', color: '#856404', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✏️</button>
-                    <button onClick={() => deleteItem(yg.id)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
+                    <button onClick={() => deleteItem(yg)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
                   </div>
                 </td>
               </tr>

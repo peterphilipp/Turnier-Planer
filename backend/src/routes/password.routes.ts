@@ -49,8 +49,16 @@ router.post('/forgot-password', async (req, res, next) => {
     
     if (process.env.RESEND_API_KEY) {
       try {
+        const primaryAdmin = await prisma.user.findFirst({
+          where: { isPrimaryAdmin: true, email: { not: null } }
+        });
+        
+        let emailFrom = process.env.EMAIL_FROM || 'Turnier-Planer <noreply@turnier-planer.mygate.dedyn.io>';
+        if (primaryAdmin && primaryAdmin.email) {
+          emailFrom = `${primaryAdmin.name} <${primaryAdmin.email}>`;
+        }
+
         const resend = new Resend(process.env.RESEND_API_KEY);
-        const emailFrom = process.env.EMAIL_FROM || 'Turnier-Planer <noreply@turnier-planer.mygate.dedyn.io>';
         const result = await resend.emails.send({
           from: emailFrom,
           to: user.email as string,

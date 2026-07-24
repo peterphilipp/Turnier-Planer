@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getWorkAreas, apiPost, apiPatch, apiDelete } from '../../../api';
-import { WorkArea, useSortableData } from '../shared';
+import { WorkArea, useSortableData, confirmWithImpact } from '../shared';
 import EditModal from '../EditModal';
 
 const emojiList = ['🏪', '🍳', '🔥', '🎪', '🎯', '⚽', '🍰', '☕', '🥤', '🏆', '📦', '🗑️', '💰', '🎁', '🎵', '🎠', '🧸', '🎴', '🎲', '🏅', '🥇', '🎖️', '📋', '✅', '❌', '⏰', '📍', '📞', '🔧', '📢', '📣', '📝'];
@@ -26,9 +26,9 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
     setEditingAb(null);
   };
 
-  const deleteWorkArea = async (id: number) => {
-    if (!(await modal.confirm({ title: 'Bereich löschen', message: 'Möchtest du diesen Bereich wirklich löschen?', variant: 'danger' }))) return;
-    await apiDelete(`/api/work-areas/${id}`);
+  const deleteWorkArea = async (ab: WorkArea) => {
+    if (!(await confirmWithImpact('workArea', ab.id, ab.name))) return;
+    await apiDelete(`/api/work-areas/${ab.id}`);
     queryClient.invalidateQueries({ queryKey: ['workAreas'] });
   };
 
@@ -68,7 +68,7 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
               <td style={{ padding: '10px 12px', textAlign: 'right' }}>{ab.maxVolunteers}</td>
               <td style={{ padding: '10px 12px' }}>
                 <button onClick={() => openEdit(ab)} style={{ padding: '6px 10px', border: 'none', background: '#fff3cd', color: '#856404', borderRadius: 6, cursor: 'pointer', marginRight: 4 }}>✏️</button>
-                <button onClick={() => deleteWorkArea(ab.id)} style={{ padding: '6px 10px', border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 6, cursor: 'pointer' }}>🗑️</button>
+                <button onClick={() => deleteWorkArea(ab)} style={{ padding: '6px 10px', border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 6, cursor: 'pointer' }}>🗑️</button>
               </td>
             </tr>
           ))}

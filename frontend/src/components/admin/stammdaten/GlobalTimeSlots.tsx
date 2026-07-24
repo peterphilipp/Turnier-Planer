@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getGlobalTimeSlots, apiPost, apiPatch, apiDelete } from '../../../api';
-import { btnStyle, btnStyleSecondary, GlobalTimeSlot, useSortableData } from '../shared';
+import { btnStyle, btnStyleSecondary, GlobalTimeSlot, useSortableData, confirmWithImpact } from '../shared';
 import EditModal from '../EditModal';
 
 export default function GlobalTimeSlots({ adminPrimary }: { adminPrimary: string }) {
@@ -23,9 +23,9 @@ export default function GlobalTimeSlots({ adminPrimary }: { adminPrimary: string
     setEditingZs(null);
   };
 
-  const deleteGlobalTimeSlot = async (id: number) => {
-    if (!(await modal.confirm({ title: 'Zeitslot löschen', message: 'Möchtest du diesen Zeitslot wirklich löschen?', variant: 'danger' }))) return;
-    await apiDelete(`/api/global-time-slots/${id}`);
+  const deleteGlobalTimeSlot = async (zs: GlobalTimeSlot) => {
+    if (!(await confirmWithImpact('timeSlot', zs.id, zs.name))) return;
+    await apiDelete(`/api/global-time-slots/${zs.id}`);
     queryClient.invalidateQueries({ queryKey: ['globalTimeSlots'] });
   };
 
@@ -61,7 +61,7 @@ export default function GlobalTimeSlots({ adminPrimary }: { adminPrimary: string
               <td style={{ padding: '8px 12px' }}>
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button onClick={() => openEdit(zs)} style={{ width: 40, height: 40, border: 'none', background: '#fff3cd', color: '#856404', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✏️</button>
-                  <button onClick={() => deleteGlobalTimeSlot(zs.id)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
+                  <button onClick={() => deleteGlobalTimeSlot(zs)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
                 </div>
               </td>
             </tr>

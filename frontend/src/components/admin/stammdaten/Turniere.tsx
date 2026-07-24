@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getTournaments, getClubs, getYearGroups, apiPost, apiPatch } from '../../../api';
-import { btnStyleSecondary, Tournament, Club, YearGroup, useSortableData } from '../shared';
+import { getTournaments, getClubs, getYearGroups, apiPost, apiPatch, apiDelete } from '../../../api';
+import { btnStyleSecondary, Tournament, Club, YearGroup, useSortableData, confirmWithImpact } from '../shared';
 import EditModal from '../EditModal';
 
 export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimary: string, adminSecondary: string }) {
@@ -85,6 +85,12 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
     setIsEndTouched(false);
   };
 
+  const deleteTournament = async (t: Tournament) => {
+    if (!(await confirmWithImpact('tournament', t.id, t.name))) return;
+    await apiDelete(`/api/tournaments/${t.id}`);
+    queryClient.invalidateQueries({ queryKey: ['tournaments'] });
+  };
+
   const statusBadge = (status: string) => {
     const colors: Record<string, { bg: string; color: string }> = { aktiv: { bg: '#d1e7dd', color: '#0f5132' }, beendet: { bg: '#fff3cd', color: '#856404' }, entwurf: { bg: '#e9ecef', color: '#495057' } };
     const c = colors[status] || colors.entwurf;
@@ -140,9 +146,12 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
                 {t.yearGroups && t.yearGroups.length > 0 ? (<div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{t.yearGroups.map(yg => (<span key={yg.id} style={{ fontSize: 11, background: '#e7f3ff', color: '#0d6efd', padding: '2px 6px', borderRadius: 4 }}>{yg.name}</span>))}</div>) : <span style={{ color: '#999' }}>–</span>}
               </td>
               <td style={{ padding: '8px 12px' }}>
-                <button onClick={() => setStatusDialog({ open: true, tournament: t, editName: t.name, editClubId: String(t.clubId || ''), editStart: t.startDate.split('T')[0], editEnd: t.endDate.split('T')[0], editModus: t.turnierModus, yearGroupIds: t.yearGroups?.map(yg => yg.id) || [], logoFile: null, editHasSponsor: t.hasSponsor || false, editSponsorName: t.sponsorName || '', editSponsorUrl: t.sponsorUrl || '' })} style={{ padding: '10px 16px', border: 'none', background: adminSecondary, color: '#fff', borderRadius: 8, cursor: 'pointer', minHeight: 40, minWidth: 80, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 15 }}>
-                  <span>⚙️</span><span>Edit</span>
-                </button>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button onClick={() => setStatusDialog({ open: true, tournament: t, editName: t.name, editClubId: String(t.clubId || ''), editStart: t.startDate.split('T')[0], editEnd: t.endDate.split('T')[0], editModus: t.turnierModus, yearGroupIds: t.yearGroups?.map(yg => yg.id) || [], logoFile: null, editHasSponsor: t.hasSponsor || false, editSponsorName: t.sponsorName || '', editSponsorUrl: t.sponsorUrl || '' })} style={{ padding: '10px 16px', border: 'none', background: adminSecondary, color: '#fff', borderRadius: 8, cursor: 'pointer', minHeight: 40, minWidth: 80, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 15 }}>
+                    <span>⚙️</span><span>Edit</span>
+                  </button>
+                  <button onClick={() => deleteTournament(t)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
+                </div>
               </td>
             </tr>
           ))}
