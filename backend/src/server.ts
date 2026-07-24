@@ -16,8 +16,8 @@ import matchRoutes from './routes/match.routes.js';
 import volunteerRoutes from './routes/volunteer.routes.js';
 import shiftRoutes from './routes/shift.routes.js';
 import volunteerShiftRoutes from './routes/volunteerShift.routes.js';
-import arbeitsbereichRoutes from './routes/arbeitsbereich.routes.js';
-import zeitslotRoutes from './routes/zeitslot.routes.js';
+import workAreaRoutes from './routes/workArea.routes.js';
+import globalTimeSlotRoutes from './routes/globalTimeSlot.routes.js';
 import materialRoutes from './routes/material.routes.js';
 import healthRoutes from './routes/health.routes.js';
 import passwordRoutes from './routes/password.routes.js';
@@ -47,8 +47,8 @@ app.use('/api/matches', matchRoutes);
 app.use('/api/volunteers', volunteerRoutes);
 app.use('/api/shifts', shiftRoutes);
 app.use('/api/volunteer-shifts', volunteerShiftRoutes);
-app.use('/api/arbeitsbereiche', arbeitsbereichRoutes);
-app.use('/api/zeit-slots', zeitslotRoutes);
+app.use('/api/work-areas', workAreaRoutes);
+app.use('/api/global-time-slots', globalTimeSlotRoutes);
 app.use('/api/material', materialRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', passwordRoutes);
@@ -86,7 +86,7 @@ app.listen(PORT, async () => {
     await prisma.$connect();
     console.log(`[OK] Backend läuft auf Port ${PORT} & DB verbunden`);
   } catch (connectionError) {
-    console.error('[FATAL ERROR] Datenbankverbindung fehlgeschlagen:', connectionError.message);
+    console.error('[FATAL ERROR] Datenbankverbindung fehlgeschlagen:', (connectionError as Error).message);
     process.exit(1);
   }
 });

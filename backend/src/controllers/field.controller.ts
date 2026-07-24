@@ -2,10 +2,10 @@ import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 
 export const getFields = async (req: Request, res: Response) => {
-  const tournamentId = parseInt(String(req.query.tournamentId));
+  const tournamentId = parseInt(String(req.query.tournamentId as string));
   if (!tournamentId) return res.status(400).json({ error: 'tournamentId erforderlich' });
   
-  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId)) : null;
+  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId as string)) : null;
   
   const where: any = { tournamentId };
   if (yearGroupId) where.yearGroupId = yearGroupId;
@@ -20,7 +20,7 @@ export const getFields = async (req: Request, res: Response) => {
 
 export const getFieldById = async (req: Request, res: Response) => {
   const field = await prisma.field.findUnique({
-    where: { id: parseInt(String(req.params.id)) },
+    where: { id: parseInt(String(req.params.id as string)) },
     include: { matches: true }
   });
   if (!field) return res.status(404).json({ error: 'Feld nicht gefunden' });
@@ -43,7 +43,7 @@ export const createField = async (req: Request, res: Response) => {
 
 export const updateField = async (req: Request, res: Response) => {
   const field = await prisma.field.update({
-    where: { id: parseInt(String(req.params.id)) },
+    where: { id: parseInt(String(req.params.id as string)) },
     data: req.body,
     include: { matches: true }
   });
@@ -51,6 +51,6 @@ export const updateField = async (req: Request, res: Response) => {
 };
 
 export const deleteField = async (req: Request, res: Response) => {
-  await prisma.field.delete({ where: { id: parseInt(String(req.params.id)) } });
+  await prisma.field.delete({ where: { id: parseInt(String(req.params.id as string)) } });
   return res.status(204).send();
 };

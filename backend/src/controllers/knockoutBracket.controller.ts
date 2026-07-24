@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 
 export const getBracketsByTournament = async (req: Request, res: Response) => {
-  const tournamentId = parseInt(String(req.query.tournamentId));
+  const tournamentId = parseInt(String(req.query.tournamentId as string));
   if (!tournamentId) return res.status(400).json({ error: 'tournamentId erforderlich' });
   
   const brackets = await prisma.knockoutBracket.findMany({
@@ -29,7 +29,7 @@ export const createBracket = async (req: Request, res: Response) => {
 
 export const updateBracket = async (req: Request, res: Response) => {
   const bracket = await prisma.knockoutBracket.update({
-    where: { id: parseInt(String(req.params.id)) },
+    where: { id: parseInt(String(req.params.id as string)) },
     data: req.body,
     include: { matches: true }
   });
@@ -37,6 +37,6 @@ export const updateBracket = async (req: Request, res: Response) => {
 };
 
 export const deleteBracket = async (req: Request, res: Response) => {
-  await prisma.knockoutBracket.delete({ where: { id: parseInt(String(req.params.id)) } });
+  await prisma.knockoutBracket.delete({ where: { id: parseInt(String(req.params.id as string)) } });
   return res.status(204).send();
 };

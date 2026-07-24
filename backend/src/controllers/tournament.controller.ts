@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 import { z } from 'zod';
 import { generateKnockoutTree } from '../utils/knockout.js';
+import { logTournamentCreated, logTournamentUpdated } from '../utils/logger.js';
 
 export const tournamentSchema = z.object({
   name: z.string().min(1),
@@ -9,9 +10,13 @@ export const tournamentSchema = z.object({
   startDate: z.string().datetime().or(z.date()),
   endDate: z.string().datetime().or(z.date()),
   status: z.enum(['aktiv', 'beendet', 'archiviert']).default('aktiv'),
-  turnierModus: z.enum(['GRUPPEN_KO', 'KO', 'LIGA', 'DOPPEL_KO']).default('GRUPPEN_KO'),
+  turnierModus: z.enum(['GRUPPEN_KO', 'KO', 'LIGA']).default('GRUPPEN_KO'),
   clubId: z.number().int().positive().nullable().optional(),
-  yearGroupIds: z.array(z.number().int().positive()).optional()
+  yearGroupIds: z.array(z.number().int().positive()).optional(),
+  hasSponsor: z.boolean().optional(),
+  sponsorName: z.string().nullable().optional(),
+  sponsorUrl: z.string().nullable().optional(),
+  logo: z.string().nullable().optional()
 });
 
 export const getTournaments = async (req: Request, res: Response) => {
@@ -24,7 +29,7 @@ export const getTournaments = async (req: Request, res: Response) => {
 
 export const getTournamentById = async (req: Request, res: Response) => {
   const tournament = await prisma.tournament.findUnique({
-    where: { id: parseInt(String(req.params.id)) },
+    where: { id: parseInt(String(req.params.id as string)) },
     include: { club: true, yearGroups: true }
   });
   if (!tournament) return res.status(404).json({ error: 'Turnier nicht gefunden' });
@@ -39,9 +44,10 @@ export const createTournament = async (req: Request, res: Response) => {
   const tournament = await prisma.tournament.create({
     data: {
       ...tournamentData,
-      yearGroups: yearGroupIds ? { connect: yearGroupIds.map(id => ({ id })) } : undefined
+      yearGroups: yearGroupIds ? { connect: yearGroupIds.map((id: number) => ({ id })) } : undefined
     }
   });
+  logTournamentCreated(tournament.id, tournament.name);
   res.status(201).json(tournament);
 };
 
@@ -58,14 +64,15 @@ export const updateTournament = async (req: Request, res: Response) => {
     
     // yearGroupIds aktualisieren (viele-zu-viele)
     if (yearGroupIds !== undefined) {
-      updateData.yearGroups = { set: yearGroupIds.map(id => ({ id })) };
+      updateData.yearGroups = { set: yearGroupIds.map((id: number) => ({ id })) };
     }
     
     const tournament = await prisma.tournament.update({
-      where: { id: parseInt(String(req.params.id)) },
+      where: { id: parseInt(String(req.params.id as string)) },
       data: updateData,
       include: { club: true, yearGroups: true }
     });
+    logTournamentUpdated(tournament.id, Object.keys(updateData));
     return res.json(tournament);
   } catch (err: any) {
     console.error('updateTournament error:', err.message);
@@ -79,14 +86,14 @@ export const updateTournamentStatus = async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Ungültiger Status' });
   }
   const tournament = await prisma.tournament.update({
-    where: { id: parseInt(String(req.params.id)) },
+    where: { id: parseInt(String(req.params.id as string)) },
     data: { status }
   });
   return res.json(tournament);
 };
 
 export const deleteTournament = async (req: Request, res: Response) => {
-  await prisma.tournament.delete({ where: { id: parseInt(String(req.params.id)) } });
+  await prisma.tournament.delete({ where: { id: parseInt(String(req.params.id as string)) } });
   return res.status(204).send();
 };
 
@@ -96,18 +103,18 @@ export const deleteTournament = async (req: Request, res: Response) => {
 export const updateTournamentMode = async (req: Request, res: Response) => {
   const { turnierModus, teamsAdvancingPerGroup, playoutAllPlacements, thirdPlaceMatch, qualificationRule } = req.body;
   
-  if (!['GRUPPEN_KO', 'KO', 'LIGA', 'DOPPEL_KO'].includes(turnierModus)) {
+  if (!['GRUPPEN_KO', 'KO', 'LIGA'].includes(turnierModus)) {
     return res.status(400).json({ error: 'Ungültiger Turnier-Modus' });
   }
 
-  const tournamentId = parseInt(String(req.params.id));
+  const tournamentId = parseInt(String(req.params.id as string));
   
   // Modus aktualisieren
   const tournament = await prisma.tournament.update({
     where: { id: tournamentId },
     data: { 
       turnierModus,
-      ...(teamsAdvancingPerGroup !== undefined && { teamsAdvancingPerGroup: parseInt(teamsAdvancingPerGroup) }),
+      ...(teamsAdvancingPerGroup !== undefined && { teamsAdvancingPerGroup: parseInt(teamsAdvancingPerGroup as string) }),
       ...(playoutAllPlacements !== undefined && { playoutAllPlacements: Boolean(playoutAllPlacements) }),
       ...(thirdPlaceMatch !== undefined && { thirdPlaceMatch: Boolean(thirdPlaceMatch) }),
       ...(qualificationRule !== undefined && { qualificationRule: String(qualificationRule) })
@@ -149,7 +156,13 @@ async function scheduleAndSaveMatches(
 ) {
   let matchesCreated = 0;
   
-  let fields = await prisma.field.findMany({ where: { tournamentId } });
+  // Nur Spielfelder für diesen Jahrgang
+  let fields = await prisma.field.findMany({ 
+    where: { 
+      tournamentId,
+      yearGroupId 
+    } 
+  });
   
   const timeSlots = await prisma.timeSlot.findMany({
     where: { tournamentId, yearGroupId },
@@ -172,8 +185,43 @@ async function scheduleAndSaveMatches(
   let teamsPlayingInCurrentSlot = new Set<number>();
   let lastStage = 1;
 
+  const lastExistingMatch = await prisma.match.findFirst({
+    where: { tournamentId, yearGroupId },
+    orderBy: { time: 'desc' }
+  });
+
+  if (lastExistingMatch && lastExistingMatch.time) {
+    currentTime = new Date(lastExistingMatch.time);
+    
+    const lastFieldIndex = fields.findIndex(f => f.id === lastExistingMatch.fieldId);
+    currentFieldIdx = lastFieldIndex !== -1 ? lastFieldIndex + 1 : 0;
+    
+    if (currentFieldIdx >= fields.length) {
+      currentFieldIdx = 0;
+      currentTime = new Date(currentTime.getTime() + blockDuration * 60000);
+    }
+    
+    // Finde den passenden Slot
+    for (let i = 0; i < timeSlots.length; i++) {
+      const sStart = parseTime(timeSlots[i].date, timeSlots[i].startTime);
+      const sEnd = parseTime(timeSlots[i].date, timeSlots[i].endTime);
+      if (currentTime >= sStart && currentTime <= sEnd) {
+        currentSlotIdx = i;
+        break;
+      }
+      if (currentTime < sStart) {
+        currentSlotIdx = i;
+        currentTime = sStart;
+        currentFieldIdx = 0;
+        break;
+      }
+    }
+  }
+
   while (matchesToSchedule.length > 0) {
-    if (currentFieldIdx === 0) {
+    // Teams nur zurücksetzen wenn wir einen NEUEN Block starten (neues Feld ODER neuer Slot)
+    const isNewBlock = currentFieldIdx === 0 && teamsPlayingInCurrentSlot.size > 0;
+    if (isNewBlock) {
       teamsPlayingInCurrentSlot.clear();
     }
 
@@ -251,7 +299,8 @@ async function scheduleAndSaveMatches(
     matchesCreated++;
 
     currentFieldIdx++;
-    if (currentFieldIdx >= fields.length) {
+    // Pause einplanen wenn Block endet (alle Felder belegt ODER letztes Spiel gespielt)
+    if (currentFieldIdx >= fields.length || matchesToSchedule.length === 0) {
       currentFieldIdx = 0;
       currentTime = new Date(currentTime.getTime() + blockDuration * 60000);
     }
@@ -270,7 +319,7 @@ export const generateMatchesForYearGroup = async (req: Request, res: Response) =
     return res.status(400).json({ error: 'yearGroupId ist erforderlich' });
   }
 
-  const tournamentId = parseInt(String(req.params.id));
+  const tournamentId = parseInt(String(req.params.id as string));
   const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
   if (!tournament) return res.status(404).json({ error: 'Turnier nicht gefunden' });
 
@@ -278,14 +327,14 @@ export const generateMatchesForYearGroup = async (req: Request, res: Response) =
   let result: any = { message: '', matchesCreated: 0, bracketsCreated: 0 };
   
   const params: ScheduleParams = {
-    matchDuration: parseInt(String(matchDuration)),
-    halves: parseInt(String(halves)),
-    halftimeBreak: parseInt(String(halftimeBreak)),
-    breakDuration: parseInt(String(breakDuration))
+    matchDuration: parseInt(String(matchDuration as string)),
+    halves: parseInt(String(halves as string)),
+    halftimeBreak: parseInt(String(halftimeBreak as string)),
+    breakDuration: parseInt(String(breakDuration as string))
   };
 
   try {
-    const yId = parseInt(String(yearGroupId));
+    const yId = parseInt(String(yearGroupId as string));
     
     // Alten Spielplan dieses Jahrgangs komplett verwerfen, bevor neu generiert wird
     // Wichtig: Zuerst Matches löschen (die auf Brackets verweisen), dann Brackets
@@ -295,16 +344,155 @@ export const generateMatchesForYearGroup = async (req: Request, res: Response) =
     console.log(`[Generate] Alte Daten gelöscht: ${deletedMatches.count} Matches, ${deletedStandings.count} Standings, ${deletedBrackets.count} Brackets`);
 
     if (mode === 'GRUPPEN_KO') {
-      result = await generateGruppenKO(tournamentId, parseInt(String(yearGroupId)), params);
+      result = await generateGruppenKO(tournamentId, parseInt(String(yearGroupId as string)), params);
     } else if (mode === 'KO') {
-      result = await generateKO(tournamentId, parseInt(String(yearGroupId)), params);
+      result = await generateKO(tournamentId, parseInt(String(yearGroupId as string)), params);
     } else if (mode === 'LIGA') {
-      result = await generateLiga(tournamentId, parseInt(String(yearGroupId)), params);
-    } else if (mode === 'DOPPEL_KO') {
-      result = await generateDoppelKO(tournamentId, parseInt(String(yearGroupId)), params);
+      result = await generateLiga(tournamentId, parseInt(String(yearGroupId as string)), params);
     }
 
     return res.json({ tournament, ...result });
+  } catch (error: any) {
+    return res.status(400).json({ error: error.message || 'Ein unerwarteter Fehler ist aufgetreten.' });
+  }
+};
+
+// Sponsor-Logo hochladen (Base64)
+export const uploadTournamentLogo = async (req: Request, res: Response) => {
+  const tournamentId = parseInt(String(req.params.id as string));
+  const { logoBase64 } = req.body;
+  if (!logoBase64) return res.status(400).json({ error: 'Kein Logo übermittelt' });
+
+  await prisma.tournament.update({
+    where: { id: tournamentId },
+    data: { logo: logoBase64 }
+  });
+
+  return res.json({ message: 'Logo aktualisiert' });
+};
+
+// KO-Phase separat generieren (ohne Gruppen zu löschen)
+export const generateKoOnly = async (req: Request, res: Response) => {
+  const { yearGroupId } = req.body;
+  if (!yearGroupId) {
+    return res.status(400).json({ error: 'yearGroupId ist erforderlich' });
+  }
+
+  const tournamentId = parseInt(String(req.params.id as string));
+  const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  if (!tournament) return res.status(404).json({ error: 'Turnier nicht gefunden' });
+
+  // Nur KO-Modus erlaubt
+  if (tournament.turnierModus !== 'KO') {
+    return res.status(400).json({ error: 'Nur für reine K.O.-Turniere verfügbar. Für GRUPPEN_KO nutze den Button im Spielplan-Tab.' });
+  }
+
+  const params: ScheduleParams = {
+    matchDuration: parseInt(String(req.body.matchDuration || 15)),
+    halves: parseInt(String(req.body.halves || 2)),
+    halftimeBreak: parseInt(String(req.body.halftimeBreak || 5)),
+    breakDuration: parseInt(String(req.body.breakDuration || 5))
+  };
+
+  try {
+    const yId = parseInt(String(yearGroupId));
+    
+    // Nur bestehende KO-Matches/Brackets löschen, NICHT die Gruppen!
+    const deletedMatches = await prisma.match.deleteMany({ where: { tournamentId, yearGroupId: yId, bracketId: { not: null } } });
+    const deletedBrackets = await prisma.knockoutBracket.deleteMany({ where: { tournamentId, yearGroupId: yId } });
+    console.log(`[GenerateKoOnly] Alte KO-Daten gelöscht: ${deletedMatches.count} Matches, ${deletedBrackets.count} Brackets`);
+
+    const result = await generateKO(tournamentId, yId, params);
+    return res.json({ ...result });
+  } catch (error: any) {
+    return res.status(400).json({ error: error.message || 'Ein unerwarteter Fehler ist aufgetreten.' });
+  }
+};
+
+// KO-Phase für GRUPPEN_KO separat generieren (ohne Gruppen zu löschen!)
+
+export const generateKoFromGruppen = async (req: Request, res: Response) => {
+  const { yearGroupId } = req.body;
+  if (!yearGroupId) {
+    return res.status(400).json({ error: 'yearGroupId ist erforderlich' });
+  }
+
+  const tournamentId = parseInt(String(req.params.id as string));
+  const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  if (!tournament) return res.status(404).json({ error: 'Turnier nicht gefunden' });
+
+  // Nur GRUPPEN_KO erlaubt
+  if (tournament.turnierModus !== 'GRUPPEN_KO') {
+    return res.status(400).json({ error: 'Nur für Gruppenphase + K.O.-Turniere verfügbar.' });
+  }
+
+  const params: ScheduleParams = {
+    matchDuration: parseInt(String(req.body.matchDuration || 15)),
+    halves: parseInt(String(req.body.halves || 2)),
+    halftimeBreak: parseInt(String(req.body.halftimeBreak || 5)),
+    breakDuration: parseInt(String(req.body.breakDuration || 5))
+  };
+
+  try {
+    const yId = parseInt(String(yearGroupId));
+    
+    // Nur KO-Matches/Brackets löschen, NICHT die Gruppen!
+    const deletedMatches = await prisma.match.deleteMany({ where: { tournamentId, yearGroupId: yId, bracketId: { not: null } } });
+    const deletedBrackets = await prisma.knockoutBracket.deleteMany({ where: { tournamentId, yearGroupId: yId } });
+    console.log(`[GenerateKoFromGruppen] Alte KO-Daten gelöscht: ${deletedMatches.count} Matches, ${deletedBrackets.count} Brackets`);
+
+    const groups = await prisma.group.findMany({
+      where: { tournamentId, yearGroup: { id: yId } },
+      orderBy: { order: 'asc' }
+    });
+
+    const advancingPerGroup = tournament?.teamsAdvancingPerGroup || 2;
+    const totalKoTeams = groups.length > 0 ? groups.length * advancingPerGroup : 0;
+    
+    if (totalKoTeams < 2) {
+      return res.status(400).json({ error: 'Zu wenige Teams für K.O.-Phase konfiguriert.' });
+    }
+
+    const bracket = await prisma.knockoutBracket.create({
+      data: { tournamentId, yearGroupId: yId, name: 'Finalrunde', order: 1, runde: 'Finals' }
+    });
+    
+    let participants = [];
+    for (let i = 0; i < totalKoTeams / 2; i++) {
+      let pA = `TBD ${i * 2 + 1}`;
+      let pB = `TBD ${i * 2 + 2}`;
+      
+      if (totalKoTeams === 4 && groups.length === 2 && advancingPerGroup === 2) {
+          pA = i === 0 ? `1. ${groups[0].name}` : `1. ${groups[1].name}`;
+          pB = i === 0 ? `2. ${groups[1].name}` : `2. ${groups[0].name}`;
+      } else if (totalKoTeams === 8 && groups.length === 4 && advancingPerGroup === 2) {
+          pA = `1. ${groups[i].name}`;
+          pB = `2. ${groups[(i + 1) % 4].name}`;
+      } else if (totalKoTeams === 8 && groups.length === 2 && advancingPerGroup === 4) {
+          pA = i < 2 ? `${i+1}. ${groups[0].name}` : `${i-1}. ${groups[1].name}`;
+          pB = i < 2 ? `${4-i}. ${groups[1].name}` : `${6-i}. ${groups[0].name}`;
+      } else if (groups.length === 1) {
+          pA = `${i * 2 + 1}. ${groups[0].name}`;
+          pB = `${i * 2 + 2}. ${groups[0].name}`;
+      }
+      
+      participants.push({ placeholder: pA });
+      participants.push({ placeholder: pB });
+    }
+    
+    const koMatches = generateKnockoutTree(
+      tournamentId,
+      yId,
+      bracket.id,
+      participants,
+      tournament?.playoutAllPlacements || false,
+      tournament?.thirdPlaceMatch !== false,
+      2, // startStage
+      tournament?.qualificationRule
+    );
+
+    const matchesCreated = await scheduleAndSaveMatches(koMatches, tournamentId, yId, params);
+    return res.json({ message: `K.O.-Bracket (Platzhalter) mit ${koMatches.length} Spielen erstellt`, matchesCreated, bracketsCreated: 1 });
   } catch (error: any) {
     return res.status(400).json({ error: error.message || 'Ein unerwarteter Fehler ist aufgetreten.' });
   }
@@ -488,36 +676,3 @@ async function generateLiga(tournamentId: number, yearGroupId: number, params: S
   return { message: `Liga-Spielplan mit ${matchesCreated} Spielen erstellt`, matchesCreated, bracketsCreated: 0 };
 }
 
-async function generateDoppelKO(tournamentId: number, yearGroupId: number, params: ScheduleParams) {
-  const teams = await getTeamsForGeneration(tournamentId, yearGroupId);
-  if (teams.length < 2) return { message: `Keine Teams gefunden.`, matchesCreated: 0, bracketsCreated: 0 };
-
-  const siegerBracket = await prisma.knockoutBracket.create({
-    data: { tournamentId, name: 'Sieger-Bracket', runde: 'Erste Runde', order: 1 }
-  });
-
-  const verliererRunden = Math.ceil(Math.log2(teams.length));
-  for (let r = 1; r <= verliererRunden; r++) {
-    await prisma.knockoutBracket.create({
-      data: { tournamentId, name: `Verlierer-Runde-${r}`, runde: `Verlierer-Runde-${r}`, order: r + 1 }
-    });
-  }
-
-  let matchesToSchedule = [];
-  for (let i = 0; i < teams.length; i += 2) {
-    matchesToSchedule.push({
-      tournamentId,
-      yearGroupId,
-      teamAId: teams[i].id,
-      teamBId: i + 1 < teams.length ? teams[i + 1].id : teams[i].id,
-      phase: 'Doppel-K.O.',
-      runde: `Sieger-Runde-1`,
-      bracketTyp: 'sieger',
-      bracketId: siegerBracket.id,
-      status: 'geplant'
-    });
-  }
-
-  const matchesCreated = await scheduleAndSaveMatches(matchesToSchedule, tournamentId, yearGroupId, params);
-  return { message: `Doppel-K.O. mit Sieger-Bracket erstellt`, matchesCreated, bracketsCreated: 1 + verliererRunden };
-}

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { modal } from './admin/Modal';
 import { inputStyle, btnStyle } from './admin/shared';
+import { useUser } from '../context/UserContext';
 
 interface Shift {
   id: number; date: string; slot: string;
@@ -9,18 +10,20 @@ interface Shift {
   arbeitsbereichId: number | null;
   maxVolunteers: number;
 }
-interface VolunteerShift { id: number; volunteerId: number; date: string; slot: string; role: string; areaId: string | null; shiftId: number | null; shift: { id: number; date: string; slot: string; zeitslot: { name: string; startTime: string; endTime: string; color: string } | null; arbeitsbereich: { name: string; icon: string; color: string } | null; arbeitsbereichId: number | null; maxVolunteers: number; } | null; }
+interface VolunteerShift { id: number; userId: number; date: string; slot: string; role: string; areaId: string | null; shiftId: number | null; shift: { id: number; date: string; slot: string; zeitslot: { name: string; startTime: string; endTime: string; color: string } | null; arbeitsbereich: { name: string; icon: string; color: string } | null; arbeitsbereichId: number | null; maxVolunteers: number; } | null; }
 interface VolunteerChild { id: number; childName: string; childYear: number; }
-interface Volunteer { id: number; name: string; email: string | null; phone: string | null; childName: string | null; childYear: number | null; tournamentId: number | null; consentGiven?: boolean; consentDate?: string; children?: VolunteerChild[]; }
+interface Volunteer { id: number; name: string; email: string | null; phone: string | null; tournamentId: number | null; role?: string; consentGiven?: boolean; consentDate?: string; children?: VolunteerChild[]; }
 interface Club { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
 interface FoodCategory { id: number; name: string; icon: string; items: { id: number; name: string; price: string | null; unit: string }[]; }
 interface FoodDonation { id: number; foodItemId: number; quantity: number; note: string | null; createdAt: string; foodDonationSlotId: number | null; foodItem: { id: number; name: string; unit: string; category: { id: number; name: string; icon: string } } | null; }
 interface FoodDonationSlot { id: number; tournamentId: number; yearGroupId: number | null; yearGroup?: { id: number; name: string; birthYearStart: number; birthYearEnd: number } | null; foodItemId: number | null; targetQuantity: number; collected: number; foodItem: { id: number; name: string; unit: string; icon: string } | null; }
 
-export default function SelfServiceView() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [volunteer, setVolunteer] = useState<Volunteer | null>(null);
-  const [token, setToken] = useState('');
+interface SelfServiceViewProps {
+  onLoginAsAdmin?: () => void;
+}
+
+export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps) {
+  const { volunteer: ctxVolunteer, token: ctxToken, isLoggedIn: ctxLoggedIn, role, isAdmin, isOrganizer, login: contextLogin, logout: contextLogout } = useUser();
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -54,8 +57,12 @@ export default function SelfServiceView() {
   const [clubAccent, setClubAccent] = useState('#198754');
   const [clubLogo, setClubLogo] = useState<string | null>(null);
   const [tournamentName, setTournamentName] = useState('');
+  const [hasSponsor, setHasSponsor] = useState(false);
+  const [sponsorName, setSponsorName] = useState<string | null>(null);
+  const [sponsorUrl, setSponsorUrl] = useState<string | null>(null);
+  const [sponsorLogo, setSponsorLogo] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState<'schichten' | 'spenden'>('schichten');
+  const [activeSection, setActiveSection] = useState<'jobs' | 'verpflegung'>('jobs');
   const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
   const [myDonations, setMyDonations] = useState<FoodDonation[]>([]);
   const [foodDonationSlots, setFoodDonationSlots] = useState<FoodDonationSlot[]>([]);
@@ -77,17 +84,20 @@ export default function SelfServiceView() {
     const savedToken = localStorage.getItem('token');
     const savedVolunteer = localStorage.getItem('volunteer');
     if (savedToken && savedVolunteer) {
-      setToken(savedToken);
-      const vol = JSON.parse(savedVolunteer);
-      setVolunteer(vol);
-      setIsLoggedIn(true);
-      if (vol?.tournamentId) {
-        fetchClubColors(vol.tournamentId);
+      try {
+        const vol = JSON.parse(savedVolunteer);
+        contextLogin(savedToken, vol as any);
+        if (vol?.tournamentId) {
+          fetchClubColors(vol.tournamentId);
+        }
+        fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + savedToken } })
+          .then(r => r.ok ? r.json() : Promise.resolve(null))
+          .then(d => { if (d) { setShifts(d.shifts); setVolunteerShifts(d.volunteerShifts); } })
+          .catch(() => {});
+      } catch {
+        localStorage.removeItem('token');
+        localStorage.removeItem('volunteer');
       }
-      fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + savedToken } })
-        .then(r => r.ok ? r.json() : Promise.resolve(null))
-        .then(d => { if (d) { setShifts(d.shifts); setVolunteerShifts(d.volunteerShifts); } })
-        .catch(() => {});
     }
   }, []);
 
@@ -103,6 +113,10 @@ export default function SelfServiceView() {
           setClubLogo(t.club.logo || null);
         }
         if (t?.name) setTournamentName(t.name);
+        setHasSponsor(t?.hasSponsor || false);
+        setSponsorName(t?.sponsorName || null);
+        setSponsorUrl(t?.sponsorUrl || null);
+        setSponsorLogo(t?.logo || null);
       }
     } catch (e) {
       console.error('fetchClubColors error:', e);
@@ -118,30 +132,27 @@ export default function SelfServiceView() {
       });
       if (!res.ok) { const err = await res.json(); await modal.alert({ title: 'Fehler', message: err.error }); return; }
       const data = await res.json();
-      setToken(data.token);
-      setVolunteer(data.volunteer);
-      setIsLoggedIn(true);
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('volunteer', JSON.stringify(data.volunteer));
+      contextLogin(data.token, data.user || data.volunteer);
       setLoginEmail('');
       setLoginPassword('');
-      if (data.volunteer?.tournamentId) {
-        fetchClubColors(data.volunteer.tournamentId);
+      const vol = data.user || data.volunteer;
+      if (vol?.tournamentId) {
+        fetchClubColors(vol.tournamentId);
       }
       const res2 = await fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + data.token } });
       if (res2.ok) { const data2 = await res2.json(); setShifts(data2.shifts); setVolunteerShifts(data2.volunteerShifts); }
     } catch { await modal.alert({ title: 'Fehler', message: 'Login fehlgeschlagen' }); }
   };
 
-  const logout = () => {
-    setIsLoggedIn(false); setToken(''); setVolunteer(null); setShifts([]); setVolunteerShifts([]);
-    localStorage.removeItem('token'); localStorage.removeItem('volunteer');
-  };
+  const logout = useCallback(() => {
+    contextLogout();
+    setShifts([]); setVolunteerShifts([]);
+  }, [contextLogout]);
 
   const loadAvailable = async () => {
     setBusy(true);
     try {
-      const res = await fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + token } });
+      const res = await fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + ctxToken } });
       if (res.ok) { const data = await res.json(); setShifts(data.shifts); setVolunteerShifts(data.volunteerShifts); }
     } finally { setBusy(false); }
   };
@@ -150,7 +161,7 @@ export default function SelfServiceView() {
     try {
       const res = await fetch('/api/self/assign', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ctxToken },
         body: JSON.stringify({ shiftId, date }),
       });
       if (res.ok) { await loadAvailable(); await modal.alert({ title: 'Erfolg', message: 'Zugewiesen!' }); }
@@ -159,9 +170,9 @@ export default function SelfServiceView() {
   };
 
   const unassign = async (id: number) => {
-    if (!(await modal.confirm({ title: 'Schicht abmelden', message: 'Möchtest du dich von dieser Schicht abmelden?', variant: 'warning' }))) return;
+    if (!(await modal.confirm({ title: 'Job abmelden', message: 'Möchtest du dich von diesem Job abmelden?', variant: 'warning' }))) return;
     try {
-      const res = await fetch('/api/self/unassign/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+      const res = await fetch('/api/self/unassign/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + ctxToken } });
       if (res.ok) { await loadAvailable(); }
     } catch { await modal.alert({ title: 'Fehler', message: 'Fehler bei der Abmeldung' }); }
   };
@@ -170,21 +181,20 @@ export default function SelfServiceView() {
     try {
       const [cats, dons] = await Promise.all([
         fetch('/api/food/categories').then(r => r.json()).catch(() => []),
-        fetch('/api/food/donations', { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json()).catch(() => ({ donations: [] }))
+        fetch('/api/food/donations', { headers: { Authorization: 'Bearer ' + ctxToken } }).then(r => r.json()).catch(() => ({ donations: [] }))
       ]);
       setFoodCategories(cats);
       setMyDonations(dons.donations || []);
       
       // Food Donation Slots laden und nach Kinder-Jahrgaengen filtern
-      if (volunteer?.tournamentId) {
-        const allSlots = await fetch('/api/food-donation-slots?tournamentId=' + volunteer.tournamentId).then(r => r.json()).catch(() => []);
-        const childYears = volunteer.children?.map((c: VolunteerChild) => c.childYear) || [];
+      if (ctxVolunteer?.tournamentId) {
+        const allSlots = await fetch('/api/food-donation-slots?tournamentId=' + ctxVolunteer?.tournamentId).then(r => r.json()).catch(() => []);
+        const childYears = ctxVolunteer?.children?.map((c: any) => c.childYear) || [];
         const relevantSlots = allSlots.filter((slot: FoodDonationSlot) => {
           if (!slot.yearGroup) return false;
           const yg = slot.yearGroup;
           // Direkt nach yearGroupId matchen
           if (childYears.some(y => y >= yg.birthYearStart && y <= yg.birthYearEnd)) return true;
-          if (volunteer.childYear && volunteer.childYear >= yg.birthYearStart && volunteer.childYear <= yg.birthYearEnd) return true;
           // Fallback: alter String-Vergleich
           if (childYears.includes(parseInt(yg.name))) return true;
           return false;
@@ -199,11 +209,11 @@ export default function SelfServiceView() {
     try {
       const res = await fetch('/api/food/donations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ctxToken },
         body: JSON.stringify({ foodItemId: donationFoodId, quantity: parseInt(donationQuantity), note: donationNote || null }),
       });
       if (res.ok) {
-        await modal.alert({ title: 'Erfolg', message: 'Spende eingetragen!' });
+        await modal.alert({ title: 'Erfolg', message: 'Verpflegung eingetragen!' });
         setDonationFoodId(0);
         setDonationQuantity('');
         setDonationNote('');
@@ -228,7 +238,7 @@ export default function SelfServiceView() {
     try {
       const res = await fetch('/api/food/donations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ctxToken },
         body: JSON.stringify({ foodItemId: Number(foodItemId), quantity: qty, slotId }),
       });
       if (res.ok) {
@@ -245,9 +255,9 @@ export default function SelfServiceView() {
   };
 
   const cancelDonation = async (id: number) => {
-    if (!(await modal.confirm({ title: 'Spende löschen', message: 'Möchtest du diese Spende wirklich löschen?', variant: 'danger' }))) return;
+    if (!(await modal.confirm({ title: 'Eintrag löschen', message: 'Möchtest du diesen Eintrag wirklich löschen?', variant: 'danger' }))) return;
     try {
-      const res = await fetch('/api/food/donations/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+      const res = await fetch('/api/food/donations/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + ctxToken } });
       if (res.ok) { await loadFood(); }
     } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Löschen' }); }
   };
@@ -257,7 +267,7 @@ export default function SelfServiceView() {
     try {
       const res = await fetch('/api/auth/password', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ctxToken },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
       if (res.ok) { await modal.alert({ title: 'Erfolg', message: 'Passwort geändert!' }); setMenuOpen(false); setCurrentPassword(''); setNewPassword(''); }
@@ -316,7 +326,7 @@ export default function SelfServiceView() {
   }
 
   /* ===== FORGOT PASSWORD SCREEN ===== */
-  if (!isLoggedIn && showForgotPassword) {
+  if (!ctxLoggedIn && showForgotPassword) {
     return (
       <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + shadeColor(clubPrimary, 30) + ' 0%, ' + clubPrimary + ' 100%)', boxSizing: 'border-box' }}>
         <div style={{ background: '#fff', borderRadius: 16, padding: isMobile ? 24 : 40, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
@@ -339,7 +349,7 @@ export default function SelfServiceView() {
                 });
                 const data = await res.json();
                 if (res.ok) {
-                  setForgotMessage(data.message + '\n\n(Hinweis: In der Entwicklungsumgebung wurde der Link im Server-Log ausgegeben.)');
+                  setForgotMessage(data.message);
                   setTimeout(() => setShowForgotPassword(false), 5000);
                 } else {
                   await modal.alert({ title: 'Fehler', message: data.error });
@@ -354,27 +364,23 @@ export default function SelfServiceView() {
   }
 
   /* ===== LOGIN SCREEN ===== */
-  if (!isLoggedIn && !showRegisterForm && !showForgotPassword) {
+  if (!ctxLoggedIn && !showRegisterForm && !showForgotPassword) {
     return (
       <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + clubPrimary + ' 0%, ' + shadeColor(clubPrimary, -30) + ' 100%)', boxSizing: 'border-box' }}>
         <div style={{ background: '#fff', borderRadius: 16, padding: isMobile ? 24 : 40, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
           <div style={{ textAlign: 'center', marginBottom: 24 }}>
             {clubLogo ? (
-              <img src={clubLogo} alt="Verein" style={{ width: 80, height: 80, borderRadius: 16, objectFit: 'contain', marginBottom: 12, padding: 8, background: '#f8f9fa' }} />
+              <img src={clubLogo} alt="Verein" style={{ width: 200, height: 200, borderRadius: '22%', objectFit: 'cover', marginBottom: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }} />
             ) : (
-              <div style={{ width: 80, height: 80, borderRadius: 16, background: clubPrimary, margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold', fontSize: 32 }}>
-                {(tournamentName || 'TSV')[0]}
-              </div>
+              <img src="/logo.webp" alt="App Logo" style={{ width: 200, height: 200, objectFit: 'cover', borderRadius: '22%', marginBottom: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }} />
             )}
-            <h2 style={{ margin: 0, color: '#333', fontSize: 22 }}>{tournamentName || 'Turnierplaner'}</h2>
-            <p style={{ color: '#666', fontSize: 14, marginTop: 4 }}>Helfer-Dienstplan</p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <input type="email" placeholder="Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} autoFocus />
             <input type="password" placeholder="Passwort" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') login(); }} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <button onClick={login} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Anmelden</button>
-            <button onClick={() => setShowForgotPassword(true)} style={{ padding: '12px', background: 'transparent', color: clubSecondary, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: '500', fontSize: 14, textDecoration: 'underline' }}>Passwort vergessen?</button>
             <button onClick={() => setShowRegisterForm(true)} style={{ padding: '14px', background: 'transparent', color: clubPrimary, border: '2px solid ' + clubPrimary, borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15 }}>Registrieren</button>
+            <button onClick={() => setShowForgotPassword(true)} style={{ padding: '12px', background: 'transparent', color: clubSecondary, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: '500', fontSize: 14, textDecoration: 'underline' }}>Passwort vergessen?</button>
           </div>
         </div>
       </div>
@@ -434,8 +440,7 @@ export default function SelfServiceView() {
                 });
                 if (res.ok) {
                   const data = await res.json();
-                  setToken(data.token); setVolunteer(data.volunteer); setIsLoggedIn(true);
-                  localStorage.setItem('token', data.token); localStorage.setItem('volunteer', JSON.stringify(data.volunteer));
+                  contextLogin(data.token, data.user || data.volunteer);
                   setShowRegisterForm(false);
                   setRegName(''); setRegEmail(''); setRegPhone(''); setRegPassword(''); setRegPasswordConfirm('');
                   await modal.alert({ title: 'Erfolg', message: 'Registrierung erfolgreich!' });
@@ -478,22 +483,21 @@ export default function SelfServiceView() {
               ))}
               <button type="button" onClick={() => setEditChildren([...editChildren, { childName: '', childYear: '' }])} style={{ ...btnStyle, background: '#f8f9fa', border: '1px dashed #adb5bd', color: '#495057', padding: '8px 12px', fontSize: 14, marginTop: 4 }}>➕ Kind hinzufügen</button>
             </div>
-            {volunteer?.consentGiven && (
+            {ctxVolunteer?.consentGiven && (
               <div style={{ padding: '10px 14px', background: '#e7f3ff', borderRadius: 8, fontSize: 13, color: '#0d6efd' }}>
-                ✅ Einwilligung zur Datenverarbeitung erteilt am {volunteer.consentDate ? new Date(volunteer.consentDate).toLocaleDateString('de-DE') : '—'}
+                ✅ Einwilligung zur Datenverarbeitung erteilt am {ctxVolunteer?.consentDate ? new Date(ctxVolunteer?.consentDate).toLocaleDateString('de-DE') : '—'}
               </div>
             )}
             <button onClick={async () => {
               try {
                 const res = await fetch('/api/auth/profile', {
                   method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+                  headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ctxToken },
                   body: JSON.stringify({ name: editName, email: editEmail, phone: editPhone, children: editChildren.filter(c => c.childName || c.childYear).map(c => ({ childName: c.childName || null, childYear: c.childYear ? parseInt(c.childYear) : null })) }),
                 });
                 if (res.ok) {
                   const data = await res.json();
-                  setVolunteer(data);
-                  localStorage.setItem('volunteer', JSON.stringify(data));
+                  contextLogin(ctxToken, data);
                   setShowProfile(false);
                   await modal.alert({ title: 'Erfolg', message: 'Profil aktualisiert!' });
                 } else {
@@ -511,9 +515,9 @@ export default function SelfServiceView() {
 
   /* ===== DASHBOARD ===== */
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', padding: isMobile ? 16 : 24, background: '#f0f2f5', minHeight: '100vh', boxSizing: 'border-box' }}>
+    <div style={{ maxWidth: 480, margin: '0 auto', padding: isMobile ? 16 : 24, paddingBottom: 80, background: '#f0f2f5', minHeight: '100vh', boxSizing: 'border-box' }}>
       {/* Header mit Logo, Name & Hamburger */}
-      <div style={{ background: 'linear-gradient(135deg, ' + clubPrimary + ' 0%, ' + shadeColor(clubPrimary, -20) + ' 100%)', borderRadius: 16, padding: isMobile ? 16 : 20, marginBottom: 20, color: '#fff', position: 'relative' }}>
+      <div style={{ background: 'linear-gradient(135deg, ' + clubPrimary + ' 0%, ' + shadeColor(clubPrimary, -20) + ' 100%)', borderRadius: 20, padding: isMobile ? 16 : 20, marginBottom: 20, color: '#fff', position: 'relative' }}>
         <button
           onClick={() => setMenuOpen(!menuOpen)}
           style={{
@@ -532,21 +536,21 @@ export default function SelfServiceView() {
         {menuOpen && (
           <div style={{ position: 'absolute', top: 56, right: 12, background: '#fff', borderRadius: 12, boxShadow: '0 8px 30px rgba(0,0,0,0.2)', padding: 8, zIndex: 100, minWidth: 200, color: '#333' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #e9ecef', marginBottom: 8 }}>
-              <div style={{ fontWeight: 'bold', fontSize: 15 }}>{volunteer?.name}</div>
-              <div style={{ fontSize: 12, color: '#999' }}>{volunteer?.email || ''}</div>
+              <div style={{ fontWeight: 'bold', fontSize: 15 }}>{ctxVolunteer?.name}</div>
+              <div style={{ fontSize: 12, color: '#999' }}>{ctxVolunteer?.email || ''}</div>
             </div>
             <button onClick={() => {
               setMenuOpen(false);
               setShowProfile(true);
-              setEditName(volunteer?.name || '');
-              setEditEmail(volunteer?.email || '');
-              setEditPhone(volunteer?.phone || '');
-              setEditChildren((volunteer?.children || []).map(c => ({ childName: c.childName, childYear: String(c.childYear) })) || [{ childName: '', childYear: '' }]);
+              setEditName(ctxVolunteer?.name || '');
+              setEditEmail(ctxVolunteer?.email || '');
+              setEditPhone(ctxVolunteer?.phone || '');
+              setEditChildren((ctxVolunteer?.children || []).map((c: any) => ({ childName: c.childName || "", childYear: String(c.childYear || "") })) || [{ childName: '', childYear: '' }]);
             }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>👤 Profil bearbeiten</button>
             <button onClick={async () => {
               setMenuOpen(false);
               try {
-                const r = await fetch('/api/auth/export', { headers: { Authorization: 'Bearer ' + token } });
+                const r = await fetch('/api/auth/export', { headers: { Authorization: 'Bearer ' + ctxToken } });
                 if (!r.ok) { await modal.alert({ title: 'Fehler', message: 'Export fehlgeschlagen' }); return; }
                 const data = await r.json();
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -564,7 +568,7 @@ export default function SelfServiceView() {
               const np = result.newPassword as string;
               if (!cp || !np || np.length < 6) { await modal.alert({ title: 'Hinweis', message: 'Passwort muss mindestens 6 Zeichen haben' }); return; }
               try {
-                const r = await fetch('/api/auth/password', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ currentPassword: cp, newPassword: np }) });
+                const r = await fetch('/api/auth/password', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ctxToken }, body: JSON.stringify({ currentPassword: cp, newPassword: np }) });
                 if (r.ok) { await modal.alert({ title: 'Erfolg', message: 'Passwort geändert!' });
                 } else { const d = await r.json(); await modal.alert({ title: 'Fehler', message: d.error }); }
               } catch { await modal.alert({ title: 'Fehler', message: 'Fehler bei der Passwort-Änderung' }); }
@@ -573,11 +577,14 @@ export default function SelfServiceView() {
               setMenuOpen(false);
               if (!(await modal.confirm({ title: 'Konto löschen', message: 'Bist du sicher, dass du dein Konto löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden. Alle personenbezogenen Daten werden entfernt.', variant: 'danger' }))) return;
               try {
-                const r = await fetch('/api/auth/account', { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+                const r = await fetch('/api/auth/account', { method: 'DELETE', headers: { Authorization: 'Bearer ' + ctxToken } });
                 if (r.ok) { await modal.alert({ title: 'Erfolg', message: 'Dein Konto wurde gelöscht.' }); logout(); }
                 else { const d = await r.json(); await modal.alert({ title: 'Fehler', message: d.error || 'Fehler' }); }
               } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Löschen' }); }
             }} style={{ width: '100%', padding: '10px 16px', background: '#fff3f3', border: '2px solid #dc3545', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#dc3545', fontWeight: 'bold' }}>🗑️ Konto löschen (Art. 17 DSGVO)</button>
+            {isAdmin || isOrganizer ? (
+              <button onClick={() => { setMenuOpen(false); if (onLoginAsAdmin) onLoginAsAdmin(); }} style={{ width: '100%', padding: '10px 16px', background: '#e8f5e9', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#2e7d32', fontWeight: 'bold' }}>⚙️ Admin-Bereich</button>
+            ) : null}
             <button onClick={() => { setMenuOpen(false); setShowRegisterForm(false); logout(); }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#dc3545' }}>🚪 Abmelden</button>
           </div>
         )}
@@ -586,13 +593,11 @@ export default function SelfServiceView() {
           {clubLogo ? (
             <img src={clubLogo} alt={tournamentName} style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'contain', border: '2px solid rgba(255,255,255,0.3)', flexShrink: 0, padding: 4, background: '#fff' }} />
           ) : (
-            <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 22, flexShrink: 0, padding: 6 }}>
-              {(tournamentName || 'TSV')[0]}
-            </div>
+            <img src="/logo.webp" alt="App Logo" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: '22%', flexShrink: 0, boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} />
           )}
           <div>
             <h2 style={{ margin: 0, fontSize: isMobile ? 18 : 22 }}>{tournamentName || 'Turnier'}</h2>
-            <p style={{ margin: '2px 0 0', opacity: 0.85, fontSize: 13 }}>Hallo, {volunteer?.name}!</p>
+            <p style={{ margin: '2px 0 0', opacity: 0.85, fontSize: 13 }}>Hallo, {ctxVolunteer?.name}!</p>
           </div>
         </div>
       </div>
@@ -607,16 +612,16 @@ export default function SelfServiceView() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        <button onClick={() => setActiveSection('schichten')} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'schichten' ? '600' : '400', background: activeSection === 'schichten' ? clubSecondary : '#fff', color: activeSection === 'schichten' ? '#fff' : '#666', boxShadow: activeSection === 'schichten' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>📋 Schichten</button>
-        <button onClick={() => { setActiveSection('spenden'); loadFood(); }} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'spenden' ? '600' : '400', background: activeSection === 'spenden' ? clubSecondary : '#fff', color: activeSection === 'spenden' ? '#fff' : '#666', boxShadow: activeSection === 'spenden' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>🍞 Spenden</button>
+        <button onClick={() => setActiveSection('jobs')} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'jobs' ? '600' : '400', background: activeSection === 'jobs' ? clubSecondary : '#fff', color: activeSection === 'jobs' ? '#fff' : '#666', boxShadow: activeSection === 'jobs' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>📋 Jobs</button>
+        <button onClick={() => { setActiveSection('verpflegung'); loadFood(); }} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'verpflegung' ? '600' : '400', background: activeSection === 'verpflegung' ? clubSecondary : '#fff', color: activeSection === 'verpflegung' ? '#fff' : '#666', boxShadow: activeSection === 'verpflegung' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>🍞 Verpflegung</button>
       </div>
 
-      {/* Deine Schichten */}
-      {activeSection === 'schichten' && volunteerShifts.filter(vs => vs.volunteerId === volunteer?.id).length > 0 && (
+      {/* Deine Jobs */}
+      {activeSection === 'jobs' && volunteerShifts.filter(vs => vs.userId === ctxVolunteer?.id).length > 0 && (
         <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <h3 style={{ margin: '0 0 6px', fontSize: 16, color: clubPrimary }}>Deine Schichten ({volunteerShifts.filter(vs => vs.volunteerId === volunteer?.id).length})</h3>
+          <h3 style={{ margin: '0 0 6px', fontSize: 16, color: clubPrimary }}>Deine Jobs ({volunteerShifts.filter(vs => vs.userId === ctxVolunteer?.id).length})</h3>
           {volunteerShifts
-            .filter(vs => vs.volunteerId === volunteer?.id)
+            .filter(vs => vs.userId === ctxVolunteer?.id)
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
             .map((vs, idx, myShifts) => {
               const s = vs.shift;
@@ -659,22 +664,22 @@ export default function SelfServiceView() {
         </div>
       )}
 
-      {/* Offene Schichten */}
-      {activeSection === 'schichten' && (
+      {/* Offene Jobs */}
+      {activeSection === 'jobs' && (
         <>
-          {busy && <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>Lade Schichten...</div>}
+          {busy && <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>Lade Jobs...</div>}
 
           {!busy && shifts.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 40, background: '#fff', borderRadius: 12, color: '#666' }}>Keine Schichten verfügbar.</div>
+            <div style={{ textAlign: 'center', padding: 40, background: '#fff', borderRadius: 12, color: '#666' }}>Keine Jobs verfügbar.</div>
           )}
 
           {!busy && shifts.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <h3 style={{ margin: '0 0 6px', fontSize: 16, color: clubPrimary }}>Offene Schichten</h3>
+          <h3 style={{ margin: '0 0 6px', fontSize: 16, color: clubPrimary }}>Offene Jobs</h3>
           {shifts
             .filter(s => !filterDate || new Date(s.date).toLocaleDateString('de-DE') === filterDate)
             .filter(s => {
-              if (!token) return true;
+              if (!ctxToken) return true;
               return !volunteerShifts.some(vs => vs.shiftId === s.id);
             })
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -731,13 +736,13 @@ export default function SelfServiceView() {
         </>
       )}
 
-      {/* Lebensmittel Spenden */}
-      {activeSection === 'spenden' && (
+      {/* Verpflegung */}
+      {activeSection === 'verpflegung' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Meine Spenden */}
+          {/* Meine Einträge */}
           {myDonations.length > 0 && (
             <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
-              <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>📌 Meine Spenden ({myDonations.length})</h3>
+              <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>📌 Meine Einträge ({myDonations.length})</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {myDonations.map(d => (
                   <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: '#f8f9fa', borderRadius: 10 }}>
@@ -754,10 +759,10 @@ export default function SelfServiceView() {
             </div>
           )}
 
-          {/* Lebensmittel-Slots für Kinder */}
+          {/* Verpflegung für Kinder */}
           {foodDonationSlots.length > 0 && (
             <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
-              <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>📊 Lebensmittel-Slots für deine Kinder</h3>
+              <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>📊 Verpflegung für deine Kinder</h3>
               {(() => {
                 // Nach Jahrgang gruppieren
                 const grouped: Record<string, FoodDonationSlot[]> = {};
@@ -775,7 +780,7 @@ export default function SelfServiceView() {
                   
                   // Zeige welche Kinder-Jahrgänge passen
                   const firstSlot = slots[0];
-                  const matchingChildren = volunteer?.children?.filter(c => {
+                  const matchingChildren = ctxVolunteer?.children?.filter(c => {
                     if (!c.childYear || !firstSlot.yearGroup) return false;
                     return c.childYear >= firstSlot.yearGroup.birthYearStart && c.childYear <= firstSlot.yearGroup.birthYearEnd;
                   }) || [];
@@ -872,9 +877,9 @@ export default function SelfServiceView() {
             </div>
           )}
 
-          {/* Zusätzliche Spende */}
+          {/* Zusätzliche Verpflegung */}
           <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>🍞 Zusätzliche Spende</h3>
+            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>🍞 Zusätzliche Verpflegung</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <select value={donationFoodId} onChange={e => setDonationFoodId(parseInt(e.target.value))} style={{ padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', background: '#fff', boxSizing: 'border-box' }}>
                 <option value={0}>-- Artikel auswählen --</option>
@@ -888,7 +893,7 @@ export default function SelfServiceView() {
               </select>
               <input value={donationQuantity} onChange={e => setDonationQuantity(e.target.value)} placeholder="Menge" type="number" min="1" style={{ padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }} />
               <input value={donationNote} onChange={e => setDonationNote(e.target.value)} placeholder="Notiz (optional)" style={{ padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }} />
-              <button onClick={submitDonation} style={{ padding: '14px 0', background: clubSecondary, color: '#fff', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: '600', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>📦 Spende eintragen</button>
+              <button onClick={submitDonation} style={{ padding: '14px 0', background: clubSecondary, color: '#fff', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: '600', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>📦 Verpflegung eintragen</button>
             </div>
           </div>
         </div>
@@ -896,6 +901,20 @@ export default function SelfServiceView() {
 
       {/* Menü schließen beim Klick außerhalb */}
       {menuOpen && <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }} onClick={() => setMenuOpen(false)} />}
+
+      {/* Sticky Sponsor Footer */}
+      {hasSponsor && (
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none', zIndex: 40 }}>
+          <a href={sponsorUrl || '#'} target="_blank" rel="noopener noreferrer" style={{ width: '100%', maxWidth: 480, padding: '12px 16px', background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(8px)', borderTop: '1px solid rgba(0,0,0,0.05)', pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, boxSizing: 'border-box', boxShadow: '0 -4px 20px rgba(0,0,0,0.05)', textDecoration: 'none', cursor: sponsorUrl ? 'pointer' : 'default' }}>
+            <span style={{ fontSize: 11, color: '#666', fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.5 }}>Mit freundlicher Unterstützung von</span>
+            {sponsorLogo ? (
+              <img src={sponsorLogo} alt={sponsorName || 'Sponsor'} style={{ height: 28, objectFit: 'contain' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            ) : sponsorName ? (
+              <span style={{ fontSize: 13, fontWeight: 'bold', color: clubPrimary }}>{sponsorName}</span>
+            ) : null}
+          </a>
+        </div>
+      )}
     </div>
   );
 }

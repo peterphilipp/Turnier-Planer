@@ -78,7 +78,7 @@ export default function Felder({ tournamentId, yearGroupId }: Props) {
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h3 style={{ margin: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>⚽ Spielfelder</h3>
-        <button onClick={() => setShowForm(!showForm)} style={{ ...btnStyle, background: '#0d6efd', color: '#fff', border: 'none', fontWeight: '600' }}>
+        <button onClick={() => setShowForm(!showForm)} style={{ ...btnStyle, background: '#0d6efd', color: '#fff', border: 'none' }}>
           {showForm ? '✕ Abbrechen' : '+ Neues Feld'}
         </button>
       </div>
@@ -111,7 +111,7 @@ export default function Felder({ tournamentId, yearGroupId }: Props) {
                 <option value="wartung">🔴 Wartung</option>
               </select>
             </div>
-            <button onClick={handleSave} style={{ ...btnStyle, background: '#28a745', color: '#fff', border: 'none', fontWeight: '600' }}>✓ Speichern</button>
+            <button onClick={handleSave} style={{ ...btnStyle, background: '#28a745', color: '#fff', border: 'none' }}>✓ Speichern</button>
           </div>
         </div>
       )}

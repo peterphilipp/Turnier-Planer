@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import validate from '../middleware/validate.js';
+import { requireAdmin, authenticate } from '../middleware/auth.js';
 import {
   getMatchesByTournament,
   createMatch,
@@ -14,13 +15,16 @@ import {
 
 const router = Router();
 
+// Öffentlich: Spielplan ansehen
 router.get('/:tournamentId', getMatchesByTournament);
-router.post('/', validate(matchSchema), createMatch);
-router.patch('/:id', validate(matchSchema.partial()), updateMatch);
-router.delete('/:id', deleteMatch);
-router.post('/:id/advance', advanceKO);
-router.post('/assign-ko-teams', assignKOTeams);
-router.post('/:id/reset', resetMatch);
-router.patch('/:id/toggle-completed', toggleCompleted);
+
+// Nur Admin/Organizer
+router.post('/', authenticate, requireAdmin, validate(matchSchema), createMatch);
+router.patch('/:id', authenticate, requireAdmin, validate(matchSchema.partial()), updateMatch);
+router.delete('/:id', authenticate, requireAdmin, deleteMatch);
+router.post('/:id/advance', authenticate, requireAdmin, advanceKO);
+router.post('/assign-ko-teams', authenticate, requireAdmin, assignKOTeams);
+router.post('/:id/reset', authenticate, requireAdmin, resetMatch);
+router.patch('/:id/toggle-completed', authenticate, requireAdmin, toggleCompleted);
 
 export default router;

@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 
 export const getTournamentClubs = async (req: Request, res: Response) => {
-  const tournamentId = parseInt(String(req.query.tournamentId));
+  const tournamentId = parseInt(String(req.query.tournamentId as string));
   if (!tournamentId) return res.status(400).json({ error: 'tournamentId erforderlich' });
   
   const clubs = await prisma.tournamentClub.findMany({
@@ -42,7 +42,7 @@ export const removeTournamentClub = async (req: Request, res: Response) => {
   }
 
   await prisma.tournamentClub.deleteMany({
-    where: { tournamentId: parseInt(String(tournamentId)), clubId: parseInt(String(clubId)) }
+    where: { tournamentId: parseInt(String(tournamentId as string)), clubId: parseInt(String(clubId as string)) }
   });
   return res.status(204).send();
 };

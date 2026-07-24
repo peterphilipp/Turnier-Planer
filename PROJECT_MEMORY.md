@@ -243,9 +243,51 @@ services:
 
 | Commit | Message |
 |--------|---------|
+| ??? | feat: RBAC implementiert – UserContext, api.ts 403-Handling, requireAdmin Fix, App.tsx rollenbasiert |
 | de8ae57 | fix: Farben werden automatisch beim Speichern übernommen (Auto-Sync) |
 | 5f6caab | fix: Color-Picker zeigt extrahierte Farben live an |
 | c19c068 | fix: Farbanalyse komplett neu geschrieben mit Debug-Logging |
+
+---
+
+# 🔐 RBAC (Role-Based Access Control) – IMPLEMENTIERT
+
+## Rollen-System
+| Rolle | Key | Berechtigungen |
+|-------|-----|----------------|
+| Admin | `Admin` | Vollzugriff auf alles, kann andere Admins erstellen |
+| Organisator | `Organisator` | Vollzugriff auf Admin-Bereich (kein User-Management) |
+| Helfer | `Helfer` | Nur SelfServiceView (Jobs, Verpflegung, Profil) |
+
+## Backend Implementation
+- **`backend/src/utils/roles.ts`**: Rollen-Definitionen + Helper-Funktionen (`isAdminRole`, `hasRole`)
+- **`backend/src/middleware/auth.ts`**:
+  - `authenticate()`: Prüft JWT + hängt volunteerId an req
+  - `requireRole(requiredRoles)`: Prüft JWT + DB-Rollen gegen requiredRoles
+  - `requireAdmin()`: Prüft JWT + Admin/Organisator Rolle (NEU: prüft jetzt wirklich Rollen!)
+- **`backend/src/routes/password.routes.ts`**: Login gibt roles im JWT mit (`jwt.sign({ volunteerId, roles })`)
+- **Alle Admin-Routes** geschützt mit `authenticate` + `requireAdmin`
+
+## Frontend Implementation
+- **`frontend/src/context/UserContext.tsx`**: 
+  - `UserProvider`: Wrappt App, liest token/volunteer aus localStorage
+  - `useUser()`: Hook für `isLoggedIn`, `roles`, `isAdmin`, `isOrganizer`, `login()`, `logout()`
+- **`frontend/src/api.ts`**:
+  - `setAuthToken(token)`: Setzt globalen Token für API-Calls
+  - `ApiError` mit `.status` property (401, 403)
+  - Automatische Token-Injection in alle apiFetch calls
+- **`frontend/src/App.tsx`**:
+  - AdminView: Nur sichtbar wenn `isAdmin || isOrganizer`
+  - Helfer sieht "Zugriff verweigert" Screen statt Admin-Tabs
+  - Rollen-Badge im Header (👑 Admin / 🔧 Organisator)
+  - 401 → Auto-Logout + Redirect zu SelfService
+  - 403 → Fehleranzeige mit "Erneut versuchen"
+
+## Wichtige Regeln
+- **Nie** `requireAdmin` ohne `authenticate` kombinieren (redundant!)
+- **Immer** `requireRole(['Helfer'])` für SelfService-Routes verwenden
+- Register endpoint setzt automatisch `"roles": "[\"Helfer\"]"`
+- Admin/Organizer können Helfer-Rolle über Helfer.tsx ändern
 
 ---
 
@@ -253,7 +295,8 @@ services:
 
 1. **Vereine.tsx Layout**: Logo-Upload und Farbanalyse eine Zeile nach unten verschieben (Editzeile zu voll)
 2. **Docker Rebuild**: `docker compose up -d --build` um alle Änderungen zu deployen
-3. **Testing**: Logo-Farbanalyse mit verschiedenen Logos testen
+3. **Testing**: RBAC mit verschiedenen User-Rollen testen
+4. **Admin-User erstellen**: curl POST /api/auth/register mit manuellem roles-Feld (oder über Helfer.tsx nachträglich)
 
 ---
 

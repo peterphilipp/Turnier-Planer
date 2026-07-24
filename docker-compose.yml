@@ -5,11 +5,11 @@ services:
     ports:
       - "5000:5000"
     environment:
-      DATABASE_URL: "file:./data/dev.db"
+      DATABASE_URL: "file:./prisma/data/dev.db"
 
       FRONTEND_URL: "https://turnier-planer.mygate.dedyn.io"
     volumes:
-      - db-data:/app/data
+      - db-data:/app/prisma/data
 
 volumes:
   db-data:
