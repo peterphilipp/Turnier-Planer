@@ -52,7 +52,7 @@ export default function Jahrgaenge({ adminPrimary }: { adminPrimary: string }) {
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
           <input type="checkbox" checked={form.isActive} onChange={e => setForm({ ...form, isActive: e.target.checked })} /> Aktiv
         </label>
-        <button onClick={() => { apiPost('/api/year-groups', form); queryClient.refetchQueries({ queryKey: ['yearGroups'] }); setForm({ name: '', birthYearStart: 0, birthYearEnd: 0, order: 0, isActive: true }); }} style={{ padding: '14px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, minHeight: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
+        <button onClick={save} style={{ padding: '14px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, minHeight: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
           <span>➕</span><span>Hinzufügen</span>
         </button>
       </div>
