@@ -53,15 +53,26 @@ export const createTournament = async (req: Request, res: Response) => {
 
 export const updateTournament = async (req: Request, res: Response) => {
   try {
-    const { yearGroupIds, ...tournamentData } = req.body;
-    if (tournamentData.startDate) tournamentData.startDate = new Date(tournamentData.startDate);
-    if (tournamentData.endDate) tournamentData.endDate = new Date(tournamentData.endDate);
-    
+    const { yearGroupIds } = req.body;
+
+    // Nur erlaubte Felder übernehmen (kein Mass-Assignment über rohen req.body,
+    // insbesondere kein Überschreiben von id/createdAt)
+    const ALLOWED = [
+      'name', 'description', 'startDate', 'endDate', 'status', 'turnierModus',
+      'teamsAdvancingPerGroup', 'playoutAllPlacements', 'thirdPlaceMatch',
+      'qualificationRule', 'clubId', 'hasSponsor', 'sponsorName', 'sponsorUrl', 'logo'
+    ] as const;
+    const updateData: any = {};
+    for (const key of ALLOWED) {
+      if (req.body[key] !== undefined) updateData[key] = req.body[key];
+    }
+
+    if (updateData.startDate) updateData.startDate = new Date(updateData.startDate);
+    if (updateData.endDate) updateData.endDate = new Date(updateData.endDate);
+
     // clubId als null wenn leer/0
-    if (tournamentData.clubId === '' || tournamentData.clubId === 0) tournamentData.clubId = null;
-    
-    const updateData: any = { ...tournamentData };
-    
+    if (updateData.clubId === '' || updateData.clubId === 0) updateData.clubId = null;
+
     // yearGroupIds aktualisieren (viele-zu-viele)
     if (yearGroupIds !== undefined) {
       updateData.yearGroups = { set: yearGroupIds.map((id: number) => ({ id })) };

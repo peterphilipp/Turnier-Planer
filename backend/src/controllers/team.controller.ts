@@ -37,7 +37,8 @@ export const teamSchema = z.object({
   yearGroupId: z.number().int().positive().nullable().optional(),
   clubId: z.number().int().positive().nullable().optional(),
   goalsFor: z.number().int().min(0).optional(),
-  goalsAgainst: z.number().int().min(0).optional()
+  goalsAgainst: z.number().int().min(0).optional(),
+  bracketTyp: z.string().nullable().optional()
 });
 
 export const createTeam = async (req: Request, res: Response) => {

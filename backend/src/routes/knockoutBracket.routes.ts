@@ -13,6 +13,7 @@ const router = Router();
 
 const bracketSchema = z.object({
   tournamentId: z.number().int().positive(),
+  yearGroupId: z.number().int().positive().nullable().optional(),
   name: z.string().min(1),
   runde: z.string().min(1),
   order: z.number().int().default(0)

@@ -42,9 +42,16 @@ export const createField = async (req: Request, res: Response) => {
 };
 
 export const updateField = async (req: Request, res: Response) => {
+  // Nur erlaubte Felder übernehmen (kein Mass-Assignment über rohen req.body)
+  const { name, status, yearGroupId } = req.body;
+  const data: any = {};
+  if (name !== undefined) data.name = name;
+  if (status !== undefined) data.status = status;
+  if (yearGroupId !== undefined) data.yearGroupId = yearGroupId;
+
   const field = await prisma.field.update({
     where: { id: parseInt(String(req.params.id as string)) },
-    data: req.body,
+    data,
     include: { matches: true }
   });
   return res.json(field);

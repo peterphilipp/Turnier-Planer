@@ -44,12 +44,19 @@ export const createTimeSlot = async (req: Request, res: Response) => {
 };
 
 export const updateTimeSlot = async (req: Request, res: Response) => {
-  const body = req.body;
-  if (body.date) body.date = new Date(body.date);
-  
+  // Nur erlaubte Felder übernehmen (kein Mass-Assignment über rohen req.body)
+  const { date, startTime, endTime, label, order, yearGroupId } = req.body;
+  const data: any = {};
+  if (date !== undefined) data.date = new Date(date);
+  if (startTime !== undefined) data.startTime = startTime;
+  if (endTime !== undefined) data.endTime = endTime;
+  if (label !== undefined) data.label = label;
+  if (order !== undefined) data.order = order;
+  if (yearGroupId !== undefined) data.yearGroupId = yearGroupId;
+
   const slot = await prisma.timeSlot.update({
     where: { id: parseInt(String(req.params.id as string)) },
-    data: body,
+    data,
     include: { matches: true }
   });
 
