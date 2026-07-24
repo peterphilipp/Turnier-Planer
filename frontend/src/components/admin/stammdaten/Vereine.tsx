@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getClubs, apiPost, apiPut, apiDelete } from '../../../api';
@@ -38,9 +38,11 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync extractedColors → clubForm
-  if (extractedColors) {
-    setClubForm(prev => ({ ...prev, primaryColor: extractedColors.primary, secondaryColor: extractedColors.secondary, accentColor: extractedColors.accent }));
-  }
+  useEffect(() => {
+    if (extractedColors) {
+      setClubForm(prev => ({ ...prev, primaryColor: extractedColors.primary, secondaryColor: extractedColors.secondary, accentColor: extractedColors.accent }));
+    }
+  }, [extractedColors]);
 
   const swapColors = (posA: number, posB: number) => {
     setColorOrder(prev => { const next = [...prev]; [next[posA], next[posB]] = [next[posB], next[posA]]; return next; });
