@@ -99,6 +99,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               setVolunteerShifts(d.volunteerShifts); 
               if (d.tournament) {
                 setTournament(d.tournament);
+                setTournamentName(d.tournament.name || '');
                 setHasSponsor(d.tournament.hasSponsor || false);
                 setSponsorName(d.tournament.sponsorName || null);
                 setSponsorUrl(d.tournament.sponsorUrl || null);
@@ -165,6 +166,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
         setVolunteerShifts(data2.volunteerShifts); 
         if (data2.tournament) {
           setTournament(data2.tournament);
+          setTournamentName(data2.tournament.name || '');
           setHasSponsor(data2.tournament.hasSponsor || false);
           setSponsorName(data2.tournament.sponsorName || null);
           setSponsorUrl(data2.tournament.sponsorUrl || null);
@@ -195,6 +197,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
         setVolunteerShifts(data.volunteerShifts); 
         if (data.tournament) {
           setTournament(data.tournament);
+          setTournamentName(data.tournament.name || '');
           setHasSponsor(data.tournament.hasSponsor || false);
           setSponsorName(data.tournament.sponsorName || null);
           setSponsorUrl(data.tournament.sponsorUrl || null);
@@ -504,6 +507,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                     setVolunteerShifts(d.volunteerShifts); 
                     if (d.tournament) {
                       setTournament(d.tournament);
+                      setTournamentName(d.tournament.name || '');
                       setHasSponsor(d.tournament.hasSponsor || false);
                       setSponsorName(d.tournament.sponsorName || null);
                       setSponsorUrl(d.tournament.sponsorUrl || null);
