@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 export const shiftSchema = z.object({
   tournamentId: z.union([z.number(), z.string()]).transform(Number),
-  date: z.string().datetime().or(z.date()),
+  date: z.string().or(z.date()),
   zeitslotId: z.union([z.number(), z.string()]).transform(Number).optional().nullable(),
   arbeitsbereichId: z.union([z.number(), z.string()]).transform(Number).optional().nullable(),
   maxVolunteers: z.number().int().min(1).optional(),
