@@ -596,8 +596,9 @@ export const deleteMatch = async (req: Request, res: Response) => {
 };
 
 async function recalculateStandingsForTournament(tournamentId: number) {
+  // Nur Gruppen-/Liga-Spiele (bracketId: null) fließen in die Tabelle ein, keine K.O.-Spiele.
   const matches = await prisma.match.findMany({
-    where: { tournamentId, status: 'gespielt', scoreA: { not: null }, scoreB: { not: null } },
+    where: { tournamentId, bracketId: null, status: 'gespielt', scoreA: { not: null }, scoreB: { not: null } },
     include: { teamA: true, teamB: true }
   });
 

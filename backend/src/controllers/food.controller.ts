@@ -146,34 +146,41 @@ export const createDonation = async (req: Request, res: Response) => {
     if (!user || !user.tournamentId) {
       return res.status(400).json({ error: 'Kein Tournament zugewiesen' });
     }
+    // Verengung in lokale Konstante heben (geht in der Transaktions-Closure sonst verloren)
+    const tournamentId = user.tournamentId;
 
     const { foodItemId, quantity, note, slotId } = req.body;
     if (!foodItemId || !quantity) {
       return res.status(400).json({ error: 'foodItemId und quantity erforderlich' });
     }
 
-    // Spende erstellen
-    const donation = await prisma.foodDonation.create({
-      data: {
-        tournamentId: user.tournamentId,
-        userId,
-        foodItemId,
-        quantity: parseInt(quantity as string),
-        note: note || null,
-        foodDonationSlotId: slotId ? Number(slotId) : null
-      },
-      include: {
-        foodItem: { include: { category: true } }
-      }
-    });
+    const qty = parseInt(quantity as string);
 
-    // Slot collected-Wert aktualisieren falls slotId übergeben wurde
-    if (slotId) {
-      await prisma.foodDonationSlot.updateMany({
-        where: { id: Number(slotId) },
-        data: { collected: { increment: parseInt(quantity as string) } }
+    // Spende erstellen + Slot-Zähler erhöhen atomar (kein Drift bei Teilfehler).
+    const donation = await prisma.$transaction(async (tx) => {
+      const created = await tx.foodDonation.create({
+        data: {
+          tournamentId,
+          userId,
+          foodItemId,
+          quantity: qty,
+          note: note || null,
+          foodDonationSlotId: slotId ? Number(slotId) : null
+        },
+        include: {
+          foodItem: { include: { category: true } }
+        }
       });
-    }
+
+      if (slotId) {
+        await tx.foodDonationSlot.updateMany({
+          where: { id: Number(slotId) },
+          data: { collected: { increment: qty } }
+        });
+      }
+
+      return created;
+    });
 
     logFoodDonationCreated(userId, user.name || '', foodItemId, donation.foodItem?.name || '', quantity);
     res.json(donation);
@@ -195,16 +202,22 @@ export const deleteDonation = async (req: Request, res: Response) => {
 
     const donor = await prisma.user.findUnique({ where: { id: existing.userId } });
 
-    // Collected-Wert des Slots dekrementieren
-    if (existing.foodDonationSlotId) {
-      await prisma.foodDonationSlot.updateMany({
-        where: { id: existing.foodDonationSlotId },
-        data: { collected: { decrement: existing.quantity } }
-      });
-    }
+    // Zähler-Korrektur + Löschen atomar; collected darf nicht negativ werden.
+    await prisma.$transaction(async (tx) => {
+      if (existing.foodDonationSlotId) {
+        const slot = await tx.foodDonationSlot.findUnique({ where: { id: existing.foodDonationSlotId } });
+        if (slot) {
+          const newCollected = Math.max(0, slot.collected - existing.quantity);
+          await tx.foodDonationSlot.update({
+            where: { id: existing.foodDonationSlotId },
+            data: { collected: newCollected }
+          });
+        }
+      }
+      await tx.foodDonation.delete({ where: { id } });
+    });
 
     logFoodDonationDeleted(userId, donor?.name || 'Unbekannt', id);
-    await prisma.foodDonation.delete({ where: { id } });
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: (e as Error).message });
