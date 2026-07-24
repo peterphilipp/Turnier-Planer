@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getFoodCategories, getFoodItems, apiPost, apiPatch, apiDelete } from '../../../api';
-import { btnStyleSecondary } from '../shared';
+import { btnStyleSecondary, useSortableData } from '../shared';
 import type { FoodCategory, FoodItem } from '../shared';
 import EditModal from '../EditModal';
 
@@ -26,6 +26,9 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
 
   const { data: foodCategories = [] } = useQuery<FoodCategory[]>({ queryKey: ['foodCategories'], queryFn: getFoodCategories });
   const { data: foodItems = [] } = useQuery<FoodItem[]>({ queryKey: ['foodItems'], queryFn: getFoodItems });
+
+  const { items: sortedCategories, requestSort: sortCat, getSortIndicator: getCatInd } = useSortableData(foodCategories, { key: 'order', direction: 'asc' });
+  const { items: sortedItems, requestSort: sortItem, getSortIndicator: getItemInd } = useSortableData(foodItems, { key: 'name', direction: 'asc' });
 
   // Kategorien actions
   const saveFoodCategory = async () => {
@@ -94,9 +97,9 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
         </div>
 
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Icon</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Name</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right' }}>Artikel</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
+          <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Icon</th><th onClick={() => sortCat('name')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Name{getCatInd('name')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right' }}>Artikel</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
           <tbody>
-            {foodCategories.map(cat => (
+            {sortedCategories.map(cat => (
               <tr key={cat.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
                 <td style={{ padding: '10px 12px', fontSize: 24 }}>{cat.icon}</td>
                 <td style={{ padding: '10px 12px', fontWeight: 500 }}>{cat.name}</td>
@@ -152,9 +155,9 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
         </div>
 
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Icon</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Name</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Kategorie</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right' }}>Preis</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Einheit</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
+          <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Icon</th><th onClick={() => sortItem('name')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Name{getItemInd('name')}</th><th onClick={() => sortItem('categoryName')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Kategorie{getItemInd('categoryName')}</th><th onClick={() => sortItem('price')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Preis{getItemInd('price')}</th><th onClick={() => sortItem('unit')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Einheit{getItemInd('unit')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
           <tbody>
-            {foodItems.map(item => (
+            {sortedItems.map(item => (
               <tr key={item.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
                 <td style={{ padding: '10px 12px', fontSize: 20 }}>{item.category?.icon || '📦'}</td>
                 <td style={{ padding: '10px 12px', fontWeight: 500 }}>{item.name}</td>

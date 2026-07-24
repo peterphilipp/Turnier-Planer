@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getVolunteers, apiPost, apiPatch, apiDelete } from '../../../api';
-import { btnStyleSecondary, Volunteer } from '../shared';
+import { btnStyleSecondary, Volunteer, useSortableData } from '../shared';
 import EditModal from '../EditModal';
 
 const ROLES = [
@@ -32,6 +32,8 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
   const filtered = volunteers.filter(v => 
     !search || v.name.toLowerCase().includes(search.toLowerCase()) || (v.email || '').toLowerCase().includes(search.toLowerCase())
   );
+  
+  const { items: sortedVolunteers, requestSort, getSortIndicator } = useSortableData(filtered, { key: 'name', direction: 'asc' });
 
   const saveVolunteer = async () => {
     if (!volForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
@@ -81,16 +83,16 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
-          <tr>
-            <th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Name</th>
-            <th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>E-Mail</th>
-            <th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Telefon</th>
-            <th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Rolle</th>
+          <tr style={{ borderBottom: '2px solid #e9ecef' }}>
+            <th onClick={() => requestSort('name')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Name{getSortIndicator('name')}</th>
+            <th onClick={() => requestSort('email')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>E-Mail{getSortIndicator('email')}</th>
+            <th onClick={() => requestSort('phone')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Telefon{getSortIndicator('phone')}</th>
+            <th onClick={() => requestSort('role')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Rolle{getSortIndicator('role')}</th>
             <th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th>
           </tr>
         </thead>
         <tbody>
-          {filtered.map(v => (
+          {sortedVolunteers.map(v => (
             <tr key={v.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
               <td style={{ padding: '10px 12px', fontWeight: 500 }}>{v.name}</td>
               <td style={{ padding: '10px 12px' }}>{v.email || '–'}</td>

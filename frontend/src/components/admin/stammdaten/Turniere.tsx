@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getTournaments, getClubs, getYearGroups, apiPost, apiPatch } from '../../../api';
-import { btnStyleSecondary, Tournament, Club, YearGroup } from '../shared';
+import { btnStyleSecondary, Tournament, Club, YearGroup, useSortableData } from '../shared';
 import EditModal from '../EditModal';
 
 export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimary: string, adminSecondary: string }) {
   const queryClient = useQueryClient();
   const { data: tournaments = [] } = useQuery<Tournament[]>({ queryKey: ['tournaments'], queryFn: getTournaments });
   const { data: clubs = [] } = useQuery<Club[]>({ queryKey: ['clubs'], queryFn: getClubs });
-  const { data: yearGroups = [] } = useQuery<YearGroup[]>({ queryKey: ['year-groups'], queryFn: getYearGroups });
+  const { data: yearGroups = [] } = useQuery<YearGroup[]>({ queryKey: ['yearGroups'], queryFn: getYearGroups });
   
+  const { items: sortedTournaments, requestSort, getSortIndicator } = useSortableData(tournaments, { key: 'startDate', direction: 'desc' });
+
   const [statusDialog, setStatusDialog] = useState({ open: false, tournament: null as Tournament | null, editName: '', editClubId: '', editStart: '', editEnd: '', editModus: 'GRUPPEN_KO', yearGroupIds: [] as number[], logoFile: null as File | null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '' });
   
   const [newTourn, setNewTourn] = useState({ name: '', start: '', end: '', clubId: '', modus: 'GRUPPEN_KO' });
@@ -113,9 +115,9 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
       </div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Verein</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Name</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'center' }}>Sponsor-Logo</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right' }}>Von</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right' }}>Bis</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'center' }}>Status</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Jahrgänge</th></tr></thead>
+        <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th onClick={() => requestSort('clubName')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Verein{getSortIndicator('clubName')}</th><th onClick={() => requestSort('name')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Name{getSortIndicator('name')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'center' }}>Sponsor-Logo</th><th onClick={() => requestSort('startDate')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Von{getSortIndicator('startDate')}</th><th onClick={() => requestSort('endDate')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Bis{getSortIndicator('endDate')}</th><th onClick={() => requestSort('statusBadge')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'center', cursor: 'pointer' }}>Status{getSortIndicator('statusBadge')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Jahrgänge</th></tr></thead>
         <tbody>
-          {tournaments.map(t => (
+          {sortedTournaments.map(t => (
             <tr key={t.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
               <td style={{ padding: '10px 12px' }}>
                 {t.club ? (<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
