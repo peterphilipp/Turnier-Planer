@@ -1,7 +1,7 @@
 import { useState, Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getShifts, getVolunteerShifts } from '../../../api';
-import { Shift, VolunteerShift, thStyle, tdStyle } from '../shared';
+import { Shift, VolunteerShift, FoodDonationSlot, thStyle, tdStyle } from '../shared';
+import { getShifts, getVolunteerShifts, getFoodDonationSlots } from '../../../api';
 
 export default function Uebersicht({ selectedTournament }: { selectedTournament: number | null }) {
   // Hooks MÜSSEN vor allen early returns stehen
@@ -27,6 +27,12 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
     enabled: !!selectedTournament
   });
 
+  const { data: foodSlots = [], isFetching: busyFood } = useQuery<FoodDonationSlot[]>({
+    queryKey: ['foodDonationSlots', selectedTournament],
+    queryFn: () => getFoodDonationSlots(selectedTournament),
+    enabled: !!selectedTournament
+  });
+
   if (!selectedTournament) {
     return (
       <div style={{ padding: 48, textAlign: 'center', background: '#fff', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
@@ -37,7 +43,7 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
     );
   }
 
-  if (busySlots || busyVolShifts) {
+  if (busySlots || busyVolShifts || busyFood) {
     return <div style={{ textAlign: 'center', padding: 20 }}>⏳ Lade Daten...</div>;
   }
 
@@ -52,10 +58,39 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
     grouped[dateKey].push(slot);
   });
 
+  const unbesetzteSlots = jobSlots.filter(s => {
+    const count = volunteerShifts.filter(vs => vs.shiftId === s.id).length;
+    return count < s.maxVolunteers;
+  });
+
+  const fehlendeVerpflegung = foodSlots.filter(f => f.collected < f.targetQuantity);
+
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529', marginBottom: 24 }}>📊 Management Buchungen (Übersicht)</h3>
       
+      {/* Offene Punkte Widgets */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, marginBottom: 32 }}>
+        {unbesetzteSlots.length > 0 && (
+          <div style={{ background: '#fff3cd', border: '1px solid #ffeeba', padding: 16, borderRadius: 12 }}>
+            <div style={{ fontSize: 18, marginBottom: 8 }}>⚠️ <strong style={{ color: '#856404' }}>{unbesetzteSlots.length} unbesetzte Job-Slots</strong></div>
+            <p style={{ margin: 0, fontSize: 14, color: '#856404' }}>Es fehlen noch Helfer in verschiedenen Schichten. Bitte Dienstplan prüfen.</p>
+          </div>
+        )}
+        {fehlendeVerpflegung.length > 0 && (
+          <div style={{ background: '#f8d7da', border: '1px solid #f5c6cb', padding: 16, borderRadius: 12 }}>
+            <div style={{ fontSize: 18, marginBottom: 8 }}>⚠️ <strong style={{ color: '#721c24' }}>{fehlendeVerpflegung.length} offene Verpflegungs-Ziele</strong></div>
+            <p style={{ margin: 0, fontSize: 14, color: '#721c24' }}>Für verschiedene Jahrgänge fehlen noch Kuchen, Salate oder andere Spenden.</p>
+          </div>
+        )}
+        {unbesetzteSlots.length === 0 && fehlendeVerpflegung.length === 0 && jobSlots.length > 0 && (
+          <div style={{ background: '#d4edda', border: '1px solid #c3e6cb', padding: 16, borderRadius: 12 }}>
+            <div style={{ fontSize: 18, marginBottom: 8 }}>✅ <strong style={{ color: '#155724' }}>Alles besetzt!</strong></div>
+            <p style={{ margin: 0, fontSize: 14, color: '#155724' }}>Alle Job-Slots und Verpflegungs-Ziele sind erreicht. Gute Arbeit!</p>
+          </div>
+        )}
+      </div>
+
       {Object.entries(grouped).map(([dateStr, slots]) => {
         const firstSlot = slots[0];
         const firstDate = new Date(firstSlot.date);

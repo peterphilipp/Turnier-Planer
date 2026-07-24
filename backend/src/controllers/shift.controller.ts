@@ -66,3 +66,44 @@ export const deleteShift = async (req: Request, res: Response) => {
   await prisma.shift.delete({ where: { id: parseInt(req.params.id as string) } });
   return res.status(204).send();
 };
+
+export const copyShifts = async (req: Request, res: Response) => {
+  const { sourceTournamentId, targetTournamentId } = req.body;
+  if (!sourceTournamentId || !targetTournamentId) {
+    return res.status(400).json({ error: 'Missing tournament IDs' });
+  }
+
+  const sourceTour = await prisma.tournament.findUnique({ where: { id: parseInt(sourceTournamentId as string) } });
+  const targetTour = await prisma.tournament.findUnique({ where: { id: parseInt(targetTournamentId as string) } });
+
+  if (!sourceTour || !targetTour) {
+    return res.status(404).json({ error: 'Tournament not found' });
+  }
+
+  const shiftsToCopy = await prisma.shift.findMany({
+    where: { tournamentId: parseInt(sourceTournamentId as string) }
+  });
+
+  const sourceStart = new Date(sourceTour.startDate).getTime();
+  const targetStart = new Date(targetTour.startDate).getTime();
+  const diffTime = targetStart - sourceStart;
+
+  const newShifts = shiftsToCopy.map(s => {
+    const originalDate = new Date(s.date).getTime();
+    const newDate = new Date(originalDate + diffTime);
+    return {
+      tournamentId: parseInt(targetTournamentId as string),
+      date: newDate.toISOString(),
+      zeitslotId: s.zeitslotId,
+      arbeitsbereichId: s.arbeitsbereichId,
+      maxVolunteers: s.maxVolunteers,
+      description: s.description
+    };
+  });
+
+  if (newShifts.length > 0) {
+    await prisma.shift.createMany({ data: newShifts });
+  }
+
+  return res.json({ success: true, count: newShifts.length });
+};
