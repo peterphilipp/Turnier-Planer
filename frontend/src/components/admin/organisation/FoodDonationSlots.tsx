@@ -58,7 +58,7 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
       }
     }
     queryClient.invalidateQueries({ queryKey: ['foodDonationSlots', selectedTournament] });
-    setSlotForm({ yearGroupIds: [], categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' });
+    setSlotForm(prev => ({ ...prev, categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' }));
     setEditingSlotId(null);
   };
 
@@ -128,10 +128,10 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
 
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-      <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>Lebensmittel-Slots (turnierweit)</h3>
-      <p style={{ color: '#666', fontSize: 14, marginBottom: 20 }}>Lege hier fest, welche Jahrgänge während des gesamten Turniers welche Lebensmittel spenden sollen.</p>
+      <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>Verpflegungs-Slots (turnierweit)</h3>
+      <p style={{ color: '#666', fontSize: 14, marginBottom: 20 }}>Lege hier fest, welche Jahrgänge während des gesamten Turniers welche Verpflegung beitragen sollen.</p>
 
-      {/* Formular für Lebensmittel-Slots */}
+      {/* Formular für Verpflegungs-Slots */}
       <div style={{ background: '#f8f9fa', padding: 20, borderRadius: 12, marginBottom: 30, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
           <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>1. Jahrgang(e) {editingSlotId ? '(Nur einer)' : '(Mehrfachauswahl)'}</label>
@@ -215,7 +215,7 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
       {/* Tabelle mit Jahrgang-Hierarchie */}
       <div style={{ overflowX: 'auto' }}>
         {groupedByYear.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>Keine Lebensmittel-Slots gefunden.</div>
+          <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>Keine Verpflegungs-Slots gefunden.</div>
         ) : (
           groupedByYear.map(([yearName, slots]) => {
             const totals = totalsByYear[yearName] || { target: 0, collected: 0 };
@@ -236,7 +236,7 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, borderLeft: '2px solid #e9ecef' }}>
                   <thead>
                     <tr>
-                      <th style={{ ...thStyle, background: '#f8f9fa' }}>Lebensmittel</th>
+                      <th style={{ ...thStyle, background: '#f8f9fa' }}>Verpflegung</th>
                       <th style={{ ...thStyle, background: '#f8f9fa' }}>Soll</th>
                       <th style={{ ...thStyle, background: '#f8f9fa' }}>Ist</th>
                       <th style={{ ...thStyle, background: '#f8f9fa' }}>Fortschritt</th>
