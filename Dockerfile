@@ -28,7 +28,7 @@ COPY --from=frontend-build /app/dist ./dist/
 EXPOSE 5000
 
 # Default DB – kann per -e überschrieben werden
-ENV DATABASE_URL="file:./data/dev.db"
+ENV DATABASE_URL="file:/app/data/dev.db"
 
 COPY backend/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
