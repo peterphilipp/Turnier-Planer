@@ -5,10 +5,7 @@ import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import { Resend } from 'resend';
 import { logLoginSuccess, logLoginFailed, logPasswordResetRequested, logPasswordResetCompleted, logRegistrationCreated } from '../utils/logger.js';
-
-
-
-const JWT_SECRET = process.env.JWT_SECRET || 'tsv-holm-secret-2025';
+import JWT_SECRET from '../config/jwt.js';
 
 function getClientIp(req: express.Request): string | undefined {
   return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() 
@@ -16,6 +13,12 @@ function getClientIp(req: express.Request): string | undefined {
 }
 
 const router = express.Router();
+
+/** Entfernt den Passwort-Hash aus einem User-Objekt, bevor es ausgeliefert wird. */
+function sanitizeUser<T extends { password?: string | null }>(user: T): Omit<T, 'password'> {
+  const { password, ...safe } = user;
+  return safe;
+}
 
 // POST /api/auth/forgot-password
 router.post('/forgot-password', async (req, res, next) => {
@@ -199,7 +202,7 @@ router.post('/login', async (req, res, next) => {
       }
 
       const token = jwt.sign({ userId: user.id, role: userRole }, JWT_SECRET, { expiresIn: '30d' });
-      res.json({ token, user });
+      res.json({ token, user: sanitizeUser(user) });
   } catch (err) {
     next(err);
   }
@@ -219,7 +222,7 @@ router.get('/me', async (req, res, next) => {
     if (!user) {
       return res.status(401).json({ error: 'Ungültiger Token' });
     }
-    res.json(user);
+    res.json(sanitizeUser(user));
   } catch (err) {
     res.status(401).json({ error: 'Ungültiger Token' });
   }
@@ -410,7 +413,7 @@ router.patch('/profile', async (req, res, next) => {
       include: { children: true }
     });
 
-    res.json(user);
+    res.json(sanitizeUser(user));
   } catch (err) {
     next(err);
   }
@@ -474,7 +477,7 @@ router.post('/register', async (req, res, next) => {
       ? user.role
       : 'HELPER';
     const token = jwt.sign({ userId: user.id, role: newRole }, JWT_SECRET, { expiresIn: '30d' });
-    res.status(201).json({ token, user });
+    res.status(201).json({ token, user: sanitizeUser(user) });
   } catch (err) {
     next(err);
   }

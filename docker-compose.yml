@@ -8,6 +8,13 @@ services:
       DATABASE_URL: "file:./prisma/data/dev.db"
 
       FRONTEND_URL: "https://turnier-planer.mygate.dedyn.io"
+
+      # Pflicht: JWT-Secret aus der Host-Umgebung (kein Default im Code!).
+      # `docker compose up` bricht mit klarer Meldung ab, wenn nicht gesetzt.
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET muss gesetzt sein (z.B. via .env oder Shell-Env)}"
+      # Optional: E-Mail-Versand (Passwort-Reset) und Primary-Admin-Bootstrap
+      RESEND_API_KEY: "${RESEND_API_KEY:-}"
+      ADMIN_EMAILS: "${ADMIN_EMAILS:-}"
     volumes:
       - db-data:/app/prisma/data
 

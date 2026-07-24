@@ -13,14 +13,20 @@ export const volunteerSchema = z.object({
   tournamentId: z.number().int().nullable().optional()
 });
 
+/** Entfernt den Passwort-Hash aus einem User-Objekt, bevor es ausgeliefert wird. */
+const sanitizeUser = <T extends { password?: string | null }>(user: T): Omit<T, 'password'> => {
+  const { password, ...safe } = user;
+  return safe;
+};
+
 export const getVolunteers = async (req: Request, res: Response) => {
   const { tournamentId } = req.query;
   const users = await prisma.user.findMany({
     where: tournamentId ? { tournamentId: Number(tournamentId) } : undefined,
     orderBy: { name: 'asc' }
   });
-  // Rolle als String zurückgeben (Prisma Enum wird intern als String gespeichert)
-  return res.json(users?.map(u => ({ ...u, role: u.role as string })) || []);
+  // Rolle als String zurückgeben; Passwort-Hash niemals ausliefern
+  return res.json(users?.map(u => ({ ...sanitizeUser(u), role: u.role as string })) || []);
 };
 
 export const createVolunteer = async (req: Request, res: Response) => {
@@ -41,7 +47,7 @@ export const createVolunteer = async (req: Request, res: Response) => {
 
   const user = await prisma.user.create({ data: body });
   logVolunteerUpdated(user.id, { name: user.name }, 'created');
-  return res.status(201).json(user);
+  return res.status(201).json(sanitizeUser(user));
 };
 
 export const deleteVolunteer = async (req: Request, res: Response) => {
@@ -69,7 +75,7 @@ export const updateVolunteer = async (req: Request, res: Response) => {
     data: body
   });
   logVolunteerUpdated(user.id, Object.keys(body));
-  return res.json(user);
+  return res.json(sanitizeUser(user));
 };
 
 export const updateVolunteerPassword = async (req: Request, res: Response) => {

@@ -2,8 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 import jwt from 'jsonwebtoken';
 import { logFoodDonationCreated, logFoodDonationDeleted } from '../utils/logger.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'tsv-holm-secret-2025';
+import JWT_SECRET from '../config/jwt.js';
 
 const getUserId = (req: Request): number | null => {
   const authHeader = req.headers.authorization;

@@ -53,9 +53,10 @@ export const updateTimeSlot = async (req: Request, res: Response) => {
     include: { matches: true }
   });
 
+  // Spielplan invalidieren – nur für dieses Turnier + Jahrgang (nicht turnierübergreifend)
   if (slot.yearGroupId) {
-    await prisma.match.deleteMany({ where: { yearGroupId: slot.yearGroupId } });
-    await prisma.standingsEntry.deleteMany({ where: { team: { yearGroupId: slot.yearGroupId } } });
+    await prisma.match.deleteMany({ where: { tournamentId: slot.tournamentId, yearGroupId: slot.yearGroupId } });
+    await prisma.standingsEntry.deleteMany({ where: { tournamentId: slot.tournamentId, team: { yearGroupId: slot.yearGroupId } } });
   }
 
   return res.json(slot);
@@ -64,10 +65,11 @@ export const updateTimeSlot = async (req: Request, res: Response) => {
 export const deleteTimeSlot = async (req: Request, res: Response) => {
   const id = parseInt(String(req.params.id as string));
   const slot = await prisma.timeSlot.findUnique({ where: { id } });
-  
+
+  // Spielplan invalidieren – nur für dieses Turnier + Jahrgang (nicht turnierübergreifend)
   if (slot?.yearGroupId) {
-    await prisma.match.deleteMany({ where: { yearGroupId: slot.yearGroupId } });
-    await prisma.standingsEntry.deleteMany({ where: { team: { yearGroupId: slot.yearGroupId } } });
+    await prisma.match.deleteMany({ where: { tournamentId: slot.tournamentId, yearGroupId: slot.yearGroupId } });
+    await prisma.standingsEntry.deleteMany({ where: { tournamentId: slot.tournamentId, team: { yearGroupId: slot.yearGroupId } } });
   }
 
   await prisma.timeSlot.delete({ where: { id } });
@@ -80,9 +82,9 @@ export const bulkUpdateTimeSlots = async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'tournamentId, yearGroupId, und slots Array erforderlich' });
   }
 
-  // Delete matches and standings to reset schedule
-  await prisma.match.deleteMany({ where: { yearGroupId } });
-  await prisma.standingsEntry.deleteMany({ where: { team: { yearGroupId } } });
+  // Delete matches and standings to reset schedule – nur für dieses Turnier + Jahrgang
+  await prisma.match.deleteMany({ where: { tournamentId, yearGroupId } });
+  await prisma.standingsEntry.deleteMany({ where: { tournamentId, team: { yearGroupId } } });
 
   // Delete old time slots
   await prisma.timeSlot.deleteMany({ where: { tournamentId, yearGroupId } });
