@@ -11,10 +11,11 @@ export const getYearGroups = async (_req: Request, res: Response) => {
   }
 };
 
-export const getYearGroup = (req: Request, res: Response) => {
+export const getYearGroup = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const yearGroup = prisma.yearGroup.findUnique({ where: { id: Number(id) } });
+    const yearGroup = await prisma.yearGroup.findUnique({ where: { id: Number(id) } });
+    if (!yearGroup) return res.status(404).json({ message: 'Jahrgang nicht gefunden' });
     return res.json(yearGroup);
   } catch (error) {
     console.error('Error fetching year group:', error);

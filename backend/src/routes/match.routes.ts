@@ -7,7 +7,6 @@ import {
   updateMatch,
   resetMatch,
   toggleCompleted,
-  advanceKO,
   assignKOTeams,
   deleteMatch,
   matchSchema
@@ -22,7 +21,6 @@ router.get('/:tournamentId', getMatchesByTournament);
 router.post('/', authenticate, requireAdmin, validate(matchSchema), createMatch);
 router.patch('/:id', authenticate, requireAdmin, validate(matchSchema.partial()), updateMatch);
 router.delete('/:id', authenticate, requireAdmin, deleteMatch);
-router.post('/:id/advance', authenticate, requireAdmin, advanceKO);
 router.post('/assign-ko-teams', authenticate, requireAdmin, assignKOTeams);
 router.post('/:id/reset', authenticate, requireAdmin, resetMatch);
 router.patch('/:id/toggle-completed', authenticate, requireAdmin, toggleCompleted);
