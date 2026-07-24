@@ -89,12 +89,14 @@ Bei HMR-Fehlern: `rm -rf node_modules/.vite` + Node-Prozess killen.
 | **Zeitslot** | Zeitfenster | `name`, `startTime`, `endTime`, `color`, `order` |
 | **Shift** | Konkreter Job-Slot | `tournamentId`, `date`, `zeitslotId` FK, `arbeitsbereichId` FK, `maxVolunteers` |
 
-## Volunteer Entities
+## User / Helfer Entities
+> Verbindlich: `backend/prisma/schema.prisma`. Die Helfer-Entität heißt im Code **`User`** (Tabelle `users`), nicht `Volunteer`.
+
 | Model | Beschreibung | Wichtige Felder |
 |-------|-------------|-----------------|
-| **Volunteer** | Helferin/Helfer | `name`, `email`, `phone`, `childName`, `childYear`, `password` (bcrypt), `roles` (JSON), `tournamentId` FK |
-| **VolunteerChild** | Kind einer Helferin | `volunteerId` FK, `childName`, `childYear` |
-| **VolunteerShift** | Zuweisung | `volunteerId` FK, `shiftId` FK, `date`, `slot`, `role` |
+| **User** | Helferin/Helfer | `name`, `email`, `phone`, `password` (bcrypt), `role` (Enum-artig: `HELPER`/`ORGANIZER`/`ADMIN`), `isPrimaryAdmin`, `consentGiven`/`consentDate`, `tournamentId` FK |
+| **UserChild** | Kind einer Helferin | `userId` FK, `childName`, `childYear` |
+| **VolunteerShift** | Zuweisung | `userId` FK, `shiftId` FK, `tournamentId` FK, `date`, `slot`, `role`, `areaId` |
 
 ## Food Donation Entities
 | Model | Beschreibung | Wichtige Felder |
@@ -253,11 +255,13 @@ services:
 # 🔐 RBAC (Role-Based Access Control) – IMPLEMENTIERT
 
 ## Rollen-System
-| Rolle | Key | Berechtigungen |
+> Rolle ist ein **einzelnes** Feld `User.role` (kein `roles`-JSON-Array). Werte: `HELPER` / `ORGANIZER` / `ADMIN`.
+
+| Rolle | Key (`role`) | Berechtigungen |
 |-------|-----|----------------|
-| Admin | `Admin` | Vollzugriff auf alles, kann andere Admins erstellen |
-| Organisator | `Organisator` | Vollzugriff auf Admin-Bereich (kein User-Management) |
-| Helfer | `Helfer` | Nur SelfServiceView (Jobs, Verpflegung, Profil) |
+| Admin | `ADMIN` | Vollzugriff auf alles, kann andere Admins erstellen |
+| Organisator | `ORGANIZER` | Vollzugriff auf Admin-Bereich (kein User-Management) |
+| Helfer | `HELPER` | Nur SelfServiceView (Jobs, Verpflegung, Profil) |
 
 ## Backend Implementation
 - **`backend/src/utils/roles.ts`**: Rollen-Definitionen + Helper-Funktionen (`isAdminRole`, `hasRole`)
@@ -265,8 +269,8 @@ services:
   - `authenticate()`: Prüft JWT + hängt volunteerId an req
   - `requireRole(requiredRoles)`: Prüft JWT + DB-Rollen gegen requiredRoles
   - `requireAdmin()`: Prüft JWT + Admin/Organisator Rolle (NEU: prüft jetzt wirklich Rollen!)
-- **`backend/src/routes/password.routes.ts`**: Login gibt roles im JWT mit (`jwt.sign({ volunteerId, roles })`)
-- **Alle Admin-Routes** geschützt mit `authenticate` + `requireAdmin`
+- **`backend/src/routes/password.routes.ts`**: Login gibt die Rolle im JWT mit (`jwt.sign({ userId, role })`); Passwort-Hash wird nie ausgeliefert
+- **Alle Admin-Routes** geschützt mit `authenticate` + `requireAdmin`; JWT_SECRET ist Pflicht (Fail-Fast, kein Default)
 
 ## Frontend Implementation
 - **`frontend/src/context/UserContext.tsx`**: 
@@ -285,9 +289,9 @@ services:
 
 ## Wichtige Regeln
 - **Nie** `requireAdmin` ohne `authenticate` kombinieren (redundant!)
-- **Immer** `requireRole(['Helfer'])` für SelfService-Routes verwenden
-- Register endpoint setzt automatisch `"roles": "[\"Helfer\"]"`
-- Admin/Organizer können Helfer-Rolle über Helfer.tsx ändern
+- **Immer** `requireRole(['HELPER'])` für SelfService-Routes verwenden
+- Register endpoint setzt `role: 'HELPER'` (bzw. `ADMIN` für ersten Nutzer / `ADMIN_EMAILS`)
+- Admin/Organizer können die Rolle über Helfer.tsx ändern
 
 ---
 

@@ -1,6 +1,11 @@
 # ── Stage 1: Frontend build ──
 FROM node:22-alpine AS frontend-build
 WORKDIR /app
+# Versionsinfos aus dem CI (Git-Tag + Commit) in den Build durchreichen
+ARG APP_VERSION="dev"
+ARG GIT_SHA="local"
+ENV VITE_APP_VERSION=$APP_VERSION
+ENV VITE_GIT_SHA=$GIT_SHA
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ .

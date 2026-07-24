@@ -74,6 +74,12 @@ Die Anwendung bietet zwei getrennte Oberflächen, die **über eine einzige Domai
 
 ## ER-Modell
 
+> ℹ️ **Verbindliche Quelle des Datenmodells ist [`backend/prisma/schema.prisma`](backend/prisma/schema.prisma).**
+> Das folgende Diagramm und das Data Dictionary sind eine vereinfachte, teils historische
+> Übersicht. Wichtigste Abweichung: Die Helfer-Entität heißt im Code **`User`** (nicht `Volunteer`),
+> die Rolle ist ein String-Enum **`role`** mit Werten `HELPER` / `ORGANIZER` / `ADMIN`
+> (nicht ein `roles`-JSON-Array), und Kinder liegen im Modell **`UserChild`**.
+
 ```mermaid
 erDiagram
     Club ||--o{ Tournament : "owns"
@@ -271,8 +277,8 @@ erDiagram
 | **Arbeitsbereich** | Physischer Station (Verkaufsstand, Grillstand, etc.) mit Min/Max Helfer |
 | **Zeitslot** | Zeitfenster (Start/Ende) für Schichten |
 | **Shift** | Konkreter Job-Slot: Datum × Zeitslot × Arbeitsbereich |
-| **Volunteer** | Helferin/Helfer mit Login-Daten, Rollen und Kinder-Informationen |
-| **VolunteerChild** | Kind einer Helferin (Name + Jahrgang) für Spendenfilterung |
+| **User** (Code-Name; früher „Volunteer") | Helferin/Helfer mit Login-Daten, Rolle (`role`: HELPER/ORGANIZER/ADMIN) |
+| **UserChild** (früher „VolunteerChild") | Kind einer Helferin (Name + Jahrgang) für Spendenfilterung |
 | **VolunteerShift** | Zuweisung: Wer ist wann in welcher Schicht? |
 | **FoodCategory / FoodItem** | Lebensmittel-Kategorien und -Artikel mit Preisen |
 | **YearGroup** | Jahrgang (Geburtsjahr-Bereich) für zielgruppengerechte Spendenplanung |
@@ -334,18 +340,20 @@ erDiagram
 | `field` | String | ❌ | Spielfeld (Standard: "Feld 1") |
 | `time` | DateTime | ❌ | Angesetzt Spielzeit |
 
-### 👤 Volunteer (Helferin/Helfer)
+### 👤 User (Helferin/Helfer – im Code `User`, Tabelle `users`)
 | Feld | Typ | Nullable | Beschreibung |
 |------|-----|----------|-------------|
 | `id` | Int (PK) | ❌ | Primärschlüssel |
 | `name` | String | ❌ | Vollständiger Name |
 | `email` | String | ✅ | E-Mail-Adresse (Login/Passwort-Zurücksetzen) |
 | `phone` | String | ✅ | Telefonnummer |
-| `childName` | String | ✅ | Name des eigenen Kindes (bei Registrierung) |
-| `childYear` | Int | ✅ | Jahrgang des eigenen Kindes (bei Registrierung) |
 | `password` | String | ✅ | bcrypt-Hash (optional, nur bei Registrierung gesetzt) |
-| `roles` | String | ❌ | JSON-Array als String: `["admin","helper"]` |
+| `role` | String (Enum-artig) | ❌ | `HELPER` / `ORGANIZER` / `ADMIN` (Default: `HELPER`) |
+| `isPrimaryAdmin` | Boolean | ❌ | Primärer Admin (E-Mail-Absender), Default: false |
+| `consentGiven` / `consentDate` | Boolean / DateTime | ✅ | DSGVO-Einwilligung |
 | `tournamentId` | Int (FK) | ✅ | Aktuelles Turnier → Tournament.id |
+
+> Kinder-Daten liegen in **`UserChild`** (nicht mehr als `childName`/`childYear` am User).
 
 ### 👶 VolunteerChild (Kind einer Helferin)
 | Feld | Typ | Nullable | Beschreibung |
