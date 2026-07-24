@@ -12,8 +12,8 @@ import {
 
 const router = Router();
 
-// Öffentlich: Helfer-Liste (für SelfService)
-router.get('/', getVolunteers);
+// Nur Admin/Organizer: Helfer-Liste (enthält personenbezogene Daten)
+router.get('/', authenticate, requireAdmin, getVolunteers);
 
 // Nur Admin/Organizer
 router.post('/', authenticate, requireAdmin, validate(volunteerSchema), createVolunteer);

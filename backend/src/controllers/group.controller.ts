@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 export const groupSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
+  order: z.number().int().optional(),
   tournamentId: z.number().int().positive(),
   yearGroupId: z.number().int().positive().nullable().optional()
 });

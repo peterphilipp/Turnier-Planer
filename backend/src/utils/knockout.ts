@@ -151,3 +151,85 @@ export function generateKnockoutTree(
   // Keep upperBound/lowerBound for KO propagation in updateMatch
   return matches;
 }
+
+// ==================== KO-Propagation (rein, ohne DB) ====================
+
+export interface KoMatchNode {
+  id: number;
+  bracketId: number | null;
+  stage: number | null;
+  upperBound: number | null;
+  lowerBound: number | null;
+}
+
+export interface KoAssignment {
+  targetMatchId: number;
+  slot: 'teamA' | 'teamB';
+  teamId: number;
+}
+
+/**
+ * Berechnet – ohne Datenbankzugriff – wohin Sieger und Verlierer eines gerade
+ * gespielten K.O.-Spiels weitergegeben werden.
+ *
+ * Die Regeln spiegeln exakt `generateKnockoutTree`:
+ * - Innerhalb einer Runde (gleiche bracketId + stage + bounds) bilden je zwei
+ *   nach id sortierte Matches ein Paar. Das erste (idx gerade) besetzt teamA des
+ *   Ziel-Matches, das zweite (idx ungerade) teamB.
+ * - Sieger → nächste stage, bounds [upper, mid]; Verlierer → bounds [mid+1, lower]
+ *   (nur falls dieses Platzierungs-Match existiert), mit mid = floor((upper+lower)/2).
+ * - Terminal (kein Weiterreichen), wenn der Bereich nur noch 1–2 Plätze umfasst
+ *   (upper+1 >= lower), also z.B. Finale [1,2] oder Spiel um Platz 3 [3,4].
+ *
+ * Gibt ein leeres Array zurück, wenn nicht propagiert werden kann (fehlende
+ * bounds/Teams, Unentschieden, terminales Match, Match nicht auffindbar).
+ */
+export function computeKoPropagation(
+  played: {
+    id: number;
+    bracketId: number | null;
+    stage: number | null;
+    upperBound: number | null;
+    lowerBound: number | null;
+    teamAId: number | null;
+    teamBId: number | null;
+    scoreA: number | null;
+    scoreB: number | null;
+  },
+  allKoMatches: KoMatchNode[]
+): KoAssignment[] {
+  const { id, bracketId, stage, upperBound: upper, lowerBound: lower, teamAId, teamBId, scoreA, scoreB } = played;
+
+  if (bracketId == null || stage == null || upper == null || lower == null) return [];
+  if (scoreA == null || scoreB == null || scoreA === scoreB) return []; // kein Sieger
+  if (teamAId == null || teamBId == null) return [];
+  if (!(upper + 1 < lower)) return []; // terminal (Finale/Platzierungsspiel)
+
+  const winner = scoreA > scoreB ? teamAId : teamBId;
+  const loser = scoreA > scoreB ? teamBId : teamAId;
+  const mid = Math.floor((upper + lower) / 2);
+
+  // Position dieses Matches innerhalb seiner Bounds-Gruppe (nach id stabil sortiert)
+  const sameGroup = allKoMatches
+    .filter(k => k.bracketId === bracketId && k.stage === stage && k.upperBound === upper && k.lowerBound === lower)
+    .sort((a, b) => a.id - b.id);
+  const idx = sameGroup.findIndex(k => k.id === id);
+  if (idx === -1) return [];
+  const pairIndex = Math.floor(idx / 2);
+  const slot: 'teamA' | 'teamB' = idx % 2 === 0 ? 'teamA' : 'teamB';
+
+  const inNextStage = (u: number, l: number) =>
+    allKoMatches
+      .filter(k => k.bracketId === bracketId && k.stage === stage + 1 && k.upperBound === u && k.lowerBound === l)
+      .sort((a, b) => a.id - b.id);
+
+  const assignments: KoAssignment[] = [];
+
+  const winnerTarget = inNextStage(upper, mid)[pairIndex];
+  if (winnerTarget) assignments.push({ targetMatchId: winnerTarget.id, slot, teamId: winner });
+
+  const loserTarget = inNextStage(mid + 1, lower)[pairIndex];
+  if (loserTarget) assignments.push({ targetMatchId: loserTarget.id, slot, teamId: loser });
+
+  return assignments;
+}
