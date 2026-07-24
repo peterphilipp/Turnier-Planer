@@ -1,6 +1,6 @@
 import { CSSProperties, useState, useMemo } from 'react';
 import { modal } from './Modal';
-import { getDeleteImpact } from '../../../api';
+import { getDeleteImpact } from '../../api';
 
 export const tdStyle: CSSProperties = { padding: '12px 16px', border: '1px solid #e9ecef', verticalAlign: 'top' };
 export const thStyle: CSSProperties = { ...tdStyle, background: '#f8f9fa', fontWeight: '600', fontSize: 13, color: '#495057' };

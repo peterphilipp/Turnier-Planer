@@ -15,7 +15,6 @@ import Lebensmittel from './components/admin/stammdaten/Lebensmittel';
 import Jahrgaenge from './components/admin/stammdaten/Jahrgaenge';
 
 import Jobslots from './components/admin/organisation/Jobslots';
-import Buchungen from './components/admin/organisation/Buchungen';
 import Uebersicht from './components/admin/organisation/Uebersicht';
 import Spielplan from './components/admin/organisation/Spielplan';
 import FoodDonationSlots from './components/admin/organisation/FoodDonationSlots';
@@ -30,7 +29,7 @@ import { UserProvider, useUser } from './context/UserContext';
 type View = 'admin' | 'selfservice' | 'privacy';
 type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
 type SpielplanTab = 'teilnehmer' | 'felder' | 'turnier-tage' | 'gruppen-teams' | 'spielplan-gruppenphase' | 'spielplan-ko' | 'modus' | 'gruppen-verwalten';
-type OrgTab = 'uebersicht' | 'jobslots' | 'buchungen' | 'food-donation-slots';
+type OrgTab = 'uebersicht' | 'jobslots' | 'food-donation-slots';
 type StammTab = 'turniere' | 'vereine' | 'work-areas' | 'global-time-slots' | 'helfer' | 'lebensmittel' | 'jahrgaenge';
 
 // ===================== Admin UI mit Rollen-Check =====================
@@ -319,7 +318,11 @@ function AdminView() {
       {/* LEVEL 2: SUB-NAVIGATION – ORGANISATION */}
       {activeMainTab === 'organisation' && (
         <nav style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
-          {[{ key: 'uebersicht' as OrgTab, icon: '📊', label: 'Übersicht' }, { key: 'buchungen' as OrgTab, icon: '📅', label: 'Dienstplan' }, { key: 'jobslots' as OrgTab, icon: '💼', label: 'Job-Slots' }, { key: 'food-donation-slots' as OrgTab, icon: '🍞', label: 'Verpflegung' }].map(tab => (
+          {[
+            { key: 'uebersicht' as OrgTab, icon: '📊', label: 'Übersicht' },
+            { key: 'jobslots' as OrgTab, icon: '⏱️', label: 'Job-Slots' },
+            { key: 'food-donation-slots' as OrgTab, icon: '🍰', label: 'Verpflegung' }
+          ].map(tab => (
             <button key={tab.key} onClick={() => setActiveOrgTab(tab.key)}
               style={{ padding: '12px 16px', cursor: 'pointer', background: activeOrgTab === tab.key ? '#198754' : '#e9ecef', color: activeOrgTab === tab.key ? '#fff' : '#000', border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>{tab.icon}</span><span>{tab.label}</span>
@@ -348,7 +351,6 @@ function AdminView() {
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan-ko' && <Spielplan tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} phase="ko" />}
         
         {activeMainTab === 'organisation' && activeOrgTab === 'uebersicht' && <Uebersicht selectedTournament={selectedTournamentId} />}
-        {activeMainTab === 'organisation' && activeOrgTab === 'buchungen' && <Buchungen selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
         {activeMainTab === 'organisation' && activeOrgTab === 'jobslots' && <Jobslots selectedTournament={selectedTournamentId} tournament={tournaments.find(t => t.id === selectedTournamentId) || null} adminPrimary="#198754" />}
         {activeMainTab === 'organisation' && activeOrgTab === 'food-donation-slots' && <FoodDonationSlots selectedTournament={selectedTournamentId} tournament={tournaments.find(t => t.id === selectedTournamentId) || null} adminPrimary="#198754" />}
 
