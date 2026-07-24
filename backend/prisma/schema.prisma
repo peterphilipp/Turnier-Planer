@@ -282,6 +282,7 @@ model TournamentDay {
   slots            DaySlot[]
   shifts           Shift[]
 
+  @@unique([tournamentId, date])
   @@index([tournamentId])
   @@map("tournament_days")
 }

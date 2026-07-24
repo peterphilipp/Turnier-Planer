@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getTournamentWorkAreas, syncTournamentWorkAreas, updateTournamentWorkArea,
@@ -6,7 +6,7 @@ import {
   getDayTemplates, generateShifts, getShifts, getTournaments
 } from '../../../api';
 import { modal } from '../Modal';
-import { btnStyle, inputStyle, minToTime } from '../shared';
+import { btnStyle, inputStyle, minToTime, tdStyle, thStyle } from '../shared';
 import type { TournamentWorkArea, TournamentDay, GlobalDayTemplate, PlanningShift, Tournament } from '../shared';
 
 /** Datum (Date) -> "YYYY-MM-DD" in UTC, unabhängig von der lokalen Zeitzone. */
@@ -42,20 +42,10 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
   const { data: tournaments = [] } = useQuery<Tournament[]>({ queryKey: ['tournaments'], queryFn: getTournaments });
   const tournament = tournaments.find(t => t.id === tid) || null;
 
-  // Auswahl beschränkt sich auf die tatsächlichen Turniertage (Stammdaten: startDate–endDate),
-  // bereits angelegte Tage werden als belegt markiert statt doppelt anlegbar zu sein.
+  // Tabelle zeigt jeden Kalendertag des Turniers (Stammdaten: startDate–endDate) als Zeile;
+  // ein Tag existiert serverseitig nur, wenn ihm ein Tag-Typ zugewiesen wurde.
   const availableDates = useMemo(() => tournamentDateRange(tournament), [tournament]);
-  const usedDates = useMemo(() => new Set(days.map(d => toDateOnly(new Date(d.date)))), [days]);
-
-  const [dayDraft, setDayDraft] = useState<{ date: string; label: string; templateId: string }>({ date: '', label: '', templateId: '' });
-  // Verhindert, dass ein manuell angepasstes Label beim Vorlagenwechsel überschrieben wird.
-  const [labelTouched, setLabelTouched] = useState(false);
-
-  const refreshAll = () => {
-    qc.invalidateQueries({ queryKey: ['t-work-areas', tid] });
-    qc.invalidateQueries({ queryKey: ['t-days', tid] });
-    qc.invalidateQueries({ queryKey: ['shifts', tid] });
-  };
+  const dayByDate = useMemo(() => new Map(days.map(d => [toDateOnly(new Date(d.date)), d] as const)), [days]);
 
   if (!tid) {
     return <div style={{ background: '#fff', padding: 32, borderRadius: 16, textAlign: 'center', color: '#666' }}>Bitte oben ein Turnier auswählen.</div>;
@@ -87,31 +77,37 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
     });
   });
 
-  const addDay = () => guard(async () => {
-    if (!dayDraft.date) { await modal.alert({ title: 'Hinweis', message: 'Bitte ein Datum wählen.' }); return; }
-    await createTournamentDay({
-      tournamentId: tid,
-      date: new Date(dayDraft.date).toISOString(),
-      label: dayDraft.label || null,
-      order: days.length,
-      templateId: dayDraft.templateId ? Number(dayDraft.templateId) : null
-    });
-    setDayDraft({ date: '', label: '', templateId: '' });
-    setLabelTouched(false);
+  /**
+   * Setzt/ändert/entfernt den Tag-Typ für einen Kalendertag. Da eine Vorlage nur beim
+   * Anlegen als Snapshot kopiert wird, wird ein bestehender Tag beim Wechsel gelöscht
+   * (kaskadiert Slots + darauf erzeugte Shifts) und mit der neuen Vorlage neu angelegt.
+   */
+  const setDayTemplate = (dateStr: string, existingDay: TournamentDay | undefined, templateId: string) => guard(async () => {
+    const affectedShifts = existingDay ? shifts.filter(s => s.tournamentDayId === existingDay.id).length : 0;
+    if (existingDay && affectedShifts > 0) {
+      const ok = await modal.confirm({
+        title: 'Tag-Typ ändern',
+        message: `Für diesen Tag existieren bereits ${affectedShifts} Schicht(en) – ggf. mit Helferzuweisungen. Beim Ändern des Tag-Typs werden diese gelöscht. Fortfahren?`,
+        variant: 'danger'
+      });
+      if (!ok) return;
+    }
+
+    if (existingDay) {
+      await deleteTournamentDay(existingDay.id);
+    }
+    if (templateId) {
+      const tmpl = templates.find(t => String(t.id) === templateId);
+      await createTournamentDay({
+        tournamentId: tid,
+        date: new Date(dateStr).toISOString(),
+        label: tmpl?.name || null,
+        order: availableDates.indexOf(dateStr),
+        templateId: Number(templateId)
+      });
+    }
     qc.invalidateQueries({ queryKey: ['t-days', tid] });
-  });
-
-  const onTemplateChange = (templateId: string) => {
-    const tmpl = templates.find(t => String(t.id) === templateId);
-    // Bezeichnung automatisch aus der Vorlage übernehmen (z. B. "Aufbautag"),
-    // aber nicht überschreiben, wenn der Nutzer sie bereits manuell angepasst hat.
-    setDayDraft(d => ({ ...d, templateId, label: (!labelTouched && tmpl) ? tmpl.name : d.label }));
-  };
-
-  const removeDay = (d: TournamentDay) => guard(async () => {
-    if (!(await modal.confirm({ title: 'Tag löschen', message: 'Tag inkl. Slots und daraus erzeugter Shifts löschen?', variant: 'danger' }))) return;
-    await deleteTournamentDay(d.id);
-    refreshAll();
+    qc.invalidateQueries({ queryKey: ['shifts', tid] });
   });
 
   const doGenerate = () => guard(async () => {
@@ -158,42 +154,43 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
         <h3 style={{ margin: '0 0 4px 0', color: '#212557' }}>📅 Turnier-Tage</h3>
         <p style={{ color: '#666', fontSize: 13, marginTop: 0 }}>
           {tournament && availableDates.length > 0
-            ? <>Turnierzeitraum lt. Stammdaten: <strong>{formatDateOption(availableDates[0])} – {formatDateOption(availableDates[availableDates.length - 1])}</strong>. Wähle einen dieser Tage und optional eine Vorlage – die Bezeichnung wird daraus übernommen.</>
+            ? <>Alle Kalendertage des Turniers (Stammdaten: <strong>{formatDateOption(availableDates[0])} – {formatDateOption(availableDates[availableDates.length - 1])}</strong>). Wähle je Tag einen Tag-Typ – die Zeit-Slots werden daraus übernommen.</>
             : 'Turnier wird geladen…'}
         </p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
-          <select style={inputStyle} value={dayDraft.date} onChange={e => setDayDraft(d => ({ ...d, date: e.target.value }))}>
-            <option value="">-- Turniertag wählen --</option>
-            {availableDates.map(dateStr => {
-              const used = usedDates.has(dateStr);
-              return (
-                <option key={dateStr} value={dateStr} disabled={used}>
-                  {formatDateOption(dateStr)}{used ? ' (bereits angelegt)' : ''}
-                </option>
-              );
-            })}
-          </select>
-          <select style={inputStyle} value={dayDraft.templateId} onChange={e => onTemplateChange(e.target.value)}>
-            <option value="">-- ohne Vorlage --</option>
-            {templates.filter(t => !t.isObsolete).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-          <input style={{ ...inputStyle, width: 160 }} placeholder="Bezeichnung (aus Vorlage übernommen)" value={dayDraft.label}
-            onChange={e => { setLabelTouched(true); setDayDraft(d => ({ ...d, label: e.target.value })); }} />
-          <button style={{ ...btnStyle, background: adminPrimary, color: '#fff' }} onClick={addDay}>+ Tag</button>
-        </div>
 
-        {days.map(d => (
-          <div key={d.id} style={{ border: '1px solid #e9ecef', borderRadius: 10, padding: 12, marginBottom: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <strong>{new Date(d.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</strong>
-              {d.label && <span style={{ background: '#e9ecef', borderRadius: 6, padding: '2px 8px', fontSize: 12 }}>{d.label}</span>}
-              <span style={{ fontSize: 13, color: '#666' }}>{(d.slots || []).map(s => `${minToTime(s.startMin)}–${minToTime(s.endMin)}`).join(', ') || 'keine Slots'}</span>
-              <span style={{ flex: 1 }} />
-              <button style={{ ...btnStyle, background: '#f8d7da', color: '#842029', minHeight: 32, padding: '4px 10px' }} onClick={() => removeDay(d)}>Löschen</button>
-            </div>
-          </div>
-        ))}
-        {days.length === 0 && <p style={{ color: '#888' }}>Noch keine Tage angelegt.</p>}
+        {availableDates.length === 0 ? (
+          <p style={{ color: '#888' }}>Turnier hat keinen gültigen Zeitraum (Stammdaten prüfen).</p>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 12 }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Turniertag</th>
+                <th style={thStyle}>Tag-Typ</th>
+                <th style={thStyle}>Zeit-Slots</th>
+              </tr>
+            </thead>
+            <tbody>
+              {availableDates.map(dateStr => {
+                const day = dayByDate.get(dateStr);
+                return (
+                  <tr key={dateStr}>
+                    <td style={tdStyle}>{formatDateOption(dateStr)}</td>
+                    <td style={tdStyle}>
+                      <select style={inputStyle} value={day?.sourceTemplateId ? String(day.sourceTemplateId) : ''}
+                        onChange={e => setDayTemplate(dateStr, day, e.target.value)}>
+                        <option value="">-- kein Tag-Typ --</option>
+                        {templates.filter(t => !t.isObsolete).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ ...tdStyle, fontSize: 13, color: '#666' }}>
+                      {(day?.slots || []).map(s => `${minToTime(s.startMin)}–${minToTime(s.endMin)}`).join(', ') || '–'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </section>
 
       {/* Generierung + Zeitleiste */}
