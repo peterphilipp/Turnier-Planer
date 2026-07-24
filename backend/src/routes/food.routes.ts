@@ -1,23 +1,24 @@
 import { Router } from 'express';
 import * as ctrl from '../controllers/food.controller.js';
+import { requireAdmin, authenticate } from '../middleware/auth.js';
 
 const router = Router();
 
-// Admin: Kategorien
+// Admin: Kategorien (geschützt)
 router.get('/categories', ctrl.getCategories);
-router.post('/categories', ctrl.createCategory);
-router.put('/categories/:id', ctrl.updateCategory);
-router.delete('/categories/:id', ctrl.deleteCategory);
+router.post('/categories', authenticate, requireAdmin, ctrl.createCategory);
+router.patch('/categories/:id', authenticate, requireAdmin, ctrl.updateCategory);
+router.delete('/categories/:id', authenticate, requireAdmin, ctrl.deleteCategory);
 
-// Admin: Artikel
+// Admin: Artikel (geschützt)
 router.get('/items', ctrl.getItems);
-router.post('/items', ctrl.createItem);
-router.put('/items/:id', ctrl.updateItem);
-router.delete('/items/:id', ctrl.deleteItem);
+router.post('/items', authenticate, requireAdmin, ctrl.createItem);
+router.patch('/items/:id', authenticate, requireAdmin, ctrl.updateItem);
+router.delete('/items/:id', authenticate, requireAdmin, ctrl.deleteItem);
 
-// Self-Service: Spenden
-router.get('/donations', ctrl.getDonations);
-router.post('/donations', ctrl.createDonation);
-router.delete('/donations/:id', ctrl.deleteDonation);
+// Self-Service: Spenden (nur angemeldet)
+router.get('/donations', authenticate, ctrl.getDonations);
+router.post('/donations', authenticate, ctrl.createDonation);
+router.delete('/donations/:id', authenticate, ctrl.deleteDonation);
 
 export default router;

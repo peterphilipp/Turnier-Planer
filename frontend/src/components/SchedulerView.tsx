@@ -1,16 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { modal } from './admin/Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getTournaments, getVolunteers, getZeitSlots, getShifts, getVolunteerShifts, apiPost, apiDelete, apiPatch } from '../api';
+import { getTournaments, getVolunteers, getGlobalTimeSlots, getShifts, getVolunteerShifts, apiPost, apiDelete, apiPatch } from '../api';
 
 interface Tournament { id: number; name: string; startDate: string; endDate: string; status: string; }
-interface Volunteer { id: number; name: string; roles: string[] }
+interface Volunteer { id: number; name: string; role?: 'HELPER' | 'ORGANIZER' | 'ADMIN' }
 interface VolunteerShift {
-  id: number; volunteerId: number; tournamentId: number | null;
+  id: number; userId: number; tournamentId: number | null;
   date: string; slot: string; role: string; areaId: number | null;
   arbeitsbereichId?: number | null;
   arbeitsbereich: { id: number; name: string; icon: string; color: string } | null;
-  volunteer?: Volunteer;
+  user?: Volunteer;
 }
 interface Shift {
   id: number; tournamentId: number; date: string; zeitslotId: number | null;
@@ -19,7 +19,7 @@ interface Shift {
   zeitslot: { id: number; name: string; startTime: string; endTime: string; color: string; order: number } | null;
   arbeitsbereich: { id: number; name: string; icon: string; color: string } | null;
 }
-interface Zeitslot { id: number; name: string; startTime: string; endTime: string; color: string; order: number; }
+interface GlobalTimeSlot { id: number; name: string; startTime: string; endTime: string; color: string; order: number; }
 
 type SchedulerTab = 'dienstplan' | 'helfer';
 
@@ -41,7 +41,7 @@ export default function SchedulerView() {
 
   const { data: tournaments = [] } = useQuery<Tournament[]>({ queryKey: ['tournaments'], queryFn: getTournaments });
   const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers', selectedTournament], queryFn: () => getVolunteers(selectedTournament), enabled: !!selectedTournament });
-  const { data: zeitSlots = [] } = useQuery<Zeitslot[]>({ queryKey: ['zeitSlots'], queryFn: getZeitSlots });
+  const { data: globalTimeSlots = [] } = useQuery<GlobalTimeSlot[]>({ queryKey: ['globalTimeSlots'], queryFn: getGlobalTimeSlots });
 
   const { data: jobSlots = [], isFetching: busySlots } = useQuery<Shift[]>({
     queryKey: ['shifts', selectedTournament],
@@ -150,7 +150,7 @@ export default function SchedulerView() {
   // Helfer anlegen
   const addVolunteer = async () => {
     if (!newVolunteerName.trim()) return;
-    await apiPost('/api/volunteers', { name: newVolunteerName.trim(), roles: ['Helfer'] });
+    await apiPost('/api/volunteers', { name: newVolunteerName.trim(), role: 'HELPER' });
     queryClient.invalidateQueries({ queryKey: ['volunteers'] });
     setNewVolunteerName('');
   };
@@ -158,7 +158,7 @@ export default function SchedulerView() {
   // Helfer inline anlegen + auswählen
   const addVolunteerInline = async () => {
     if (!newHelperName.trim()) return;
-    await apiPost('/api/volunteers', { name: newHelperName.trim(), roles: ['Helfer'], tournamentId: selectedTournament });
+    await apiPost('/api/volunteers', { name: newHelperName.trim(), role: 'HELPER', tournamentId: selectedTournament });
     const all = await getVolunteers(selectedTournament);
     queryClient.setQueryData(['volunteers', selectedTournament], all);
     const last = all[all.length - 1];
@@ -174,7 +174,7 @@ export default function SchedulerView() {
     if (!slot) return;
     const slotName = slot.zeitslot ? `${slot.zeitslot.name} (${slot.zeitslot.startTime}–${slot.zeitslot.endTime})` : slot.slot || '–';
     const existing = volunteerShifts.find(vs =>
-      vs.volunteerId === parseInt(selectedVolunteer) &&
+      vs.userId === parseInt(selectedVolunteer) &&
       new Date(vs.date).toISOString().split('T')[0] === selectedDate &&
       vs.slot === slotName &&
       (!slot.arbeitsbereichId || String(vs.arbeitsbereichId ?? vs.areaId) === String(slot.arbeitsbereichId))
@@ -183,7 +183,7 @@ export default function SchedulerView() {
 
     const area = slot.arbeitsbereich;
     await apiPost('/api/volunteer-shifts', {
-      volunteerId: parseInt(selectedVolunteer),
+      userId: parseInt(selectedVolunteer),
       tournamentId: selectedTournament,
       date: selectedDate,
       slot: slotName,
@@ -202,11 +202,11 @@ export default function SchedulerView() {
   // Edit speichern
   const saveEdit = async () => {
     if (!editingShift) return;
-    const slot = zeitSlots.find(z => z.id === editSlotId);
+    const slot = globalTimeSlots.find(z => z.id === editSlotId);
     const area = loadedArbeitsbereiche.find(a => a.id === editAreaId);
     await apiPatch(`/api/volunteer-shifts/${editingShift.id}`, {
       slot: slot?.name || editingShift.slot,
-      volunteerId: editVolunteerId || editingShift.volunteerId,
+      userId: editVolunteerId || editingShift.userId,
       areaId: area?.id || null,
     });
     queryClient.invalidateQueries({ queryKey: ['volunteerShifts', selectedTournament] });
@@ -319,7 +319,7 @@ export default function SchedulerView() {
                 for (const slot of slotsToAssign) {
                   const slotName = slot.zeitslot ? `${slot.zeitslot.name} (${slot.zeitslot.startTime}–${slot.zeitslot.endTime})` : slot.slot || '–';
                   const existing = volunteerShifts.find(vs =>
-                    vs.volunteerId === parseInt(selectedVolunteer) &&
+                    vs.userId === parseInt(selectedVolunteer) &&
                     new Date(vs.date).toISOString().split('T')[0] === selectedDate &&
                     vs.slot === slotName &&
                     (!slot.arbeitsbereichId || String(vs.arbeitsbereichId ?? vs.areaId) === String(slot.arbeitsbereichId))
@@ -327,7 +327,7 @@ export default function SchedulerView() {
                   if (!existing) {
                     const area = slot.arbeitsbereich;
                     await apiPost('/api/volunteer-shifts', {
-                      volunteerId: parseInt(selectedVolunteer),
+                      userId: parseInt(selectedVolunteer),
                       tournamentId: selectedTournament,
                       date: selectedDate,
                       slot: slotName,
@@ -424,13 +424,13 @@ export default function SchedulerView() {
                           {assignments.map(vs => (
                             <div key={vs.id} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
                               <span style={{ background: '#e7f3ff', color: '#0d6efd', padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 'bold' }}>
-                                {vs.volunteer?.name || '?'}
+                                {vs.user?.name || '?'}
                               </span>
                               <button onClick={() => removeAssignment(vs.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', padding: '1px 6px', fontSize: 10 }}>✕</button>
                             </div>
                           ))}
                           {/* Zuweisen */}
-                          {selectedVolunteer && !assignments.some(a => a.volunteerId === parseInt(selectedVolunteer)) && (
+                          {selectedVolunteer && !assignments.some(a => a.userId === parseInt(selectedVolunteer)) && (
                             <button onClick={async () => {
                               await assignToSlot(slot.id);
                               const name = volunteers.find(v => v.id === parseInt(selectedVolunteer))?.name || 'Helfer';
@@ -447,7 +447,7 @@ export default function SchedulerView() {
                             <button onClick={() => {
                               const vs = assignments[0];
                               setEditingShift(vs);
-                              setEditVolunteerId(vs.volunteerId);
+                              setEditVolunteerId(vs.userId);
                               setEditAreaId(vs.arbeitsbereichId ?? vs.areaId);
                               const matchedSlot = jobSlots.find(s =>
                                 s.tournamentId === selectedTournament &&
@@ -528,7 +528,7 @@ export default function SchedulerView() {
                 return (
                   <tr key={v.id} style={{ borderBottom: '1px solid #e9ecef' }}>
                     <td style={{ ...tdStyle, fontWeight: 'bold' }}>{v.name}</td>
-                    <td style={tdStyle}>{v.roles?.join(', ') || '–'}</td>
+                    <td style={{ ...tdStyle, color: v.role === 'ADMIN' ? '#dc3545' : v.role === 'ORGANIZER' ? '#0d6efd' : '#6c757d', fontWeight: 600 }}>{v.role || 'HELPER'}</td>
                     {tournamentDays.map(d => {
                       const count = dayCounts[d];
                       const color = count === 0 ? '#dc3545' : count >= 2 ? '#198754' : '#ffc107';
@@ -546,7 +546,7 @@ export default function SchedulerView() {
                     <td style={{ ...tdStyle, textAlign: 'center' }}>
                       <button onClick={() => {
                         const toRemove = volunteerShifts.filter(vs =>
-                          vs.volunteerId === v.id && vs.tournamentId === selectedTournament
+                          vs.userId === v.id && vs.tournamentId === selectedTournament
                         );
                         toRemove.forEach(vs => removeAssignment(vs.id));
                       }} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545' }}>🗑️ Alle entfernen</button>
@@ -570,7 +570,7 @@ export default function SchedulerView() {
               <select value={editSlotId} onChange={e => setEditSlotId(parseInt(e.target.value))}
                 style={{ width: '100%', padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 4 }}>
                 <option value={0}>-- Bitte wählen --</option>
-                {zeitSlots.sort((a, b) => a.order - b.order).map(zs => (
+                {globalTimeSlots.sort((a, b) => a.order - b.order).map(zs => (
                   <option key={zs.id} value={zs.id}>{zs.name} ({zs.startTime}–{zs.endTime})</option>
                 ))}
               </select>

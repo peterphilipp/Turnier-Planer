@@ -131,9 +131,9 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
                                     {assigned.map(vs => (
                                       <div key={vs.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: '6px 10px', minWidth: 180 }}>
                                         <span style={{ background: '#e7f3ff', color: '#0d6efd', padding: '2px 10px', borderRadius: 6, fontSize: 13, fontWeight: 'bold' }}>
-                                          {vs.volunteer?.name || '?'}
+                                          {vs.user?.name || '?'}
                                         </span>
-                                        <span style={{ color: '#6c757d', fontSize: 12 }}>{vs.volunteer?.phone ? vs.volunteer.phone.replace(/(.{3}).*({.*})/, '$1…$2') : ''}</span>
+                                        <span style={{ color: '#6c757d', fontSize: 12 }}>{vs.user?.phone ? vs.user.phone.replace(/(.{3}).*({.*})/, '$1…$2') : ''}</span>
                                       </div>
                                     ))}
                                   </div>

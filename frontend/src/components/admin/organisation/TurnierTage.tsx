@@ -175,7 +175,7 @@ export default function TurnierTage({ tournamentId, yearGroupId, yearGroups }: P
             </table>
 
             <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end' }}>
-               <button onClick={handleSaveAll} style={{ ...btnStyle, background: '#28a745', color: '#fff', border: 'none', fontWeight: '600', padding: '10px 20px', fontSize: 15 }}>
+               <button onClick={handleSaveAll} style={{ ...btnStyle, background: '#28a745', color: '#fff', border: 'none' }}>
                  ✓ Alle Tage speichern
                </button>
             </div>

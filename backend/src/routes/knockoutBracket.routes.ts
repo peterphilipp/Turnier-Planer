@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import validate from '../middleware/validate.js';
 import { z } from 'zod';
+import { requireAdmin, authenticate } from '../middleware/auth.js';
 import {
   getBracketsByTournament,
   createBracket,
@@ -18,8 +19,8 @@ const bracketSchema = z.object({
 });
 
 router.get('/', getBracketsByTournament);
-router.post('/', validate(bracketSchema), createBracket);
-router.patch('/:id', validate(bracketSchema.partial()), updateBracket);
-router.delete('/:id', deleteBracket);
+router.post('/', authenticate, requireAdmin, validate(bracketSchema), createBracket);
+router.patch('/:id', authenticate, requireAdmin, validate(bracketSchema.partial()), updateBracket);
+router.delete('/:id', authenticate, requireAdmin, deleteBracket);
 
 export default router;

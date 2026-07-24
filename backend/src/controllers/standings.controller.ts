@@ -7,7 +7,7 @@ import prisma from '../config/prisma.js';
  */
 export const recalculateStandings = async (req: Request, res: Response) => {
   const tournamentId = parseInt(req.params.tournamentId as string);
-  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId)) : null;
+  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId as string)) : null;
   
   if (!tournamentId) {
     return res.status(400).json({ error: 'tournamentId erforderlich' });
@@ -25,6 +25,7 @@ export const recalculateStandings = async (req: Request, res: Response) => {
   const teamStats = new Map<number, { played: number; won: number; drawn: number; lost: number; goalsFor: number; goalsAgainst: number }>();
 
   for (const m of matches) {
+    if (!m.teamAId || !m.teamBId) continue;
     // Team A stats
     let a = teamStats.get(m.teamAId);
     if (!a) { a = { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0 }; teamStats.set(m.teamAId, a); }
@@ -81,7 +82,7 @@ export const recalculateStandings = async (req: Request, res: Response) => {
 
 export const getStandings = async (req: Request, res: Response) => {
   const tournamentId = parseInt(req.params.tournamentId as string);
-  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId)) : null;
+  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId as string)) : null;
   
   if (!tournamentId) {
     return res.status(400).json({ error: 'tournamentId erforderlich' });

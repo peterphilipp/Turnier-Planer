@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiPatch } from '../../../api';
+import { apiPost, apiPatch, getAuthToken } from '../../../api';
 import { Match, TimeSlot, Field, Team } from '../shared';
 import { modal } from '../Modal';
 
@@ -13,6 +13,23 @@ interface Props {
 export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
   const queryClient = useQueryClient();
   const [editingScore, setEditingScore] = useState<{ matchId: number; side: 'A' | 'B'; value: string } | null>(null);
+
+  // Timing-Parameter aus localStorage laden (wird beim Spielplan-Generieren gespeichert)
+  const timingParams = React.useMemo(() => {
+    if (!tournamentId || !yearGroupId) return { matchDuration: 15, halves: 2, halftimeBreak: 5, breakDuration: 5 };
+    try {
+      const raw = localStorage.getItem(`tournament_${tournamentId}_yearGroup_${yearGroupId}_timing`);
+      return raw ? JSON.parse(raw) : { matchDuration: 15, halves: 2, halftimeBreak: 5, breakDuration: 5 };
+    } catch {
+      return { matchDuration: 15, halves: 2, halftimeBreak: 5, breakDuration: 5 };
+    }
+  }, [tournamentId, yearGroupId]);
+
+  // Endzeit berechnen
+  const getEndTime = (startTime: Date): string => {
+    const totalMinutes = timingParams.matchDuration * timingParams.halves + (timingParams.halves > 1 ? timingParams.halftimeBreak : 0);
+    return new Date(startTime.getTime() + totalMinutes * 60000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  };
 
   // Matches als abgeschlossen markieren/unmarkieren
   const handleToggleCompleted = async (matchId: number) => {
@@ -46,9 +63,7 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
   const isGroupPhase = (phaseVal: string | null) => phaseVal != null && (phaseVal.startsWith('Gruppe') || phaseVal === 'Liga');
 
   // Nur Gruppenphase-Matches
-  const gruppenMatches = phase === 'gruppenphase' 
-    ? allMatchesFiltered.filter(m => isGroupPhase(m.phase))
-    : [];
+  const gruppenMatches = allMatchesFiltered.filter(m => isGroupPhase(m.phase));
 
   // Nur KO-Matches (alles was keine Gruppe/Liga ist)
   const koMatches = phase === 'ko'
@@ -62,15 +77,29 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
   const openGruppenMatches = gruppenMatches.filter(isOpenOrRunning).sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
   const completedGruppenMatches = gruppenMatches.filter(isCompleted).sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
 
-  const openKOMatches = koMatches.filter(isOpenOrRunning).sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-  const completedKOMatches = koMatches.filter(isCompleted).sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+  // KO-Matches nach Stage sortieren (frühe Runden zuerst → Finale immer zuletzt)
+  const openKOMatches = koMatches.filter(isOpenOrRunning).sort((a, b) => {
+    const stageA = a.stage || 1;
+    const stageB = b.stage || 1;
+    if (stageA !== stageB) return stageA - stageB;
+    return new Date(a.time).getTime() - new Date(b.time).getTime();
+  });
+  const completedKOMatches = koMatches.filter(isCompleted).sort((a, b) => {
+    const stageA = a.stage || 1;
+    const stageB = b.stage || 1;
+    if (stageA !== stageB) return stageB - stageA;
+    return new Date(b.time).getTime() - new Date(a.time).getTime();
+  });
 
   // Fields für Labels
   const { data: fields = [] } = useQuery<Field[]>({
     queryKey: ['fields', tournamentId],
     queryFn: async () => {
       if (!tournamentId) return [];
-      const res = await fetch(`/api/fields?tournamentId=${tournamentId}`);
+      const token = getAuthToken();
+      const res = await fetch(`/api/fields?tournamentId=${tournamentId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       return res.json().catch(() => []);
     },
     enabled: !!tournamentId,
@@ -81,7 +110,10 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
     queryKey: ['teams-all', tournamentId, yearGroupId],
     queryFn: async () => {
       if (!tournamentId || !yearGroupId) return [];
-      const res = await fetch(`/api/teams?tournamentId=${tournamentId}&yearGroupId=${yearGroupId}`);
+      const token = getAuthToken();
+      const res = await fetch(`/api/teams?tournamentId=${tournamentId}&yearGroupId=${yearGroupId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       return res.json().catch(() => []);
     },
     enabled: !!tournamentId && !!yearGroupId,
@@ -196,8 +228,8 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
     return field ? field.name : '-';
   };
 
-  const getTeamName = (teamId: number | null) => {
-    if (!teamId) return 'TBD';
+  const getTeamName = (teamId: number | null, placeholder?: string | null) => {
+    if (!teamId) return placeholder || 'TBD';
     const team = teamsMap[teamId];
     return team?.name || 'Unbekannt';
   };
@@ -226,12 +258,7 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
     if (!confirmed) return;
 
     try {
-      const res = await fetch(`/api/matches/${matchId}/reset`, { method: 'POST' });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        await modal.alert({ title: 'Fehler', message: err.error || 'Reset fehlgeschlagen' });
-        return;
-      }
+      await apiPost(`/api/matches/${matchId}/reset`, {});
       await queryClient.invalidateQueries({ queryKey: ['matches', tournamentId] });
       await modal.alert({ title: 'Erfolg', message: '✅ Spiel-Ergebnis wurde zurückgesetzt.' });
     } catch (e) {
@@ -242,6 +269,9 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
   // ============ MATCH CARD RENDERING ============
   const renderMatchCard = (match: Match, index: number) => {
     const isCompleted = match.status === 'abgeschlossen';
+    const startTime = new Date(match.time).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const endTime = getEndTime(new Date(match.time));
+
     return (
     <div key={match.id} style={{ 
       border: `1px solid ${isCompleted ? '#dee2e6' : '#d1fae5'}`, 
@@ -261,7 +291,7 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
           fontSize: 14
         }}>#{index + 1}</span>
         <div style={{ fontSize: 11, color: '#6c757d', marginTop: 2 }}>
-          🕒 {new Date(match.time).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+          🕒 {startTime} – {endTime}
           {' · '}
           📍 {getFieldLabel(match.fieldId)}
         </div>
@@ -279,105 +309,107 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
         {match.runde ? `📋 ${match.runde}` : match.phase}
       </span>
 
-      {/* Team A */}
-      <div style={{ fontSize: 13, fontWeight: '500', minWidth: 120, flexShrink: 1 }}>
-        {getTeamName(match.teamAId)}
+      {/* Team A + Score + Team B – zentrierter Block */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 1 }}>
+        {/* Team A – links im zentrierten Block */}
+        <div style={{ fontSize: 13, fontWeight: '500', textAlign: 'left', marginRight: 'auto' }}>
+          {getTeamName(match.teamAId, match.placeholderA)}
+        </div>
+
+        {/* Score – immer mittig */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            min="0"
+            value={editingScore?.matchId === match.id && editingScore.side === 'A' ? editingScore.value : (match.scoreA ?? '')}
+            onChange={(e) => {
+              const val = e.target.value.replace(/[^0-9]/g, '');
+              setEditingScore({ matchId: match.id, side: 'A', value: val });
+            }}
+            onBlur={() => { if (editingScore?.matchId === match.id && editingScore.side === 'A') handleScoreChange(match.id, 'A', editingScore.value); }}
+            onFocus={() => setEditingScore({ matchId: match.id, side: 'A', value: String(match.scoreA ?? '') })}
+            style={{ 
+              width: 36, 
+              padding: '4px 2px', 
+              textAlign: 'center', 
+              border: '1px solid #dee2e6', 
+              borderRadius: 4, 
+              fontSize: 15, 
+              fontWeight: 'bold'
+            }}
+          />
+          <span style={{ color: '#adb5bd' }}>:</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            min="0"
+            value={editingScore?.matchId === match.id && editingScore.side === 'B' ? editingScore.value : (match.scoreB ?? '')}
+            onChange={(e) => {
+              const val = e.target.value.replace(/[^0-9]/g, '');
+              setEditingScore({ matchId: match.id, side: 'B', value: val });
+            }}
+            onBlur={() => { if (editingScore?.matchId === match.id && editingScore.side === 'B') handleScoreChange(match.id, 'B', editingScore.value); }}
+            onFocus={() => setEditingScore({ matchId: match.id, side: 'B', value: String(match.scoreB ?? '') })}
+            style={{ 
+              width: 36, 
+              padding: '4px 2px', 
+              textAlign: 'center', 
+              border: '1px solid #dee2e6', 
+              borderRadius: 4, 
+              fontSize: 15, 
+              fontWeight: 'bold'
+            }}
+          />
+        </div>
+
+        {/* Team B – rechts im zentrierten Block */}
+        <div style={{ fontSize: 13, fontWeight: '500', textAlign: 'right', marginLeft: 'auto' }}>
+          {getTeamName(match.teamBId, match.placeholderB)}
+        </div>
       </div>
 
-      {/* Score */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-        <input
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          min="0"
-          value={editingScore?.matchId === match.id && editingScore.side === 'A' ? editingScore.value : (match.scoreA ?? '')}
-          onChange={(e) => {
-            const val = e.target.value.replace(/[^0-9]/g, '');
-            setEditingScore({ matchId: match.id, side: 'A', value: val });
-          }}
-          onBlur={() => { if (editingScore?.matchId === match.id && editingScore.side === 'A') handleScoreChange(match.id, 'A', editingScore.value); }}
-          onFocus={() => setEditingScore({ matchId: match.id, side: 'A', value: String(match.scoreA ?? '') })}
-          style={{ 
-            width: 36, 
-            padding: '4px 2px', 
-            textAlign: 'center', 
-            border: '1px solid #dee2e6', 
-            borderRadius: 4, 
-            fontSize: 15, 
-            fontWeight: 'bold'
-          }}
-        />
-        <span style={{ color: '#adb5bd' }}>:</span>
-        <input
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          min="0"
-          value={editingScore?.matchId === match.id && editingScore.side === 'B' ? editingScore.value : (match.scoreB ?? '')}
-          onChange={(e) => {
-            const val = e.target.value.replace(/[^0-9]/g, '');
-            setEditingScore({ matchId: match.id, side: 'B', value: val });
-          }}
-          onBlur={() => { if (editingScore?.matchId === match.id && editingScore.side === 'B') handleScoreChange(match.id, 'B', editingScore.value); }}
-          onFocus={() => setEditingScore({ matchId: match.id, side: 'B', value: String(match.scoreB ?? '') })}
-          style={{ 
-            width: 36, 
-            padding: '4px 2px', 
-            textAlign: 'center', 
-            border: '1px solid #dee2e6', 
-            borderRadius: 4, 
-            fontSize: 15, 
-            fontWeight: 'bold'
-          }}
-        />
+      {/* Reset & Abschließen – ganz rechts */}
+      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+        {match.scoreA !== null && match.scoreB !== null && match.status !== 'abgeschlossen' && (
+          <button
+            onClick={() => handleResetMatch(match.id, match.phase)}
+            title="Spiel-Ergebnis zurücksetzen"
+            style={{
+              padding: '3px 8px',
+              background: '#fff3cd',
+              border: '1px solid #ffc107',
+              borderRadius: 4,
+              cursor: 'pointer',
+              fontSize: 11,
+              fontWeight: '500',
+              color: '#664d03',
+            }}
+          >
+            ↺ Reset
+          </button>
+        )}
+
+        {match.scoreA !== null && match.scoreB !== null && (
+          <button
+            onClick={() => handleToggleCompleted(match.id)}
+            title={match.status === 'abgeschlossen' ? 'Als offen markieren' : 'Als abgeschlossen markieren'}
+            style={{
+              padding: '2px 6px',
+              background: match.status === 'abgeschlossen' ? '#e9ecef' : '#d1fae5',
+              border: `1px solid ${match.status === 'abgeschlossen' ? '#adb5bd' : '#86efac'}`,
+              borderRadius: 4,
+              cursor: 'pointer',
+              fontSize: 11,
+              color: match.status === 'abgeschlossen' ? '#6c757d' : '#059669',
+            }}
+          >
+            {match.status === 'abgeschlossen' ? '○ Wieder öffnen' : '✓ Abschließen'}
+          </button>
+        )}
       </div>
-
-      {/* Team B */}
-      <div style={{ fontSize: 13, fontWeight: '500', minWidth: 120, flexShrink: 1, textAlign: 'right' }}>
-        {getTeamName(match.teamBId)}
-      </div>
-
-      {/* Reset-Button */}
-      {match.scoreA !== null && match.scoreB !== null && match.status !== 'abgeschlossen' && (
-        <button
-          onClick={() => handleResetMatch(match.id, match.phase)}
-          title="Spiel-Ergebnis zurücksetzen"
-          style={{
-            padding: '3px 8px',
-            background: '#fff3cd',
-            border: '1px solid #ffc107',
-            borderRadius: 4,
-            cursor: 'pointer',
-            fontSize: 11,
-            fontWeight: '500',
-            color: '#664d03',
-            flexShrink: 0
-          }}
-        >
-          ↺ Reset
-        </button>
-      )}
-
-      {/* Toggle */}
-      {match.scoreA !== null && match.scoreB !== null && (
-        <button
-          onClick={() => handleToggleCompleted(match.id)}
-          title={match.status === 'abgeschlossen' ? 'Als offen markieren' : 'Als abgeschlossen markieren'}
-          style={{
-            padding: '2px 6px',
-            background: match.status === 'abgeschlossen' ? '#e9ecef' : '#d1fae5',
-            border: `1px solid ${match.status === 'abgeschlossen' ? '#adb5bd' : '#86efac'}`,
-            borderRadius: 4,
-            cursor: 'pointer',
-            fontSize: 11,
-            color: match.status === 'abgeschlossen' ? '#6c757d' : '#059669',
-            flexShrink: 0
-          }}
-        >
-          {match.status === 'abgeschlossen' ? '○ Wieder öffnen' : '✓ Abschließen'}
-        </button>
-      )}
     </div>
     );
   };
@@ -389,16 +421,10 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
         return;
       }
       // Teams aus Gruppenphase in KO-Spiele zuweisen
-      const res = await fetch(`/api/matches/assign-ko-teams`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tournamentId, yearGroupId })
+      const result = await apiPost('/api/matches/assign-ko-teams', {
+        tournamentId,
+        yearGroupId
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        await modal.alert({ title: 'Fehler', message: err.error || 'Teams konnten nicht zugewiesen werden' });
-        return;
-      }
       // Nach Zuweisung alle KO-Matches neu laden
       await queryClient.invalidateQueries({ queryKey: ['matches', tournamentId] });
       await modal.alert({ title: 'Erfolg', message: '✅ Teams erfolgreich aus der Gruppenphase übernommen!' });
@@ -515,12 +541,31 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
   }
 
   // ============ KO-PHASE ============
+  // Turnier-Info laden für Modus-Prüfung
+  const { data: currentTournament } = useQuery({
+    queryKey: ['tournament', tournamentId],
+    queryFn: async () => {
+      if (!tournamentId) return null;
+      const token = getAuthToken();
+      const res = await fetch(`/api/tournaments/${tournamentId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      return res.json().catch(() => null);
+    },
+    enabled: !!tournamentId,
+  });
+
+  // Prüfen ob GRUPPEN_KO Modus (hat Gruppenspiele)
+  const isGruppenKo = currentTournament?.turnierModus === 'GRUPPEN_KO';
+  const hasPlayedGroupMatches = isGruppenKo && gruppenMatches.some(m => m.scoreA !== null && m.scoreB !== null);
+
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: '600', color: '#212557' }}>🏆 KO-Phase</h3>
       
-      {/* Einmaliger Button zum Übernehmen der Teams aus der Gruppenphase */}
-      <div style={{ marginBottom: 16 }}>
+      {/* Teams aus Gruppenphase übernehmen – nur bei GRUPPEN_KO */}
+      {isGruppenKo && hasPlayedGroupMatches && (
+        <div style={{ marginBottom: 16 }}>
         <button
           onClick={advanceMatch}
           style={{
@@ -537,12 +582,75 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
           📋 Teams aus Gruppenphase übernehmen
         </button>
       </div>
+      )}
       
       {koMatches.length === 0 ? (
         <div style={{ padding: 32, textAlign: 'center', color: '#666' }}>
           <p style={{ fontSize: 48, margin: '0 0 16px 0' }}>🏆</p>
           <p>Noch keine KO-Spiele geplant.</p>
-          <p style={{ fontSize: 13 }}>Generiere die KO-Phase im "Modus"-Tab nach Abschluss der Gruppenphase.</p>
+          {isGruppenKo && hasPlayedGroupMatches ? (
+            <button
+              onClick={async () => {
+                if (!tournamentId || !yearGroupId) return;
+                try {
+                  await apiPost(`/api/tournaments/${tournamentId}/generate-ko-from-gruppen`, {
+                    yearGroupId,
+                    matchDuration: 15,
+                    halves: 2,
+                    halftimeBreak: 5,
+                    breakDuration: 5
+                  });
+                  queryClient.invalidateQueries({ queryKey: ['matches', tournamentId] });
+                } catch (e) {
+                  await modal.alert({ title: 'Fehler', message: 'KO-Phase konnte nicht generiert werden: ' + (e as Error).message });
+                }
+              }}
+              style={{
+                padding: '10px 24px',
+                background: '#198754',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontSize: 14,
+                fontWeight: '600'
+              }}
+            >
+              🎯 KO-Phase generieren
+            </button>
+          ) : isGruppenKo ? (
+            <p style={{ fontSize: 13 }}>Trage zuerst Ergebnisse in die Gruppenspiele ein.</p>
+          ) : (
+            <button
+              onClick={async () => {
+                if (!tournamentId || !yearGroupId) return;
+                try {
+                  await apiPost(`/api/tournaments/${tournamentId}/generate-ko-only`, {
+                    yearGroupId,
+                    matchDuration: 15,
+                    halves: 2,
+                    halftimeBreak: 5,
+                    breakDuration: 5
+                  });
+                  queryClient.invalidateQueries({ queryKey: ['matches', tournamentId] });
+                } catch (e) {
+                  await modal.alert({ title: 'Fehler', message: 'Spielplan konnte nicht generiert werden: ' + (e as Error).message });
+                }
+              }}
+              style={{
+                padding: '10px 24px',
+                background: '#198754',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontSize: 14,
+                fontWeight: '600'
+              }}
+            >
+              🎯 Spielplan generieren
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -565,6 +673,45 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
               </div>
             </div>
           )}
+
+          {/* Neu generieren Button */}
+          <div style={{ marginTop: 24, textAlign: 'center' }}>
+            <button
+              onClick={async () => {
+                if (!tournamentId || !yearGroupId) return;
+                const confirmed = await modal.confirm({
+                  title: 'KO-Phase neu generieren?',
+                  message: 'Alle bestehenden KO-Spiele werden gelöscht und neu erstellt. Gruppenspiele bleiben erhalten.',
+                  variant: 'warning'
+                });
+                if (!confirmed) return;
+                try {
+                  await apiPost(`/api/tournaments/${tournamentId}/generate-ko-from-gruppen`, {
+                    yearGroupId,
+                    matchDuration: 15,
+                    halves: 2,
+                    halftimeBreak: 5,
+                    breakDuration: 5
+                  });
+                  queryClient.invalidateQueries({ queryKey: ['matches', tournamentId] });
+                } catch (e) {
+                  await modal.alert({ title: 'Fehler', message: 'KO-Phase konnte nicht generiert werden: ' + (e as Error).message });
+                }
+              }}
+              style={{
+                padding: '10px 24px',
+                background: '#ffc107',
+                color: '#000',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontSize: 14,
+                fontWeight: '600'
+              }}
+            >
+              🔄 KO-Phase neu generieren
+            </button>
+          </div>
         </>
       )}
     </div>

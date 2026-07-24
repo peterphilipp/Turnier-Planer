@@ -5,7 +5,7 @@ async function main() {
   const shifts = await prisma.shift.findMany({ where: { volunteerShifts: { none: {} } } });
   console.log('Found', shifts.length, 'shifts without VolunteerShifts');
   
-  const volunteerShifts = await prisma.volunteerShift.findMany({
+  const volunteerShifts = await prisma.userShift.findMany({
     where: { shiftId: null },
     include: { volunteer: true },
   });
@@ -21,7 +21,7 @@ async function main() {
       },
     });
     if (found) {
-      await prisma.volunteerShift.update({
+      await prisma.userShift.update({
         where: { id: vs.id },
         data: { shiftId: found.id },
       });

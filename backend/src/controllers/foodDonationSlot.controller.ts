@@ -15,7 +15,7 @@ export const getFoodDonationSlots = async (req: Request, res: Response) => {
           category: true
         }
       },
-      volunteer: true
+      user: true
     },
     orderBy: [{ yearGroup: { name: 'asc' } }, { foodItemId: 'asc' }]
   });
@@ -25,7 +25,7 @@ export const getFoodDonationSlots = async (req: Request, res: Response) => {
 
 // Slot erstellen (upsert - erstellt oder aktualisiert falls bereits existiert)
 export const createFoodDonationSlot = async (req: Request, res: Response) => {
-  const { tournamentId, yearGroupId, foodItemId, targetQuantity, description, volunteerId } = req.body;
+  const { tournamentId, yearGroupId, foodItemId, targetQuantity, description, userId } = req.body;
   
   if (!tournamentId || !yearGroupId) {
     return res.status(400).json({ error: 'tournamentId und yearGroupId sind erforderlich' });
@@ -36,27 +36,27 @@ export const createFoodDonationSlot = async (req: Request, res: Response) => {
       tournamentId_yearGroupId_foodItemId: {
         tournamentId: Number(tournamentId),
         yearGroupId: Number(yearGroupId),
-        foodItemId: foodItemId ? Number(foodItemId) : null
+        foodItemId: Number(foodItemId)
       }
     },
     create: {
       tournamentId: Number(tournamentId),
       yearGroupId: Number(yearGroupId),
-      foodItemId: foodItemId ? Number(foodItemId) : null,
+      foodItemId: Number(foodItemId),
       targetQuantity: Number(targetQuantity) || 0,
       description: description || null,
-      volunteerId: volunteerId ? Number(volunteerId) : null
+      userId: userId ? Number(userId) : null
     },
     update: {
       targetQuantity: Number(targetQuantity) || 0,
       description: description || null,
-      volunteerId: volunteerId ? Number(volunteerId) : null
+      userId: userId ? Number(userId) : null
     },
     include: {
       tournament: true,
       yearGroup: true,
       foodItem: true,
-      volunteer: true
+      user: true
     }
   });
 
@@ -66,22 +66,22 @@ export const createFoodDonationSlot = async (req: Request, res: Response) => {
 // Slot aktualisieren
 export const updateFoodDonationSlot = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { yearGroupId, foodItemId, targetQuantity, description, volunteerId } = req.body;
+  const { yearGroupId, foodItemId, targetQuantity, description, userId } = req.body;
 
   const slot = await prisma.foodDonationSlot.update({
     where: { id: Number(id) },
     data: {
       ...(yearGroupId !== undefined && { yearGroupId: yearGroupId ? Number(yearGroupId) : null }),
-      ...(foodItemId !== undefined && { foodItemId: foodItemId ? Number(foodItemId) : null }),
+      ...(foodItemId !== undefined && { foodItemId: Number(foodItemId) }),
       ...(targetQuantity !== undefined && { targetQuantity: Number(targetQuantity) }),
       ...(description !== undefined && { description }),
-      ...(volunteerId !== undefined && { volunteerId: volunteerId ? Number(volunteerId) : null })
+      ...(userId !== undefined && { userId: userId ? Number(userId) : null })
     },
     include: {
       tournament: true,
       yearGroup: true,
       foodItem: true,
-      volunteer: true
+      user: true
     }
   });
 

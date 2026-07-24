@@ -1,0 +1,1 @@
+import { PrismaClient } from '@prisma/client'; const prisma = new PrismaClient(); async function main() { const g = await prisma.group.findMany({ include: { tournament: true } }); console.log(JSON.stringify(g, null, 2)); } main().finally(()=>prisma.$disconnect());

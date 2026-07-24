@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 import { z } from 'zod';
 
-export const arbeitsbereichSchema = z.object({
+export const workAreaSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
   icon: z.string().optional(),
   minVolunteers: z.number().int().min(1).optional(),
@@ -10,34 +10,34 @@ export const arbeitsbereichSchema = z.object({
   color: z.string().optional()
 });
 
-export const getArbeitsbereiche = async (req: Request, res: Response) => {
-  const areas = await prisma.arbeitsbereich.findMany({ orderBy: { id: 'asc' } });
+export const getWorkAreas = async (req: Request, res: Response) => {
+  const areas = await prisma.workArea.findMany({ orderBy: { id: 'asc' } });
   return res.json(areas || []);
 };
 
-export const createArbeitsbereich = async (req: Request, res: Response) => {
-  const a = await prisma.arbeitsbereich.create({ data: req.body });
+export const createWorkArea = async (req: Request, res: Response) => {
+  const a = await prisma.workArea.create({ data: req.body });
   return res.status(201).json(a);
 };
 
-export const updateArbeitsbereich = async (req: Request, res: Response) => {
-  const a = await prisma.arbeitsbereich.update({
-    where: { id: parseInt(req.params.id) },
+export const updateWorkArea = async (req: Request, res: Response) => {
+  const a = await prisma.workArea.update({
+    where: { id: parseInt(req.params.id as string) },
     data: req.body
   });
   return res.json(a);
 };
 
-export const deleteArbeitsbereich = async (req: Request, res: Response) => {
+export const deleteWorkArea = async (req: Request, res: Response) => {
   const usedShifts = await prisma.shift.findMany({
-    where: { arbeitsbereichId: parseInt(req.params.id) },
+    where: { arbeitsbereichId: parseInt(req.params.id as string) },
     include: { tournament: true }
   });
   const activeShifts = usedShifts.filter(s => s.tournament && s.tournament.status === 'aktiv');
   
   if (activeShifts.length > 0) {
     return res.status(409).json({
-      error: 'Arbeitsbereich wird noch in einem aktiven Turnier verwendet.',
+      error: 'WorkArea wird noch in einem aktiven Turnier verwendet.',
       activeTournaments: activeShifts.map(s => ({ id: s.tournament.id, name: s.tournament.name }))
     });
   }
@@ -48,6 +48,6 @@ export const deleteArbeitsbereich = async (req: Request, res: Response) => {
     });
   }
   
-  await prisma.arbeitsbereich.delete({ where: { id: parseInt(req.params.id) } });
+  await prisma.workArea.delete({ where: { id: parseInt(req.params.id as string) } });
   return res.status(204).send();
 };

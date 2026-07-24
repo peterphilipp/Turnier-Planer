@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 
 export const getTimeSlots = async (req: Request, res: Response) => {
-  const tournamentId = parseInt(String(req.query.tournamentId));
+  const tournamentId = parseInt(String(req.query.tournamentId as string));
   if (!tournamentId) return res.status(400).json({ error: 'tournamentId erforderlich' });
   
   const slots = await prisma.timeSlot.findMany({
@@ -14,7 +14,7 @@ export const getTimeSlots = async (req: Request, res: Response) => {
 
 export const getTimeSlotById = async (req: Request, res: Response) => {
   const slot = await prisma.timeSlot.findUnique({
-    where: { id: parseInt(String(req.params.id)) },
+    where: { id: parseInt(String(req.params.id as string)) },
     include: { matches: true }
   });
   if (!slot) return res.status(404).json({ error: 'Zeitslot nicht gefunden' });
@@ -48,7 +48,7 @@ export const updateTimeSlot = async (req: Request, res: Response) => {
   if (body.date) body.date = new Date(body.date);
   
   const slot = await prisma.timeSlot.update({
-    where: { id: parseInt(String(req.params.id)) },
+    where: { id: parseInt(String(req.params.id as string)) },
     data: body,
     include: { matches: true }
   });
@@ -62,7 +62,7 @@ export const updateTimeSlot = async (req: Request, res: Response) => {
 };
 
 export const deleteTimeSlot = async (req: Request, res: Response) => {
-  const id = parseInt(String(req.params.id));
+  const id = parseInt(String(req.params.id as string));
   const slot = await prisma.timeSlot.findUnique({ where: { id } });
   
   if (slot?.yearGroupId) {

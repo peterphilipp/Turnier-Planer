@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
+import { logMatchScoreUpdated, logMatchReset } from '../utils/logger.js';
 import { z } from 'zod';
 
 export const matchSchema = z.object({
@@ -23,7 +24,7 @@ export const matchSchema = z.object({
 export const getMatchesByTournament = async (req: Request, res: Response) => {
   if (!req.params.tournamentId) return res.json([]);
   const ms = await prisma.match.findMany({
-    where: { tournamentId: parseInt(String(req.params.tournamentId)) },
+    where: { tournamentId: parseInt(String(req.params.tournamentId as string)) },
     include: { teamA: true, teamB: true, timeSlot: true, field: true, bracket: true },
     orderBy: [{ time: 'asc' }]
   });
@@ -46,7 +47,7 @@ export const createMatch = async (req: Request, res: Response) => {
  * K.O.-Weitergabe: Wenn ein Match gespielt ist, nächstes Match automatisch aktualisieren.
  */
 export const advanceKO = async (req: Request, res: Response) => {
-  const matchId = parseInt(String(req.params.id));
+  const matchId = parseInt(String(req.params.id as string));
   const { siegerId, verliererId } = req.body;
 
   if (!siegerId || !verliererId) {
@@ -179,7 +180,7 @@ export const assignKOTeams = async (req: Request, res: Response) => {
     if (match.placeholderA) {
       const matchPosGroup = match.placeholderA.match(/^(\d+)\.\s*(.+)$/);
       if (matchPosGroup) {
-        const pos = parseInt(matchPosGroup[1]);
+        const pos = parseInt(matchPosGroup[1] as string);
         const groupName = matchPosGroup[2].trim();
         const ranking = groupRankings[groupName];
         if (ranking && ranking[pos - 1]) {
@@ -193,7 +194,7 @@ export const assignKOTeams = async (req: Request, res: Response) => {
     if (match.placeholderB) {
       const matchPosGroup = match.placeholderB.match(/^(\d+)\.\s*(.+)$/);
       if (matchPosGroup) {
-        const pos = parseInt(matchPosGroup[1]);
+        const pos = parseInt(matchPosGroup[1] as string);
         const groupName = matchPosGroup[2].trim();
         const ranking = groupRankings[groupName];
         if (ranking && ranking[pos - 1]) {
@@ -216,13 +217,13 @@ export const updateMatch = async (req: Request, res: Response) => {
   const body = req.body;
   if (body.time) body.time = new Date(body.time);
   
-  const existing = await prisma.match.findUnique({ where: { id: parseInt(String(req.params.id)) } });
+  const existing = await prisma.match.findUnique({ where: { id: parseInt(String(req.params.id as string)) } });
   if (existing && body.teamAId === body.teamBId && body.teamAId !== undefined) {
     return res.status(400).json({ error: 'Team A und Team B dürfen nicht identisch sein' });
   }
 
   const m = await prisma.match.update({
-    where: { id: parseInt(String(req.params.id)) },
+    where: { id: parseInt(String(req.params.id as string)) },
     data: body,
     include: { teamA: true, teamB: true, timeSlot: true, field: true }
   });
@@ -231,6 +232,14 @@ export const updateMatch = async (req: Request, res: Response) => {
   if (m.bracketId && m.scoreA !== null && m.scoreB !== null) {
     const bracket = await prisma.knockoutBracket.findUnique({ where: { id: m.bracketId } });
     if (!bracket) return res.json(m);
+    
+    logMatchScoreUpdated(
+      parseInt(String(req.params.id as string)),
+      m.teamA?.name || '',
+      m.scoreA,
+      m.teamB?.name || '',
+      m.scoreB
+    );
 
     // Sieger und Verlierer bestimmen
     const siegerId = m.scoreA > m.scoreB ? m.teamAId : m.teamBId;
@@ -283,7 +292,7 @@ export const updateMatch = async (req: Request, res: Response) => {
       for (const km of nextRoundMatches) {
         const key = `${km.upperBound}-${km.lowerBound}`;
         if (!nextGroups.has(key)) nextGroups.set(key, []);
-        nextGroups.get(key).push(km);
+        nextGroups.get(key)!.push(km);
       }
 
       // pairIndex-tes Match in der winner bounds group ist das Ziel
@@ -378,12 +387,12 @@ export const updateMatch = async (req: Request, res: Response) => {
  * - Standings neu berechnen
  */
 export const resetMatch = async (req: Request, res: Response) => {
-  const matchId = parseInt(String(req.params.id));
+  const matchId = parseInt(String(req.params.id as string));
   
   // Match laden
   const match = await prisma.match.findUnique({
     where: { id: matchId },
-    include: { teamA: true, teamB: true }
+    include: { teamA: true, teamB: true, tournament: true }
   });
 
   if (!match) {
@@ -420,6 +429,8 @@ export const resetMatch = async (req: Request, res: Response) => {
 
   // Standings neu berechnen
   await recalculateStandingsForTournament(tournamentId);
+
+  logMatchReset(matchId, match.tournament?.name || '');
 
   return res.json({
     message: wasKO 
@@ -490,7 +501,7 @@ async function undoKOPropagation(matchId: number) {
   for (const m of nextRoundMatches) {
     const key = `${m.upperBound}-${m.lowerBound}`;
     if (!nextGroups.has(key)) nextGroups.set(key, []);
-    nextGroups.get(key).push(m);
+    nextGroups.get(key)!.push(m);
   }
 
   // Finde die Position dieses Matches in seiner Gruppe
@@ -558,7 +569,7 @@ async function removeTeamFromDownstream(matchId: number, slot: 'teamA' | 'teamB'
  * Spiel als abgeschlossen markieren/unmarkieren (für die UI-Trennung)
  */
 export const toggleCompleted = async (req: Request, res: Response) => {
-  const matchId = parseInt(String(req.params.id));
+  const matchId = parseInt(String(req.params.id as string));
   
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match) {
@@ -580,7 +591,7 @@ export const toggleCompleted = async (req: Request, res: Response) => {
 };
 
 export const deleteMatch = async (req: Request, res: Response) => {
-  await prisma.match.delete({ where: { id: parseInt(String(req.params.id)) } });
+  await prisma.match.delete({ where: { id: parseInt(String(req.params.id as string)) } });
   return res.status(204).send();
 };
 

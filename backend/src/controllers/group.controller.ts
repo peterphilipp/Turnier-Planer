@@ -9,8 +9,8 @@ export const groupSchema = z.object({
 });
 
 export const getGroupsByTournament = async (req: Request, res: Response) => {
-  const tournamentId = parseInt(String(req.params.tournamentId));
-  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId)) : null;
+  const tournamentId = parseInt(String(req.params.tournamentId as string));
+  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId as string)) : null;
   
   const where: any = { tournamentId };
   if (yearGroupId) where.yearGroupId = yearGroupId;
@@ -29,7 +29,7 @@ export const createGroup = async (req: Request, res: Response) => {
 
 export const updateGroup = async (req: Request, res: Response) => {
   const g = await prisma.group.update({
-    where: { id: parseInt(String(req.params.id)) },
+    where: { id: parseInt(String(req.params.id as string)) },
     data: req.body,
     include: { teams: true }
   });
@@ -37,6 +37,6 @@ export const updateGroup = async (req: Request, res: Response) => {
 };
 
 export const deleteGroup = async (req: Request, res: Response) => {
-  await prisma.group.delete({ where: { id: parseInt(String(req.params.id)) } });
+  await prisma.group.delete({ where: { id: parseInt(String(req.params.id as string)) } });
   return res.status(204).send();
 };

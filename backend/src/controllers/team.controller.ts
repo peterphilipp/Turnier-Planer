@@ -3,7 +3,7 @@ import prisma from '../config/prisma.js';
 import { z } from 'zod';
 
 export const getTeamsByGroup = async (req: Request, res: Response) => {
-  const groupId = parseInt(String(req.query.groupId));
+  const groupId = parseInt(String(req.query.groupId as string));
   if (!groupId) return res.json([]);
   
   const teams = await prisma.team.findMany({
@@ -14,10 +14,10 @@ export const getTeamsByGroup = async (req: Request, res: Response) => {
 };
 
 export const getTeamsByTournament = async (req: Request, res: Response) => {
-  const tournamentId = parseInt(String(req.query.tournamentId));
+  const tournamentId = parseInt(String(req.query.tournamentId as string));
   if (!tournamentId) return res.json([]);
   
-  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId)) : null;
+  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId as string)) : null;
   
   const where: any = { tournamentId };
   if (yearGroupId) where.yearGroupId = yearGroupId;
@@ -53,14 +53,14 @@ export const createTeam = async (req: Request, res: Response) => {
 
 export const updateTeam = async (req: Request, res: Response) => {
   const t = await prisma.team.update({
-    where: { id: parseInt(String(req.params.id)) },
+    where: { id: parseInt(String(req.params.id as string)) },
     data: req.body
   });
   return res.json(t);
 };
 
 export const deleteTeam = async (req: Request, res: Response) => {
-  const teamId = parseInt(String(req.params.id));
+  const teamId = parseInt(String(req.params.id as string));
   const team = await prisma.team.findUnique({ where: { id: teamId } });
   
   if (team?.yearGroupId) {

@@ -1,0 +1,9 @@
+src/components/SelfServiceView.tsx(184,56): error TS2345: Argument of type '(c: VolunteerChild) => number' is not assignable to parameter of type '(value: { childName: string | null; childYear: number | null; }, index: number, array: { childName: string | null; childYear: number | null; }[]) => number'.
+  Types of parameters 'c' and 'value' are incompatible.
+    Property 'id' is missing in type '{ childName: string | null; childYear: number | null; }' but required in type 'VolunteerChild'.
+src/components/SelfServiceView.tsx(544,31): error TS2345: Argument of type '{ childName: string | null; childYear: string; }[]' is not assignable to parameter of type 'SetStateAction<{ childName: string; childYear: string; }[]>'.
+  Type '{ childName: string | null; childYear: string; }[]' is not assignable to type '{ childName: string; childYear: string; }[]'.
+    Type '{ childName: string | null; childYear: string; }' is not assignable to type '{ childName: string; childYear: string; }'.
+      Types of property 'childName' are incompatible.
+        Type 'string | null' is not assignable to type 'string'.
+          Type 'null' is not assignable to type 'string'.

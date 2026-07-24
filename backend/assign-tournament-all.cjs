@@ -16,7 +16,7 @@ async function main() {
   console.log(`📋 Aktives Turnier: ${activeTournament.name} (ID: ${activeTournament.id})`);
 
   // Alle Helfer ohne Turnier finden
-  const volunteersWithoutTournament = await prisma.volunteer.findMany({
+  const volunteersWithoutTournament = await prisma.user.findMany({
     where: {
       tournamentId: null,
       email: { not: null }
@@ -32,7 +32,7 @@ async function main() {
 
   let count = 0;
   for (const vol of volunteersWithoutTournament) {
-    await prisma.volunteer.update({
+    await prisma.user.update({
       where: { id: vol.id },
       data: { tournamentId: activeTournament.id }
     });

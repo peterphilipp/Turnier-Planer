@@ -1,0 +1,110 @@
+src/controllers/club.controller.ts(23,27): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/club.controller.ts(31,52): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/food.controller.ts(3,17): error TS7016: Could not find a declaration file for module 'jsonwebtoken'. 'C:/Users/peter.PHILIPP/Documents/GitHub/TSV Holm Planungs Tool/backend/node_modules/jsonwebtoken/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/jsonwebtoken` if it exists or add a new declaration (.d.ts) file containing `declare module 'jsonwebtoken';`
+src/controllers/food.controller.ts(46,25): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/food.controller.ts(57,25): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/food.controller.ts(93,25): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/food.controller.ts(107,25): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/food.controller.ts(191,25): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/foodDonationSlot.controller.ts(39,9): error TS2322: Type 'number | null' is not assignable to type 'number'.
+  Type 'null' is not assignable to type 'number'.
+src/controllers/globalTimeSlot.controller.ts(25,35): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/globalTimeSlot.controller.ts(35,27): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/globalTimeSlot.controller.ts(43,35): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/globalTimeSlot.controller.ts(61,62): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/health.controller.ts(9,78): error TS18046: 'err' is of type 'unknown'.
+src/controllers/match.controller.ts(295,9): error TS2532: Object is possibly 'undefined'.
+src/controllers/match.controller.ts(504,5): error TS2532: Object is possibly 'undefined'.
+src/controllers/material.controller.ts(15,37): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/material.controller.ts(28,27): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/material.controller.ts(35,60): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/self.controller.ts(3,17): error TS7016: Could not find a declaration file for module 'jsonwebtoken'. 'C:/Users/peter.PHILIPP/Documents/GitHub/TSV Holm Planungs Tool/backend/node_modules/jsonwebtoken/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/jsonwebtoken` if it exists or add a new declaration (.d.ts) file containing `declare module 'jsonwebtoken';`
+src/controllers/self.controller.ts(90,37): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/shift.controller.ts(18,39): error TS2345: Argument of type 'string | (string | ParsedQs)[] | ParsedQs' is not assignable to parameter of type 'string'.
+  Type '(string | ParsedQs)[]' is not assignable to type 'string'.
+src/controllers/shift.controller.ts(19,18): error TS2353: Object literal may only specify known properties, and 'zeitslot' does not exist in type 'ShiftInclude<DefaultArgs>'.
+src/controllers/shift.controller.ts(46,27): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/shift.controller.ts(59,53): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/standings.controller.ts(29,27): error TS2345: Argument of type 'number | null' is not assignable to parameter of type 'number'.
+  Type 'null' is not assignable to type 'number'.
+src/controllers/standings.controller.ts(30,105): error TS2345: Argument of type 'number | null' is not assignable to parameter of type 'number'.
+  Type 'null' is not assignable to type 'number'.
+src/controllers/standings.controller.ts(41,27): error TS2345: Argument of type 'number | null' is not assignable to parameter of type 'number'.
+  Type 'null' is not assignable to type 'number'.
+src/controllers/standings.controller.ts(42,105): error TS2345: Argument of type 'number | null' is not assignable to parameter of type 'number'.
+  Type 'null' is not assignable to type 'number'.
+src/controllers/tournament.controller.ts(43,62): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/controllers/tournament.controller.ts(63,55): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/controllers/volunteer.controller.ts(4,20): error TS7016: Could not find a declaration file for module 'bcrypt'. 'C:/Users/peter.PHILIPP/Documents/GitHub/TSV Holm Planungs Tool/backend/node_modules/bcrypt/bcrypt.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/bcrypt` if it exists or add a new declaration (.d.ts) file containing `declare module 'bcrypt';`
+src/controllers/volunteer.controller.ts(41,70): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/volunteer.controller.ts(42,65): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/volunteer.controller.ts(43,52): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/volunteer.controller.ts(56,27): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/volunteer.controller.ts(69,27): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/volunteerShift.controller.ts(16,57): error TS2345: Argument of type 'string | (string | ParsedQs)[] | ParsedQs' is not assignable to parameter of type 'string'.
+  Type '(string | ParsedQs)[]' is not assignable to type 'string'.
+src/controllers/volunteerShift.controller.ts(45,27): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/volunteerShift.controller.ts(59,62): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/workArea.controller.ts(25,27): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/workArea.controller.ts(33,41): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/controllers/workArea.controller.ts(51,56): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+src/middleware/auth.ts(2,17): error TS7016: Could not find a declaration file for module 'jsonwebtoken'. 'C:/Users/peter.PHILIPP/Documents/GitHub/TSV Holm Planungs Tool/backend/node_modules/jsonwebtoken/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/jsonwebtoken` if it exists or add a new declaration (.d.ts) file containing `declare module 'jsonwebtoken';`
+src/middleware/errorHandler.ts(9,31): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/routes/password.routes.ts(3,20): error TS7016: Could not find a declaration file for module 'bcrypt'. 'C:/Users/peter.PHILIPP/Documents/GitHub/TSV Holm Planungs Tool/backend/node_modules/bcrypt/bcrypt.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/bcrypt` if it exists or add a new declaration (.d.ts) file containing `declare module 'bcrypt';`
+src/routes/password.routes.ts(4,17): error TS7016: Could not find a declaration file for module 'jsonwebtoken'. 'C:/Users/peter.PHILIPP/Documents/GitHub/TSV Holm Planungs Tool/backend/node_modules/jsonwebtoken/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/jsonwebtoken` if it exists or add a new declaration (.d.ts) file containing `declare module 'jsonwebtoken';`
+src/routes/password.routes.ts(56,11): error TS2322: Type 'string | null' is not assignable to type 'string | string[]'.
+  Type 'null' is not assignable to type 'string | string[]'.
+src/routes/password.routes.ts(71,29): error TS2339: Property 'id' does not exist on type 'CreateEmailResponse'.
+  Property 'id' does not exist on type '{ data: CreateEmailResponseSuccess; error: null; } & { headers: Record<string, string> | null; }'.
+src/routes/password.routes.ts(131,16): error TS2322: Type 'number | null' is not assignable to type 'number | undefined'.
+  Type 'null' is not assignable to type 'number | undefined'.
+src/routes/password.routes.ts(141,31): error TS2345: Argument of type 'number | null' is not assignable to parameter of type 'number'.
+  Type 'null' is not assignable to type 'number'.
+src/routes/password.routes.ts(141,50): error TS18047: 'resetToken.user' is possibly 'null'.
+src/routes/password.routes.ts(234,42): error TS2353: Object literal may only specify known properties, and 'arbeitsbereich' does not exist in type 'ShiftInclude<DefaultArgs>'.
+src/routes/password.routes.ts(254,24): error TS2339: Property 'children' does not exist on type '{ id: number; name: string; email: string | null; phone: string | null; password: string | null; role: string; tournamentId: number | null; consentGiven: boolean; consentDate: Date | null; }'.
+src/routes/password.routes.ts(254,37): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/routes/password.routes.ts(256,20): error TS2339: Property 'shifts' does not exist on type '{ id: number; name: string; email: string | null; phone: string | null; password: string | null; role: string; tournamentId: number | null; consentGiven: boolean; consentDate: Date | null; }'.
+src/routes/password.routes.ts(256,31): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/routes/password.routes.ts(263,23): error TS2339: Property 'donations' does not exist on type '{ id: number; name: string; email: string | null; phone: string | null; password: string | null; role: string; tournamentId: number | null; consentGiven: boolean; consentDate: Date | null; }'.
+src/routes/password.routes.ts(263,37): error TS7006: Parameter 'd' implicitly has an 'any' type.
+src/routes/password.routes.ts(375,7): error TS2304: Cannot find name 'updateData'.
+src/routes/password.routes.ts(376,7): error TS2304: Cannot find name 'updateData'.
+src/routes/password.routes.ts(384,7): error TS2304: Cannot find name 'updateData'.
+src/routes/password.routes.ts(387,31): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/routes/password.routes.ts(394,13): error TS2304: Cannot find name 'updateData'.
+src/routes/password.routes.ts(441,31): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/server.ts(89,72): error TS18046: 'connectionError' is of type 'unknown'.

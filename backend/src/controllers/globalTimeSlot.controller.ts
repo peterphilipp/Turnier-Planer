@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 import { z } from 'zod';
 
-export const zeitslotSchema = z.object({
+export const globalTimeSlotSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
   startTime: z.string().min(1),
   endTime: z.string().min(1),
@@ -10,19 +10,19 @@ export const zeitslotSchema = z.object({
   order: z.number().int().optional()
 });
 
-export const getZeitslots = async (req: Request, res: Response) => {
-  const slots = await prisma.zeitslot.findMany({ orderBy: { order: 'asc' } });
+export const getGlobalTimeSlots = async (req: Request, res: Response) => {
+  const slots = await prisma.globalTimeSlot.findMany({ orderBy: { order: 'asc' } });
   return res.json(slots || []);
 };
 
-export const createZeitslot = async (req: Request, res: Response) => {
-  const s = await prisma.zeitslot.create({ data: req.body });
+export const createGlobalTimeSlot = async (req: Request, res: Response) => {
+  const s = await prisma.globalTimeSlot.create({ data: req.body });
   return res.status(201).json(s);
 };
 
-export const updateZeitslot = async (req: Request, res: Response) => {
+export const updateGlobalTimeSlot = async (req: Request, res: Response) => {
   const usedShifts = await prisma.shift.findMany({
-    where: { zeitslotId: parseInt(req.params.id) }
+    where: { zeitslotId: parseInt(req.params.id as string) }
   });
   
   if (usedShifts.length > 0) {
@@ -31,16 +31,16 @@ export const updateZeitslot = async (req: Request, res: Response) => {
     });
   }
   
-  const s = await prisma.zeitslot.update({
-    where: { id: parseInt(req.params.id) },
+  const s = await prisma.globalTimeSlot.update({
+    where: { id: parseInt(req.params.id as string) },
     data: req.body
   });
   return res.json(s);
 };
 
-export const deleteZeitslot = async (req: Request, res: Response) => {
+export const deleteGlobalTimeSlot = async (req: Request, res: Response) => {
   const usedShifts = await prisma.shift.findMany({
-    where: { zeitslotId: parseInt(req.params.id) },
+    where: { zeitslotId: parseInt(req.params.id as string) },
     include: { tournament: true }
   });
   const activeShifts = usedShifts.filter(s => s.tournament && s.tournament.status === 'aktiv');
@@ -58,6 +58,6 @@ export const deleteZeitslot = async (req: Request, res: Response) => {
     });
   }
   
-  await prisma.zeitslot.delete({ where: { id: parseInt(req.params.id) } });
+  await prisma.globalTimeSlot.delete({ where: { id: parseInt(req.params.id as string) } });
   return res.status(204).send();
 };

@@ -1,26 +1,77 @@
+// ===================== Auth Store (für API Calls ohne Hooks) =====================
+let currentToken: string = '';
+
+export function setAuthToken(token: string): void {
+  currentToken = token;
+}
+
+export function getAuthToken(): string {
+  return currentToken || localStorage.getItem('token') || '';
+}
+
+// ===================== Error Types =====================
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 // Generic fetch wrapper to handle errors and JSON parsing
-export const apiFetch = async (url: string, options?: RequestInit) => {
+export const apiFetch = async (url: string, options?: RequestInit): Promise<any> => {
+  // Automatisch Token hinzufügen wenn noch nicht in Options
+  const authHeader = options?.headers && 
+    (options.headers as Record<string, string>)['Authorization'];
+  
+  if (!authHeader) {
+    const token = getAuthToken();
+    if (token) {
+      options = {
+        ...options,
+        headers: {
+          ...(options?.headers as Record<string, string> || {}),
+          'Authorization': `Bearer ${token}`
+        }
+      };
+    }
+  }
+
   const res = await fetch(url, options);
+  
   if (!res.ok) {
-    let errorMsg = 'An error occurred';
+    // Spezielle Behandlung für 403 Forbidden
+    if (res.status === 403) {
+      throw new ApiError('Zugriff verweigert – du hast keine Berechtigung dafür', 403);
+    }
+    
+    // Spezielle Behandlung für 401 Unauthorized
+    if (res.status === 401) {
+      throw new ApiError('Session abgelaufen – bitte neu anmelden', 401);
+    }
+
+    let errorMsg = 'Ein Fehler ist aufgetreten';
     try {
       const errorData = await res.json();
       errorMsg = errorData.error || errorData.message || errorMsg;
     } catch (e) {
-      // Not JSON
+      // Nicht JSON – bleibe bei Standard-Nachricht
     }
-    throw new Error(errorMsg);
+    throw new ApiError(errorMsg, res.status);
   }
-  // For 204 No Content
+  
+  // Für 204 No Content
   if (res.status === 204) return null;
   return res.json();
 };
 
 // ===================== Queries =====================
 export const getTournaments = () => apiFetch('/api/tournaments');
-export const getArbeitsbereiche = () => apiFetch('/api/arbeitsbereiche');
-export const getZeitSlots = () => apiFetch('/api/zeit-slots');
-export const getVolunteers = (tournamentId?: number | null) => apiFetch(tournamentId ? `/api/volunteers?tournamentId=${tournamentId}` : '/api/volunteers');
+export const getWorkAreas = () => apiFetch('/api/work-areas');
+export const getGlobalTimeSlots = () => apiFetch('/api/global-time-slots');
+export const getVolunteers = (tournamentId?: number | null) => 
+  apiFetch(tournamentId ? `/api/volunteers?tournamentId=${tournamentId}` : '/api/volunteers');
 export const getClubs = () => apiFetch('/api/clubs').catch(() => []); // Fallback if clubs endpoint doesn't exist
 export const getTournamentClubs = (tournamentId: number | null) =>
   tournamentId ? apiFetch(`/api/tournament-clubs?tournamentId=${tournamentId}`) : Promise.resolve([]);

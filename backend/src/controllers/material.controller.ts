@@ -12,7 +12,7 @@ export const materialSchema = z.object({
 
 export const getMaterialItemsByTournament = async (req: Request, res: Response) => {
   const items = await prisma.materialItem.findMany({
-    where: { tournamentId: parseInt(req.params.tournamentId) },
+    where: { tournamentId: parseInt(req.params.tournamentId as string) },
     orderBy: { createdAt: 'asc' }
   });
   return res.json(items || []);
@@ -25,13 +25,13 @@ export const createMaterialItem = async (req: Request, res: Response) => {
 
 export const updateMaterialItem = async (req: Request, res: Response) => {
   const item = await prisma.materialItem.update({
-    where: { id: parseInt(req.params.id) },
+    where: { id: parseInt(req.params.id as string) },
     data: req.body
   });
   return res.json(item);
 };
 
 export const deleteMaterialItem = async (req: Request, res: Response) => {
-  await prisma.materialItem.delete({ where: { id: parseInt(req.params.id) } });
+  await prisma.materialItem.delete({ where: { id: parseInt(req.params.id as string) } });
   return res.status(204).send();
 };

@@ -7,12 +7,13 @@ import {
   deleteMaterialItem,
   materialSchema
 } from '../controllers/material.controller.js';
+import { requireAdmin, authenticate } from '../middleware/auth.js';
 
 const router = Router();
 
 router.get('/:tournamentId', getMaterialItemsByTournament);
-router.post('/', validate(materialSchema), createMaterialItem);
-router.patch('/:id', validate(materialSchema.partial()), updateMaterialItem);
-router.delete('/:id', deleteMaterialItem);
+router.post('/', authenticate, requireAdmin, validate(materialSchema), createMaterialItem);
+router.patch('/:id', authenticate, requireAdmin, validate(materialSchema.partial()), updateMaterialItem);
+router.delete('/:id', authenticate, requireAdmin, deleteMaterialItem);
 
 export default router;

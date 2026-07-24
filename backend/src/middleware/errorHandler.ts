@@ -6,7 +6,7 @@ const errorHandler = (err: any, req: Request, res: Response, next: NextFunction)
   if (err.name === 'ZodError') {
     return res.status(400).json({
       error: 'Validierungsfehler',
-      details: err.errors.map(e => ({ path: e.path.join('.'), message: e.message }))
+      details: err.errors.map((e: any) => ({ path: e.path.join('.'), message: e.message }))
     });
   }
 

@@ -8,48 +8,52 @@ datasource db {
 }
 
 model Tournament {
-  id              Int              @id @default(autoincrement()) @map("id")
-  name            String
-  description     String?          @map("description")
-  startDate       DateTime         @map("start_date")
-  endDate         DateTime         @map("end_date")
-  status          String           @default("aktiv") @map("status")
-  turnierModus           String    @default("GRUPPEN_KO") @map("turnier_modus")
-  teamsAdvancingPerGroup Int       @default(2) @map("teams_advancing_per_group")
-  playoutAllPlacements   Boolean   @default(false) @map("playout_all_placements")
-  thirdPlaceMatch        Boolean   @default(true)  @map("third_place_match")
-  qualificationRule      String?   @map("qualification_rule")
-  createdAt              DateTime  @default(now()) @map("created_at")
-  clubId          Int?             @map("club_id")
-  club            Club?            @relation(fields: [clubId], references: [id])
-  yearGroups      YearGroup[]      @relation("TournamentYearGroups")
-  groups          Group[]
-  matches         Match[]
-  materials       MaterialItem[]
-  shifts          Shift[]
-  volunteerShifts VolunteerShift[]
-  donations       FoodDonation[]
-  foodDonationSlots FoodDonationSlot[]
-  timeSlots       TimeSlot[]
-  tournamentClubs TournamentClub[]
-  fields          Field[]
-  standings       StandingsEntry[]
-  brackets        KnockoutBracket[]
+  id                     Int                @id @default(autoincrement()) @map("id")
+  name                   String
+  description            String?            @map("description")
+  startDate              DateTime           @map("start_date")
+  endDate                DateTime           @map("end_date")
+  status                 String             @default("aktiv") @map("status")
+  turnierModus           String             @default("GRUPPEN_KO") @map("turnier_modus")
+  teamsAdvancingPerGroup Int                @default(2) @map("teams_advancing_per_group")
+  playoutAllPlacements   Boolean            @default(false) @map("playout_all_placements")
+  thirdPlaceMatch        Boolean            @default(true) @map("third_place_match")
+  qualificationRule      String?            @map("qualification_rule")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  clubId                 Int?               @map("club_id")
+  logo                   String?
+  hasSponsor             Boolean            @default(false) @map("has_sponsor")
+  sponsorName            String?            @map("sponsor_name")
+  sponsorUrl             String?            @map("sponsor_url")
+  fields                 Field[]
+  foodDonationSlots      FoodDonationSlot[]
+  donations              FoodDonation[]
+  groups                 Group[]
+  brackets               KnockoutBracket[]
+  matches                Match[]
+  materials              MaterialItem[]
+  shifts                 Shift[]
+  standings              StandingsEntry[]
+  timeSlots              TimeSlot[]
+  tournamentClubs        TournamentClub[]
+  club                   Club?              @relation(fields: [clubId], references: [id])
+  volunteerShifts        VolunteerShift[]
+  yearGroups             YearGroup[]        @relation("TournamentYearGroups")
 
   @@map("tournaments")
 }
 
 model Club {
-  id              Int         @id @default(autoincrement())
+  id              Int              @id @default(autoincrement())
   name            String
-  city            String?     @map("city")
-  logo            String?     @map("logo")
-  primaryColor    String      @default("#0d6efd") @map("primary_color")
-  secondaryColor  String      @default("#6c757d") @map("secondary_color")
-  accentColor     String      @default("#198754") @map("accent_color")
-  tournaments     Tournament[]
+  logo            String?          @map("logo")
+  primaryColor    String           @default("#0d6efd") @map("primary_color")
+  secondaryColor  String           @default("#6c757d") @map("secondary_color")
+  accentColor     String           @default("#198754") @map("accent_color")
+  city            String?          @map("city")
   teams           Team[]
   tournamentClubs TournamentClub[]
+  tournaments     Tournament[]
 
   @@map("clubs")
 }
@@ -60,127 +64,125 @@ model Group {
   order        Int        @default(0)
   tournamentId Int        @map("tournament_id")
   yearGroupId  Int?       @map("year_group_id")
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id])
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   teams        Team[]
 
   @@map("groups")
 }
 
 model Team {
-  id              Int             @id @default(autoincrement())
-  name            String
-  groupId         Int?            @map("group_id")
-  tournamentId    Int?            @map("tournament_id")
-  yearGroupId     Int?            @map("year_group_id")
-  clubId          Int?            @map("club_id")
-  club            Club?           @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  goalsFor        Int             @default(0) @map("goals_for")
-  goalsAgainst    Int             @default(0) @map("goals_against")
-  matchesAsA      Match[]         @relation("teamAMatches")
-  matchesAsB      Match[]         @relation("teamBMatches")
-  group           Group?          @relation(fields: [groupId], references: [id])
-  yearGroup       YearGroup?      @relation(fields: [yearGroupId], references: [id])
-  standingsEntry  StandingsEntry?   @relation("teamStandings")
-  bracketTyp      String?           @map("bracket_typ")
+  id             Int             @id @default(autoincrement())
+  name           String
+  groupId        Int?            @map("group_id")
+  tournamentId   Int?            @map("tournament_id")
+  yearGroupId    Int?            @map("year_group_id")
+  clubId         Int?            @map("club_id")
+  goalsFor       Int             @default(0) @map("goals_for")
+  goalsAgainst   Int             @default(0) @map("goals_against")
+  bracketTyp     String?         @map("bracket_typ")
+  matchesAsB     Match[]         @relation("teamBMatches")
+  matchesAsA     Match[]         @relation("teamAMatches")
+  standingsEntry StandingsEntry? @relation("teamStandings")
+  yearGroup      YearGroup?      @relation(fields: [yearGroupId], references: [id])
+  group          Group?          @relation(fields: [groupId], references: [id])
+  club           Club?           @relation(fields: [clubId], references: [id], onDelete: Cascade)
 
   @@map("teams")
 }
 
 model Match {
-  id           Int        @id @default(autoincrement())
-  tournamentId Int        @map("tournament_id")
-  yearGroupId  Int?       @map("year_group_id")
-  bracketId    Int?       @map("bracket_id")
-  timeSlotId   Int?       @map("time_slot_id")
-  fieldId      Int?       @map("field_id")
-  teamAId      Int?       @map("team_a_id")
-  teamBId      Int?       @map("team_b_id")
-  placeholderA String?    @map("placeholder_a")
-  placeholderB String?    @map("placeholder_b")
-  scoreA       Int?       @map("score_a")
-  scoreB       Int?       @map("score_b")
-  phase        String     @default("Gruppenphase") @map("phase")
-  runde        String?    @map("runde")           // "Halbfinale", "Finale", "Sieger-Runde-1", etc.
-  bracketTyp   String?    @map("bracket_typ")     // "sieger" oder "verlierer" (für DOPPEL_KO)
-  siegerId     Int?       @map("sieger_id")       // ID des Siegers
-  verliererId  Int?       @map("verlierer_id")    // ID des Verlierers
-  stage        Int?       @map("stage")           // Runden-Nummer (1=erste Runde, 2=zweite, etc.)
-  upperBound   Int?       @map("upper_bound")     // KO-Bracket: obere Grenze des Platzbereichs
-  lowerBound   Int?       @map("lower_bound")     // KO-Bracket: untere Grenze des Platzbereichs
-  bracket      KnockoutBracket? @relation("KnockoutMatches", fields: [bracketId], references: [id])
-  status       String     @default("geplant") @map("status")
+  id           Int              @id @default(autoincrement())
+  tournamentId Int              @map("tournament_id")
+  yearGroupId  Int?             @map("year_group_id")
+  bracketId    Int?             @map("bracket_id")
+  timeSlotId   Int?             @map("time_slot_id")
+  fieldId      Int?             @map("field_id")
+  teamAId      Int?             @map("team_a_id")
+  teamBId      Int?             @map("team_b_id")
+  placeholderA String?          @map("placeholder_a")
+  placeholderB String?          @map("placeholder_b")
+  scoreA       Int?             @map("score_a")
+  scoreB       Int?             @map("score_b")
+  phase        String           @default("Gruppenphase") @map("phase")
+  runde        String?          @map("runde")
+  bracketTyp   String?          @map("bracket_typ")
+  siegerId     Int?             @map("sieger_id")
+  verliererId  Int?             @map("verlierer_id")
+  status       String           @default("geplant") @map("status")
   time         DateTime
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  timeSlot     TimeSlot?  @relation(fields: [timeSlotId], references: [id])
-  field        Field?     @relation(fields: [fieldId], references: [id])
-  teamA        Team?      @relation("teamAMatches", fields: [teamAId], references: [id])
-  teamB        Team?      @relation("teamBMatches", fields: [teamBId], references: [id])
-  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id])
+  lowerBound   Int?             @map("lower_bound")
+  stage        Int?             @map("stage")
+  upperBound   Int?             @map("upper_bound")
+  yearGroup    YearGroup?       @relation(fields: [yearGroupId], references: [id])
+  teamB        Team?            @relation("teamBMatches", fields: [teamBId], references: [id])
+  teamA        Team?            @relation("teamAMatches", fields: [teamAId], references: [id])
+  field        Field?           @relation(fields: [fieldId], references: [id])
+  timeSlot     TimeSlot?        @relation(fields: [timeSlotId], references: [id])
+  tournament   Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  bracket      KnockoutBracket? @relation("KnockoutMatches", fields: [bracketId], references: [id])
 
   @@map("matches")
 }
 
-model Volunteer {
-  id              Int              @id @default(autoincrement())
-  name            String
-  email           String?          @map("email")
-  phone           String?          @map("phone")
-  childName       String?          @map("child_name")
-  childYear       Int?             @map("child_year")
-  password        String?          @map("password")
-  roles           String
-  tournamentId    Int?             @map("tournament_id")
-  consentGiven    Boolean          @default(false) @map("consent_given")
-  consentDate     DateTime?        @map("consent_date")
-  shifts          VolunteerShift[]
-  resetTokens     PasswordResetToken[]
-  foodDonations   FoodDonation[]
+model User {
+  id                Int                  @id @default(autoincrement())
+  name              String
+  email             String?              @map("email")
+  phone             String?              @map("phone")
+  password          String?              @map("password")
+  role              String               @default("HELPER")
+  tournamentId      Int?                 @map("tournament_id")
+  consentGiven      Boolean              @default(false) @map("consent_given")
+  consentDate       DateTime?            @map("consent_date")
   foodDonationSlots FoodDonationSlot[]
-  children        VolunteerChild[]
+  foodDonations     FoodDonation[]
+  resetTokens       PasswordResetToken[]
+  children          UserChild[]
+  shifts            VolunteerShift[]
 
-  @@map("volunteers")
+  @@map("users")
 }
 
-model VolunteerChild {
-  id         Int    @id @default(autoincrement())
-  volunteerId Int    @map("volunteer_id")
-  childName  String @map("child_name")
-  childYear  Int    @map("child_year")
-  volunteer  Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+model UserChild {
+  id        Int    @id @default(autoincrement())
+  userId    Int?   @map("user_id")
+  childName String @map("child_name")
+  childYear Int    @map("child_year")
+  user      User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("volunteer_children")
 }
 
 model VolunteerShift {
   id           Int         @id @default(autoincrement())
-  volunteerId  Int         @map("volunteer_id")
+  userId       Int?        @map("user_id")
   tournamentId Int?        @map("tournament_id")
   shiftId      Int?        @map("shift_id")
   date         DateTime
   slot         String
   role         String
   areaId       String?     @map("area_id")
-  tournament   Tournament? @relation(fields: [tournamentId], references: [id])
-  volunteer    Volunteer   @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
   shift        Shift?      @relation(fields: [shiftId], references: [id])
+  user         User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id])
 
   @@map("volunteer_shifts")
 }
 
-model Arbeitsbereich {
-  id            Int         @id @default(autoincrement())
+model WorkArea {
+  id            Int     @id @default(autoincrement())
   name          String
-  icon          String      @default("📍")
-  minVolunteers Int         @default(2) @map("min_volunteers")
-  maxVolunteers Int         @default(8) @map("max_volunteers")
-  color         String      @default("#3b98f8")
+  icon          String  @default("📍")
+  minVolunteers Int     @default(2) @map("min_volunteers")
+  maxVolunteers Int     @default(8) @map("max_volunteers")
+  color         String  @default("#3b98f8")
   shifts        Shift[]
 
   @@map("arbeitsbereiche")
 }
 
-model Zeitslot {
+model GlobalTimeSlot {
   id        Int     @id @default(autoincrement())
   name      String
   startTime String  @map("start_time")
@@ -201,8 +203,8 @@ model Shift {
   maxVolunteers    Int              @default(8) @map("max_volunteers")
   description      String?          @map("description")
   tournament       Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  arbeitsbereich   Arbeitsbereich?  @relation(fields: [arbeitsbereichId], references: [id])
-  zeitslot         Zeitslot?        @relation(fields: [zeitslotId], references: [id])
+  workArea         WorkArea?        @relation(fields: [arbeitsbereichId], references: [id])
+  globalTimeSlot   GlobalTimeSlot?  @relation(fields: [zeitslotId], references: [id])
   volunteerShifts  VolunteerShift[]
 
   @@map("shifts")
@@ -222,97 +224,96 @@ model MaterialItem {
 }
 
 model PasswordResetToken {
-  id          Int      @id @default(autoincrement())
-  volunteerId Int      @map("volunteer_id")
-  volunteer   Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
-  token       String   @unique @map("token")
-  expiresAt   DateTime @map("expires_at")
-  used        Boolean  @default(false) @map("used")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id        Int      @id @default(autoincrement())
+  userId    Int?     @map("user_id")
+  token     String   @unique @map("token")
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false) @map("used")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("password_reset_tokens")
 }
 
 model FoodCategory {
-  id        Int            @id @default(autoincrement())
+  id        Int        @id @default(autoincrement())
   name      String
-  icon      String         @default("🍽️")
-  order     Int            @default(0)
+  icon      String     @default("🍽️")
+  order     Int        @default(0)
+  createdAt DateTime   @default(now())
   items     FoodItem[]
-  createdAt DateTime       @default(now())
 
   @@map("food_categories")
 }
 
 model FoodItem {
-  id          Int            @id @default(autoincrement())
-  categoryId  Int            @map("category_id")
-  category    FoodCategory   @relation(fields: [categoryId], references: [id])
-  name        String
-  price       String?        @map("price")
-  unit        String         @default("Stk")
-  donations        FoodDonation[]
+  id                Int                @id @default(autoincrement())
+  categoryId        Int                @map("category_id")
+  name              String
+  price             String?            @map("price")
+  unit              String             @default("Stk")
+  createdAt         DateTime           @default(now())
   foodDonationSlots FoodDonationSlot[]
-  createdAt        DateTime       @default(now())
+  donations         FoodDonation[]
+  category          FoodCategory       @relation(fields: [categoryId], references: [id])
 
   @@map("food_items")
 }
 
 model FoodDonation {
-  id                 Int                @id @default(autoincrement())
-  tournamentId       Int                @map("tournament_id")
-  volunteerId        Int                @map("volunteer_id")
-  foodDonationSlotId Int?               @map("food_donation_slot_id")
-  foodItemId         Int                @map("food_item_id")
-  quantity            Int
+  id                 Int               @id @default(autoincrement())
+  tournamentId       Int               @map("tournament_id")
+  userId             Int?              @map("user_id")
+  foodDonationSlotId Int?              @map("food_donation_slot_id")
+  foodItemId         Int               @map("food_item_id")
+  quantity           Int
   note               String?
-  createdAt          DateTime           @default(now())
-
-  tournament         Tournament         @relation(fields: [tournamentId], references: [id])
-  volunteer          Volunteer          @relation(fields: [volunteerId], references: [id])
-  foodItem           FoodItem           @relation(fields: [foodItemId], references: [id])
-  foodDonationSlot   FoodDonationSlot?  @relation(fields: [foodDonationSlotId], references: [id])
+  createdAt          DateTime          @default(now())
+  foodDonationSlot   FoodDonationSlot? @relation(fields: [foodDonationSlotId], references: [id])
+  foodItem           FoodItem          @relation(fields: [foodItemId], references: [id])
+  user               User?             @relation(fields: [userId], references: [id])
+  tournament         Tournament        @relation(fields: [tournamentId], references: [id])
 
   @@map("food_donations")
 }
 
 model YearGroup {
-  id              Int                @id @default(autoincrement())
-  name            String             @map("name")
-  birthYearStart  Int                @map("birth_year_start")
-  birthYearEnd    Int                @map("birth_year_end")
-  order           Int                @default(0)
-  isActive        Boolean            @default(true) @map("is_active")
+  id                Int                @id @default(autoincrement())
+  name              String             @map("name")
+  birthYearStart    Int                @map("birth_year_start")
+  birthYearEnd      Int                @map("birth_year_end")
+  order             Int                @default(0)
+  isActive          Boolean            @default(true) @map("is_active")
+  fields            Field[]
   foodDonationSlots FoodDonationSlot[]
-  tournaments       Tournament[]   @relation("TournamentYearGroups")
-  groups          Group[]
-  teams           Team[]
-  fields          Field[]
-  matches         Match[]
-  timeSlots       TimeSlot[]
-  brackets        KnockoutBracket[]
+  groups            Group[]
+  brackets          KnockoutBracket[]
+  matches           Match[]
+  teams             Team[]
+  timeSlots         TimeSlot[]
+  tournaments       Tournament[]       @relation("TournamentYearGroups")
 
   @@map("year_groups")
 }
 
 model FoodDonationSlot {
-  id              Int              @id @default(autoincrement())
-  tournamentId    Int              @map("tournament_id")
-  yearGroupId     Int?             @map("year_group_id")
-  yearGroup       YearGroup?       @relation(fields: [yearGroupId], references: [id])
-  foodItemId      Int?             @map("food_item_id")
-  targetQuantity  Int              @default(0) @map("target_quantity")
-  collected       Int              @default(0) @map("collected")
-  description     String?          @map("description")
-  createdAt       DateTime         @default(now()) @map("created_at")
-  volunteerId     Int?             @map("volunteer_id")
-  tournament      Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  foodItem        FoodItem?        @relation(fields: [foodItemId], references: [id])
-  volunteer       Volunteer?       @relation(fields: [volunteerId], references: [id], onDelete: SetNull)
-  donations       FoodDonation[]
+  id             Int            @id @default(autoincrement())
+  tournamentId   Int            @map("tournament_id")
+  yearGroupId    Int?           @map("year_group_id")
+  foodItemId     Int?           @map("food_item_id")
+  targetQuantity Int            @default(0) @map("target_quantity")
+  collected      Int            @default(0) @map("collected")
+  description    String?        @map("description")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  userId         Int?           @map("user_id")
+  user           User?          @relation(fields: [userId], references: [id])
+  foodItem       FoodItem?      @relation(fields: [foodItemId], references: [id])
+  tournament     Tournament     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  yearGroup      YearGroup?     @relation(fields: [yearGroupId], references: [id])
+  donations      FoodDonation[]
 
-  @@map("food_donation_slots")
   @@unique([tournamentId, yearGroupId, foodItemId])
+  @@map("food_donation_slots")
 }
 
 model TimeSlot {
@@ -325,8 +326,8 @@ model TimeSlot {
   label        String?    @map("label")
   order        Int        @default(0)
   matches      Match[]
-  tournament   Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  yearGroup    YearGroup?  @relation(fields: [yearGroupId], references: [id])
+  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id])
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@map("time_slots")
 }
@@ -337,9 +338,9 @@ model Field {
   yearGroupId  Int?       @map("year_group_id")
   name         String     @default("Feld 1")
   status       String     @default("verfügbar") @map("status")
-  matches      Match[]
-  tournament   Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id])
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matches      Match[]
 
   @@map("fields")
 }
@@ -348,11 +349,11 @@ model KnockoutBracket {
   id           Int        @id @default(autoincrement())
   tournamentId Int        @map("tournament_id")
   yearGroupId  Int?       @map("year_group_id")
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id])
-  name         String     // "Sieger-Bracket", "Verlierer-Runde-1"
-  runde        String     // "Halbfinale", "Finale", etc.
+  name         String
+  runde        String
   order        Int        @default(0)
+  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id])
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   matches      Match[]    @relation("KnockoutMatches")
 
   @@map("knockout_brackets")
@@ -370,8 +371,8 @@ model StandingsEntry {
   goalsAgainst Int        @default(0) @map("goals_against")
   points       Int        @default(0) @map("points")
   position     Int        @default(0) @map("position")
-  team         Team      @relation("teamStandings", fields: [teamId], references: [id])
   tournament   Tournament @relation(fields: [tournamentId], references: [id])
+  team         Team       @relation("teamStandings", fields: [teamId], references: [id])
 
   @@unique([teamId, tournamentId])
   @@map("standings_entries")
@@ -381,8 +382,8 @@ model TournamentClub {
   id           Int        @id @default(autoincrement())
   tournamentId Int        @map("tournament_id")
   clubId       Int        @map("club_id")
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   club         Club       @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, clubId])
   @@map("tournament_clubs")

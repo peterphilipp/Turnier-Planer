@@ -1,16 +1,17 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 import jwt from 'jsonwebtoken';
+import { logFoodDonationCreated, logFoodDonationDeleted } from '../utils/logger.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'tsv-holm-secret-2025';
 
-const getVolunteerId = (req: Request): number | null => {
+const getUserId = (req: Request): number | null => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
   const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { volunteerId: number };
-    return decoded.volunteerId;
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
+    return decoded.userId;
   } catch {
     return null;
   }
@@ -42,7 +43,7 @@ export const createCategory = async (req: Request, res: Response) => {
 
 export const updateCategory = async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     const { name, icon, order } = req.body;
     const cat = await prisma.foodCategory.update({ where: { id }, data: { name, icon, order } });
     res.json(cat);
@@ -53,7 +54,7 @@ export const updateCategory = async (req: Request, res: Response) => {
 
 export const deleteCategory = async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     await prisma.foodCategory.delete({ where: { id } });
     res.json({ success: true });
   } catch (e) {
@@ -66,7 +67,7 @@ export const deleteCategory = async (req: Request, res: Response) => {
 export const getItems = async (req: Request, res: Response) => {
   try {
     const items = await prisma.foodItem.findMany({
-      include: { category: true },
+      select: { id: true, categoryId: true, name: true, price: true, unit: true, category: true },
       orderBy: { createdAt: 'desc' }
     });
     res.json(items);
@@ -89,7 +90,7 @@ export const createItem = async (req: Request, res: Response) => {
 
 export const updateItem = async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     const { categoryId, name, price, unit } = req.body;
     const item = await prisma.foodItem.update({
       where: { id },
@@ -103,7 +104,7 @@ export const updateItem = async (req: Request, res: Response) => {
 
 export const deleteItem = async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     await prisma.foodItem.delete({ where: { id } });
     res.json({ success: true });
   } catch (e) {
@@ -115,19 +116,19 @@ export const deleteItem = async (req: Request, res: Response) => {
 
 export const getDonations = async (req: Request, res: Response) => {
   try {
-    const volunteerId = getVolunteerId(req);
-    if (!volunteerId) return res.status(401).json({ error: 'Nicht authentifiziert' });
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Nicht authentifiziert' });
 
-    const volunteer = await prisma.volunteer.findUnique({ where: { id: volunteerId } });
-    if (!volunteer || !volunteer.tournamentId) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.tournamentId) {
       return res.json({ donations: [] });
     }
 
     const donations = await prisma.foodDonation.findMany({
-      where: { tournamentId: volunteer.tournamentId, volunteerId },
+      where: { tournamentId: user.tournamentId, userId },
       include: {
         foodItem: { include: { category: true } },
-        volunteer: { select: { id: true, name: true } }
+        user: { select: { id: true, name: true } }
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -139,11 +140,11 @@ export const getDonations = async (req: Request, res: Response) => {
 
 export const createDonation = async (req: Request, res: Response) => {
   try {
-    const volunteerId = getVolunteerId(req);
-    if (!volunteerId) return res.status(401).json({ error: 'Nicht authentifiziert' });
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Nicht authentifiziert' });
 
-    const volunteer = await prisma.volunteer.findUnique({ where: { id: volunteerId } });
-    if (!volunteer || !volunteer.tournamentId) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.tournamentId) {
       return res.status(400).json({ error: 'Kein Tournament zugewiesen' });
     }
 
@@ -155,10 +156,10 @@ export const createDonation = async (req: Request, res: Response) => {
     // Spende erstellen
     const donation = await prisma.foodDonation.create({
       data: {
-        tournamentId: volunteer.tournamentId,
-        volunteerId,
+        tournamentId: user.tournamentId,
+        userId,
         foodItemId,
-        quantity: parseInt(quantity),
+        quantity: parseInt(quantity as string),
         note: note || null,
         foodDonationSlotId: slotId ? Number(slotId) : null
       },
@@ -171,10 +172,11 @@ export const createDonation = async (req: Request, res: Response) => {
     if (slotId) {
       await prisma.foodDonationSlot.updateMany({
         where: { id: Number(slotId) },
-        data: { collected: { increment: parseInt(quantity) } }
+        data: { collected: { increment: parseInt(quantity as string) } }
       });
     }
 
+    logFoodDonationCreated(userId, user.name || '', foodItemId, donation.foodItem?.name || '', quantity);
     res.json(donation);
   } catch (e) {
     res.status(500).json({ error: (e as Error).message });
@@ -183,14 +185,16 @@ export const createDonation = async (req: Request, res: Response) => {
 
 export const deleteDonation = async (req: Request, res: Response) => {
   try {
-    const volunteerId = getVolunteerId(req);
-    if (!volunteerId) return res.status(401).json({ error: 'Nicht authentifiziert' });
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Nicht authentifiziert' });
 
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     const existing = await prisma.foodDonation.findUnique({ where: { id } });
-    if (!existing || existing.volunteerId !== volunteerId) {
+    if (!existing || existing.userId !== userId) {
       return res.status(403).json({ error: 'Zugriff verweigert oder nicht gefunden' });
     }
+
+    const donor = await prisma.user.findUnique({ where: { id: existing.userId } });
 
     // Collected-Wert des Slots dekrementieren
     if (existing.foodDonationSlotId) {
@@ -200,6 +204,7 @@ export const deleteDonation = async (req: Request, res: Response) => {
       });
     }
 
+    logFoodDonationDeleted(userId, donor?.name || 'Unbekannt', id);
     await prisma.foodDonation.delete({ where: { id } });
     res.json({ success: true });
   } catch (e) {

@@ -2,9 +2,9 @@ import { useState, useMemo } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getFoodDonationSlots, getYearGroups, getFoodCategories, getFoodItems, apiPost, apiPatch, apiDelete } from '../../../api';
-import { tdStyle, thStyle, btnStyle, inputStyle, FoodDonationSlot, YearGroup, FoodItem, FoodCategory, Tournament } from '../shared';
+import { btnStyleSecondary, tdStyle, thStyle, btnStyle, inputStyle, FoodDonationSlot, YearGroup, FoodItem, FoodCategory, Tournament } from '../shared';
 
-export default function LebensmittelSlots({ selectedTournament, tournament, adminPrimary }: { selectedTournament: number | null, tournament: Tournament | null, adminPrimary: string }) {
+export default function FoodDonationSlots({ selectedTournament, tournament, adminPrimary }: { selectedTournament: number | null, tournament: Tournament | null, adminPrimary: string }) {
   const queryClient = useQueryClient();
 
   const { data: slots = [] } = useQuery<FoodDonationSlot[]>({
@@ -13,7 +13,18 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
     enabled: !!selectedTournament
   });
   
-  const { data: yearGroups = [] } = useQuery<YearGroup[]>({ queryKey: ['yearGroups'], queryFn: getYearGroups });
+  const { data: allYearGroups = [] } = useQuery<YearGroup[]>({ queryKey: ['yearGroups'], queryFn: getYearGroups });
+
+  // Nur Jahrgänge des ausgewählten Turniers anzeigen
+  const tournamentYearGroupIds = useMemo(() => {
+    if (!tournament?.yearGroups) return new Set<number>();
+    return new Set(tournament.yearGroups.map(yg => yg.id));
+  }, [tournament]);
+
+  const yearGroups = useMemo(() => 
+    allYearGroups.filter(yg => tournamentYearGroupIds.has(yg.id)),
+    [allYearGroups, tournamentYearGroupIds]
+  );
   const { data: foodCategories = [] } = useQuery<FoodCategory[]>({ queryKey: ['foodCategories'], queryFn: getFoodCategories });
   const { data: foodItems = [] } = useQuery<FoodItem[]>({ queryKey: ['foodItems'], queryFn: getFoodItems });
   
@@ -124,7 +135,13 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
       <div style={{ background: '#f8f9fa', padding: 20, borderRadius: 12, marginBottom: 30, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
           <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>1. Jahrgang(e) {editingSlotId ? '(Nur einer)' : '(Mehrfachauswahl)'}</label>
-          <p style={{ color: '#666', fontSize: 12, marginBottom: 8 }}>{yearGroups.length} Jahrgänge verfügbar</p>
+          <p style={{ color: '#666', fontSize: 12, marginBottom: 8 }}>{yearGroups.length} von {allYearGroups.length} Jahrgängen (Turnier-Jahrgänge)</p>
+          {yearGroups.length === 0 && (
+            <div style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 8, padding: '12px 16px', marginBottom: 12, color: '#856404', fontSize: 14 }}>
+              ⚠️ <strong>Keine Jahrgänge definiert!</strong><br />
+              Gehe zu <em>Stammdaten</em> → <em>Turniere</em>, bearbeite das Turnier und füge dort die Jahrgänge hinzu.
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {yearGroups.filter(yg => yg.isActive).map(yg => {
               const isSelected = slotForm.yearGroupIds.includes(yg.id);
@@ -177,11 +194,11 @@ export default function LebensmittelSlots({ selectedTournament, tournament, admi
         </div>
 
         <div style={{ marginTop: 10 }}>
-          <button onClick={saveSlot} style={{ padding: '10px 24px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+          <button onClick={saveSlot} style={{ padding: '10px 24px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 15, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
             {editingSlotId ? '💾 Slot speichern' : `➕ ${slotForm.yearGroupIds.length} Slot${slotForm.yearGroupIds.length > 1 ? 's' : ''} erstellen`}
           </button>
           {editingSlotId && (
-            <button onClick={() => { setEditingSlotId(null); setSlotForm({ yearGroupIds: [], categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' }); }} style={{ ...btnStyle, marginLeft: 10, padding: '10px 20px' }}>Abbrechen</button>
+            <button onClick={() => { setEditingSlotId(null); setSlotForm({ yearGroupIds: [], categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' }); }} style={{ ...btnStyleSecondary, marginLeft: 10, padding: '10px 20px' }}>Abbrechen</button>
           )}
         </div>
       </div>

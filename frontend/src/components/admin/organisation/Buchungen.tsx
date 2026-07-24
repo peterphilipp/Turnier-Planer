@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, Fragment } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getTournaments, getVolunteers, getZeitSlots, getShifts, getVolunteerShifts, getArbeitsbereiche, apiPost, apiDelete, apiPatch } from '../../../api';
+import { getTournaments, getVolunteers, getGlobalTimeSlots, getShifts, getVolunteerShifts, getWorkAreas, apiPost, apiDelete, apiPatch } from '../../../api';
 
-import { Tournament, Shift, Zeitslot, VolunteerShift, Volunteer, Arbeitsbereich } from '../shared';
+import { btnStyleSecondary, Tournament, Shift, GlobalTimeSlot, VolunteerShift, Volunteer, WorkArea } from '../shared';
 export default function Buchungen({ selectedTournament, adminPrimary }: { selectedTournament: number | null, adminPrimary: string }) {
       const [selectedDate, setSelectedDate] = useState('');
   const [selectedArea, setSelectedArea] = useState<number | null>(null);
@@ -20,8 +20,8 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
 
   const { data: tournaments = [] } = useQuery<Tournament[]>({ queryKey: ['tournaments'], queryFn: getTournaments });
   const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers', selectedTournament], queryFn: () => getVolunteers(selectedTournament), enabled: !!selectedTournament });
-  const { data: zeitSlots = [] } = useQuery<Zeitslot[]>({ queryKey: ['zeitSlots'], queryFn: getZeitSlots });
-  const { data: arbeitsbereiche = [] } = useQuery<Arbeitsbereich[]>({ queryKey: ['arbeitsbereiche'], queryFn: getArbeitsbereiche });
+  const { data: globalTimeSlots = [] } = useQuery<GlobalTimeSlot[]>({ queryKey: ['globalTimeSlots'], queryFn: getGlobalTimeSlots });
+  const { data: workAreas = [] } = useQuery<WorkArea[]>({ queryKey: ['workAreas'], queryFn: getWorkAreas });
 
   const { data: jobSlots = [], isFetching: busySlots } = useQuery<Shift[]>({
     queryKey: ['shifts', selectedTournament],
@@ -160,7 +160,7 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
     if (!slot) return;
     const slotName = slot.zeitslot ? `${slot.zeitslot.name} (${slot.zeitslot.startTime}–${slot.zeitslot.endTime})` : slot.slot || '–';
     const existing = volunteerShifts.find(vs =>
-      vs.volunteerId === parseInt(selectedVolunteer) &&
+      vs.userId === parseInt(selectedVolunteer) &&
       new Date(vs.date).toISOString().split('T')[0] === selectedDate &&
       vs.slot === slotName &&
       (!slot.arbeitsbereichId || String(vs.arbeitsbereichId ?? vs.areaId) === String(slot.arbeitsbereichId))
@@ -169,7 +169,7 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
 
     const area = slot.arbeitsbereich;
     await apiPost('/api/volunteer-shifts', {
-      volunteerId: parseInt(selectedVolunteer),
+      userId: parseInt(selectedVolunteer),
       tournamentId: selectedTournament,
       date: selectedDate,
       slot: slotName,
@@ -188,11 +188,11 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
   // Edit speichern
   const saveEdit = async () => {
     if (!editingShift) return;
-    const slot = zeitSlots.find(z => z.id === editSlotId);
-    const area = arbeitsbereiche.find(a => a.id === editAreaId);
+    const slot = globalTimeSlots.find(z => z.id === editSlotId);
+    const area = workAreas.find(a => a.id === editAreaId);
     await apiPatch(`/api/volunteer-shifts/${editingShift.id}`, {
       slot: slot?.name || editingShift.slot,
-      volunteerId: editVolunteerId || editingShift.volunteerId,
+      userId: editVolunteerId || editingShift.userId,
       areaId: area?.id || null,
     });
     queryClient.invalidateQueries({ queryKey: ['volunteerShifts', selectedTournament] });
@@ -225,7 +225,7 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
               <select value={selectedArea || ''} onChange={e => setSelectedArea(e.target.value ? parseInt(e.target.value) : null)}
                 style={{ padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 4 }}>
                 <option value="">Alle Bereiche</option>
-                {arbeitsbereiche.map(a => (
+                {workAreas.map(a => (
                   <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
                 ))}
               </select>
@@ -271,7 +271,7 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
                 for (const slot of slotsToAssign) {
                   const slotName = slot.zeitslot ? `${slot.zeitslot.name} (${slot.zeitslot.startTime}–${slot.zeitslot.endTime})` : slot.slot || '–';
                   const existing = volunteerShifts.find(vs =>
-                    vs.volunteerId === parseInt(selectedVolunteer) &&
+                    vs.userId === parseInt(selectedVolunteer) &&
                     new Date(vs.date).toISOString().split('T')[0] === selectedDate &&
                     vs.slot === slotName &&
                     (!slot.arbeitsbereichId || String(vs.arbeitsbereichId ?? vs.areaId) === String(slot.arbeitsbereichId))
@@ -279,7 +279,7 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
                   if (!existing) {
                     const area = slot.arbeitsbereich;
                     await apiPost('/api/volunteer-shifts', {
-                      volunteerId: parseInt(selectedVolunteer),
+                      userId: parseInt(selectedVolunteer),
                       tournamentId: selectedTournament,
                       date: selectedDate,
                       slot: slotName,
@@ -399,16 +399,16 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
                                     {assignments.map(vs => (
                                       <div key={vs.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: '6px 10px', minWidth: 180 }}>
                                         <span style={{ background: '#e7f3ff', color: '#0d6efd', padding: '2px 10px', borderRadius: 6, fontSize: 13, fontWeight: 'bold' }}>
-                                          {vs.volunteer?.name || '?'}
+                                          {vs.user?.name || '?'}
                                         </span>
-                                        <span style={{ color: '#6c757d', fontSize: 12 }}>{vs.volunteer?.phone ? vs.volunteer.phone.replace(/(.{3}).*({.*})/, '$1…$2') : ''}</span>
+                                        <span style={{ color: '#6c757d', fontSize: 12 }}>{vs.user?.phone ? vs.user.phone.replace(/(.{3}).*({.*})/, '$1…$2') : ''}</span>
                                         <button onClick={(e) => { e.stopPropagation(); removeAssignment(vs.id); }} style={{ background: '#ffe3e3', color: '#dc3545', border: 'none', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>✕</button>
                                       </div>
                                     ))}
                                   </div>
                                 )}
                                 {/* Schnell-Zuweisung */}
-                                {selectedVolunteer && !assignments.some(a => a.volunteerId === parseInt(selectedVolunteer)) && (
+                                {selectedVolunteer && !assignments.some(a => a.userId === parseInt(selectedVolunteer)) && (
                                   <div style={{ marginTop: 10 }}>
                                     <button onClick={async (e) => {
                                       e.stopPropagation();
@@ -447,7 +447,7 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
               <select value={editSlotId} onChange={e => setEditSlotId(parseInt(e.target.value))}
                 style={{ width: '100%', padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 4 }}>
                 <option value={0}>-- Bitte wählen --</option>
-                {zeitSlots.sort((a, b) => a.order - b.order).map(zs => (
+                {globalTimeSlots.sort((a, b) => a.order - b.order).map(zs => (
                   <option key={zs.id} value={zs.id}>{zs.name} ({zs.startTime}–{zs.endTime})</option>
                 ))}
               </select>
@@ -457,7 +457,7 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
               <select value={editAreaId || ''} onChange={e => setEditAreaId(e.target.value ? parseInt(e.target.value) : null)}
                 style={{ width: '100%', padding: '6px 10px', border: '1px solid #ced4da', borderRadius: 4 }}>
                 <option value="">-- Bitte wählen --</option>
-                {arbeitsbereiche.map(a => (
+                {workAreas.map(a => (
                   <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
                 ))}
               </select>
@@ -471,7 +471,7 @@ export default function Buchungen({ selectedTournament, adminPrimary }: { select
               </select>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-              <button onClick={() => setEditingShift(null)} style={{ ...btnStyle, background: '#6c757d', color: '#fff' }}>Abbrechen</button>
+              <button onClick={() => setEditingShift(null)} style={{ ...btnStyleSecondary, background: '#6c757d', color: '#fff' }}>Abbrechen</button>
               <button onClick={saveEdit} style={{ ...btnStyle, background: '#0d6efd', color: '#fff' }}>Speichern</button>
               <button onClick={() => { removeAssignment(editingShift.id); setEditingShift(null); }} style={{ ...btnStyle, background: '#dc3545', color: '#fff' }}>Löschen</button>
             </div>

@@ -483,11 +483,28 @@ docker compose up --build
 
 ---
 
-## Deployment (GitHub Secrets erforderlich)
-- `DEPLOY_USER` = SSH Benutzername des Zielservers
-- `DEPLOY_HOST` = IP oder Domain des Zielservers
+## Deployment (GitHub Actions)
 
-Push nach `master` → GitHub Actions baut & pusht die Images → Pullt sie auf dem Server.
+Die Applikation wird vollautomatisch per GitHub Actions als Docker-Container gebaut.
+
+**Wichtig:** Ein normaler Commit auf `master` löst **keinen** Build aus, um Ressourcen zu sparen und unfertige Versionen zu vermeiden.
+
+### Ein Deployment auslösen
+
+Es gibt zwei Wege, um eine neue Version (Image) zu bauen:
+
+1. **Version Tag (Best Practice):**
+   Wenn du eine stabile Version veröffentlichen willst, erstelle lokal einen Git-Tag und pushe ihn:
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+   GitHub Actions erkennt den Tag `v...` und baut automatisch das Image.
+
+2. **Manuell anstoßen:**
+   Gehe auf GitHub unter **Actions** -> **Build & Push Docker Image** und klicke rechts auf **Run workflow**.
+
+*(Hinweis zur Datenbank: Beim allerersten Start in Produktion sorgt die Ignition Phase (`prisma/seed.ts`) dafür, dass Standard-Lebensmittel und Arbeitsbereiche automatisch angelegt werden. Die Test-Datenbank `dev.db` wird dabei niemals mit deployed).*
 
 ### Zugriff über eine einzige Domain
 Alle Funktionen sind über **eine Subdomain** erreichbar – die Ansicht wird per Query-Parameter gesteuert:
