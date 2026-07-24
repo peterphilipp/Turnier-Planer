@@ -7,6 +7,9 @@ node scripts/migrate-day-slot-system.cjs
 echo "  Prisma Schema synchronisieren..."
 npx prisma db push --accept-data-loss
 
+echo "  Slot-Herkunft nachtragen (Tage vor sourceGlobalSlotId-Einfuehrung)..."
+node scripts/backfill-slot-provenance.cjs
+
 echo "  Standarddaten importieren (Ignition Phase)..."
 npx prisma db seed
 

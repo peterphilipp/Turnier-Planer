@@ -639,16 +639,16 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
             .map((vs, idx, myShifts) => {
               const s = vs.shift;
-              const dateStr = new Date(vs.date).toISOString().split('T')[0];
+              const d = new Date(vs.date);
               const prevVs = idx > 0 ? myShifts[idx - 1] : null;
-              const showDayHeader = !prevVs || new Date(prevVs.date).toDateString() !== new Date(vs.date).toDateString();
+              const showDayHeader = !prevVs || new Date(prevVs.date).toDateString() !== d.toDateString();
               const assignedCount = volunteerShifts.filter(v => v.shiftId === s?.id).length;
               const remaining = (s?.maxVolunteers || 0) - assignedCount;
               return (
                 <div key={vs.id}>
                   {showDayHeader && (
                     <div style={{ fontSize: 13, fontWeight: 'bold', color: clubPrimary, padding: '6px 0', marginTop: idx > 0 ? 8 : 0, borderTop: '1px solid #e9ecef' }}>
-                      {new Date(vs.date).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })}
+                      {d.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })}
                     </div>
                   )}
                   <div style={{ background: '#fff', borderRadius: 12, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 10, borderLeft: '4px solid ' + clubAccent, overflow: 'hidden' }}>
@@ -657,7 +657,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                       <div style={{ fontSize: 13, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>{s?.arbeitsbereich?.name || '–'}</div>
                     </div>
                     <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
-                      <div style={{ fontSize: 12, color: '#666' }}>{new Date(vs.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</div>
+                      <div style={{ fontSize: 12, color: '#666' }}>{d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</div>
                       {s?.zeitslot && <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.zeitslot.startTime}–{s.zeitslot.endTime}</div>}
                     </div>
                     <div style={{ textAlign: 'center', minWidth: 40, flexShrink: 0 }}>
@@ -713,8 +713,9 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
             .map((slot, idx) => {
               const prevSlot = idx > 0 ? shifts[idx - 1] : null;
-              const showDayHeader = !prevSlot || new Date(prevSlot.date).toDateString() !== new Date(slot.date).toDateString();
-              const dateStr = new Date(slot.date).toISOString().split('T')[0];
+              const d = new Date(slot.date);
+              const showDayHeader = !prevSlot || new Date(prevSlot.date).toDateString() !== d.toDateString();
+              const dateStr = isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
               const assigned = volunteerShifts.some(vs => vs.shiftId === slot.id);
               const myShift = volunteerShifts.find(vs => vs.shiftId === slot.id);
               const assignedCount = volunteerShifts.filter(vs => vs.shiftId === slot.id).length;
