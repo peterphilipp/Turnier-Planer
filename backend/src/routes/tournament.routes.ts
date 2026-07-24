@@ -26,6 +26,7 @@ router.get('/', getTournaments);
 router.get('/:id', getTournamentById);
 
 // ==================== Nur Admin/Organizer ====================
+router.post('/', authenticate, requireAdmin, validate(tournamentSchema), createTournament);
 router.patch('/:id/status', authenticate, requireAdmin, updateTournamentStatus);
 router.patch('/:id/mode', authenticate, requireAdmin, updateTournamentMode);
 router.post('/:id/generate-matches', authenticate, requireAdmin, generateMatchesForYearGroup);

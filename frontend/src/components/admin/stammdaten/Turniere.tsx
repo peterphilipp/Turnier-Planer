@@ -12,6 +12,9 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
   const { data: yearGroups = [] } = useQuery<YearGroup[]>({ queryKey: ['year-groups'], queryFn: getYearGroups });
   
   const [statusDialog, setStatusDialog] = useState({ open: false, tournament: null as Tournament | null, editName: '', editClubId: '', editStart: '', editEnd: '', editModus: 'GRUPPEN_KO', yearGroupIds: [] as number[], logoFile: null as File | null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '' });
+  
+  const [newTourn, setNewTourn] = useState({ name: '', start: '', end: '', clubId: '', modus: 'GRUPPEN_KO' });
+  const [isEndTouched, setIsEndTouched] = useState(false);
 
   const closeStatusDialog = () => setStatusDialog({ open: false, tournament: null, editName: '', editClubId: '', editStart: '', editEnd: '', editModus: 'GRUPPEN_KO', yearGroupIds: [], logoFile: null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '' });
   
@@ -49,19 +52,35 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
     closeStatusDialog();
   };
 
+  const handleNewStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const start = e.target.value;
+    setNewTourn(prev => ({
+      ...prev,
+      start,
+      end: !isEndTouched ? start : prev.end
+    }));
+  };
+
+  const handleNewEndChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setIsEndTouched(true);
+    setNewTourn(prev => ({ ...prev, end: e.target.value }));
+  };
+
   const createTournament = async () => {
-    const nameEl = document.getElementById('tournamentName') as HTMLInputElement;
-    const startEl = document.getElementById('tournamentStart') as HTMLInputElement;
-    const endEl = document.getElementById('tournamentEnd') as HTMLInputElement;
-    const clubEl = document.getElementById('tournamentClub') as HTMLInputElement;
-    const modusEl = document.getElementById('tournamentModus') as HTMLSelectElement;
-    const ygsEl = document.getElementById('tournamentYearGroups') as HTMLSelectElement;
-    const name = nameEl?.value, start = startEl?.value, end = endEl?.value;
-    if (!name || !start || !end) return await modal.alert({ title: 'Hinweis', message: 'Alle Felder erforderlich!' });
-    const selectedYgs = ygsEl?.selectedOptions ? Array.from(ygsEl.selectedOptions).map(o => parseInt(o.value)) : [];
-    await apiPost('/api/tournaments', { name, startDate: start, endDate: end, status: 'aktiv', clubId: clubEl?.value ? parseInt(clubEl.value) : null, turnierModus: modusEl?.value || 'GRUPPEN_KO', yearGroupIds: selectedYgs });
+    const { name, start, end, clubId, modus } = newTourn;
+    if (!name || !start || !end) return await modal.alert({ title: 'Hinweis', message: 'Name, Start- und Enddatum erforderlich!' });
+    await apiPost('/api/tournaments', { 
+      name, 
+      startDate: start, 
+      endDate: end, 
+      status: 'aktiv', 
+      clubId: clubId ? parseInt(clubId) : null, 
+      turnierModus: modus, 
+      yearGroupIds: [] 
+    });
     queryClient.invalidateQueries({ queryKey: ['tournaments'] });
-    nameEl.value = ''; startEl.value = ''; endEl.value = '';
+    setNewTourn({ name: '', start: '', end: '', clubId: '', modus: 'GRUPPEN_KO' });
+    setIsEndTouched(false);
   };
 
   const statusBadge = (status: string) => {
@@ -78,14 +97,14 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
       
       {/* Neue Turnier Form */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input placeholder="Turnier-Name" id="tournamentName" style={{ flex: 1, minWidth: 200, padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-        <input type="date" id="tournamentStart" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-        <input type="date" id="tournamentEnd" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-        <select id="tournamentClub" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }}>
+        <input value={newTourn.name} onChange={e => setNewTourn(prev => ({...prev, name: e.target.value}))} placeholder="Turnier-Name" style={{ flex: 1, minWidth: 200, padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
+        <input type="date" value={newTourn.start} max={newTourn.end || undefined} onChange={handleNewStartChange} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
+        <input type="date" value={newTourn.end} min={newTourn.start || undefined} onChange={handleNewEndChange} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
+        <select value={newTourn.clubId} onChange={e => setNewTourn(prev => ({...prev, clubId: e.target.value}))} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }}>
           <option value="">-- Kein Verein --</option>
           {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <select id="tournamentModus" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} defaultValue="GRUPPEN_KO">
+        <select value={newTourn.modus} onChange={e => setNewTourn(prev => ({...prev, modus: e.target.value}))} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }}>
           <option value="GRUPPEN_KO">🏆 Gruppenphase + K.O.</option>
           <option value="KO">⚡ Reines K.O.</option>
           <option value="LIGA">📊 Liga/Rundspiel</option>
@@ -134,8 +153,8 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <input value={statusDialog.editName} onChange={e => setStatusDialog({ ...statusDialog, editName: e.target.value })} placeholder="Name" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <input type="date" value={statusDialog.editStart} onChange={e => setStatusDialog({ ...statusDialog, editStart: e.target.value })} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-              <input type="date" value={statusDialog.editEnd} onChange={e => setStatusDialog({ ...statusDialog, editEnd: e.target.value })} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
+              <input type="date" value={statusDialog.editStart} max={statusDialog.editEnd || undefined} onChange={e => setStatusDialog({ ...statusDialog, editStart: e.target.value })} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
+              <input type="date" value={statusDialog.editEnd} min={statusDialog.editStart || undefined} onChange={e => setStatusDialog({ ...statusDialog, editEnd: e.target.value })} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
             </div>
             <div><label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Verein</label>
               <select value={statusDialog.editClubId} onChange={e => setStatusDialog({ ...statusDialog, editClubId: e.target.value })} style={{ width: '100%', padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }}>
