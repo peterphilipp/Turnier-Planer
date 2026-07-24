@@ -97,7 +97,19 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
             if (d) { 
               setShifts(d.shifts); 
               setVolunteerShifts(d.volunteerShifts); 
-              if (d.tournament) setTournament(d.tournament);
+              if (d.tournament) {
+                setTournament(d.tournament);
+                setHasSponsor(d.tournament.hasSponsor || false);
+                setSponsorName(d.tournament.sponsorName || null);
+                setSponsorUrl(d.tournament.sponsorUrl || null);
+                setSponsorLogo(d.tournament.logo || null);
+                if (d.tournament.club) {
+                  setClubPrimary(d.tournament.club.primaryColor || '#0d6efd');
+                  setClubSecondary(d.tournament.club.secondaryColor || '#6c757d');
+                  setClubAccent(d.tournament.club.accentColor || '#198754');
+                  setClubLogo(d.tournament.club.logo || null);
+                }
+              }
             } 
           })
           .catch(() => {});
@@ -151,7 +163,19 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
         const data2 = await res2.json(); 
         setShifts(data2.shifts); 
         setVolunteerShifts(data2.volunteerShifts); 
-        if (data2.tournament) setTournament(data2.tournament);
+        if (data2.tournament) {
+          setTournament(data2.tournament);
+          setHasSponsor(data2.tournament.hasSponsor || false);
+          setSponsorName(data2.tournament.sponsorName || null);
+          setSponsorUrl(data2.tournament.sponsorUrl || null);
+          setSponsorLogo(data2.tournament.logo || null);
+          if (data2.tournament.club) {
+            setClubPrimary(data2.tournament.club.primaryColor || '#0d6efd');
+            setClubSecondary(data2.tournament.club.secondaryColor || '#6c757d');
+            setClubAccent(data2.tournament.club.accentColor || '#198754');
+            setClubLogo(data2.tournament.club.logo || null);
+          }
+        }
       }
     } catch { await modal.alert({ title: 'Fehler', message: 'Login fehlgeschlagen' }); }
   };
@@ -169,7 +193,19 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
         const data = await res.json(); 
         setShifts(data.shifts); 
         setVolunteerShifts(data.volunteerShifts); 
-        if (data.tournament) setTournament(data.tournament);
+        if (data.tournament) {
+          setTournament(data.tournament);
+          setHasSponsor(data.tournament.hasSponsor || false);
+          setSponsorName(data.tournament.sponsorName || null);
+          setSponsorUrl(data.tournament.sponsorUrl || null);
+          setSponsorLogo(data.tournament.logo || null);
+          if (data.tournament.club) {
+            setClubPrimary(data.tournament.club.primaryColor || '#0d6efd');
+            setClubSecondary(data.tournament.club.secondaryColor || '#6c757d');
+            setClubAccent(data.tournament.club.accentColor || '#198754');
+            setClubLogo(data.tournament.club.logo || null);
+          }
+        }
       }
     } finally { setBusy(false); }
   };
@@ -466,7 +502,19 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                     const d = await res2.json(); 
                     setShifts(d.shifts); 
                     setVolunteerShifts(d.volunteerShifts); 
-                    if (d.tournament) setTournament(d.tournament);
+                    if (d.tournament) {
+                      setTournament(d.tournament);
+                      setHasSponsor(d.tournament.hasSponsor || false);
+                      setSponsorName(d.tournament.sponsorName || null);
+                      setSponsorUrl(d.tournament.sponsorUrl || null);
+                      setSponsorLogo(d.tournament.logo || null);
+                      if (d.tournament.club) {
+                        setClubPrimary(d.tournament.club.primaryColor || '#0d6efd');
+                        setClubSecondary(d.tournament.club.secondaryColor || '#6c757d');
+                        setClubAccent(d.tournament.club.accentColor || '#198754');
+                        setClubLogo(d.tournament.club.logo || null);
+                      }
+                    }
                   }
                 } else { const err = await res.json(); await modal.alert({ title: 'Fehler', message: err.error }); }
               } catch { await modal.alert({ title: 'Fehler', message: 'Fehler bei der Registrierung' }); }
