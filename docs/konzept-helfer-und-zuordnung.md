@@ -272,7 +272,91 @@ Funktion „welche Jahrgänge sind für diesen Helfer relevant" — einmal gebau
 
 ---
 
-## 6. Offene Entscheidungen
+## 6. Thema E — Onboarding & Feature-Entdeckung (Install-Coaching & Touren)
+
+> Motivation: Die App wird zunehmend feature-reicher. Aspekte, die **nicht
+> sofort einsehbar** sind — allen voran die **Homescreen-Installation für
+> technisch nicht versierte Anwender** — sollen möglichst einfach nutzbar
+> gemacht werden. Ausgangspunkt der Diskussion war die Idee, dafür ein
+> Fremd-Tool wie **React Native Copilot** (geführte Feature-Touren) zu nutzen.
+
+### 6.1 Der Haken bei „React Native Copilot"
+- `react-native-copilot` läuft **nur unter React Native** (native Mobile-Apps).
+- Unser Frontend ist **React 18 + Vite als Web-App/PWA** (`react-dom`, **kein**
+  `react-native`) — die Bibliothek lässt sich hier **nicht** einbauen.
+- **Die Idee dahinter (Spotlight + Tooltip-Touren / Coach-Marks) ist richtig**,
+  wir brauchen nur das **Web-Pendant**.
+
+### 6.2 Web-native Äquivalente
+
+| Tool | Größe/Charakter | Hinweis |
+|---|---|---|
+| **driver.js** | winzig (~5 kb), framework-agnostisch, keine Deps | ideal für schlanke PWA, MIT-Lizenz |
+| **@reactour/tour** | React-idiomatisch, schöne Masken | etwas mehr Gewicht, sauberes Komponenten-API |
+| **react-joyride** | reif, funktionsreich | schwerer, viele Features |
+| **intro.js** | reif | ⚠️ **kommerziell lizenzpflichtig** — für Vereins-Einsatz prüfen |
+
+Tendenz für unseren Fall (schlanke, offline-fähige PWA): **driver.js** — oder
+**@reactour**, wenn ein React-Komponenten-API bevorzugt wird.
+
+### 6.3 Knackpunkt — hier hilft *keine* Tour-Lib
+Ausgerechnet das Kernbeispiel — **„Zum Homescreen hinzufügen" auf dem iPhone
+für nicht-versierte Nutzer** — ist der Fall, in dem Coach-Mark-Bibliotheken am
+**wenigsten** helfen:
+
+- Tour-Libs können nur Elemente **im DOM der eigenen Seite** hervorheben.
+- Die iOS-Installation passiert im **Safari-Browser-Chrome**
+  (Teilen-Symbol → runterscrollen → „Zum Home-Bildschirm") — **außerhalb** der
+  Seite. Die Lib kann den echten Teilen-Button **technisch nicht** anleuchten.
+- → Für iOS braucht es eine **eigene, illustrierte Anleitung**: animierter
+  Pfeil/Finger Richtung Teilen-Icon (unten mittig in Safari) + kurzes
+  GIF/Screenshots. Eine Tour-Lib kann diesen Schritt als Modal *hosten*, aber
+  der „echte Button leuchtet"-Effekt entfällt.
+- **Android ist der einfache Fall:** über `beforeinstallprompt` gibt es einen
+  **echten In-Page-Installieren-Button** — *den* kann eine Coach-Mark
+  anleuchten, ein Tap löst den nativen Install-Dialog aus.
+
+Konsequenz:
+- **Android:** 1 Button + optional Coach-Mark → nahezu one-tap.
+- **iOS:** geführte Illustration (kein Auto-Install möglich).
+- **Immer:** zuerst `display-mode: standalone` prüfen (schon installiert? →
+  Hinweis unterdrücken) und iOS/Android unterscheiden.
+
+### 6.4 Weitere Aspekte
+- **Build vs. Bibliothek:** Für 1–2 Flows (Install-Coaching + wenige
+  Coach-Marks) kann eine **eigene, dependency-freie Mini-Komponente** reichen.
+  Eine Lib lohnt, sobald es viele mehrstufige Touren werden.
+- **Nicht nerven:** „Tour gesehen" pro Gerät/User in localStorage merken;
+  **kontextuell** statt gleich am Anfang — passend zur früheren Entscheidung:
+  *nach* der ersten sinnvollen Aktion anbieten („Schicht gebucht →
+  Erinnerungen? App installieren").
+- **Wartbarkeit:** Schritte an **stabile `data-tour="…"`-Attribute** hängen,
+  nicht an CSS-Klassen (sonst brechen Touren bei UI-Änderungen).
+- **Touch/Mobile & A11y:** Tooltips müssen auf kleinen Touch-Screens sitzen und
+  tastatur-/screenreader-tauglich sein.
+
+### 6.5 Vorschlag (zweigeteilt, da zwei verschiedene Probleme)
+1. **Install-Coaching** als **eigene kleine Komponente**: Plattform-Erkennung
+   + Android-Button via `beforeinstallprompt` + iOS-Illustration. Der
+   wertvollste, aber lib-unabhängige Teil.
+2. **Feature-Touren** für den Rest über eine schlanke Lib (**driver.js**),
+   kontextuell ausgelöst.
+
+### 6.6 To-dos (Onboarding & Feature-Entdeckung)
+- [ ] Install-Coaching-Komponente: `display-mode: standalone`-Check,
+      iOS/Android-Unterscheidung.
+- [ ] Android: In-Page-Installieren-Button via `beforeinstallprompt`
+      (verknüpft mit PWA-To-do in Abschnitt 3).
+- [ ] iOS: illustrierte „Zum Home-Bildschirm"-Anleitung (Pfeil zum Teilen-Icon
+      + GIF/Screenshots).
+- [ ] Feature-Touren evaluieren/einbinden (driver.js vs. @reactour vs.
+      dependency-frei — siehe offene Entscheidung).
+- [ ] „Gesehen"-Status pro Gerät/User (localStorage), kontextuelle Auslösung.
+- [ ] Stabile `data-tour`-Anker in den Kern-UI-Elementen ergänzen.
+
+---
+
+## 7. Offene Entscheidungen
 
 - **iOS-Onboarding & Push:** Auf iOS kostet Push zwingend einen Install-Schritt.
   - **Empfehlung:** Installation **optional** halten, aber **nach der ersten
@@ -283,10 +367,13 @@ Funktion „welche Jahrgänge sind für diesen Helfer relevant" — einmal gebau
 - **Namens-Kollision bei „Name + Passwort":** wie zwei „Peter M."
   unterscheiden — z. B. über Klub/Jahrgang oder eine laufende Nummer.
   *Noch zu entscheiden.*
+- **Feature-Touren: Bibliothek vs. dependency-frei** — schlanke Lib
+  (**driver.js**, ~5 kb) oder eigene Mini-Komponente ohne Abhängigkeit.
+  (Install-Coaching wird ohnehin eigenständig gebaut.) *Noch zu entscheiden.*
 
 ---
 
-## 7. Konsolidiertes Backlog (grob priorisiert)
+## 8. Konsolidiertes Backlog (grob priorisiert)
 
 **Fundament (zuerst)**
 1. [ ] PWA-Basis (`manifest.json` + Service Worker) + Install-Hinweis
@@ -313,13 +400,19 @@ Funktion „welche Jahrgänge sind für diesen Helfer relevant" — einmal gebau
 11. [ ] Spielplan/Ergebnisse in **Tabs pro Kind**, nach Jahrgang gefiltert.
 12. [ ] Fallback „keine Kinder / kein Jahrgang".
 
+**Onboarding & Feature-Entdeckung**
+13. [ ] **Install-Coaching-Komponente** (Plattform-Erkennung, standalone-Check).
+14. [ ] Android-Installieren-Button (`beforeinstallprompt`) + iOS-Illustration.
+15. [ ] Feature-Touren (driver.js/@reactour/dependency-frei) + `data-tour`-Anker
+        + „gesehen"-Status.
+
 **Separat / später**
-13. [ ] **WhatsApp-Spike** (Business-Konto/Template-Aufwand vs. SMS abwägen).
-14. [ ] Offline-Caching für Spielplan/Schichten *(nice-to-have)*.
+16. [ ] **WhatsApp-Spike** (Business-Konto/Template-Aufwand vs. SMS abwägen).
+17. [ ] Offline-Caching für Spielplan/Schichten *(nice-to-have)*.
 
 ---
 
-## 8. Zusammenfassung der Entscheidungen
+## 9. Zusammenfassung der Entscheidungen
 
 | Thema | Entscheidung |
 |---|---|
@@ -330,5 +423,7 @@ Funktion „welche Jahrgänge sind für diesen Helfer relevant" — einmal gebau
 | App-Nutzung | **PWA** (installierbar, kein App Store), früh im Fundament |
 | Turnier-Wahl | **Dynamisch + Merker** (relevanteste/zeitnächste, Umschalter) |
 | Mehr-Kind-Darstellung | **Tabs pro Kind**, nach Jahrgang gefiltert |
+| Onboarding/Install | Eigenes **Install-Coaching** (Android-Button + iOS-Illustration); Feature-Touren via Web-Lib. *React Native Copilot passt nicht (RN-only, wir sind Web/PWA).* |
+| Feature-Touren | offen: driver.js vs. @reactour vs. dependency-frei |
 | WhatsApp | machbar, aber separater Spike (Aufwand > SMS) |
 | iOS-Push | offen: optional anbieten vs. ins Onboarding nehmen (Empfehlung: optional, nach erster Aktion anbieten) |
