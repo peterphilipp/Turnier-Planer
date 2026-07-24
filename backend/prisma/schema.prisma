@@ -70,6 +70,8 @@ model Group {
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   teams        Team[]
 
+  @@index([tournamentId])
+  @@index([yearGroupId])
   @@map("groups")
 }
 
@@ -91,6 +93,10 @@ model Team {
   tournament     Tournament?     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   club           Club?           @relation(fields: [clubId], references: [id], onDelete: Cascade)
 
+  @@index([tournamentId])
+  @@index([groupId])
+  @@index([yearGroupId])
+  @@index([clubId])
   @@map("teams")
 }
 
@@ -125,6 +131,13 @@ model Match {
   tournament   Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   bracket      KnockoutBracket? @relation("KnockoutMatches", fields: [bracketId], references: [id])
 
+  @@index([tournamentId])
+  @@index([yearGroupId])
+  @@index([bracketId])
+  @@index([teamAId])
+  @@index([teamBId])
+  @@index([fieldId])
+  @@index([timeSlotId])
   @@map("matches")
 }
 
@@ -146,6 +159,7 @@ model User {
   shifts            VolunteerShift[]
   tournament        Tournament?          @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
+  @@index([tournamentId])
   @@map("users")
 }
 
@@ -156,6 +170,7 @@ model UserChild {
   childYear Int    @map("child_year")
   user      User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("volunteer_children")
 }
 
@@ -172,6 +187,9 @@ model VolunteerShift {
   user         User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   tournament   Tournament? @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+  @@index([tournamentId])
+  @@index([shiftId])
   @@map("volunteer_shifts")
 }
 
@@ -212,6 +230,9 @@ model Shift {
   globalTimeSlot   GlobalTimeSlot?  @relation(fields: [zeitslotId], references: [id], onDelete: Cascade)
   volunteerShifts  VolunteerShift[]
 
+  @@index([tournamentId])
+  @@index([arbeitsbereichId])
+  @@index([zeitslotId])
   @@map("shifts")
 }
 
@@ -225,6 +246,7 @@ model MaterialItem {
   createdAt    DateTime   @default(now()) @map("created_at")
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
+  @@index([tournamentId])
   @@map("material_items")
 }
 
@@ -237,6 +259,7 @@ model PasswordResetToken {
   createdAt DateTime @default(now()) @map("created_at")
   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("password_reset_tokens")
 }
 
@@ -262,6 +285,7 @@ model FoodItem {
   donations         FoodDonation[]
   category          FoodCategory       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
+  @@index([categoryId])
   @@map("food_items")
 }
 
@@ -279,6 +303,10 @@ model FoodDonation {
   user               User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
   tournament         Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
+  @@index([tournamentId])
+  @@index([userId])
+  @@index([foodDonationSlotId])
+  @@index([foodItemId])
   @@map("food_donations")
 }
 
@@ -318,6 +346,9 @@ model FoodDonationSlot {
   donations      FoodDonation[]
 
   @@unique([tournamentId, yearGroupId, foodItemId])
+  @@index([userId])
+  @@index([yearGroupId])
+  @@index([foodItemId])
   @@map("food_donation_slots")
 }
 
@@ -334,6 +365,8 @@ model TimeSlot {
   yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id], onDelete: Cascade)
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
+  @@index([tournamentId])
+  @@index([yearGroupId])
   @@map("time_slots")
 }
 
@@ -347,6 +380,8 @@ model Field {
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   matches      Match[]
 
+  @@index([tournamentId])
+  @@index([yearGroupId])
   @@map("fields")
 }
 
@@ -361,6 +396,8 @@ model KnockoutBracket {
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   matches      Match[]    @relation("KnockoutMatches")
 
+  @@index([tournamentId])
+  @@index([yearGroupId])
   @@map("knockout_brackets")
 }
 
@@ -380,6 +417,7 @@ model StandingsEntry {
   team         Team       @relation("teamStandings", fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, tournamentId])
+  @@index([tournamentId])
   @@map("standings_entries")
 }
 
@@ -391,5 +429,6 @@ model TournamentClub {
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, clubId])
+  @@index([clubId])
   @@map("tournament_clubs")
 }
