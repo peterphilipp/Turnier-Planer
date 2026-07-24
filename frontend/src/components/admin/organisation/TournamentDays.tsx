@@ -1,13 +1,34 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getTournamentWorkAreas, syncTournamentWorkAreas, updateTournamentWorkArea,
   getTournamentDays, createTournamentDay, deleteTournamentDay,
-  getDayTemplates, generateShifts, getShifts
+  getDayTemplates, generateShifts, getShifts, getTournaments
 } from '../../../api';
 import { modal } from '../Modal';
 import { btnStyle, inputStyle, minToTime } from '../shared';
-import type { TournamentWorkArea, TournamentDay, GlobalDayTemplate, PlanningShift } from '../shared';
+import type { TournamentWorkArea, TournamentDay, GlobalDayTemplate, PlanningShift, Tournament } from '../shared';
+
+/** Datum (Date) -> "YYYY-MM-DD" in UTC, unabhängig von der lokalen Zeitzone. */
+const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
+
+/** Alle Kalendertage zwischen startDate und endDate eines Turniers (inklusive), als "YYYY-MM-DD". */
+function tournamentDateRange(tournament: Tournament | null | undefined): string[] {
+  if (!tournament?.startDate || !tournament?.endDate) return [];
+  const start = new Date(tournament.startDate);
+  const end = new Date(tournament.endDate);
+  let cur = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));
+  const endUTC = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
+  const dates: string[] = [];
+  while (cur <= endUTC) {
+    dates.push(toDateOnly(cur));
+    cur = new Date(cur.getTime() + 24 * 60 * 60 * 1000);
+  }
+  return dates;
+}
+
+const formatDateOption = (dateStr: string) =>
+  new Date(dateStr + 'T00:00:00Z').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
 
 export default function TournamentDays({ selectedTournament, adminPrimary = '#198754' }: { selectedTournament: number | null; adminPrimary?: string }) {
   const qc = useQueryClient();
@@ -17,8 +38,18 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
   const { data: days = [] } = useQuery<TournamentDay[]>({ queryKey: ['t-days', tid], queryFn: () => getTournamentDays(tid), enabled: !!tid });
   const { data: templates = [] } = useQuery<GlobalDayTemplate[]>({ queryKey: ['day-templates'], queryFn: getDayTemplates });
   const { data: shifts = [] } = useQuery<PlanningShift[]>({ queryKey: ['shifts', tid], queryFn: () => getShifts(tid), enabled: !!tid });
+  // Selbe queryKey/queryFn wie in App.tsx -> nutzt denselben react-query-Cache, kein Doppel-Fetch.
+  const { data: tournaments = [] } = useQuery<Tournament[]>({ queryKey: ['tournaments'], queryFn: getTournaments });
+  const tournament = tournaments.find(t => t.id === tid) || null;
 
-  const [dayDraft, setDayDraft] = useState<{ date: string; label: string; templateId: string }>({ date: '', label: 'Turnier', templateId: '' });
+  // Auswahl beschränkt sich auf die tatsächlichen Turniertage (Stammdaten: startDate–endDate),
+  // bereits angelegte Tage werden als belegt markiert statt doppelt anlegbar zu sein.
+  const availableDates = useMemo(() => tournamentDateRange(tournament), [tournament]);
+  const usedDates = useMemo(() => new Set(days.map(d => toDateOnly(new Date(d.date)))), [days]);
+
+  const [dayDraft, setDayDraft] = useState<{ date: string; label: string; templateId: string }>({ date: '', label: '', templateId: '' });
+  // Verhindert, dass ein manuell angepasstes Label beim Vorlagenwechsel überschrieben wird.
+  const [labelTouched, setLabelTouched] = useState(false);
 
   const refreshAll = () => {
     qc.invalidateQueries({ queryKey: ['t-work-areas', tid] });
@@ -65,9 +96,17 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
       order: days.length,
       templateId: dayDraft.templateId ? Number(dayDraft.templateId) : null
     });
-    setDayDraft({ date: '', label: 'Turnier', templateId: '' });
+    setDayDraft({ date: '', label: '', templateId: '' });
+    setLabelTouched(false);
     qc.invalidateQueries({ queryKey: ['t-days', tid] });
   });
+
+  const onTemplateChange = (templateId: string) => {
+    const tmpl = templates.find(t => String(t.id) === templateId);
+    // Bezeichnung automatisch aus der Vorlage übernehmen (z. B. "Aufbautag"),
+    // aber nicht überschreiben, wenn der Nutzer sie bereits manuell angepasst hat.
+    setDayDraft(d => ({ ...d, templateId, label: (!labelTouched && tmpl) ? tmpl.name : d.label }));
+  };
 
   const removeDay = (d: TournamentDay) => guard(async () => {
     if (!(await modal.confirm({ title: 'Tag löschen', message: 'Tag inkl. Slots und daraus erzeugter Shifts löschen?', variant: 'danger' }))) return;
@@ -116,14 +155,30 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
 
       {/* Tage */}
       <section style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-        <h3 style={{ margin: '0 0 12px 0', color: '#212557' }}>📅 Turnier-Tage</h3>
+        <h3 style={{ margin: '0 0 4px 0', color: '#212557' }}>📅 Turnier-Tage</h3>
+        <p style={{ color: '#666', fontSize: 13, marginTop: 0 }}>
+          {tournament && availableDates.length > 0
+            ? <>Turnierzeitraum lt. Stammdaten: <strong>{formatDateOption(availableDates[0])} – {formatDateOption(availableDates[availableDates.length - 1])}</strong>. Wähle einen dieser Tage und optional eine Vorlage – die Bezeichnung wird daraus übernommen.</>
+            : 'Turnier wird geladen…'}
+        </p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
-          <input type="date" style={inputStyle} value={dayDraft.date} onChange={e => setDayDraft(d => ({ ...d, date: e.target.value }))} />
-          <input style={{ ...inputStyle, width: 140 }} placeholder="Label (z. B. Turnier)" value={dayDraft.label} onChange={e => setDayDraft(d => ({ ...d, label: e.target.value }))} />
-          <select style={inputStyle} value={dayDraft.templateId} onChange={e => setDayDraft(d => ({ ...d, templateId: e.target.value }))}>
+          <select style={inputStyle} value={dayDraft.date} onChange={e => setDayDraft(d => ({ ...d, date: e.target.value }))}>
+            <option value="">-- Turniertag wählen --</option>
+            {availableDates.map(dateStr => {
+              const used = usedDates.has(dateStr);
+              return (
+                <option key={dateStr} value={dateStr} disabled={used}>
+                  {formatDateOption(dateStr)}{used ? ' (bereits angelegt)' : ''}
+                </option>
+              );
+            })}
+          </select>
+          <select style={inputStyle} value={dayDraft.templateId} onChange={e => onTemplateChange(e.target.value)}>
             <option value="">-- ohne Vorlage --</option>
             {templates.filter(t => !t.isObsolete).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
+          <input style={{ ...inputStyle, width: 160 }} placeholder="Bezeichnung (aus Vorlage übernommen)" value={dayDraft.label}
+            onChange={e => { setLabelTouched(true); setDayDraft(d => ({ ...d, label: e.target.value })); }} />
           <button style={{ ...btnStyle, background: adminPrimary, color: '#fff' }} onClick={addDay}>+ Tag</button>
         </div>
 
