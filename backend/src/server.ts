@@ -92,7 +92,9 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
   try {
     await prisma.$connect();
-    console.log(`[OK] Backend läuft auf Port ${PORT} & DB verbunden`);
+    const v = process.env.APP_VERSION || 'dev';
+    const sha = process.env.GIT_SHA || 'local';
+    console.log(`[OK] Backend v${v} (${sha}) läuft auf Port ${PORT} & DB verbunden`);
   } catch (connectionError) {
     console.error('[FATAL ERROR] Datenbankverbindung fehlgeschlagen:', (connectionError as Error).message);
     process.exit(1);

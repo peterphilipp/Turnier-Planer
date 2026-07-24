@@ -11,9 +11,15 @@ RUN npm ci
 COPY frontend/ .
 RUN npm run build
 
-# ── Stage 2: Backend + Express static ──
+# 📦 Stage 2: Backend + Express static 📦
 FROM node:22-slim
 WORKDIR /app
+
+# Versionsinfos aus dem CI in die Runtime-Umgebung des Backends durchreichen
+ARG APP_VERSION="dev"
+ARG GIT_SHA="local"
+ENV APP_VERSION=$APP_VERSION
+ENV GIT_SHA=$GIT_SHA
 
 # OpenSSL (für Prisma)
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
