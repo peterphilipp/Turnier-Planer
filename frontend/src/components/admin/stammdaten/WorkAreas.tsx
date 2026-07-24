@@ -51,7 +51,7 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
         <input type="color" value={abForm.color} onChange={e => setAbForm({ ...abForm, color: e.target.value })} style={{ width: 44, height: 38, padding: 0, border: '1px solid #dee2e6', borderRadius: 8, cursor: 'pointer' }} />
         <input type="number" value={abForm.minVolunteers} onChange={e => setAbForm({ ...abForm, minVolunteers: parseInt(e.target.value) || 0 })} placeholder="Min" style={{ width: 60, padding: '10px 8px', border: '1px solid #dee2e6', borderRadius: 8 }} />
         <input type="number" value={abForm.maxVolunteers} onChange={e => setAbForm({ ...abForm, maxVolunteers: parseInt(e.target.value) || 0 })} placeholder="Max" style={{ width: 60, padding: '10px 8px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-        <button onClick={() => { apiPost('/api/work-areas', abForm); queryClient.invalidateQueries({ queryKey: ['workAreas'] }); setAbForm({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8 }); }} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>➕ Hinzufügen</button>
+        <button onClick={saveWorkArea} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>➕ Hinzufügen</button>
       </div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>

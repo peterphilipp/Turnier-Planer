@@ -88,7 +88,7 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
           <div onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, background: '#f8f9fa', borderRadius: 8, cursor: 'pointer', border: showEmojiPicker ? '2px solid #0d6efd' : '1px solid #dee2e6', userSelect: 'none' }} title="Emoji auswählen">{foodCatForm.icon}</div>
           <input value={foodCatForm.name} onChange={e => setFoodCatForm(f => ({ ...f, name: e.target.value }))} placeholder="Kategoriename" style={{ flex: 1, minWidth: 200, padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
-          <button onClick={() => { apiPost('/api/food/categories', foodCatForm); queryClient.invalidateQueries({ queryKey: ['foodCategories'] }); setFoodCatForm({ name: '', icon: '🍽️', order: 0 }); }} style={{ padding: '14px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, minHeight: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
+          <button onClick={saveFoodCategory} style={{ padding: '14px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, minHeight: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
             <span>➕</span><span>Hinzufügen</span>
           </button>
         </div>
@@ -146,7 +146,7 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
           <select value={foodItemForm.unit} onChange={e => setFoodItemForm(f => ({ ...f, unit: e.target.value }))} style={{ padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }}>
             <option value="Stk">Stk</option><option value="kg">kg</option><option value="L">L</option><option value="Tüte">Tüte</option><option value="Set">Set</option>
           </select>
-          <button onClick={() => { apiPost('/api/food/items', foodItemForm); queryClient.invalidateQueries({ queryKey: ['foodItems'] }); setFoodItemForm({ categoryId: 0, name: '', price: '', unit: 'Stk' }); }} style={{ padding: '14px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, minHeight: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
+          <button onClick={saveFoodItem} style={{ padding: '14px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, minHeight: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
             <span>➕</span><span>Hinzufügen</span>
           </button>
         </div>

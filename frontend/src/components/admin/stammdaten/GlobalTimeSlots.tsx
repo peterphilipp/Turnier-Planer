@@ -41,7 +41,7 @@ export default function GlobalTimeSlots({ adminPrimary }: { adminPrimary: string
         <input type="time" value={zsForm.endTime} onChange={e => setZsForm({ ...zsForm, endTime: e.target.value })} style={{ padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
         <input type="color" value={zsForm.color} onChange={e => setZsForm({ ...zsForm, color: e.target.value })} style={{ width: 48, height: 44, padding: 0, border: '1px solid #dee2e6', borderRadius: 8, cursor: 'pointer' }} />
         <input type="number" value={zsForm.order} onChange={e => setZsForm({ ...zsForm, order: parseInt(e.target.value) || 1 })} placeholder="Reihenfolge" style={{ width: 90, padding: '14px 8px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
-        <button onClick={() => { apiPost('/api/global-time-slots', zsForm); queryClient.invalidateQueries({ queryKey: ['globalTimeSlots'] }); setZsForm({ name: '', startTime: '09:00', endTime: '10:00', color: '#3b98f8', order: 1 }); }} style={{ padding: '14px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, minHeight: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
+        <button onClick={saveGlobalTimeSlot} style={{ padding: '14px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, minHeight: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
           <span>➕</span><span>Hinzufügen</span>
         </button>
       </div>
