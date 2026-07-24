@@ -44,8 +44,16 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
   };
 
   const sync = () => guard(async () => {
-    await syncTournamentWorkAreas(tid);
+    const before = areas.length;
+    const result = await syncTournamentWorkAreas(tid);
     qc.invalidateQueries({ queryKey: ['t-work-areas', tid] });
+    const added = result.length - before;
+    await modal.alert({
+      title: 'Katalog übernommen',
+      message: added > 0
+        ? `${added} neue(r) Arbeitsbereich(e) übernommen (${result.length} insgesamt aktiv).`
+        : `Bereits alle ${result.length} Arbeitsbereiche übernommen – nichts Neues gefunden.`
+    });
   });
 
   const addDay = () => guard(async () => {
