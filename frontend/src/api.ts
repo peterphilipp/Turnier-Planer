@@ -53,10 +53,21 @@ export const apiFetch = async (url: string, options?: RequestInit): Promise<any>
 
     let errorMsg = 'Ein Fehler ist aufgetreten';
     try {
-      const errorData = await res.json();
-      errorMsg = errorData.error || errorData.message || errorMsg;
+      const text = await res.text();
+      try {
+        const errorData = JSON.parse(text);
+        errorMsg = errorData.error || errorData.message || errorMsg;
+        if (errorData.details) {
+          errorMsg += ' - ' + JSON.stringify(errorData.details);
+        }
+      } catch (e) {
+        // Fallback to text if not JSON
+        if (text) {
+          errorMsg = `Server Response: ${text.substring(0, 100)}`;
+        }
+      }
     } catch (e) {
-      // Nicht JSON – bleibe bei Standard-Nachricht
+      // Ignore text read error
     }
     throw new ApiError(errorMsg, res.status);
   }
