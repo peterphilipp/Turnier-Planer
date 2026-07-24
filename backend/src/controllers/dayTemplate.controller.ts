@@ -21,8 +21,10 @@ export const listDayTemplates = async (_req: Request, res: Response) => {
   const templates = await prisma.globalDayTemplate.findMany({
     orderBy: { name: 'asc' },
     include: {
+      // Immer chronologisch sortiert – ein neu in der Mitte eingefügter Slot
+      // erscheint an der richtigen zeitlichen Position, nicht am Ende.
       slots: {
-        orderBy: { order: 'asc' },
+        orderBy: [{ startMin: 'asc' }, { endMin: 'asc' }, { id: 'asc' }],
         include: { workAreas: { orderBy: { order: 'asc' }, include: { workArea: true } } }
       }
     }

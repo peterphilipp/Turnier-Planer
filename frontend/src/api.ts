@@ -175,3 +175,4 @@ export const addDaySlot = (data: any) => apiPost('/api/day-slots', data);
 export const updateDaySlot = (id: number, data: any) => apiPatch(`/api/day-slots/${id}`, data);
 export const deleteDaySlot = (id: number) => apiDelete(`/api/day-slots/${id}`);
 export const generateShifts = (tid: number) => apiPost('/api/tournament-days/generate-shifts', { tournamentId: tid });
+export const clearShifts = (tid: number) => apiPost('/api/tournament-days/clear-shifts', { tournamentId: tid });

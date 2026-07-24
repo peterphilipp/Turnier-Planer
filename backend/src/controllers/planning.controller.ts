@@ -82,7 +82,9 @@ export const listTournamentDays = async (req: Request, res: Response) => {
   const days = await prisma.tournamentDay.findMany({
     where: { tournamentId },
     orderBy: [{ order: 'asc' }, { date: 'asc' }],
-    include: { slots: { orderBy: { order: 'asc' } } }
+    // Chronologisch sortiert (siehe listDayTemplates) – ein mittig eingefügter
+    // Slot erscheint an seiner zeitlichen Position.
+    include: { slots: { orderBy: [{ startMin: 'asc' }, { endMin: 'asc' }, { id: 'asc' }] } }
   });
   return res.json(days);
 };
@@ -95,16 +97,21 @@ export const createTournamentDay = async (req: Request, res: Response) => {
       data: { tournamentId, date: new Date(date), label: label ?? null, order: order ?? 0, sourceTemplateId: templateId ?? null }
     });
     if (templateId) {
-      const slots = await tx.globalDaySlot.findMany({ where: { templateId }, orderBy: { order: 'asc' } });
+      const slots = await tx.globalDaySlot.findMany({ where: { templateId }, orderBy: [{ startMin: 'asc' }] });
       if (slots.length) {
         await tx.daySlot.createMany({
-          data: slots.map(s => ({ tournamentDayId: d.id, startMin: s.startMin, endMin: s.endMin, label: s.label, color: s.color, order: s.order }))
+          data: slots.map(s => ({
+            tournamentDayId: d.id, startMin: s.startMin, endMin: s.endMin, label: s.label, color: s.color, order: s.order,
+            // Herkunft merken: generateShifts nutzt dies, um nur Areas zu erzeugen,
+            // die im Katalog-Slot der Vorlage tatsächlich vorgesehen sind.
+            sourceGlobalSlotId: s.id
+          }))
         });
       }
     }
     return d;
   });
-  const full = await prisma.tournamentDay.findUnique({ where: { id: day.id }, include: { slots: { orderBy: { order: 'asc' } } } });
+  const full = await prisma.tournamentDay.findUnique({ where: { id: day.id }, include: { slots: { orderBy: [{ startMin: 'asc' }, { endMin: 'asc' }, { id: 'asc' }] } } });
   return res.status(201).json(full);
 };
 
@@ -145,9 +152,21 @@ export const deleteDaySlot = async (req: Request, res: Response) => {
 
 // ==================== Shift-Generierung ====================
 /**
- * Erzeugt Shifts aus (Tag × Slot × aktive Area), gefiltert nach Betriebszeiten.
- * Idempotent (überspringt bereits existierende Kombinationen) und transaktional;
- * bestehende Shifts inkl. Helfer-Zuweisungen bleiben unangetastet.
+ * Erzeugt Shifts aus (Tag × Slot × Area), aber NUR fuer Kombinationen, die die
+ * zugrundeliegende Tag-Vorlage fuer diesen Slot auch tatsaechlich vorsieht
+ * (GlobalDaySlotWorkArea). Ein aktiver Turnier-Arbeitsbereich, der in KEINER
+ * Vorlage einem Slot zugeordnet ist, wird NICHT automatisch irgendwo
+ * eingefuegt - er erscheint stattdessen in `orphanedActiveAreas`, damit der
+ * Admin bewusst entscheidet (Vorlage ergaenzen oder Bereich fuers Turnier
+ * deaktivieren).
+ *
+ * Fuer manuell angelegte Slots ohne Vorlagen-Herkunft (sourceGlobalSlotId
+ * null) gibt es keine Katalog-Einschraenkung - dort zaehlt weiterhin nur der
+ * Betriebszeiten-Filter.
+ *
+ * Idempotent (ueberspringt bereits existierende Kombinationen) und
+ * transaktional; bestehende Shifts inkl. Helfer-Zuweisungen bleiben
+ * unangetastet.
  */
 export const generateShifts = async (req: Request, res: Response) => {
   const tournamentId = Number(req.body.tournamentId);
@@ -162,13 +181,39 @@ export const generateShifts = async (req: Request, res: Response) => {
     });
     const seen = new Set(existing.map(e => `${e.tournamentDayId}-${e.daySlotId}-${e.tournamentWorkAreaId}`));
 
+    // Katalog-Zuordnungen (welche WorkArea gehört laut Vorlage zu welchem Slot?) vorladen.
+    const catalogSlotIds = [...new Set(days.flatMap(d => d.slots.map(s => s.sourceGlobalSlotId).filter((id): id is number => id != null)))];
+    const catalogLinks = catalogSlotIds.length
+      ? await tx.globalDaySlotWorkArea.findMany({ where: { globalSlotId: { in: catalogSlotIds } } })
+      : [];
+    const allowedByCatalogSlot = new Map<number, Set<number>>();
+    for (const link of catalogLinks) {
+      if (!allowedByCatalogSlot.has(link.globalSlotId)) allowedByCatalogSlot.set(link.globalSlotId, new Set());
+      allowedByCatalogSlot.get(link.globalSlotId)!.add(link.workAreaId);
+    }
+
+    // Nur relevant, wenn JEDER Slot des Turniers eine Vorlagen-Herkunft hat – bei
+    // manuell angelegten Slots (kein Katalog) ist "orphan" nicht aussagekräftig.
+    const allSlotsHaveTemplate = days.every(d => d.slots.every(s => s.sourceGlobalSlotId != null));
+    const usedCatalogWorkAreaIds = new Set<number>();
+
     const toCreate: { tournamentId: number; tournamentDayId: number; daySlotId: number; tournamentWorkAreaId: number; minVolunteers: number; maxVolunteers: number }[] = [];
     for (const day of days) {
       for (const slot of day.slots) {
+        const allowedCatalogAreaIds = slot.sourceGlobalSlotId != null ? allowedByCatalogSlot.get(slot.sourceGlobalSlotId) : null;
+
         for (const area of areas) {
+          // Vorlagen-Filter: Bei Slots mit Katalog-Herkunft nur Areas erzeugen,
+          // die dort auch zugeordnet sind. Slots ohne Herkunft sind uneingeschränkt.
+          if (allowedCatalogAreaIds) {
+            if (!area.sourceWorkAreaId || !allowedCatalogAreaIds.has(area.sourceWorkAreaId)) continue;
+            usedCatalogWorkAreaIds.add(area.sourceWorkAreaId);
+          }
+
           // Betriebszeiten-Filter: Area muss den ganzen Slot abdecken
           if (area.operatingStartMin != null && area.operatingStartMin > slot.startMin) continue;
           if (area.operatingEndMin != null && area.operatingEndMin < slot.endMin) continue;
+
           const key = `${day.id}-${slot.id}-${area.id}`;
           if (seen.has(key)) continue;
           toCreate.push({
@@ -183,7 +228,30 @@ export const generateShifts = async (req: Request, res: Response) => {
       }
     }
     if (toCreate.length) await tx.shift.createMany({ data: toCreate });
-    return { created: toCreate.length, existing: existing.length };
+
+    const orphanedActiveAreas = allSlotsHaveTemplate
+      ? areas.filter(a => a.sourceWorkAreaId && !usedCatalogWorkAreaIds.has(a.sourceWorkAreaId)).map(a => a.name)
+      : [];
+
+    return { created: toCreate.length, existing: existing.length, orphanedActiveAreas };
+  });
+
+  return res.json({ success: true, ...result });
+};
+
+/**
+ * Loescht alle generierten Shifts (inkl. daraus resultierender Helfer-
+ * Zuweisungen) fuer ein Turnier, um die Planung neu zu konfigurieren.
+ */
+export const clearShifts = async (req: Request, res: Response) => {
+  const tournamentId = Number(req.body.tournamentId);
+  if (!tournamentId) return res.status(400).json({ error: 'tournamentId erforderlich' });
+
+  const result = await prisma.$transaction(async (tx) => {
+    const shiftCount = await tx.shift.count({ where: { tournamentId } });
+    const volunteerShiftCount = await tx.volunteerShift.count({ where: { shift: { tournamentId } } });
+    await tx.shift.deleteMany({ where: { tournamentId } }); // kaskadiert VolunteerShift
+    return { deletedShifts: shiftCount, deletedVolunteerShifts: volunteerShiftCount };
   });
 
   return res.json({ success: true, ...result });

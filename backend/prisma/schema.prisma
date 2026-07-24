@@ -288,15 +288,16 @@ model TournamentDay {
 }
 
 model DaySlot {
-  id              Int           @id @default(autoincrement())
-  tournamentDayId Int           @map("tournament_day_id")
-  startMin        Int           @map("start_min")
-  endMin          Int           @map("end_min")
-  label           String?
-  color           String        @default("#3b98f8")
-  order           Int           @default(0)
-  day             TournamentDay @relation(fields: [tournamentDayId], references: [id], onDelete: Cascade)
-  shifts          Shift[]
+  id                Int           @id @default(autoincrement())
+  tournamentDayId   Int           @map("tournament_day_id")
+  startMin          Int           @map("start_min")
+  endMin            Int           @map("end_min")
+  label             String?
+  color             String        @default("#3b98f8")
+  order             Int           @default(0)
+  sourceGlobalSlotId Int?         @map("source_global_slot_id")
+  day               TournamentDay @relation(fields: [tournamentDayId], references: [id], onDelete: Cascade)
+  shifts            Shift[]
 
   @@index([tournamentDayId])
   @@map("day_slots")

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getTournamentWorkAreas, syncTournamentWorkAreas, updateTournamentWorkArea,
   getTournamentDays, createTournamentDay, deleteTournamentDay,
-  getDayTemplates, generateShifts, getShifts, getTournaments
+  getDayTemplates, generateShifts, clearShifts, getShifts, getTournaments
 } from '../../../api';
 import { modal } from '../Modal';
 import { btnStyle, inputStyle, minToTime, tdStyle, thStyle } from '../shared';
@@ -112,7 +112,23 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
 
   const doGenerate = () => guard(async () => {
     const res = await generateShifts(tid);
-    await modal.alert({ title: 'Fertig', message: `${res.created} neue Schicht(en) erzeugt (${res.existing} bereits vorhanden).` });
+    const orphans: string[] = res.orphanedActiveAreas || [];
+    const orphanNote = orphans.length > 0
+      ? `\n\n⚠️ Aktiv, aber in keiner Tagesvorlage vorgesehen (keine Schichten erzeugt): ${orphans.join(', ')}. Ordne sie in „Tag-Vorlagen" einem Slot zu oder deaktiviere sie oben unter „Arbeitsbereiche dieses Turniers".`
+      : '';
+    await modal.alert({ title: 'Fertig', message: `${res.created} neue Schicht(en) erzeugt (${res.existing} bereits vorhanden).${orphanNote}` });
+    qc.invalidateQueries({ queryKey: ['shifts', tid] });
+  });
+
+  const doClear = () => guard(async () => {
+    const volunteerAssignments = shifts.length; // grober Hinweis vor dem Server-Call; exakte Zahl kommt in der Antwort
+    if (!(await modal.confirm({
+      title: 'Schichten löschen',
+      message: `Alle generierten Schichten dieses Turniers löschen (${volunteerAssignments} Stück), um sie neu zu konfigurieren? Bereits vorgenommene Helferzuweisungen gehen dabei verloren.`,
+      variant: 'danger'
+    }))) return;
+    const res = await clearShifts(tid);
+    await modal.alert({ title: 'Gelöscht', message: `${res.deletedShifts} Schicht(en) und ${res.deletedVolunteerShifts} Helferzuweisung(en) entfernt.` });
     qc.invalidateQueries({ queryKey: ['shifts', tid] });
   });
 
@@ -198,6 +214,9 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
           <h3 style={{ margin: 0, color: '#212557' }}>🧩 Schichtplan</h3>
           <span style={{ flex: 1 }} />
+          {shifts.length > 0 && (
+            <button style={{ ...btnStyle, background: '#f8d7da', color: '#842029' }} onClick={doClear}>Schichten löschen</button>
+          )}
           <button style={{ ...btnStyle, background: '#0d6efd', color: '#fff' }} onClick={doGenerate}>Shifts generieren</button>
         </div>
         {shifts.length === 0 && <p style={{ color: '#888' }}>Noch keine Shifts. Lege Tage + Bereiche an und klicke „Shifts generieren".</p>}
