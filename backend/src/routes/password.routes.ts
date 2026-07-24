@@ -166,26 +166,32 @@ router.post('/login', async (req, res, next) => {
       include: { children: true }
     });
     
-    if (!user || !user.password) {
-      logLoginFailed(identifier, 'Konto nicht gefunden', ip);
-      return res.status(401).json({ error: 'Ungültige Anmeldedaten' });
-    }
+    if (!user) {
+        logLoginFailed(identifier, 'Benutzer nicht gefunden', getClientIp(req) || '');
+        return res.status(401).json({ error: 'Benutzer nicht gefunden' });
+      }
 
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) {
-      logLoginFailed(identifier, 'Falsches Passwort', ip);
-      return res.status(401).json({ error: 'Ungültige Anmeldedaten' });
-    }
+      const match = await bcrypt.compare(password, user.password || '');
+      if (!match) {
+        logLoginFailed(identifier, 'Falsches Passwort', getClientIp(req) || '');
+        return res.status(401).json({ error: 'Falsches Passwort' });
+      }
 
-    logLoginSuccess(user.email || identifier, ip);
-    
-    // Rolle aus DB laden (Fallback für alte Daten)
-    const userRole = typeof user.role === 'string' && ['HELPER', 'ORGANIZER', 'ADMIN'].includes(user.role)
-      ? user.role
-      : 'HELPER';
-    
-    const token = jwt.sign({ userId: user.id, role: userRole }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user });
+      logLoginSuccess(user.email || identifier, getClientIp(req));
+      
+      // Admin-Rechte dynamisch forcieren, falls die Umgebungsvariable gesetzt ist
+      const adminEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.toLowerCase().split(',').map(e => e.trim()) : [];
+      let userRole = typeof user.role === 'string' && ['HELPER', 'ORGANIZER', 'ADMIN'].includes(user.role) ? user.role : 'HELPER';
+      
+      if (user.email && adminEmails.includes(user.email.toLowerCase()) && userRole !== 'ADMIN') {
+        userRole = 'ADMIN';
+        // Optional in DB aktualisieren, damit es dauerhaft bleibt
+        await prisma.user.update({ where: { id: user.id }, data: { role: 'ADMIN' } });
+        user.role = 'ADMIN';
+      }
+
+      const token = jwt.sign({ userId: user.id, role: userRole }, JWT_SECRET, { expiresIn: '30d' });
+      res.json({ token, user });
   } catch (err) {
     next(err);
   }
@@ -412,6 +418,10 @@ router.post('/register', async (req, res, next) => {
     const existing = await prisma.user.findFirst({ where: { email } });
     if (existing) return res.status(409).json({ error: 'Email wird bereits verwendet' });
 
+    // Admin-Berechtigungen robuster machen: Über Umgebungsvariable oder als allererster Nutzer
+    const adminEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.toLowerCase().split(',').map(e => e.trim()) : [];
+    const isForcedAdmin = adminEmails.includes(email.toLowerCase());
+
     // Aktives Turnier automatisch zuweisen
     const activeTournament = await prisma.tournament.findFirst({
       where: { status: 'aktiv' },
@@ -428,7 +438,7 @@ router.post('/register', async (req, res, next) => {
       email,
       phone,
       password: hashed,
-      role: isFirstAdmin ? 'ADMIN' : 'HELPER',
+      role: (isFirstAdmin || isForcedAdmin) ? 'ADMIN' : 'HELPER',
       tournamentId: activeTournament?.id || null,
       consentGiven: true,
       consentDate: new Date()
