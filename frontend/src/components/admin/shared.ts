@@ -86,6 +86,23 @@ export const shadeColor = (color: string, percent: number) => {
 
 export const statusBadge = (status: string) => status === 'aktiv' ? '🟢' : status === 'beendet' ? '🟡' : '⚪';
 
+// Zeit-Helfer: Minuten seit Mitternacht <-> "HH:MM"
+export const minToTime = (m: number): string =>
+  `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+export const timeToMin = (t: string): number => {
+  const [h, m] = (t || '').split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+// ---- Tag-/Slot-System (Etappe 3) ----
+export interface GlobalDaySlotWorkArea { id: number; workAreaId: number; order: number; workArea?: WorkArea; }
+export interface GlobalDaySlot { id: number; templateId: number; startMin: number; endMin: number; label: string | null; color: string; order: number; workAreas?: GlobalDaySlotWorkArea[]; }
+export interface GlobalDayTemplate { id: number; name: string; isObsolete: boolean; slots?: GlobalDaySlot[]; }
+export interface TournamentWorkArea { id: number; tournamentId: number; sourceWorkAreaId: number | null; name: string; icon: string; color: string; minVolunteers: number; maxVolunteers: number; operatingStartMin: number | null; operatingEndMin: number | null; active: boolean; }
+export interface DaySlot { id: number; tournamentDayId: number; startMin: number; endMin: number; label: string | null; color: string; order: number; }
+export interface TournamentDay { id: number; tournamentId: number; date: string; order: number; label: string | null; sourceTemplateId: number | null; slots?: DaySlot[]; }
+export interface PlanningShift { id: number; tournamentId: number; tournamentDayId: number; daySlotId: number; tournamentWorkAreaId: number; minVolunteers: number; maxVolunteers: number; day?: TournamentDay; daySlot?: DaySlot; workArea?: TournamentWorkArea; }
+
 export interface Tournament {
   id: number;
   name: string;

@@ -8,13 +8,13 @@ import Privacy from './components/Privacy';
 
 import Turniere from './components/admin/stammdaten/Turniere';
 import WorkAreas from './components/admin/stammdaten/WorkAreas';
-import GlobalTimeSlots from './components/admin/stammdaten/GlobalTimeSlots';
+import GlobalDayTemplates from './components/admin/stammdaten/GlobalDayTemplates';
 import Helfer from './components/admin/stammdaten/Helfer';
 import Vereine from './components/admin/stammdaten/Vereine';
 import Lebensmittel from './components/admin/stammdaten/Lebensmittel';
 import Jahrgaenge from './components/admin/stammdaten/Jahrgaenge';
 
-import Jobslots from './components/admin/organisation/Jobslots';
+import TournamentDays from './components/admin/organisation/TournamentDays';
 import Uebersicht from './components/admin/organisation/Uebersicht';
 import Spielplan from './components/admin/organisation/Spielplan';
 import FoodDonationSlots from './components/admin/organisation/FoodDonationSlots';
@@ -320,7 +320,7 @@ function AdminView() {
         <nav style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
           {[
             { key: 'uebersicht' as OrgTab, icon: '📊', label: 'Übersicht' },
-            { key: 'jobslots' as OrgTab, icon: '⏱️', label: 'Job-Slots' },
+            { key: 'jobslots' as OrgTab, icon: '🧩', label: 'Helfer-Planung' },
             { key: 'food-donation-slots' as OrgTab, icon: '🍰', label: 'Verpflegung' }
           ].map(tab => (
             <button key={tab.key} onClick={() => setActiveOrgTab(tab.key)}
@@ -333,7 +333,7 @@ function AdminView() {
 
       {activeMainTab === 'stammdaten' && (
         <nav style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-          {[{ key: 'turniere' as StammTab, icon: '🏆', label: 'Turniere' }, { key: 'vereine' as StammTab, icon: '🛡️', label: 'Vereine' }, { key: 'work-areas' as StammTab, icon: '📍', label: 'Arbeitsbereiche' }, { key: 'global-time-slots' as StammTab, icon: '⏰', label: 'Zeitslots' }, { key: 'helfer' as StammTab, icon: '👤', label: 'Benutzer' }, { key: 'jahrgaenge' as StammTab, icon: '👶', label: 'Jahrgänge' }, { key: 'lebensmittel' as StammTab, icon: '🍔', label: 'Lebensmittel' }].map(tab => (
+          {[{ key: 'turniere' as StammTab, icon: '🏆', label: 'Turniere' }, { key: 'vereine' as StammTab, icon: '🛡️', label: 'Vereine' }, { key: 'work-areas' as StammTab, icon: '📍', label: 'Arbeitsbereiche' }, { key: 'global-time-slots' as StammTab, icon: '📅', label: 'Tag-Vorlagen' }, { key: 'helfer' as StammTab, icon: '👤', label: 'Benutzer' }, { key: 'jahrgaenge' as StammTab, icon: '👶', label: 'Jahrgänge' }, { key: 'lebensmittel' as StammTab, icon: '🍔', label: 'Lebensmittel' }].map(tab => (
             <button key={tab.key} onClick={() => setActiveStammTab(tab.key)} style={{ padding: '12px 16px', cursor: 'pointer', background: activeStammTab === tab.key ? '#6c757d' : '#e9ecef', color: activeStammTab === tab.key ? '#fff' : '#000', border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>{tab.icon}</span><span>{tab.label}</span>
             </button>
@@ -351,13 +351,13 @@ function AdminView() {
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan-ko' && <Spielplan tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} phase="ko" />}
         
         {activeMainTab === 'organisation' && activeOrgTab === 'uebersicht' && <Uebersicht selectedTournament={selectedTournamentId} />}
-        {activeMainTab === 'organisation' && activeOrgTab === 'jobslots' && <Jobslots selectedTournament={selectedTournamentId} tournament={tournaments.find(t => t.id === selectedTournamentId) || null} adminPrimary="#198754" />}
+        {activeMainTab === 'organisation' && activeOrgTab === 'jobslots' && <TournamentDays selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
         {activeMainTab === 'organisation' && activeOrgTab === 'food-donation-slots' && <FoodDonationSlots selectedTournament={selectedTournamentId} tournament={tournaments.find(t => t.id === selectedTournamentId) || null} adminPrimary="#198754" />}
 
         {activeMainTab === 'stammdaten' && activeStammTab === 'turniere' && <Turniere adminPrimary="#6c757d" adminSecondary="#adb5bd" />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'vereine' && <Vereine adminPrimary="#6c757d" />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'work-areas' && <WorkAreas adminPrimary="#6c757d" />}
-        {activeMainTab === 'stammdaten' && activeStammTab === 'global-time-slots' && <GlobalTimeSlots adminPrimary="#6c757d" />}
+        {activeMainTab === 'stammdaten' && activeStammTab === 'global-time-slots' && <GlobalDayTemplates adminPrimary="#6c757d" />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'helfer' && <Helfer adminPrimary="#6c757d" tournamentId={selectedTournamentId} />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'jahrgaenge' && <Jahrgaenge adminPrimary="#6c757d" />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'lebensmittel' && <Lebensmittel adminPrimary="#6c757d" />}

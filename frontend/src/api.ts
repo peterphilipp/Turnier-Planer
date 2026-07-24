@@ -144,5 +144,34 @@ export const apiPut = (url: string, data: any) =>
 export const apiDelete = (url: string) => 
   apiFetch(url, { method: 'DELETE' });
 
-export const getDeleteImpact = (type: string, id: number) => 
+export const getDeleteImpact = (type: string, id: number) =>
   apiFetch(`/api/impact/${type}/${id}`);
+
+// ===================== Tag-/Slot-System (Etappe 3) =====================
+// Katalog (Tag-Vorlagen)
+export const getDayTemplates = () => apiFetch('/api/day-templates');
+export const createDayTemplate = (name: string) => apiPost('/api/day-templates', { name });
+export const updateDayTemplate = (id: number, data: any) => apiPatch(`/api/day-templates/${id}`, data);
+export const deleteDayTemplate = (id: number) => apiDelete(`/api/day-templates/${id}`);
+export const addTemplateSlot = (data: any) => apiPost('/api/day-templates/slots', data);
+export const updateTemplateSlot = (id: number, data: any) => apiPatch(`/api/day-templates/slots/${id}`, data);
+export const deleteTemplateSlot = (id: number) => apiDelete(`/api/day-templates/slots/${id}`);
+export const setSlotWorkAreas = (slotId: number, workAreaIds: number[]) =>
+  apiPut(`/api/day-templates/slots/${slotId}/work-areas`, { workAreaIds });
+
+// Turnier-Work-Areas (Snapshot)
+export const getTournamentWorkAreas = (tid: number | null) =>
+  tid ? apiFetch(`/api/tournament-work-areas?tournamentId=${tid}`) : Promise.resolve([]);
+export const syncTournamentWorkAreas = (tid: number) => apiPost('/api/tournament-work-areas/sync', { tournamentId: tid });
+export const updateTournamentWorkArea = (id: number, data: any) => apiPatch(`/api/tournament-work-areas/${id}`, data);
+
+// Turnier-Tage + Slots
+export const getTournamentDays = (tid: number | null) =>
+  tid ? apiFetch(`/api/tournament-days?tournamentId=${tid}`) : Promise.resolve([]);
+export const createTournamentDay = (data: any) => apiPost('/api/tournament-days', data);
+export const updateTournamentDay = (id: number, data: any) => apiPatch(`/api/tournament-days/${id}`, data);
+export const deleteTournamentDay = (id: number) => apiDelete(`/api/tournament-days/${id}`);
+export const addDaySlot = (data: any) => apiPost('/api/day-slots', data);
+export const updateDaySlot = (id: number, data: any) => apiPatch(`/api/day-slots/${id}`, data);
+export const deleteDaySlot = (id: number) => apiDelete(`/api/day-slots/${id}`);
+export const generateShifts = (tid: number) => apiPost('/api/tournament-days/generate-shifts', { tournamentId: tid });
