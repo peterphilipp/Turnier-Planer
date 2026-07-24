@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { modal } from './admin/Modal';
 import { inputStyle, btnStyle } from './admin/shared';
 import { useUser } from '../context/UserContext';
+import { apiFetch, apiPost, apiPatch, apiDelete } from '../api';
 
 interface Shift {
   id: number; date: string; slot: string;
@@ -91,28 +92,8 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
         if (vol?.tournamentId) {
           fetchClubColors(vol.tournamentId);
         }
-        fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + savedToken } })
-          .then(r => r.ok ? r.json() : Promise.resolve(null))
-          .then(d => { 
-            if (d) { 
-              setShifts(d.shifts); 
-              setVolunteerShifts(d.volunteerShifts); 
-              if (d.tournament) {
-                setTournament(d.tournament);
-                setTournamentName(d.tournament.name || '');
-                setHasSponsor(d.tournament.hasSponsor || false);
-                setSponsorName(d.tournament.sponsorName || null);
-                setSponsorUrl(d.tournament.sponsorUrl || null);
-                setSponsorLogo(d.tournament.logo || null);
-                if (d.tournament.club) {
-                  setClubPrimary(d.tournament.club.primaryColor || '#0d6efd');
-                  setClubSecondary(d.tournament.club.secondaryColor || '#6c757d');
-                  setClubAccent(d.tournament.club.accentColor || '#198754');
-                  setClubLogo(d.tournament.club.logo || null);
-                }
-              }
-            } 
-          })
+        apiFetch('/api/self/available', { headers: { Authorization: 'Bearer ' + savedToken } })
+          .then(d => applyAvailableData(d))
           .catch(() => {});
       } catch {
         localStorage.removeItem('token');
@@ -123,35 +104,47 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
 
   const fetchClubColors = async (tournamentId: number) => {
     try {
-      const res = await fetch('/api/tournaments/' + tournamentId);
-      if (res.ok) {
-        const t = await res.json();
-        if (t?.club) {
-          setClubPrimary(t.club.primaryColor || '#0d6efd');
-          setClubSecondary(t.club.secondaryColor || '#6c757d');
-          setClubAccent(t.club.accentColor || '#198754');
-          setClubLogo(t.club.logo || null);
-        }
-        if (t?.name) setTournamentName(t.name);
-        setHasSponsor(t?.hasSponsor || false);
-        setSponsorName(t?.sponsorName || null);
-        setSponsorUrl(t?.sponsorUrl || null);
-        setSponsorLogo(t?.logo || null);
+      const t = await apiFetch('/api/tournaments/' + tournamentId);
+      if (t?.club) {
+        setClubPrimary(t.club.primaryColor || '#0d6efd');
+        setClubSecondary(t.club.secondaryColor || '#6c757d');
+        setClubAccent(t.club.accentColor || '#198754');
+        setClubLogo(t.club.logo || null);
       }
+      if (t?.name) setTournamentName(t.name);
+      setHasSponsor(t?.hasSponsor || false);
+      setSponsorName(t?.sponsorName || null);
+      setSponsorUrl(t?.sponsorUrl || null);
+      setSponsorLogo(t?.logo || null);
     } catch (e) {
       console.error('fetchClubColors error:', e);
     }
   };
 
+  /** Übernimmt die Antwort von /api/self/available in den lokalen State. */
+  const applyAvailableData = (d: any) => {
+    if (!d) return;
+    setShifts(d.shifts);
+    setVolunteerShifts(d.volunteerShifts);
+    if (d.tournament) {
+      setTournament(d.tournament);
+      setTournamentName(d.tournament.name || '');
+      setHasSponsor(d.tournament.hasSponsor || false);
+      setSponsorName(d.tournament.sponsorName || null);
+      setSponsorUrl(d.tournament.sponsorUrl || null);
+      setSponsorLogo(d.tournament.logo || null);
+      if (d.tournament.club) {
+        setClubPrimary(d.tournament.club.primaryColor || '#0d6efd');
+        setClubSecondary(d.tournament.club.secondaryColor || '#6c757d');
+        setClubAccent(d.tournament.club.accentColor || '#198754');
+        setClubLogo(d.tournament.club.logo || null);
+      }
+    }
+  };
+
   const login = async () => {
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
-      });
-      if (!res.ok) { const err = await res.json(); await modal.alert({ title: 'Fehler', message: err.error }); return; }
-      const data = await res.json();
+      const data = await apiPost('/api/auth/login', { email: loginEmail, password: loginPassword });
       contextLogin(data.token, data.user || data.volunteer);
       setLoginEmail('');
       setLoginPassword('');
@@ -159,27 +152,11 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
       if (vol?.tournamentId) {
         fetchClubColors(vol.tournamentId);
       }
-      const res2 = await fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + data.token } });
-      if (res2.ok) { 
-        const data2 = await res2.json(); 
-        setShifts(data2.shifts); 
-        setVolunteerShifts(data2.volunteerShifts); 
-        if (data2.tournament) {
-          setTournament(data2.tournament);
-          setTournamentName(data2.tournament.name || '');
-          setHasSponsor(data2.tournament.hasSponsor || false);
-          setSponsorName(data2.tournament.sponsorName || null);
-          setSponsorUrl(data2.tournament.sponsorUrl || null);
-          setSponsorLogo(data2.tournament.logo || null);
-          if (data2.tournament.club) {
-            setClubPrimary(data2.tournament.club.primaryColor || '#0d6efd');
-            setClubSecondary(data2.tournament.club.secondaryColor || '#6c757d');
-            setClubAccent(data2.tournament.club.accentColor || '#198754');
-            setClubLogo(data2.tournament.club.logo || null);
-          }
-        }
-      }
-    } catch { await modal.alert({ title: 'Fehler', message: 'Login fehlgeschlagen' }); }
+      try {
+        const data2 = await apiFetch('/api/self/available', { headers: { Authorization: 'Bearer ' + data.token } });
+        applyAvailableData(data2);
+      } catch { /* Verfügbarkeitsdaten optional – Login trotzdem erfolgreich */ }
+    } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Login fehlgeschlagen' }); }
   };
 
   const logout = useCallback(() => {
@@ -190,61 +167,39 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   const loadAvailable = async () => {
     setBusy(true);
     try {
-      const res = await fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + ctxToken } });
-      if (res.ok) { 
-        const data = await res.json(); 
-        setShifts(data.shifts); 
-        setVolunteerShifts(data.volunteerShifts); 
-        if (data.tournament) {
-          setTournament(data.tournament);
-          setTournamentName(data.tournament.name || '');
-          setHasSponsor(data.tournament.hasSponsor || false);
-          setSponsorName(data.tournament.sponsorName || null);
-          setSponsorUrl(data.tournament.sponsorUrl || null);
-          setSponsorLogo(data.tournament.logo || null);
-          if (data.tournament.club) {
-            setClubPrimary(data.tournament.club.primaryColor || '#0d6efd');
-            setClubSecondary(data.tournament.club.secondaryColor || '#6c757d');
-            setClubAccent(data.tournament.club.accentColor || '#198754');
-            setClubLogo(data.tournament.club.logo || null);
-          }
-        }
-      }
-    } finally { setBusy(false); }
+      const data = await apiFetch('/api/self/available', { headers: { Authorization: 'Bearer ' + ctxToken } });
+      applyAvailableData(data);
+    } catch { /* stumm – z.B. wenn (noch) kein Turnier zugewiesen */ } finally { setBusy(false); }
   };
 
   const assign = async (shiftId: number, date: string) => {
     try {
-      const res = await fetch('/api/self/assign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ctxToken },
-        body: JSON.stringify({ shiftId, date }),
-      });
-      if (res.ok) { await loadAvailable(); await modal.alert({ title: 'Erfolg', message: 'Zugewiesen!' }); }
-      else { const err = await res.json(); await modal.alert({ title: 'Fehler', message: err.error }); }
-    } catch { await modal.alert({ title: 'Fehler', message: 'Fehler bei der Zuweisung' }); }
+      await apiPost('/api/self/assign', { shiftId, date });
+      await loadAvailable();
+      await modal.alert({ title: 'Erfolg', message: 'Zugewiesen!' });
+    } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler bei der Zuweisung' }); }
   };
 
   const unassign = async (id: number) => {
     if (!(await modal.confirm({ title: 'Job abmelden', message: 'Möchtest du dich von diesem Job abmelden?', variant: 'warning' }))) return;
     try {
-      const res = await fetch('/api/self/unassign/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + ctxToken } });
-      if (res.ok) { await loadAvailable(); }
-    } catch { await modal.alert({ title: 'Fehler', message: 'Fehler bei der Abmeldung' }); }
+      await apiDelete('/api/self/unassign/' + id);
+      await loadAvailable();
+    } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler bei der Abmeldung' }); }
   };
 
   const loadFood = async () => {
     try {
       const [cats, dons] = await Promise.all([
-        fetch('/api/food/categories').then(r => r.json()).catch(() => []),
-        fetch('/api/food/donations', { headers: { Authorization: 'Bearer ' + ctxToken } }).then(r => r.json()).catch(() => ({ donations: [] }))
+        apiFetch('/api/food/categories').catch(() => []),
+        apiFetch('/api/food/donations').catch(() => ({ donations: [] }))
       ]);
       setFoodCategories(cats);
       setMyDonations(dons.donations || []);
-      
+
       // Food Donation Slots laden und nach Kinder-Jahrgaengen filtern
       if (ctxVolunteer?.tournamentId) {
-        const allSlots = await fetch('/api/food-donation-slots?tournamentId=' + ctxVolunteer?.tournamentId).then(r => r.json()).catch(() => []);
+        const allSlots = await apiFetch('/api/food-donation-slots?tournamentId=' + ctxVolunteer?.tournamentId).catch(() => []);
         const childYears = ctxVolunteer?.children?.map((c: any) => c.childYear) || [];
         const relevantSlots = allSlots.filter((slot: FoodDonationSlot) => {
           if (!slot.yearGroup) return false;
@@ -263,22 +218,13 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   const submitDonation = async () => {
     if (!donationFoodId || !donationQuantity) return await modal.alert({ title: 'Hinweis', message: 'Artikel und Menge auswählen!' });
     try {
-      const res = await fetch('/api/food/donations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ctxToken },
-        body: JSON.stringify({ foodItemId: donationFoodId, quantity: parseInt(donationQuantity), note: donationNote || null }),
-      });
-      if (res.ok) {
-        await modal.alert({ title: 'Erfolg', message: 'Verpflegung eingetragen!' });
-        setDonationFoodId(0);
-        setDonationQuantity('');
-        setDonationNote('');
-        await loadFood();
-      } else {
-        const err = await res.json();
-        await modal.alert({ title: 'Fehler', message: err.error || 'Fehler' });
-      }
-    } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Eintragen' }); }
+      await apiPost('/api/food/donations', { foodItemId: donationFoodId, quantity: parseInt(donationQuantity), note: donationNote || null });
+      await modal.alert({ title: 'Erfolg', message: 'Verpflegung eingetragen!' });
+      setDonationFoodId(0);
+      setDonationQuantity('');
+      setDonationNote('');
+      await loadFood();
+    } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler beim Eintragen' }); }
   };
 
   const removeCommitment = (slotId: number) => {
@@ -292,43 +238,30 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     const qty = slotCommitments[slotId] ?? 0;
     if (qty <= 0) return await modal.alert({ title: 'Hinweis', message: 'Bitte Menge eingeben!' });
     try {
-      const res = await fetch('/api/food/donations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ctxToken },
-        body: JSON.stringify({ foodItemId: Number(foodItemId), quantity: qty, slotId }),
-      });
-      if (res.ok) {
-        await modal.alert({ title: 'Erfolg', message: 'Zusage eingetragen!' });
-        const newCommitments: Record<number, number> = {};
-        Object.entries(slotCommitments).forEach(([k, v]) => { if (Number(k) !== slotId) newCommitments[Number(k)] = v; });
-        setSlotCommitments(newCommitments);
-        await loadFood();
-      } else {
-        const err = await res.json();
-        await modal.alert({ title: 'Fehler', message: err.error || 'Fehler' });
-      }
-    } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Eintragen' }); }
+      await apiPost('/api/food/donations', { foodItemId: Number(foodItemId), quantity: qty, slotId });
+      await modal.alert({ title: 'Erfolg', message: 'Zusage eingetragen!' });
+      const newCommitments: Record<number, number> = {};
+      Object.entries(slotCommitments).forEach(([k, v]) => { if (Number(k) !== slotId) newCommitments[Number(k)] = v; });
+      setSlotCommitments(newCommitments);
+      await loadFood();
+    } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler beim Eintragen' }); }
   };
 
   const cancelDonation = async (id: number) => {
     if (!(await modal.confirm({ title: 'Eintrag löschen', message: 'Möchtest du diesen Eintrag wirklich löschen?', variant: 'danger' }))) return;
     try {
-      const res = await fetch('/api/food/donations/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + ctxToken } });
-      if (res.ok) { await loadFood(); }
-    } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Löschen' }); }
+      await apiDelete('/api/food/donations/' + id);
+      await loadFood();
+    } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler beim Löschen' }); }
   };
 
   const changePassword = async () => {
     if (!currentPassword || !newPassword) { await modal.alert({ title: 'Hinweis', message: 'Bitte beide Felder ausfüllen' }); return; }
     try {
-      const res = await fetch('/api/auth/password', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ctxToken },
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-      if (res.ok) { await modal.alert({ title: 'Erfolg', message: 'Passwort geändert!' }); setMenuOpen(false); setCurrentPassword(''); setNewPassword(''); }
-      else { const err = await res.json(); await modal.alert({ title: 'Fehler', message: err.error }); }
-    } catch { await modal.alert({ title: 'Fehler', message: 'Fehler bei der Passwort-Änderung' }); }
+      await apiPatch('/api/auth/password', { currentPassword, newPassword });
+      await modal.alert({ title: 'Erfolg', message: 'Passwort geändert!' });
+      setMenuOpen(false); setCurrentPassword(''); setNewPassword('');
+    } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler bei der Passwort-Änderung' }); }
   };
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -360,19 +293,10 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               if (resetNewPassword.length < 6) { await modal.alert({ title: 'Hinweis', message: 'Passwort muss mindestens 6 Zeichen haben' }); return; }
               if (resetNewPassword !== resetNewPasswordConfirm) { await modal.alert({ title: 'Hinweis', message: 'Passwörter stimmen nicht überein' }); return; }
               try {
-                const res = await fetch('/api/auth/reset-password', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ token: resetToken, newPassword: resetNewPassword }),
-                });
-                const data = await res.json();
-                if (res.ok) {
-                  await modal.alert({ title: 'Erfolg', message: 'Passwort erfolgreich zurückgesetzt! Du kannst dich jetzt anmelden.' });
-                  setShowResetPassword(false);
-                } else {
-                  await modal.alert({ title: 'Fehler', message: data.error || 'Fehler beim Zurücksetzen' });
-                }
-              } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Zurücksetzen' }); }
+                await apiPost('/api/auth/reset-password', { token: resetToken, newPassword: resetNewPassword });
+                await modal.alert({ title: 'Erfolg', message: 'Passwort erfolgreich zurückgesetzt! Du kannst dich jetzt anmelden.' });
+                setShowResetPassword(false);
+              } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler beim Zurücksetzen' }); }
             }} style={{ padding: '16px', background: clubAccent, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Passwort zuruecksetzen</button>
             <button onClick={() => setShowResetPassword(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Zurueck</button>
           </div>
@@ -398,19 +322,10 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               if (!forgotEmail) { await modal.alert({ title: 'Hinweis', message: 'Bitte Email eingeben' }); return; }
               setForgotMessage('');
               try {
-                const res = await fetch('/api/auth/forgot-password', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ email: forgotEmail }),
-                });
-                const data = await res.json();
-                if (res.ok) {
-                  setForgotMessage(data.message);
-                  setTimeout(() => setShowForgotPassword(false), 5000);
-                } else {
-                  await modal.alert({ title: 'Fehler', message: data.error });
-                }
-              } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Senden' }); }
+                const data = await apiPost('/api/auth/forgot-password', { email: forgotEmail });
+                setForgotMessage(data.message);
+                setTimeout(() => setShowForgotPassword(false), 5000);
+              } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler beim Senden' }); }
             }} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Link senden</button>
             <button onClick={() => setShowForgotPassword(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Zurueck zum Login</button>
           </div>
@@ -489,39 +404,16 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               if (regPassword.length < 6) { await modal.alert({ title: 'Hinweis', message: 'Passwort muss mindestens 6 Zeichen haben' }); return; }
               if (!consentGiven) { await modal.alert({ title: 'Hinweis', message: 'Bitte Datenschutzerklärung akzeptieren' }); return; }
               try {
-                const res = await fetch('/api/auth/register', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ name: regName, email: regEmail, phone: regPhone || null, password: regPassword, children: regChildren.filter(c => c.childName || c.childYear).map(c => ({ childName: c.childName || null, childYear: c.childYear ? parseInt(c.childYear) : null })), consentGiven: true }),
-                });
-                if (res.ok) {
-                  const data = await res.json();
-                  contextLogin(data.token, data.user || data.volunteer);
-                  setShowRegisterForm(false);
-                  setRegName(''); setRegEmail(''); setRegPhone(''); setRegPassword(''); setRegPasswordConfirm('');
-                  await modal.alert({ title: 'Erfolg', message: 'Registrierung erfolgreich!' });
-                  const res2 = await fetch('/api/self/available', { headers: { Authorization: 'Bearer ' + data.token } });
-                  if (res2.ok) { 
-                    const d = await res2.json(); 
-                    setShifts(d.shifts); 
-                    setVolunteerShifts(d.volunteerShifts); 
-                    if (d.tournament) {
-                      setTournament(d.tournament);
-                      setTournamentName(d.tournament.name || '');
-                      setHasSponsor(d.tournament.hasSponsor || false);
-                      setSponsorName(d.tournament.sponsorName || null);
-                      setSponsorUrl(d.tournament.sponsorUrl || null);
-                      setSponsorLogo(d.tournament.logo || null);
-                      if (d.tournament.club) {
-                        setClubPrimary(d.tournament.club.primaryColor || '#0d6efd');
-                        setClubSecondary(d.tournament.club.secondaryColor || '#6c757d');
-                        setClubAccent(d.tournament.club.accentColor || '#198754');
-                        setClubLogo(d.tournament.club.logo || null);
-                      }
-                    }
-                  }
-                } else { const err = await res.json(); await modal.alert({ title: 'Fehler', message: err.error }); }
-              } catch { await modal.alert({ title: 'Fehler', message: 'Fehler bei der Registrierung' }); }
+                const data = await apiPost('/api/auth/register', { name: regName, email: regEmail, phone: regPhone || null, password: regPassword, children: regChildren.filter(c => c.childName || c.childYear).map(c => ({ childName: c.childName || null, childYear: c.childYear ? parseInt(c.childYear) : null })), consentGiven: true });
+                contextLogin(data.token, data.user || data.volunteer);
+                setShowRegisterForm(false);
+                setRegName(''); setRegEmail(''); setRegPhone(''); setRegPassword(''); setRegPasswordConfirm('');
+                await modal.alert({ title: 'Erfolg', message: 'Registrierung erfolgreich!' });
+                try {
+                  const d = await apiFetch('/api/self/available', { headers: { Authorization: 'Bearer ' + data.token } });
+                  applyAvailableData(d);
+                } catch { /* Verfügbarkeitsdaten optional */ }
+              } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler bei der Registrierung' }); }
             }} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Registrieren</button>
             <button onClick={() => setShowRegisterForm(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Zurueck zum Login</button>
           </div>
@@ -564,21 +456,11 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
             )}
             <button onClick={async () => {
               try {
-                const res = await fetch('/api/auth/profile', {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ctxToken },
-                  body: JSON.stringify({ name: editName, email: editEmail, phone: editPhone, children: editChildren.filter(c => c.childName || c.childYear).map(c => ({ childName: c.childName || null, childYear: c.childYear ? parseInt(c.childYear) : null })) }),
-                });
-                if (res.ok) {
-                  const data = await res.json();
-                  contextLogin(ctxToken, data);
-                  setShowProfile(false);
-                  await modal.alert({ title: 'Erfolg', message: 'Profil aktualisiert!' });
-                } else {
-                  const err = await res.json();
-                  await modal.alert({ title: 'Fehler', message: err.error });
-                }
-              } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Aktualisieren' }); }
+                const data = await apiPatch('/api/auth/profile', { name: editName, email: editEmail, phone: editPhone, children: editChildren.filter(c => c.childName || c.childYear).map(c => ({ childName: c.childName || null, childYear: c.childYear ? parseInt(c.childYear) : null })) });
+                contextLogin(ctxToken, data);
+                setShowProfile(false);
+                await modal.alert({ title: 'Erfolg', message: 'Profil aktualisiert!' });
+              } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler beim Aktualisieren' }); }
             }} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Speichern</button>
             <button onClick={() => setShowProfile(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Abbrechen</button>
           </div>
@@ -624,9 +506,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
             <button onClick={async () => {
               setMenuOpen(false);
               try {
-                const r = await fetch('/api/auth/export', { headers: { Authorization: 'Bearer ' + ctxToken } });
-                if (!r.ok) { await modal.alert({ title: 'Fehler', message: 'Export fehlgeschlagen' }); return; }
-                const data = await r.json();
+                const data = await apiFetch('/api/auth/export');
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -642,19 +522,18 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               const np = result.newPassword as string;
               if (!cp || !np || np.length < 6) { await modal.alert({ title: 'Hinweis', message: 'Passwort muss mindestens 6 Zeichen haben' }); return; }
               try {
-                const r = await fetch('/api/auth/password', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ctxToken }, body: JSON.stringify({ currentPassword: cp, newPassword: np }) });
-                if (r.ok) { await modal.alert({ title: 'Erfolg', message: 'Passwort geändert!' });
-                } else { const d = await r.json(); await modal.alert({ title: 'Fehler', message: d.error }); }
-              } catch { await modal.alert({ title: 'Fehler', message: 'Fehler bei der Passwort-Änderung' }); }
+                await apiPatch('/api/auth/password', { currentPassword: cp, newPassword: np });
+                await modal.alert({ title: 'Erfolg', message: 'Passwort geändert!' });
+              } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler bei der Passwort-Änderung' }); }
             }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>🔑 Passwort ändern</button>
             <button onClick={async () => {
               setMenuOpen(false);
               if (!(await modal.confirm({ title: 'Konto löschen', message: 'Bist du sicher, dass du dein Konto löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden. Alle personenbezogenen Daten werden entfernt.', variant: 'danger' }))) return;
               try {
-                const r = await fetch('/api/auth/account', { method: 'DELETE', headers: { Authorization: 'Bearer ' + ctxToken } });
-                if (r.ok) { await modal.alert({ title: 'Erfolg', message: 'Dein Konto wurde gelöscht.' }); logout(); }
-                else { const d = await r.json(); await modal.alert({ title: 'Fehler', message: d.error || 'Fehler' }); }
-              } catch { await modal.alert({ title: 'Fehler', message: 'Fehler beim Löschen' }); }
+                await apiDelete('/api/auth/account');
+                await modal.alert({ title: 'Erfolg', message: 'Dein Konto wurde gelöscht.' });
+                logout();
+              } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler beim Löschen' }); }
             }} style={{ width: '100%', padding: '10px 16px', background: '#fff3f3', border: '2px solid #dc3545', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#dc3545', fontWeight: 'bold' }}>🗑️ Konto löschen (Art. 17 DSGVO)</button>
             {isAdmin || isOrganizer ? (
               <button onClick={() => { setMenuOpen(false); if (onLoginAsAdmin) onLoginAsAdmin(); }} style={{ width: '100%', padding: '10px 16px', background: '#e8f5e9', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#2e7d32', fontWeight: 'bold' }}>⚙️ Admin-Bereich</button>
