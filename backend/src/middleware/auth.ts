@@ -85,28 +85,35 @@ export function requireRole(requiredRoles: string[]) {
 }
 
 /** Middleware: Admin/Organizer Only */
-export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
+export async function requireAdmin(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     res.status(401).json({ error: 'Nicht authentifiziert' });
     return;
   }
 
+  let decoded: { userId: number };
   try {
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
-    
-    req.userId = decoded.userId;
-    
-    // Rolle aus DB prüfen (Admin/Organizer haben Zugriff)
-    getUserRole(decoded.userId).then(role => {
-      if (role === 'ADMIN' || role === 'ORGANIZER') {
-        next();
-      } else {
-        res.status(403).json({ error: 'Unzureichende Berechtigungen – Admin oder Organisator erforderlich' });
-      }
-    });
+    decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
   } catch {
     res.status(401).json({ error: 'Ungültiger Token' });
+    return;
+  }
+
+  try {
+    req.userId = decoded.userId;
+
+    // Rolle aus DB prüfen (Admin/Organizer haben Zugriff)
+    const role = await getUserRole(decoded.userId);
+    req.role = role;
+    if (role === 'ADMIN' || role === 'ORGANIZER') {
+      next();
+    } else {
+      res.status(403).json({ error: 'Unzureichende Berechtigungen – Admin oder Organisator erforderlich' });
+    }
+  } catch (err) {
+    // DB-Fehler nicht verschlucken → an zentralen Error-Handler weiterreichen
+    next(err);
   }
 }

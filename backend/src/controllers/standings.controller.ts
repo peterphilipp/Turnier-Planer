@@ -10,11 +10,13 @@ import prisma from '../config/prisma.js';
  * `getStandings` genutzt – so wird die Antwort garantiert nur EINMAL gesendet.
  */
 async function computeStandings(tournamentId: number, yearGroupId: number | null) {
-  // Alle gespielten Matches des Turniers (oder nur eines Jahrgangs)
+  // Alle gespielten GRUPPEN-/Liga-Spiele des Turniers (oder nur eines Jahrgangs).
+  // bracketId: null schließt K.O.-Spiele aus – diese dürfen die Gruppentabelle
+  // nicht verfälschen.
   const matches = await prisma.match.findMany({
-    where: yearGroupId 
-      ? { tournamentId, yearGroupId, status: 'gespielt', scoreA: { not: null }, scoreB: { not: null } }
-      : { tournamentId, status: 'gespielt', scoreA: { not: null }, scoreB: { not: null } },
+    where: yearGroupId
+      ? { tournamentId, yearGroupId, bracketId: null, status: 'gespielt', scoreA: { not: null }, scoreB: { not: null } }
+      : { tournamentId, bracketId: null, status: 'gespielt', scoreA: { not: null }, scoreB: { not: null } },
     include: { teamA: true, teamB: true }
   });
 

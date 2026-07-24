@@ -108,23 +108,28 @@ export const updateTournamentMode = async (req: Request, res: Response) => {
   }
 
   const tournamentId = parseInt(String(req.params.id as string));
-  
-  // Modus aktualisieren
-  const tournament = await prisma.tournament.update({
-    where: { id: tournamentId },
-    data: { 
-      turnierModus,
-      ...(teamsAdvancingPerGroup !== undefined && { teamsAdvancingPerGroup: parseInt(teamsAdvancingPerGroup as string) }),
-      ...(playoutAllPlacements !== undefined && { playoutAllPlacements: Boolean(playoutAllPlacements) }),
-      ...(thirdPlaceMatch !== undefined && { thirdPlaceMatch: Boolean(thirdPlaceMatch) }),
-      ...(qualificationRule !== undefined && { qualificationRule: String(qualificationRule) })
-    }
-  });
 
-  // Spielplan löschen
-  await prisma.match.deleteMany({ where: { tournamentId } });
-  await prisma.knockoutBracket.deleteMany({ where: { tournamentId } });
-  await prisma.standingsEntry.deleteMany({ where: { tournamentId } });
+  // Modus-Update + Löschen des alten Spielplans atomar: bricht ein Schritt ab,
+  // bleibt kein halb gelöschter Spielplan zurück.
+  const tournament = await prisma.$transaction(async (tx) => {
+    const updated = await tx.tournament.update({
+      where: { id: tournamentId },
+      data: {
+        turnierModus,
+        ...(teamsAdvancingPerGroup !== undefined && { teamsAdvancingPerGroup: parseInt(teamsAdvancingPerGroup as string) }),
+        ...(playoutAllPlacements !== undefined && { playoutAllPlacements: Boolean(playoutAllPlacements) }),
+        ...(thirdPlaceMatch !== undefined && { thirdPlaceMatch: Boolean(thirdPlaceMatch) }),
+        ...(qualificationRule !== undefined && { qualificationRule: String(qualificationRule) })
+      }
+    });
+
+    // Spielplan löschen
+    await tx.match.deleteMany({ where: { tournamentId } });
+    await tx.knockoutBracket.deleteMany({ where: { tournamentId } });
+    await tx.standingsEntry.deleteMany({ where: { tournamentId } });
+
+    return updated;
+  });
 
   return res.json({ tournament, message: `Modus geändert zu ${turnierModus}. Alter Spielplan wurde gelöscht.` });
 };
