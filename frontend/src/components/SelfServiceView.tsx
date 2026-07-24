@@ -126,8 +126,22 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   /** Übernimmt die Antwort von /api/self/available in den lokalen State. */
   const applyAvailableData = (d: any) => {
     if (!d) return;
-    setShifts(d.shifts);
-    setVolunteerShifts(d.volunteerShifts);
+
+    const mapShift = (s: any) => ({
+      ...s,
+      date: s.day?.date || s.date,
+      zeitslot: s.daySlot || s.timeSlot || s.zeitslot,
+      arbeitsbereich: s.workArea || s.arbeitsbereich
+    });
+
+    setShifts(d.shifts ? d.shifts.map(mapShift) : []);
+    
+    setVolunteerShifts(d.volunteerShifts ? d.volunteerShifts.map((vs: any) => ({
+      ...vs,
+      date: vs.shift?.day?.date || vs.shift?.date || vs.date,
+      shift: vs.shift ? mapShift(vs.shift) : null
+    })) : []);
+
     if (d.tournament) {
       setTournament(d.tournament);
       setTournamentName(d.tournament.name || '');
