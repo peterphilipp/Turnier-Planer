@@ -143,3 +143,6 @@ export const apiPut = (url: string, data: any) =>
 
 export const apiDelete = (url: string) => 
   apiFetch(url, { method: 'DELETE' });
+
+export const getDeleteImpact = (type: string, id: number) => 
+  apiFetch(`/api/impact/${type}/${id}`);

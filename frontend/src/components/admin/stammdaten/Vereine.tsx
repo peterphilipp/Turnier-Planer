@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getClubs, apiPost, apiPut, apiDelete } from '../../../api';
-import { btnStyleSecondary, Club } from '../shared';
+import { btnStyleSecondary, Club, confirmWithImpact } from '../shared';
 import EditModal from '../EditModal';
 
 interface GroupedClub { city: string; clubs: Club[]; }
@@ -68,9 +68,9 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
     setClubLogo(null); setEditingClub(null);
   };
 
-  const deleteClub = async (id: number) => {
-    if (!(await modal.confirm({ title: 'Verein löschen', message: 'Möchtest du diesen Verein wirklich löschen?', variant: 'danger' }))) return;
-    await apiDelete(`/api/clubs/${id}`);
+  const deleteClub = async (club: Club) => {
+    if (!(await confirmWithImpact('club', club.id, club.name))) return;
+    await apiDelete(`/api/clubs/${club.id}`);
     queryClient.invalidateQueries({ queryKey: ['clubs'] });
   };
 
@@ -159,7 +159,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
                     </div>
                   </div>
                   <button onClick={() => openEdit(club)} style={{ width: 40, height: 40, border: 'none', background: '#fff3cd', color: '#856404', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✏️</button>
-                  <button onClick={() => deleteClub(club.id)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
+                  <button onClick={() => deleteClub(club)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
                 </div>
               ))}
             </div>

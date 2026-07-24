@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getFoodCategories, getFoodItems, apiPost, apiPatch, apiDelete } from '../../../api';
-import { btnStyleSecondary, useSortableData } from '../shared';
+import { btnStyleSecondary, useSortableData, confirmWithImpact } from '../shared';
 import type { FoodCategory, FoodItem } from '../shared';
 import EditModal from '../EditModal';
 
@@ -40,9 +40,9 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
     setEditingFoodCat(null);
   };
 
-  const deleteFoodCategory = async (id: number) => {
-    if (!(await modal.confirm({ title: 'Kategorie löschen', message: 'Möchtest du diese Kategorie wirklich löschen? Alle zugehörigen Artikel werden ebenfalls gelöscht.', variant: 'danger' }))) return;
-    await apiDelete(`/api/food/categories/${id}`);
+  const deleteFoodCategory = async (cat: FoodCategory) => {
+    if (!(await confirmWithImpact('foodCategory', cat.id, cat.name))) return;
+    await apiDelete(`/api/food/categories/${cat.id}`);
     queryClient.invalidateQueries({ queryKey: ['foodCategories'] });
     queryClient.invalidateQueries({ queryKey: ['foodItems'] });
   };
@@ -60,9 +60,9 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
     } catch (err) { await modal.alert({ title: 'Fehler', message: `Speichern fehlgeschlagen: ${(err as Error).message}` }); }
   };
 
-  const deleteFoodItem = async (id: number) => {
-    if (!(await modal.confirm({ title: 'Artikel löschen', message: 'Möchtest du diesen Artikel wirklich löschen?', variant: 'danger' }))) return;
-    await apiDelete(`/api/food/items/${id}`);
+  const deleteFoodItem = async (item: FoodItem) => {
+    if (!(await confirmWithImpact('foodItem', item.id, item.name))) return;
+    await apiDelete(`/api/food/items/${item.id}`);
     queryClient.invalidateQueries({ queryKey: ['foodItems'] });
   };
 
@@ -107,7 +107,7 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
                 <td style={{ padding: '8px 12px' }}>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <button onClick={() => openEditCat(cat)} style={{ width: 40, height: 40, border: 'none', background: '#fff3cd', color: '#856404', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✏️</button>
-                    <button onClick={() => deleteFoodCategory(cat.id)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
+                    <button onClick={() => deleteFoodCategory(cat)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
                   </div>
                 </td>
               </tr>
@@ -167,7 +167,7 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
                 <td style={{ padding: '8px 12px' }}>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <button onClick={() => openEditItem(item)} style={{ width: 40, height: 40, border: 'none', background: '#fff3cd', color: '#856404', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✏️</button>
-                    <button onClick={() => deleteFoodItem(item.id)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
+                    <button onClick={() => deleteFoodItem(item)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
                   </div>
                 </td>
               </tr>

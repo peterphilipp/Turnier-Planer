@@ -31,6 +31,7 @@ import fieldRoutes from './routes/field.routes.js';
 import standingsRoutes from './routes/standings.routes.js';
 import knockoutBracketRoutes from './routes/knockoutBracket.routes.js';
 import tournamentClubRoutes from './routes/tournamentClub.routes.js';
+import impactRoutes from './routes/impact.routes.js';
 // Middleware imports
 import errorHandler from './middleware/errorHandler.js';
 
@@ -62,6 +63,7 @@ app.use('/api/year-groups', yearGroupRoutes);
 app.use('/api/time-slots', timeSlotRoutes);
 app.use('/api/fields', fieldRoutes);
 app.use('/api/standings', standingsRoutes);
+app.use('/api/impact', impactRoutes);
 // ===================== Serve Frontend (SPA) =====================
 const distPath = path.resolve(__dirname, '../dist');
 app.use(express.static(distPath));

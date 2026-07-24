@@ -1,4 +1,6 @@
 import { CSSProperties, useState, useMemo } from 'react';
+import { modal } from './Modal';
+import { getDeleteImpact } from '../../../api';
 
 export const tdStyle: CSSProperties = { padding: '12px 16px', border: '1px solid #e9ecef', verticalAlign: 'top' };
 export const thStyle: CSSProperties = { ...tdStyle, background: '#f8f9fa', fontWeight: '600', fontSize: 13, color: '#495057' };
@@ -8,6 +10,29 @@ export const thStyle: CSSProperties = { ...tdStyle, background: '#f8f9fa', fontW
 export const btnStyle: CSSProperties = { padding: '12px 20px', cursor: 'pointer', border: 'none', borderRadius: 8, background: '#f8f9fa', fontSize: 14, fontWeight: 600, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 };
 export const btnStyleSecondary: CSSProperties = { ...btnStyle, fontWeight: 500 };
 export const inputStyle: CSSProperties = { padding: '10px 14px', border: '1px solid #dee2e6', borderRadius: 10, fontSize: 14, outline: 'none', background: '#fff' };
+
+export async function confirmWithImpact(type: string, id: number, entityName: string): Promise<boolean> {
+  try {
+    const impact = await getDeleteImpact(type, id);
+    if (impact && impact.count > 0) {
+      const impactList = impact.details.map((d: string) => `• ${d}`).join('\n');
+      return await modal.confirm({
+        title: `[WARNUNG] ${entityName} löschen`,
+        message: `Möchtest du "${entityName}" wirklich löschen?\n\nACHTUNG: Folgende verknüpfte Daten werden dadurch ebenfalls unwiderruflich gelöscht:\n\n${impactList}\n\nDiese Aktion kann nicht rückgängig gemacht werden!`,
+        variant: 'danger',
+        confirmText: 'Ja, unwiderruflich löschen'
+      });
+    }
+  } catch (error) {
+    console.error('Failed to get delete impact:', error);
+  }
+  // Fallback / No impact
+  return await modal.confirm({
+    title: `${entityName} löschen`,
+    message: `Möchtest du "${entityName}" wirklich löschen?`,
+    variant: 'danger'
+  });
+}
 
 export function useSortableData<T>(items: T[], config: { key: string, direction: 'asc' | 'desc' } | null = null) {
   const [sortConfig, setSortConfig] = useState<{ key: keyof T | string, direction: 'asc' | 'desc' } | null>(config);
@@ -84,7 +109,7 @@ export interface Shift { id: number; tournamentId: number; date: string; zeitslo
 export interface WorkArea { id: number; name: string; icon: string; color: string; minVolunteers: number; maxVolunteers: number; }
 export interface GlobalTimeSlot { id: number; name: string; startTime: string; endTime: string; color: string; order: number; }
 export interface VolunteerShift { id: number; userId: number; tournamentId: number | null; date: string; slot: string; role: string; areaId: number | null; shiftId: number | null; arbeitsbereichId?: number | null; arbeitsbereich: { id: number; name: string; icon: string; color: string } | null; user?: { id: number; name: string; role?: string; phone?: string }; }
-export interface Volunteer { id: number; name: string; email: string | null; phone: string | null; role?: 'HELPER' | 'ORGANIZER' | 'ADMIN'; tournamentId: number | null; consentGiven?: boolean; consentDate?: string; children?: { childName: string; childYear: number }[]; }
+export interface Volunteer { id: number; name: string; email: string | null; phone: string | null; role?: 'HELPER' | 'ORGANIZER' | 'ADMIN'; tournamentId: number | null; consentGiven?: boolean; consentDate?: string; isPrimaryAdmin?: boolean; children?: { childName: string; childYear: number }[]; }
 export interface Club { id: number; name: string; city: string | null; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
 export interface FoodCategory { id: number; name: string; icon: string; order: number; items: FoodItem[]; }
 export interface FoodItem { id: number; categoryId: number; name: string; price: string | null; unit: string; category?: { id: number; name: string; icon: string }; }
