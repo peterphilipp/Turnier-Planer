@@ -1,4 +1,4 @@
-import { CSSProperties } from 'react';
+import { CSSProperties, useState, useMemo } from 'react';
 
 export const tdStyle: CSSProperties = { padding: '12px 16px', border: '1px solid #e9ecef', verticalAlign: 'top' };
 export const thStyle: CSSProperties = { ...tdStyle, background: '#f8f9fa', fontWeight: '600', fontSize: 13, color: '#495057' };
@@ -8,6 +8,46 @@ export const thStyle: CSSProperties = { ...tdStyle, background: '#f8f9fa', fontW
 export const btnStyle: CSSProperties = { padding: '12px 20px', cursor: 'pointer', border: 'none', borderRadius: 8, background: '#f8f9fa', fontSize: 14, fontWeight: 600, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 };
 export const btnStyleSecondary: CSSProperties = { ...btnStyle, fontWeight: 500 };
 export const inputStyle: CSSProperties = { padding: '10px 14px', border: '1px solid #dee2e6', borderRadius: 10, fontSize: 14, outline: 'none', background: '#fff' };
+
+export function useSortableData<T>(items: T[], config: { key: string, direction: 'asc' | 'desc' } | null = null) {
+  const [sortConfig, setSortConfig] = useState<{ key: keyof T | string, direction: 'asc' | 'desc' } | null>(config);
+
+  const sortedItems = useMemo(() => {
+    let sortableItems = [...items];
+    if (sortConfig !== null) {
+      sortableItems.sort((a: any, b: any) => {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+        
+        if (sortConfig.key === 'clubName') { aValue = a.club?.name || ''; bValue = b.club?.name || ''; }
+        if (sortConfig.key === 'categoryName') { aValue = a.category?.name || ''; bValue = b.category?.name || ''; }
+        if (sortConfig.key === 'yearGroupRange') { aValue = a.birthYearStart || 0; bValue = b.birthYearStart || 0; }
+        if (sortConfig.key === 'statusBadge') { aValue = a.status || ''; bValue = b.status || ''; }
+
+        if (typeof aValue === 'string') aValue = aValue.toLowerCase();
+        if (typeof bValue === 'string') bValue = bValue.toLowerCase();
+
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [items, sortConfig]);
+
+  const requestSort = (key: keyof T | string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIndicator = (key: string) => {
+    if (!sortConfig || sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? ' 🔼' : ' 🔽';
+  };
+
+  return { items: sortedItems, requestSort, sortConfig, getSortIndicator };
+}
 
 export const shadeColor = (color: string, percent: number) => {
   let R = parseInt(color.substring(1, 3), 16);

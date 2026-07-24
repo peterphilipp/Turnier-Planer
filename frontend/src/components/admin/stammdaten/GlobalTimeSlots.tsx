@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getGlobalTimeSlots, apiPost, apiPatch, apiDelete } from '../../../api';
-import { btnStyle, btnStyleSecondary, GlobalTimeSlot } from '../shared';
+import { btnStyle, btnStyleSecondary, GlobalTimeSlot, useSortableData } from '../shared';
 import EditModal from '../EditModal';
 
 export default function GlobalTimeSlots({ adminPrimary }: { adminPrimary: string }) {
   const queryClient = useQueryClient();
   const { data: globalTimeSlots = [] } = useQuery<GlobalTimeSlot[]>({ queryKey: ['globalTimeSlots'], queryFn: getGlobalTimeSlots });
   
+  const { items: sortedSlots, requestSort, getSortIndicator } = useSortableData(globalTimeSlots, { key: 'order', direction: 'asc' });
+
   const [zsForm, setZsForm] = useState({ name: '', startTime: '09:00', endTime: '10:00', color: '#3b98f8', order: 1 });
   const [editingZs, setEditingZs] = useState<number | null>(null);
 
@@ -47,9 +49,9 @@ export default function GlobalTimeSlots({ adminPrimary }: { adminPrimary: string
       </div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Reihenfolge</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Name</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right' }}>Von</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right' }}>Bis</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Farbe</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
+        <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th onClick={() => requestSort('order')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Reihenfolge{getSortIndicator('order')}</th><th onClick={() => requestSort('name')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Name{getSortIndicator('name')}</th><th onClick={() => requestSort('startTime')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Von{getSortIndicator('startTime')}</th><th onClick={() => requestSort('endTime')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Bis{getSortIndicator('endTime')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Farbe</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
         <tbody>
-          {globalTimeSlots.sort((a, b) => a.order - b.order).map(zs => (
+          {sortedSlots.map(zs => (
             <tr key={zs.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
               <td style={{ padding: '10px 12px', textAlign: 'right' }}>{zs.order}</td>
               <td style={{ padding: '10px 12px', fontWeight: 500 }}>{zs.name}</td>

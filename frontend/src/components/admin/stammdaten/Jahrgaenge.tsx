@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getYearGroups, apiPost, apiPatch, apiDelete } from '../../../api';
-import { btnStyleSecondary, YearGroup } from '../shared';
+import { btnStyleSecondary, YearGroup, useSortableData } from '../shared';
 import EditModal from '../EditModal';
 
 export default function Jahrgaenge({ adminPrimary }: { adminPrimary: string }) {
@@ -14,7 +14,8 @@ export default function Jahrgaenge({ adminPrimary }: { adminPrimary: string }) {
   });
   
   const yearGroups: YearGroup[] = (rawYearGroups && typeof rawYearGroups === 'object' && 'length' in rawYearGroups) ? rawYearGroups : [];
-  
+  const { items: sortedYearGroups, requestSort, getSortIndicator } = useSortableData(yearGroups, { key: 'order', direction: 'asc' });
+
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({ name: '', birthYearStart: 0, birthYearEnd: 0, order: 0, isActive: true });
 
@@ -58,12 +59,12 @@ export default function Jahrgaenge({ adminPrimary }: { adminPrimary: string }) {
       </div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Jahrgang</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right' }}>Geburtsjahr</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'center' }}>Aktiv</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right' }}>Reihenfolge</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
+        <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th onClick={() => requestSort('name')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Jahrgang{getSortIndicator('name')}</th><th onClick={() => requestSort('yearGroupRange')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Geburtsjahr{getSortIndicator('yearGroupRange')}</th><th onClick={() => requestSort('isActive')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'center', cursor: 'pointer' }}>Aktiv{getSortIndicator('isActive')}</th><th onClick={() => requestSort('order')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Reihenfolge{getSortIndicator('order')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
         <tbody>
-          {isLoading || yearGroups.length === 0 ? (
+          {isLoading || sortedYearGroups.length === 0 ? (
             <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#666' }}>Keine Jahrgänge vorhanden.</td></tr>
           ) : (
-            [...yearGroups].sort((a, b) => a.order - b.order).map(yg => (
+            sortedYearGroups.map(yg => (
               <tr key={yg.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
                 <td style={{ padding: '10px 12px', fontWeight: 500 }}>{yg.name}</td>
                 <td style={{ padding: '10px 12px', textAlign: 'right' }}>{yg.birthYearStart} – {yg.birthYearEnd}</td>
