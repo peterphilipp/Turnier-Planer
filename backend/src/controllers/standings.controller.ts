@@ -2,17 +2,14 @@ import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 
 /**
- * Berechnet die Tabelle für ein Turnier neu.
- * Liest alle Matches mit status === "gespielt" aus und aggregiert die Werte pro Team.
+ * Reine Berechnungs-/Persistenz-Funktion (ohne Response-Objekt).
+ * Liest alle gespielten Matches, aggregiert pro Team, persistiert die
+ * StandingsEntries und gibt die sortierten Einträge zurück.
+ *
+ * Wird sowohl vom Route-Handler `recalculateStandings` als auch von
+ * `getStandings` genutzt – so wird die Antwort garantiert nur EINMAL gesendet.
  */
-export const recalculateStandings = async (req: Request, res: Response) => {
-  const tournamentId = parseInt(req.params.tournamentId as string);
-  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId as string)) : null;
-  
-  if (!tournamentId) {
-    return res.status(400).json({ error: 'tournamentId erforderlich' });
-  }
-
+async function computeStandings(tournamentId: number, yearGroupId: number | null) {
   // Alle gespielten Matches des Turniers (oder nur eines Jahrgangs)
   const matches = await prisma.match.findMany({
     where: yearGroupId 
@@ -77,21 +74,37 @@ export const recalculateStandings = async (req: Request, res: Response) => {
     });
   }
 
+  return sorted;
+}
+
+/**
+ * Berechnet die Tabelle für ein Turnier neu und gibt sie zurück (Route-Handler).
+ */
+export const recalculateStandings = async (req: Request, res: Response) => {
+  const tournamentId = parseInt(req.params.tournamentId as string);
+  const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId as string)) : null;
+
+  if (!tournamentId) {
+    return res.status(400).json({ error: 'tournamentId erforderlich' });
+  }
+
+  const sorted = await computeStandings(tournamentId, yearGroupId);
   return res.json(sorted);
 };
 
 export const getStandings = async (req: Request, res: Response) => {
   const tournamentId = parseInt(req.params.tournamentId as string);
   const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId as string)) : null;
-  
+
   if (!tournamentId) {
     return res.status(400).json({ error: 'tournamentId erforderlich' });
   }
 
-  // Falls keine Einträge existieren, triggere Neuberechnung
+  // Falls keine Einträge existieren, triggere Neuberechnung (nur EIN res.json unten)
   const existing = await prisma.standingsEntry.findMany({ where: { tournamentId } });
   if (existing.length === 0) {
-    return res.json(await recalculateStandings(req, res));
+    const sorted = await computeStandings(tournamentId, yearGroupId);
+    return res.json(sorted);
   }
 
   // Positionen aktualisieren

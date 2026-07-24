@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'tsv-holm-secret-2025';
+import JWT_SECRET from '../config/jwt.js';
 
 export interface AuthRequest extends Request {
   userId?: number;

@@ -42,12 +42,15 @@ export const teamSchema = z.object({
 
 export const createTeam = async (req: Request, res: Response) => {
   const t = await prisma.team.create({ data: req.body });
-  
-  if (t.yearGroupId) {
-    await prisma.match.deleteMany({ where: { yearGroupId: t.yearGroupId } });
-    await prisma.standingsEntry.deleteMany({ where: { team: { yearGroupId: t.yearGroupId } } });
+
+  // Das Ändern des Teilnehmerfelds invalidiert den generierten Spielplan – aber
+  // NUR für dieses Turnier + diesen Jahrgang. yearGroupId allein ist turnier-
+  // übergreifend geteilt und würde sonst fremde Turniere mit-löschen.
+  if (t.yearGroupId && t.tournamentId) {
+    await prisma.match.deleteMany({ where: { tournamentId: t.tournamentId, yearGroupId: t.yearGroupId } });
+    await prisma.standingsEntry.deleteMany({ where: { tournamentId: t.tournamentId, team: { yearGroupId: t.yearGroupId } } });
   }
-  
+
   res.status(201).json(t);
 };
 
@@ -62,12 +65,13 @@ export const updateTeam = async (req: Request, res: Response) => {
 export const deleteTeam = async (req: Request, res: Response) => {
   const teamId = parseInt(String(req.params.id as string));
   const team = await prisma.team.findUnique({ where: { id: teamId } });
-  
-  if (team?.yearGroupId) {
-    await prisma.match.deleteMany({ where: { yearGroupId: team.yearGroupId } });
-    await prisma.standingsEntry.deleteMany({ where: { team: { yearGroupId: team.yearGroupId } } });
+
+  // Nur den Spielplan dieses Turniers + Jahrgangs invalidieren (siehe createTeam).
+  if (team?.yearGroupId && team.tournamentId) {
+    await prisma.match.deleteMany({ where: { tournamentId: team.tournamentId, yearGroupId: team.yearGroupId } });
+    await prisma.standingsEntry.deleteMany({ where: { tournamentId: team.tournamentId, team: { yearGroupId: team.yearGroupId } } });
   }
-  
+
   await prisma.team.delete({ where: { id: teamId } });
   return res.status(204).send();
 };
