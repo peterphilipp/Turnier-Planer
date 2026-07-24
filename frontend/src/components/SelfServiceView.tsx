@@ -941,7 +941,26 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
       {/* Sticky Sponsor Footer */}
       {hasSponsor && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none', zIndex: 40 }}>
-          <a href={sponsorUrl || '#'} target="_blank" rel="noopener noreferrer" style={{ width: '100%', maxWidth: 480, padding: '12px 16px', background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(8px)', borderTop: '1px solid rgba(0,0,0,0.05)', pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, boxSizing: 'border-box', boxShadow: '0 -4px 20px rgba(0,0,0,0.05)', textDecoration: 'none', cursor: sponsorUrl ? 'pointer' : 'default' }}>
+          <a 
+            href={sponsorUrl || '#'} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            onClick={(e) => {
+              if (sponsorUrl) {
+                e.preventDefault();
+                modal.confirm({
+                  title: 'Sponsor besuchen',
+                  message: `Möchtest du zur Webseite von ${sponsorName || 'dem Sponsor'} wechseln?`,
+                  variant: 'info'
+                }).then(confirmed => {
+                  if (confirmed) {
+                    window.open(sponsorUrl, '_blank', 'noopener,noreferrer');
+                  }
+                });
+              }
+            }}
+            style={{ width: '100%', maxWidth: 480, padding: '12px 16px', background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(8px)', borderTop: '1px solid rgba(0,0,0,0.05)', pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, boxSizing: 'border-box', boxShadow: '0 -4px 20px rgba(0,0,0,0.05)', textDecoration: 'none', cursor: sponsorUrl ? 'pointer' : 'default' }}
+          >
             <span style={{ fontSize: 11, color: '#666', fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.5 }}>Mit freundlicher Unterstützung von</span>
             {sponsorLogo ? (
               <img src={sponsorLogo} alt={sponsorName || 'Sponsor'} style={{ height: 28, objectFit: 'contain' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
