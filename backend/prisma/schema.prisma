@@ -156,15 +156,30 @@ model User {
   consentGiven      Boolean              @default(false) @map("consent_given")
   consentDate       DateTime?            @map("consent_date")
   isPrimaryAdmin    Boolean              @default(false) @map("is_primary_admin")
+  recoveryPin       String?              @map("recovery_pin")
   foodDonationSlots FoodDonationSlot[]
   foodDonations     FoodDonation[]
   resetTokens       PasswordResetToken[]
   children          UserChild[]
   shifts            VolunteerShift[]
+  pushSubscriptions PushSubscription[]
   tournament        Tournament?          @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@index([tournamentId])
   @@map("users")
+}
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model UserChild {

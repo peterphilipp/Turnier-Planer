@@ -73,6 +73,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   const [donationQuantity, setDonationQuantity] = useState('');
   const [donationNote, setDonationNote] = useState('');
   const [slotCommitments, setSlotCommitments] = useState<Record<number, number>>({});
+  const [showPinModal, setShowPinModal] = useState<{name: string, pin: string} | null>(null);
 
   useEffect(() => {
     // Reset-Token aus URL auslesen
@@ -157,6 +158,9 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
         const data2 = await apiFetch('/api/self/available', { headers: { Authorization: 'Bearer ' + data.token } });
         applyAvailableData(data2);
       } catch { /* Verfügbarkeitsdaten optional – Login trotzdem erfolgreich */ }
+      
+      // Trigger Web Push Erlaubnis
+      import('../utils/push').then(m => m.subscribeToPushNotifications().catch(() => {}));
     } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Login fehlgeschlagen' }); }
   };
 
@@ -277,6 +281,34 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     return '#' + (R.toString(16).padStart(2, '0')) + (G.toString(16).padStart(2, '0')) + (B.toString(16).padStart(2, '0'));
   };
 
+  /* ===== PIN WIEDERHERSTELLUNG SCREEN ===== */
+  if (showPinModal) {
+    return (
+      <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? 20 : 40, background: 'linear-gradient(135deg, ' + clubAccent + ' 0%, ' + shadeColor(clubAccent, -30) + ' 100%)', boxSizing: 'border-box' }}>
+        <div style={{ background: '#fff', borderRadius: 16, padding: isMobile ? 24 : 40, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', textAlign: 'center' }}>
+          <div style={{ fontSize: isMobile ? 48 : 64, marginBottom: 8 }}>🔐</div>
+          <h2 style={{ margin: 0, color: '#333' }}>Wichtig: Deine Helfer-PIN!</h2>
+          <p style={{ color: '#666', fontSize: 14, marginTop: 12, lineHeight: 1.5 }}>
+            Da du keine E-Mail-Adresse angegeben hast, benötigst du diese PIN zwingend, falls du dein Passwort vergisst.
+          </p>
+          <div style={{ background: '#f8f9fa', padding: '16px', borderRadius: 10, margin: '20px 0', border: '2px dashed #adb5bd' }}>
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>Name für Login</div>
+            <div style={{ fontSize: 20, fontWeight: 'bold', color: clubPrimary, marginBottom: 12 }}>{showPinModal.name}</div>
+            
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>Wiederherstellungs-PIN</div>
+            <div style={{ fontSize: 32, fontWeight: '900', color: '#dc3545', letterSpacing: 3 }}>{showPinModal.pin}</div>
+          </div>
+          <p style={{ color: '#dc3545', fontSize: 14, fontWeight: 'bold', marginTop: 0, marginBottom: 24 }}>
+            ⚠️ Bitte schreibe dir diese Daten JETZT auf oder mache einen Screenshot!
+          </p>
+          <button onClick={() => setShowPinModal(null)} style={{ padding: '16px', width: '100%', background: clubAccent, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
+            Ich habe mir die PIN gemerkt
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   /* ===== RESET PASSWORD SCREEN ===== */
   if (showResetPassword) {
     return (
@@ -317,18 +349,33 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
             <p style={{ color: '#666', fontSize: 14, marginTop: 4 }}>Gib deine Email ein und wir senden dir einen Link zum Zuruecksetzen</p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input type="email" placeholder="Email-Adresse" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            <input type="text" placeholder="Name oder Email-Adresse" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             {forgotMessage && <div style={{ padding: '12px 16px', background: '#d1e7dd', borderRadius: 10, fontSize: 14, color: '#0f5132', whiteSpace: 'pre-line' }}>{forgotMessage}</div>}
             <button onClick={async () => {
-              if (!forgotEmail) { await modal.alert({ title: 'Hinweis', message: 'Bitte Email eingeben' }); return; }
+              if (!forgotEmail) { await modal.alert({ title: 'Hinweis', message: 'Bitte Name oder Email eingeben' }); return; }
               setForgotMessage('');
               try {
-                const data = await apiPost('/api/auth/forgot-password', { email: forgotEmail });
-                setForgotMessage(data.message);
+                if (forgotEmail.includes('@')) {
+                  const data = await apiPost('/api/auth/forgot-password', { email: forgotEmail });
+                  setForgotMessage(data.message);
+                } else {
+                  const data = await apiPost('/api/auth/forgot-password-push', { name: forgotEmail });
+                  setForgotMessage(data.message);
+                }
                 setTimeout(() => setShowForgotPassword(false), 5000);
               } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler beim Senden' }); }
-            }} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Link senden</button>
-            <button onClick={() => setShowForgotPassword(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Zurueck zum Login</button>
+            }} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Push / E-Mail senden</button>
+            <button onClick={async () => {
+              const res = await modal.form({ title: 'Passwort per Helfer-PIN zuruecksetzen', fields: [ { key: 'pin', label: 'Deine Helfer-PIN', type: 'text' }, { key: 'newPassword', label: 'Neues Passwort (min. 6)', type: 'password' }] });
+              if (!res) return;
+              if (String(res.newPassword).length < 6) { await modal.alert({ title: 'Hinweis', message: 'Passwort zu kurz' }); return; }
+              try {
+                await apiPost('/api/auth/reset-by-pin', { name: forgotEmail, recoveryPin: res.pin, newPassword: res.newPassword });
+                await modal.alert({ title: 'Erfolg', message: 'Passwort erfolgreich zurueckgesetzt!' });
+                setShowForgotPassword(false);
+              } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Ungueltige PIN oder Name' }); }
+            }} style={{ padding: '14px', background: 'transparent', color: clubPrimary, border: '2px solid ' + clubPrimary, borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15 }}>Mit Helfer-PIN zuruecksetzen</button>
+            <button onClick={() => setShowForgotPassword(false)} style={{ padding: '14px', background: 'transparent', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d', textDecoration: 'underline' }}>Zurueck zum Login</button>
           </div>
         </div>
       </div>
@@ -348,7 +395,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
             )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input type="email" placeholder="Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} autoFocus />
+            <input type="text" placeholder="Name oder Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} autoFocus />
             <input type="password" placeholder="Passwort" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') login(); }} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <button onClick={login} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Anmelden</button>
             <button onClick={() => setShowRegisterForm(true)} style={{ padding: '14px', background: 'transparent', color: clubPrimary, border: '2px solid ' + clubPrimary, borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15 }}>Registrieren</button>
@@ -371,7 +418,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <input type="text" placeholder="Vor- und Nachname" value={regName} onChange={e => setRegName(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
-            <input type="email" placeholder="Email-Adresse" value={regEmail} onChange={e => setRegEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            <input type="email" placeholder="Email-Adresse (optional)" value={regEmail} onChange={e => setRegEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <input type="tel" placeholder="Handynummer (optional)" value={regPhone} onChange={e => setRegPhone(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <div style={{ marginTop: 8 }}>
               <div style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 8 }}>Kinder (optional)</div>
@@ -400,20 +447,29 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               </span>
             </label>
             <button onClick={async () => {
-              if (!regName || !regEmail || !regPassword) { await modal.alert({ title: 'Hinweis', message: 'Bitte alle Pflichtfelder ausfüllen' }); return; }
+              if (!regName || !regPassword) { await modal.alert({ title: 'Hinweis', message: 'Bitte Name und Passwort ausfüllen' }); return; }
               if (regPassword !== regPasswordConfirm) { await modal.alert({ title: 'Hinweis', message: 'Passwörter stimmen nicht überein' }); return; }
               if (regPassword.length < 6) { await modal.alert({ title: 'Hinweis', message: 'Passwort muss mindestens 6 Zeichen haben' }); return; }
               if (!consentGiven) { await modal.alert({ title: 'Hinweis', message: 'Bitte Datenschutzerklärung akzeptieren' }); return; }
               try {
-                const data = await apiPost('/api/auth/register', { name: regName, email: regEmail, phone: regPhone || null, password: regPassword, children: regChildren.filter(c => c.childName || c.childYear).map(c => ({ childName: c.childName || null, childYear: c.childYear ? parseInt(c.childYear) : null })), consentGiven: true });
+                const data = await apiPost('/api/auth/register', { name: regName, email: regEmail || null, phone: regPhone || null, password: regPassword, children: regChildren.filter(c => c.childName || c.childYear).map(c => ({ childName: c.childName || null, childYear: c.childYear ? parseInt(c.childYear) : null })), consentGiven: true });
                 contextLogin(data.token, data.user || data.volunteer);
                 setShowRegisterForm(false);
                 setRegName(''); setRegEmail(''); setRegPhone(''); setRegPassword(''); setRegPasswordConfirm('');
-                await modal.alert({ title: 'Erfolg', message: 'Registrierung erfolgreich!' });
+                
+                if (data.user?.recoveryPin) {
+                  setShowPinModal({ name: data.user.name, pin: data.user.recoveryPin });
+                } else {
+                  await modal.alert({ title: 'Erfolg', message: 'Registrierung erfolgreich!' });
+                }
+
                 try {
                   const d = await apiFetch('/api/self/available', { headers: { Authorization: 'Bearer ' + data.token } });
                   applyAvailableData(d);
                 } catch { /* Verfügbarkeitsdaten optional */ }
+                
+                // Trigger Web Push Erlaubnis
+                import('../utils/push').then(m => m.subscribeToPushNotifications().catch(() => {}));
               } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler bei der Registrierung' }); }
             }} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Registrieren</button>
             <button onClick={() => setShowRegisterForm(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Zurueck zum Login</button>

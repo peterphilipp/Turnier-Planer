@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import webpush from 'web-push';
 import prisma from '../config/prisma.js';
 import { Resend } from 'resend';
 import { logLoginSuccess, logLoginFailed, logPasswordResetRequested, logPasswordResetCompleted, logRegistrationCreated } from '../utils/logger.js';
@@ -13,6 +14,14 @@ function getClientIp(req: express.Request): string | undefined {
 }
 
 const router = express.Router();
+
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    'mailto:noreply@turnier-planer.mygate.dedyn.io',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+}
 
 /** Entfernt den Passwort-Hash aus einem User-Objekt, bevor es ausgeliefert wird. */
 function sanitizeUser<T extends { password?: string | null }>(user: T): Omit<T, 'password'> {
@@ -423,15 +432,20 @@ router.patch('/profile', async (req, res, next) => {
 router.post('/register', async (req, res, next) => {
   try {
     const { name, email, phone, password, children, consentGiven } = req.body;
-    if (!name || !email || !password) return res.status(400).json({ error: 'Fehlende Pflichtfelder' });
-    if (consentGiven !== true) return res.status(400).json({ error: 'Datenschutzerklärung muss akzeptiert werden' });
+    if (!name || !password) return res.status(400).json({ error: 'Fehlende Pflichtfelder (Name & Passwort)' });
+    if (consentGiven !== true) return res.status(400).json({ error: 'Datenschutzerklrung muss akzeptiert werden' });
 
-    const existing = await prisma.user.findFirst({ where: { email } });
-    if (existing) return res.status(409).json({ error: 'Email wird bereits verwendet' });
+    if (email) {
+      const existingEmail = await prisma.user.findFirst({ where: { email } });
+      if (existingEmail) return res.status(409).json({ error: 'Email wird bereits verwendet' });
+    }
 
-    // Admin-Berechtigungen robuster machen: Über Umgebungsvariable oder als allererster Nutzer
+    const existingName = await prisma.user.findFirst({ where: { name } });
+    if (existingName) return res.status(409).json({ error: 'Dieser Name ist bereits vergeben. Bitte verwende einen Zusatz (z.B. "Peter M." oder "Peter (Trainer)").' });
+
+    // Admin-Berechtigungen robuster machen
     const adminEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.toLowerCase().split(',').map(e => e.trim()) : [];
-    const isForcedAdmin = adminEmails.includes(email.toLowerCase());
+    const isForcedAdmin = email ? adminEmails.includes(email.toLowerCase()) : false;
 
     // Aktives Turnier automatisch zuweisen
     const activeTournament = await prisma.tournament.findFirst({
@@ -439,16 +453,24 @@ router.post('/register', async (req, res, next) => {
       orderBy: { startDate: 'desc' }
     });
 
-    // Erster User bekommt automatisch ADMIN-Rechte (falls kein Admin existiert)
+    // Erster User bekommt automatisch ADMIN-Rechte
     const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
     const isFirstAdmin = adminCount === 0;
+
+    // Recovery PIN generieren (6 Zeichen)
+    const pinChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let recoveryPin = '';
+    for(let i = 0; i < 6; i++) {
+       recoveryPin += pinChars.charAt(Math.floor(Math.random() * pinChars.length));
+    }
 
     const hashed = await bcrypt.hash(password, 10);
     const createData: any = {
       name,
-      email,
-      phone,
+      email: email || null,
+      phone: phone || null,
       password: hashed,
+      recoveryPin,
       role: (isFirstAdmin || isForcedAdmin) ? 'ADMIN' : 'HELPER',
       tournamentId: activeTournament?.id || null,
       consentGiven: true,
@@ -472,12 +494,109 @@ router.post('/register', async (req, res, next) => {
     });
 
     logRegistrationCreated(user.name, user.email || '', ip);
-    // Rolle aus dem neu erstellten User lesen und ins JWT aufnehmen
     const newRole = typeof user.role === 'string' && ['HELPER', 'ORGANIZER', 'ADMIN'].includes(user.role)
       ? user.role
       : 'HELPER';
     const token = jwt.sign({ userId: user.id, role: newRole }, JWT_SECRET, { expiresIn: '30d' });
     res.status(201).json({ token, user: sanitizeUser(user) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/auth/vapid-public-key
+router.get('/vapid-public-key', (req, res) => {
+  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+});
+
+// POST /api/auth/push/subscribe
+router.post('/push/subscribe', async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ error: 'Nicht authentifiziert' });
+    const token = authHeader.split(' ')[1];
+    let decoded;
+    try { decoded = jwt.verify(token, JWT_SECRET) as { userId: number }; } 
+    catch { return res.status(401).json({ error: 'Ungltiger Token' }); }
+
+    const { endpoint, keys } = req.body;
+    if (!endpoint || !keys) return res.status(400).json({ error: 'Invalid subscription object' });
+
+    await prisma.pushSubscription.create({
+      data: {
+        userId: decoded.userId,
+        endpoint,
+        p256dh: keys.p256dh,
+        auth: keys.auth
+      }
+    });
+
+    res.status(201).json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/auth/reset-by-pin
+router.post('/reset-by-pin', async (req, res, next) => {
+  try {
+    const { name, recoveryPin, newPassword } = req.body;
+    if (!name || !recoveryPin || !newPassword) return res.status(400).json({ error: 'Name, PIN und neues Passwort erforderlich' });
+
+    const user = await prisma.user.findFirst({ where: { name, recoveryPin } });
+    if (!user) return res.status(401).json({ error: 'Ungltiger Name oder PIN' });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashed }
+    });
+
+    logPasswordResetCompleted(user.id, user.name, getClientIp(req));
+    res.json({ message: 'Passwort erfolgreich zurckgesetzt' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/auth/forgot-password-push
+router.post('/forgot-password-push', async (req, res, next) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+
+    const user = await prisma.user.findFirst({ where: { name }, include: { pushSubscriptions: true } });
+    if (!user) return res.json({ message: 'Wenn das Konto existiert, wurde ein Push gesendet.' });
+    if (user.pushSubscriptions.length === 0) return res.json({ message: 'Kein Push-Gert registriert.' });
+
+    // Alten Tokens lschen & Neuen Token generieren
+    await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+    const token = crypto.randomBytes(32).toString('hex');
+    await prisma.passwordResetToken.create({
+      data: { userId: user.id, token, expiresAt: new Date(Date.now() + 3600000) }
+    });
+
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
+    
+    // Push Notifications senden
+    for (const sub of user.pushSubscriptions) {
+      try {
+        await webpush.sendNotification({
+          endpoint: sub.endpoint,
+          keys: { p256dh: sub.p256dh, auth: sub.auth }
+        }, JSON.stringify({
+          title: 'Passwort zurcksetzen',
+          body: 'Tippe hier, um dein Passwort neu zu vergeben.',
+          url: resetUrl
+        }));
+      } catch (e: any) {
+        if (e.statusCode === 410 || e.statusCode === 404) {
+          await prisma.pushSubscription.delete({ where: { id: sub.id } });
+        }
+      }
+    }
+
+    res.json({ message: 'Push gesendet' });
   } catch (err) {
     next(err);
   }
