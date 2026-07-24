@@ -7,8 +7,8 @@ import { logTournamentCreated, logTournamentUpdated } from '../utils/logger.js';
 export const tournamentSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
-  startDate: z.string().datetime().or(z.date()),
-  endDate: z.string().datetime().or(z.date()),
+  startDate: z.string().or(z.date()),
+  endDate: z.string().or(z.date()),
   status: z.enum(['aktiv', 'beendet', 'archiviert']).default('aktiv'),
   turnierModus: z.enum(['GRUPPEN_KO', 'KO', 'LIGA']).default('GRUPPEN_KO'),
   clubId: z.number().int().positive().nullable().optional(),
