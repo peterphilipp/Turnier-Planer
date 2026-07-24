@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ModalRoot } from './components/admin/Modal';
+import { ModalRoot, modal } from './components/admin/Modal';
 import { useQuery } from '@tanstack/react-query';
 import { getTournaments, setAuthToken, ApiError } from './api';
 
@@ -95,7 +95,7 @@ function AdminView() {
   const handleAdminClick = () => {
     // Prüfen ob User Admin/Organizer ist
     if (!isAdmin && !isOrganizer) {
-      alert('Du hast keine Berechtigung für den Admin-Bereich. Bitte kontaktiere einen Administrator.');
+      void modal.alert({ title: 'Keine Berechtigung', message: 'Du hast keine Berechtigung für den Admin-Bereich. Bitte kontaktiere einen Administrator.' });
       return;
     }
     setView('admin');
@@ -243,15 +243,15 @@ function AdminView() {
 
       {/* LEVEL 1: HAUPT-NAVIGATION */}
       <nav style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', borderBottom: '2px solid #dee2e6', paddingBottom: 10 }}>
-        <button onClick={() => setActiveMainTab('spielplan')}
+        <button onClick={() => setActiveMainTab('spielplan')} aria-pressed={activeMainTab === 'spielplan'}
           style={{ padding: '10px 20px', cursor: 'pointer', background: activeMainTab === 'spielplan' ? primaryColor : 'transparent', color: activeMainTab === 'spielplan' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
           🏆 Spielplanmanagement
         </button>
-        <button onClick={() => setActiveMainTab('organisation')}
+        <button onClick={() => setActiveMainTab('organisation')} aria-pressed={activeMainTab === 'organisation'}
           style={{ padding: '10px 20px', cursor: 'pointer', background: activeMainTab === 'organisation' ? primaryColor : 'transparent', color: activeMainTab === 'organisation' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
           📋 Organisationsmanagement
         </button>
-        <button onClick={() => setActiveMainTab('stammdaten')}
+        <button onClick={() => setActiveMainTab('stammdaten')} aria-pressed={activeMainTab === 'stammdaten'}
           style={{ padding: '10px 20px', cursor: 'pointer', background: activeMainTab === 'stammdaten' ? primaryColor : 'transparent', color: activeMainTab === 'stammdaten' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
           ⚙️ Stammdaten
         </button>
