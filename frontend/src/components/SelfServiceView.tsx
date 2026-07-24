@@ -3,6 +3,7 @@ import { modal } from './admin/Modal';
 import { inputStyle, btnStyle } from './admin/shared';
 import { useUser } from '../context/UserContext';
 import { apiFetch, apiPost, apiPatch, apiDelete } from '../api';
+import PwaInstallPrompt from './PwaInstallPrompt';
 
 interface Shift {
   id: number; date: string; slot: string;
@@ -472,6 +473,9 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   /* ===== DASHBOARD ===== */
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', padding: isMobile ? 16 : 24, paddingBottom: 80, background: '#f0f2f5', minHeight: '100vh', boxSizing: 'border-box' }}>
+      
+      <PwaInstallPrompt />
+
       {/* Header mit Logo, Name & Hamburger */}
       <div style={{ background: 'linear-gradient(135deg, ' + clubPrimary + ' 0%, ' + shadeColor(clubPrimary, -20) + ' 100%)', borderRadius: 20, padding: isMobile ? 16 : 20, marginBottom: 20, color: '#fff', position: 'relative' }}>
         <button

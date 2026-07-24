@@ -1,0 +1,1 @@
+import { PrismaClient } from '@prisma/client'; const prisma = new PrismaClient(); Promise.all([prisma.yearGroup.count(), prisma.team.count(), prisma.knockoutBracket.count(), prisma.group.count(), prisma.foodDonationSlot.count()]).then(c => console.log(c)).finally(() => prisma.$disconnect())
