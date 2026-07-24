@@ -23,7 +23,8 @@ function RoleBadge({ role }: { role: string }) {
 export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: string, tournamentId: number | null }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers', tournamentId], queryFn: () => getVolunteers(tournamentId), enabled: !!tournamentId });
+  // Fetch ALL users unconditionally for the user management view
+  const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers'], queryFn: () => getVolunteers() });
   
   const [volForm, setVolForm] = useState({ name: '', email: '', phone: '' });
   const [editingVol, setEditingVol] = useState<number | null>(null);
@@ -55,7 +56,8 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
 
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-      <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>👷 Helfer & Personal</h3>
+      <h2 style={{ margin: 0, fontSize: 24, fontWeight: 'bold' }}>👤 Benutzer & Personal</h2>
+      <p style={{ margin: 0, color: '#666', marginBottom: 24 }}>Alle registrierten Benutzer und zugewiesene Helfer</p>
       
       {/* Suchfeld */}
       <div style={{ marginBottom: 16 }}>
@@ -108,7 +110,9 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
               </td>
             </tr>
           ))}
-          {filtered.length === 0 && <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#666' }}>{search ? `Keine Treffer für "${search}"` : 'Keine Helfer vorhanden.'}</td></tr>}
+          {volunteers.length === 0 ? (
+            <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#666' }}>Keine Benutzer vorhanden.</td></tr>
+          ) : (filtered.length === 0 && <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#666' }}>Keine Treffer für "{search}"</td></tr>)}
         </tbody>
       </table>
 

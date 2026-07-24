@@ -152,17 +152,18 @@ function AdminView() {
         <button
           onClick={() => setView('selfservice')}
           style={{
-            padding: '12px 24px',
-            background: '#6c757d',
+            padding: '10px 20px',
+            background: '#0d6efd',
             color: '#fff',
             border: 'none',
             borderRadius: 8,
             cursor: 'pointer',
+            fontWeight: 600,
             fontSize: 15,
             marginTop: 16
           }}
         >
-          ← Zurück zum Helfer-Bereich
+          Zurück zum Self-Service-Bereich
         </button>
       </div>
     );
@@ -227,15 +228,16 @@ function AdminView() {
             onClick={() => setView('selfservice')}
             style={{
               padding: '8px 16px',
-              background: '#6c757d',
+              background: '#0d6efd',
               color: '#fff',
               border: 'none',
               borderRadius: 6,
               cursor: 'pointer',
+              fontWeight: 600,
               fontSize: 13
             }}
           >
-            ← Helfer-Bereich
+            Self-Service-Bereich
           </button>
         </div>
       </div>
@@ -328,7 +330,7 @@ function AdminView() {
 
       {activeMainTab === 'stammdaten' && (
         <nav style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-          {[{ key: 'turniere' as StammTab, icon: '🏆', label: 'Turniere' }, { key: 'vereine' as StammTab, icon: '🏅', label: 'Vereine' }, { key: 'work-areas' as StammTab, icon: '📍', label: 'Arbeitsbereiche' }, { key: 'global-time-slots' as StammTab, icon: '🕐', label: 'Zeitslots' }, { key: 'helfer' as StammTab, icon: '👥', label: 'Helfer' }, { key: 'jahrgaenge' as StammTab, icon: '📅', label: 'Jahrgänge' }, { key: 'lebensmittel' as StammTab, icon: '🍞', label: 'Lebensmittel' }].map(tab => (
+          {[{ key: 'turniere' as StammTab, icon: '🏆', label: 'Turniere' }, { key: 'vereine' as StammTab, icon: '🛡️', label: 'Vereine' }, { key: 'work-areas' as StammTab, icon: '📍', label: 'Arbeitsbereiche' }, { key: 'global-time-slots' as StammTab, icon: '⏰', label: 'Zeitslots' }, { key: 'helfer' as StammTab, icon: '👤', label: 'Benutzer' }, { key: 'jahrgaenge' as StammTab, icon: '👶', label: 'Jahrgänge' }, { key: 'lebensmittel' as StammTab, icon: '🍔', label: 'Lebensmittel' }].map(tab => (
             <button key={tab.key} onClick={() => setActiveStammTab(tab.key)} style={{ padding: '12px 16px', cursor: 'pointer', background: activeStammTab === tab.key ? '#6c757d' : '#e9ecef', color: activeStammTab === tab.key ? '#fff' : '#000', border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>{tab.icon}</span><span>{tab.label}</span>
             </button>
