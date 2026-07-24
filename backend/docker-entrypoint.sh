@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+echo "  Alte Shift-Daten pruefen (Tag-/Slot-System Migration)..."
+node scripts/migrate-day-slot-system.cjs
+
 echo "  Prisma Schema synchronisieren..."
 npx prisma db push --accept-data-loss
 

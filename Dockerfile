@@ -28,6 +28,7 @@ RUN npx prisma generate
 
 # Source & Frontend dist
 COPY backend/src ./src/
+COPY backend/scripts ./scripts/
 COPY --from=frontend-build /app/dist ./dist/
 
 EXPOSE 5000
