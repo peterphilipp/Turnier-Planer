@@ -112,7 +112,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
           ))}
           {volunteers.length === 0 ? (
             <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#666' }}>Keine Benutzer vorhanden.</td></tr>
-          ) : (filtered.length === 0 && <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#666' }}>Keine Treffer für "{search}"</td></tr>)}
+          ) : (filtered.length === 0 ? <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#666' }}>Keine Treffer für "{search}"</td></tr> : null)}
         </tbody>
       </table>
 
