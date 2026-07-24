@@ -36,12 +36,12 @@ export default function GlobalTimeSlots({ adminPrimary }: { adminPrimary: string
       
       {/* Neue ZS Form */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input value={zsForm.name} onChange={e => setZsForm({ ...zsForm, name: e.target.value })} placeholder="Name" style={{ flex: 1, minWidth: 200, padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
-        <input type="time" value={zsForm.startTime} onChange={e => setZsForm({ ...zsForm, startTime: e.target.value })} style={{ padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
-        <input type="time" value={zsForm.endTime} onChange={e => setZsForm({ ...zsForm, endTime: e.target.value })} style={{ padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
-        <input type="color" value={zsForm.color} onChange={e => setZsForm({ ...zsForm, color: e.target.value })} style={{ width: 48, height: 44, padding: 0, border: '1px solid #dee2e6', borderRadius: 8, cursor: 'pointer' }} />
-        <input type="number" value={zsForm.order} onChange={e => setZsForm({ ...zsForm, order: parseInt(e.target.value) || 1 })} placeholder="Reihenfolge" style={{ width: 90, padding: '14px 8px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
-        <button onClick={saveGlobalTimeSlot} style={{ padding: '14px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, minHeight: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
+        <input value={zsForm.name} onChange={e => setZsForm({ ...zsForm, name: e.target.value })} placeholder="Name" style={{ flex: 1, minWidth: 200, padding: '0 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, height: 48 }} />
+        <input type="time" value={zsForm.startTime} onChange={e => setZsForm({ ...zsForm, startTime: e.target.value })} style={{ padding: '0 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, height: 48 }} />
+        <input type="time" value={zsForm.endTime} onChange={e => setZsForm({ ...zsForm, endTime: e.target.value })} style={{ padding: '0 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, height: 48 }} />
+        <input type="color" value={zsForm.color} onChange={e => setZsForm({ ...zsForm, color: e.target.value })} style={{ width: 48, height: 48, padding: 0, border: '1px solid #dee2e6', borderRadius: 8, cursor: 'pointer' }} />
+        <input type="number" value={zsForm.order} onChange={e => setZsForm({ ...zsForm, order: parseInt(e.target.value) || 1 })} placeholder="Reihenfolge" style={{ width: 90, padding: '0 8px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, height: 48 }} />
+        <button onClick={saveGlobalTimeSlot} style={{ padding: '0 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, height: 48, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
           <span>➕</span><span>Hinzufügen</span>
         </button>
       </div>

@@ -660,6 +660,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               <button onClick={() => { setMenuOpen(false); if (onLoginAsAdmin) onLoginAsAdmin(); }} style={{ width: '100%', padding: '10px 16px', background: '#e8f5e9', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#2e7d32', fontWeight: 'bold' }}>⚙️ Admin-Bereich</button>
             ) : null}
             <button onClick={() => { setMenuOpen(false); setShowRegisterForm(false); logout(); }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#dc3545' }}>🚪 Abmelden</button>
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #e9ecef', textAlign: 'center', fontSize: 10, color: '#ced4da', letterSpacing: 0.5 }}>v0.9.14</div>
           </div>
         )}
 
