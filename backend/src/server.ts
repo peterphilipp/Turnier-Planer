@@ -31,6 +31,10 @@ import standingsRoutes from './routes/standings.routes.js';
 import knockoutBracketRoutes from './routes/knockoutBracket.routes.js';
 import tournamentClubRoutes from './routes/tournamentClub.routes.js';
 import impactRoutes from './routes/impact.routes.js';
+import dayTemplateRoutes from './routes/dayTemplate.routes.js';
+import tournamentWorkAreaRoutes from './routes/tournamentWorkArea.routes.js';
+import tournamentDayRoutes from './routes/tournamentDay.routes.js';
+import daySlotRoutes from './routes/daySlot.routes.js';
 // Middleware imports
 import errorHandler from './middleware/errorHandler.js';
 
@@ -62,6 +66,10 @@ app.use('/api/time-slots', timeSlotRoutes);
 app.use('/api/fields', fieldRoutes);
 app.use('/api/standings', standingsRoutes);
 app.use('/api/impact', impactRoutes);
+app.use('/api/day-templates', dayTemplateRoutes);
+app.use('/api/tournament-work-areas', tournamentWorkAreaRoutes);
+app.use('/api/tournament-days', tournamentDayRoutes);
+app.use('/api/day-slots', daySlotRoutes);
 // ===================== Serve Frontend (SPA) =====================
 const distPath = path.resolve(__dirname, '../dist');
 app.use(express.static(distPath));
