@@ -344,7 +344,7 @@ function AdminView() {
 
       {activeMainTab === 'stammdaten' && (
         <nav style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-          {[{ key: 'turniere' as StammTab, icon: '🏆', label: 'Turniere' }, { key: 'vereine' as StammTab, icon: '🛡️', label: 'Vereine' }, { key: 'work-areas' as StammTab, icon: '📍', label: 'Arbeitsbereiche' }, { key: 'global-time-slots' as StammTab, icon: '📅', label: 'Tagesvorlagen' }, { key: 'helfer' as StammTab, icon: '👤', label: 'Benutzer' }, { key: 'jahrgaenge' as StammTab, icon: '👶', label: 'Jahrgänge' }, { key: 'lebensmittel' as StammTab, icon: '🍔', label: 'Verpflegung' }].map(tab => (
+          {[{ key: 'vereine' as StammTab, icon: '🛡️', label: 'Vereine' }, { key: 'turniere' as StammTab, icon: '🏆', label: 'Turniere' }, { key: 'jahrgaenge' as StammTab, icon: '👶', label: 'Jahrgänge' }, { key: 'work-areas' as StammTab, icon: '📍', label: 'Arbeitsbereiche' }, { key: 'global-time-slots' as StammTab, icon: '📅', label: 'Tagesvorlagen' }, { key: 'lebensmittel' as StammTab, icon: '🍔', label: 'Verpflegung' }, { key: 'helfer' as StammTab, icon: '👤', label: 'Benutzer' }].map(tab => (
             <button key={tab.key} onClick={() => setActiveStammTab(tab.key)} style={{ padding: '12px 16px', cursor: 'pointer', background: activeStammTab === tab.key ? '#6c757d' : '#e9ecef', color: activeStammTab === tab.key ? '#fff' : '#000', border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>{tab.icon}</span><span>{tab.label}</span>
             </button>
