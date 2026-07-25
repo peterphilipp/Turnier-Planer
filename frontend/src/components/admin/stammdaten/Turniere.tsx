@@ -30,6 +30,8 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
   const saveTournamentEdit = async () => {
     if (!statusDialog.tournament) return;
     if (!statusDialog.editName.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
+    if (statusDialog.editStart && statusDialog.editEnd && statusDialog.editStart > statusDialog.editEnd) return await modal.alert({ title: 'Hinweis', message: 'Startdatum darf nicht nach dem Enddatum liegen!' });
+    if (statusDialog.editHasSponsor && !statusDialog.editSponsorName.trim()) return await modal.alert({ title: 'Hinweis', message: 'Sponsor-Name erforderlich!' });
     const patchData: any = {
       name: statusDialog.editName, startDate: statusDialog.editStart, endDate: statusDialog.editEnd,
       clubId: statusDialog.editClubId && statusDialog.editClubId !== '' ? parseInt(statusDialog.editClubId) : null,
@@ -71,7 +73,8 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
   const createTournament = async () => {
     const { name, start, end, clubId, modus } = newTourn;
     if (!name || !start || !end) return await modal.alert({ title: 'Hinweis', message: 'Name, Start- und Enddatum erforderlich!' });
-    await apiPost('/api/tournaments', { 
+    if (start > end) return await modal.alert({ title: 'Hinweis', message: 'Startdatum darf nicht nach dem Enddatum liegen!' });
+    await apiPost('/api/tournaments', {
       name, 
       startDate: start, 
       endDate: end, 

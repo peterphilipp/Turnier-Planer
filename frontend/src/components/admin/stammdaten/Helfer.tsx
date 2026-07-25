@@ -37,6 +37,8 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
 
   const saveVolunteer = async () => {
     if (!volForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
+    if (volForm.name.trim().length > 100) return await modal.alert({ title: 'Hinweis', message: 'Name darf maximal 100 Zeichen lang sein!' });
+    if (volForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(volForm.email.trim())) return await modal.alert({ title: 'Hinweis', message: 'Bitte eine gültige E-Mail-Adresse eingeben!' });
     if (editingVol) {
       await apiPatch(`/api/volunteers/${editingVol}`, { ...volForm });
     } else {

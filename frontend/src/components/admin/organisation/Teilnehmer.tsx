@@ -65,6 +65,7 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
 
   const handleAddGroup = async () => {
     if (!newGroup.trim() || !tournamentId || !yearGroupId) return;
+    if (newGroup.trim().length > 100) return await modal.alert({ title: 'Hinweis', message: 'Der Gruppenname darf maximal 100 Zeichen lang sein.' });
     await apiPost('/api/groups', { name: newGroup.trim(), tournamentId, yearGroupId });
     setNewGroup('');
     queryClient.invalidateQueries({ queryKey: ['groups'] });
@@ -95,7 +96,8 @@ export default function Teilnehmer({ tournamentId, yearGroupId, tournament }: Pr
   const handleAddTeam = async (clubId: number) => {
     if (!tournamentId || !yearGroupId) return;
     if (!teamForms[clubId]?.trim()) return;
-    
+    if (teamForms[clubId].trim().length > 100) return await modal.alert({ title: 'Hinweis', message: 'Der Teamname darf maximal 100 Zeichen lang sein.' });
+
     // Team-Nummer für diesen Verein ermitteln
     const existingTeamsForClub = teams.filter(t => t.clubId === clubId);
     const teamNumber = existingTeamsForClub.length + 1;

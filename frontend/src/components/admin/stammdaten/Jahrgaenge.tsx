@@ -21,6 +21,10 @@ export default function Jahrgaenge({ adminPrimary }: { adminPrimary: string }) {
 
   const save = async () => {
     if (!form.name || !form.birthYearStart || !form.birthYearEnd) return await modal.alert({ title: 'Hinweis', message: 'Alle Felder ausfüllen!' });
+    if (form.birthYearStart < 1990 || form.birthYearStart > 2030) return await modal.alert({ title: 'Hinweis', message: 'Geburtsjahr von muss zwischen 1990 und 2030 liegen!' });
+    if (form.birthYearEnd < 1990 || form.birthYearEnd > 2030) return await modal.alert({ title: 'Hinweis', message: 'Geburtsjahr bis muss zwischen 1990 und 2030 liegen!' });
+    if (form.birthYearStart > form.birthYearEnd) return await modal.alert({ title: 'Hinweis', message: 'Geburtsjahr von darf nicht größer als Geburtsjahr bis sein!' });
+    if (form.order < 0) return await modal.alert({ title: 'Hinweis', message: 'Reihenfolge darf nicht negativ sein!' });
     try {
       if (editingId) { await apiPatch(`/api/year-groups/${editingId}`, form); }
       else { await apiPost('/api/year-groups', form); }

@@ -30,7 +30,10 @@ export default function Felder({ tournamentId, yearGroupId }: Props) {
   const handleSave = async () => {
     if (!tournamentId || !yearGroupId) return await modal.alert({ title: 'Hinweis', message: 'Bitte wähle oben einen Jahrgang aus!' });
     if (!form.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Feldname erforderlich!' });
-    
+    if (form.name.trim().length > 50) return await modal.alert({ title: 'Hinweis', message: 'Feldname darf maximal 50 Zeichen lang sein!' });
+    if (!form.status.trim()) return await modal.alert({ title: 'Hinweis', message: 'Status erforderlich!' });
+    if (form.status.trim().length > 30) return await modal.alert({ title: 'Hinweis', message: 'Status darf maximal 30 Zeichen lang sein!' });
+
     await apiPost('/api/fields', { ...form, tournamentId, yearGroupId });
     queryClient.invalidateQueries({ queryKey: ['fields'] });
     setShowForm(false);
