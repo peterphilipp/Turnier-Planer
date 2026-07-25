@@ -3,6 +3,7 @@ import prisma from '../config/prisma.js';
 import { z } from 'zod';
 import bcrypt from 'bcrypt';
 import { logVolunteerUpdated, logClubCreated } from '../utils/logger.js';
+import { sendPushToUser } from '../utils/push.js';
 
 export const volunteerSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
@@ -99,3 +100,63 @@ export const updateVolunteerPassword = async (req: Request, res: Response) => {
   });
   return res.json({ success: true });
 };
+
+export const broadcastPush = async (req: Request, res: Response) => {
+  const { mode, userIds, shiftIds, tournamentId, title, body, url } = req.body;
+
+  if (!title || !body) {
+    return res.status(400).json({ error: 'Titel und Nachrichtentext sind erforderlich' });
+  }
+
+  let targetUserIds: number[] = [];
+
+  if (mode === 'all') {
+    if (tournamentId) {
+      const usersInTournament = await prisma.user.findMany({
+        where: {
+          OR: [
+            { tournamentId: Number(tournamentId) },
+            { shifts: { some: { tournamentId: Number(tournamentId) } } }
+          ]
+        },
+        select: { id: true }
+      });
+      targetUserIds = usersInTournament.map(u => u.id);
+    } else {
+      const allSubs = await prisma.pushSubscription.findMany({ select: { userId: true } });
+      targetUserIds = allSubs.map(s => s.userId);
+    }
+  } else if (mode === 'users') {
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ error: 'Keine Empfänger ausgewählt' });
+    }
+    targetUserIds = userIds.map(Number).filter(id => !isNaN(id));
+  } else if (mode === 'shifts') {
+    if (!Array.isArray(shiftIds) || shiftIds.length === 0) {
+      return res.status(400).json({ error: 'Keine Schichten ausgewählt' });
+    }
+    const volShifts = await prisma.volunteerShift.findMany({
+      where: { shiftId: { in: shiftIds.map(Number) } },
+      select: { userId: true }
+    });
+    targetUserIds = volShifts.map(vs => vs.userId).filter((id): id is number => id !== null && id !== undefined);
+  } else {
+    return res.status(400).json({ error: 'Ungültiger Modus' });
+  }
+
+  const uniqueIds = Array.from(new Set(targetUserIds));
+  const subscriptions = await prisma.pushSubscription.findMany({
+    where: { userId: { in: uniqueIds } },
+    select: { userId: true }
+  });
+  const usersWithPush = Array.from(new Set(subscriptions.map(s => s.userId)));
+
+  let sentCount = 0;
+  for (const uid of usersWithPush) {
+    await sendPushToUser(uid, title, body, url || '/');
+    sentCount++;
+  }
+
+  return res.json({ success: true, targetedUsers: uniqueIds.length, sentPushCount: sentCount });
+};
+

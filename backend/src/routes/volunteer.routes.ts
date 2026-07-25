@@ -7,6 +7,7 @@ import {
   deleteVolunteer,
   updateVolunteer,
   updateVolunteerPassword,
+  broadcastPush,
   volunteerSchema
 } from '../controllers/volunteer.controller.js';
 
@@ -14,6 +15,9 @@ const router = Router();
 
 // Nur Admin/Organizer: Helfer-Liste (enthält personenbezogene Daten)
 router.get('/', authenticate, requireAdmin, getVolunteers);
+
+// Nur Admin/Organizer: Push Broadcast
+router.post('/push-broadcast', authenticate, requireAdmin, broadcastPush);
 
 // Nur Admin/Organizer
 router.post('/', authenticate, requireAdmin, validate(volunteerSchema), createVolunteer);

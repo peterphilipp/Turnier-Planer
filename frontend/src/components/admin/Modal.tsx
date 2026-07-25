@@ -23,6 +23,7 @@ interface FormField {
   type?: 'text' | 'number' | 'password' | 'email' | 'select';
   options?: { value: string | number; label: string }[];
   placeholder?: string;
+  defaultValue?: any;
 }
 
 interface FormOpts {
@@ -105,7 +106,13 @@ function AlertDialog({ opts }: { opts: AlertOpts }) {
 
 // ─── Form Dialog ─────────────────────────────────────────────────────────
 function FormDialog({ opts }: { opts: FormOpts }) {
-  const [values, setValues] = useState<Record<string, any>>({});
+  const [values, setValues] = useState<Record<string, any>>(() => {
+    const init: Record<string, any> = {};
+    opts.fields.forEach(f => {
+      if (f.defaultValue !== undefined) init[f.key] = f.defaultValue;
+    });
+    return init;
+  });
 
   const handleChange = (key: string, val: any) => setValues(prev => ({ ...prev, [key]: val }));
 

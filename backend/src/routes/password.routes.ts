@@ -75,6 +75,12 @@ async function createPinPair(): Promise<{ plain: string; hash: string }> {
  */
 const DUMMY_BCRYPT_HASH = '$2b$10$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345';
 
+/**
+ * Einheitliche Login-Fehlermeldung (verhindert User-Enumeration). Die genaue
+ * Ursache landet nur im Server-Log, nicht in der HTTP-Antwort.
+ */
+const LOGIN_FAILED_MESSAGE = 'Anmeldung fehlgeschlagen. Bitte prüfe Name/E-Mail und Passwort.';
+
 // POST /api/auth/forgot-password
 router.post('/forgot-password', authLimiter, async (req, res, next) => {
   try {
@@ -216,14 +222,20 @@ router.post('/login', authLimiter, async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
     const identifier = email || name;
-    
+
     if (!identifier) {
       return res.status(400).json({ error: 'Name oder E-Mail erforderlich' });
     }
+    // Fehlendes Passwort früh abfangen: sonst würde bcrypt.compare(undefined, …)
+    // werfen und der Error-Handler mit 500 antworten – das wäre selbst schon
+    // ein Unterscheidungsmerkmal gegenüber einem korrekten 401.
+    if (!password) {
+      return res.status(401).json({ error: LOGIN_FAILED_MESSAGE });
+    }
 
     const ip = getClientIp(req);
-    const user = await prisma.user.findFirst({ 
-      where: { 
+    const user = await prisma.user.findFirst({
+      where: {
         OR: [
           { email: identifier },
           { name: identifier }
@@ -231,17 +243,19 @@ router.post('/login', authLimiter, async (req, res, next) => {
       },
       include: { children: true }
     });
-    
-    if (!user) {
-        logLoginFailed(identifier, 'Benutzer nicht gefunden', getClientIp(req) || '');
-        return res.status(401).json({ error: 'Benutzer nicht gefunden' });
-      }
 
-      const match = await bcrypt.compare(password, user.password || '');
-      if (!match) {
-        logLoginFailed(identifier, 'Falsches Passwort', getClientIp(req) || '');
-        return res.status(401).json({ error: 'Falsches Passwort' });
-      }
+    // Einheitliche Antwort für "Konto existiert nicht" und "Passwort falsch".
+    // Vorher verrieten die Meldungen ("Benutzer nicht gefunden" vs. "Falsches
+    // Passwort"), ob ein Konto existiert – damit liess sich die komplette
+    // Nutzerliste des Vereins abfragen und als Zielliste für Brute-Force gegen
+    // /reset-by-pin nutzen. Zusätzlich wird immer ein bcrypt-Vergleich
+    // ausgeführt (bei unbekanntem Konto gegen einen Dummy-Hash), damit auch die
+    // Antwortzeit keinen Rückschluss erlaubt.
+    const match = await bcrypt.compare(password, user?.password || DUMMY_BCRYPT_HASH);
+    if (!user || !match) {
+      logLoginFailed(identifier, user ? 'Falsches Passwort' : 'Benutzer nicht gefunden', getClientIp(req) || '');
+      return res.status(401).json({ error: LOGIN_FAILED_MESSAGE });
+    }
 
       logLoginSuccess(user.email || identifier, getClientIp(req));
       
@@ -692,9 +706,17 @@ router.post('/forgot-password-push', authLimiter, async (req, res, next) => {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
 
+    // Einheitliche Antwort für alle drei Fälle (Konto unbekannt / kein Gerät /
+    // Push gesendet). Vorher liessen sich daran existierende Konten UND deren
+    // Push-Status ablesen – eine Wörterbuchsuche über Namen hätte die komplette
+    // Nutzerliste des Vereins geliefert (DSGVO-relevant) und direkt die für
+    // /reset-by-pin interessanten Ziele markiert.
+    const PUSH_SENT_MESSAGE = 'Wenn ein Konto mit registriertem Gerät existiert, wurde eine Benachrichtigung gesendet.';
+
     const user = await prisma.user.findFirst({ where: { name }, include: { pushSubscriptions: true } });
-    if (!user) return res.json({ message: 'Wenn das Konto existiert, wurde ein Push gesendet.' });
-    if (user.pushSubscriptions.length === 0) return res.json({ message: 'Kein Push-Gert registriert.' });
+    if (!user || user.pushSubscriptions.length === 0) {
+      return res.json({ message: PUSH_SENT_MESSAGE });
+    }
 
     // Alten Tokens lschen & Neuen Token generieren
     await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
@@ -723,7 +745,7 @@ router.post('/forgot-password-push', authLimiter, async (req, res, next) => {
       }
     }
 
-    res.json({ message: 'Push gesendet' });
+    res.json({ message: PUSH_SENT_MESSAGE });
   } catch (err) {
     next(err);
   }

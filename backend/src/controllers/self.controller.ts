@@ -3,6 +3,7 @@ import prisma from '../config/prisma.js';
 import jwt from 'jsonwebtoken';
 import { logJobAssigned, logJobUnassigned } from '../utils/logger.js';
 import JWT_SECRET from '../config/jwt.js';
+import { getVapidPublicKey as getPubKey } from '../utils/push.js';
 
 // Helper: Get userId from token
 const getUserId = (req: Request): number | null => {
@@ -194,3 +195,46 @@ export const unassignShift = async (req: Request, res: Response) => {
   logJobUnassigned(userId, userName, existing.shiftId || 0, shiftDate);
   res.json({ success: true });
 };
+
+export const getVapidPublicKey = (req: Request, res: Response) => {
+  res.json({ publicKey: getPubKey() });
+};
+
+export const subscribePush = async (req: Request, res: Response) => {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Nicht authentifiziert' });
+
+  const { endpoint, keys } = req.body;
+  if (!endpoint || !keys || !keys.p256dh || !keys.auth) {
+    return res.status(400).json({ error: 'Ungültige Subscription-Daten' });
+  }
+
+  const existing = await prisma.pushSubscription.findFirst({
+    where: { endpoint }
+  });
+
+  if (existing) {
+    if (existing.userId !== userId || existing.p256dh !== keys.p256dh || existing.auth !== keys.auth) {
+      await prisma.pushSubscription.update({
+        where: { id: existing.id },
+        data: {
+          userId,
+          p256dh: keys.p256dh,
+          auth: keys.auth
+        }
+      });
+    }
+  } else {
+    await prisma.pushSubscription.create({
+      data: {
+        userId,
+        endpoint,
+        p256dh: keys.p256dh,
+        auth: keys.auth
+      }
+    });
+  }
+
+  res.status(201).json({ success: true });
+};
+

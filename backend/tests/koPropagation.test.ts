@@ -116,3 +116,76 @@ describe('computeKoPropagation – Robustheit', () => {
     expect(res).toEqual([]);
   });
 });
+
+describe('computeKoPropagation – 16 Teams (tiefstes Bracket)', () => {
+  const bracket = buildBracket(16, { thirdPlaceMatch: true });
+  const nodes = nodesOf(bracket);
+  const P = (name: string) => byPhase(bracket, name);
+
+  it('AF-Paare laufen korrekt in die Viertelfinale zusammen', () => {
+    // Paar 1 (AF1+AF2) -> VF1 ; Paar 2 (AF3+AF4) -> VF2 ; Paar 4 (AF7+AF8) -> VF4
+    expect(computeKoPropagation(play(P('Achtelfinale 1'), 2, 0), nodes))
+      .toEqual([{ targetMatchId: P('Viertelfinale 1').id, slot: 'teamA', teamId: 1 }]);
+    expect(computeKoPropagation(play(P('Achtelfinale 2'), 2, 0), nodes))
+      .toEqual([{ targetMatchId: P('Viertelfinale 1').id, slot: 'teamB', teamId: 3 }]);
+    expect(computeKoPropagation(play(P('Achtelfinale 3'), 2, 0), nodes))
+      .toEqual([{ targetMatchId: P('Viertelfinale 2').id, slot: 'teamA', teamId: 5 }]);
+    expect(computeKoPropagation(play(P('Achtelfinale 8'), 0, 2), nodes))
+      .toEqual([{ targetMatchId: P('Viertelfinale 4').id, slot: 'teamB', teamId: 16 }]);
+  });
+
+  it('keine Verlierer-Weitergabe in Runde 1 (kein Platzierungs-Bracket [9,16])', () => {
+    const res = computeKoPropagation(play(P('Achtelfinale 1'), 2, 0), nodes);
+    expect(res).toHaveLength(1); // nur der Sieger
+  });
+
+  it('VF-Sieger laufen in die Halbfinale', () => {
+    const vf1 = play({ ...P('Viertelfinale 1'), teamAId: 1, teamBId: 3 }, 3, 1);
+    expect(computeKoPropagation(vf1, nodes))
+      .toEqual([{ targetMatchId: P('Halbfinale 1').id, slot: 'teamA', teamId: 1 }]);
+    const vf4 = play({ ...P('Viertelfinale 4'), teamAId: 13, teamBId: 16 }, 0, 2);
+    expect(computeKoPropagation(vf4, nodes))
+      .toEqual([{ targetMatchId: P('Halbfinale 2').id, slot: 'teamB', teamId: 16 }]);
+  });
+
+  it('HF: Sieger -> Finale, Verlierer -> Spiel um Platz 3', () => {
+    const hf1 = play({ ...P('Halbfinale 1'), teamAId: 1, teamBId: 5 }, 2, 1);
+    const res = computeKoPropagation(hf1, nodes);
+    expect(res).toContainEqual({ targetMatchId: P('Finale').id, slot: 'teamA', teamId: 1 });
+    expect(res).toContainEqual({ targetMatchId: P('Spiel um Platz 3').id, slot: 'teamA', teamId: 5 });
+  });
+
+  it('Finale ist terminal', () => {
+    const finale = play({ ...P('Finale'), teamAId: 1, teamBId: 16 }, 3, 2);
+    expect(computeKoPropagation(finale, nodes)).toEqual([]);
+  });
+
+  it('vollständiger Durchlauf: 16 Teams -> genau ein Sieger im Finale', () => {
+    // Simuliert das ganze Turnier: in jeder Runde gewinnt immer teamA.
+    const state = new Map<number, { teamAId: number | null; teamBId: number | null }>();
+    for (const m of bracket) state.set(m.id, { teamAId: m.teamAId, teamBId: m.teamBId });
+
+    for (const stage of [0, 1, 2]) {
+      for (const m of bracket.filter(x => x.stage === stage)) {
+        const cur = state.get(m.id)!;
+        if (cur.teamAId == null || cur.teamBId == null) continue;
+        const played = { ...m, teamAId: cur.teamAId, teamBId: cur.teamBId, scoreA: 1, scoreB: 0 };
+        for (const a of computeKoPropagation(played, nodes)) {
+          const t = state.get(a.targetMatchId)!;
+          if (a.slot === 'teamA') t.teamAId = a.teamId; else t.teamBId = a.teamId;
+        }
+      }
+    }
+
+    const finale = state.get(P('Finale').id)!;
+    expect(finale.teamAId).not.toBeNull();
+    expect(finale.teamBId).not.toBeNull();
+    expect(finale.teamAId).not.toBe(finale.teamBId);
+    // teamA gewinnt immer -> Team 1 (aus AF1) und Team 9 (aus AF5) stehen im Finale
+    expect([finale.teamAId, finale.teamBId].sort((a, b) => a! - b!)).toEqual([1, 9]);
+
+    const platz3 = state.get(P('Spiel um Platz 3').id)!;
+    expect(platz3.teamAId).not.toBeNull();
+    expect(platz3.teamBId).not.toBeNull();
+  });
+});

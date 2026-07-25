@@ -7,8 +7,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Macht das Turnier!';
   const options = {
     body: data.body || 'Neue Benachrichtigung',
-    icon: '/pwa-192x192.svg',
-    badge: '/pwa-192x192.svg',
+    icon: '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
     data: { url: data.url || '/' }
   };
   event.waitUntil(self.registration.showNotification(title, options));

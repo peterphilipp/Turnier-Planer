@@ -7,6 +7,7 @@ import { inputStyle, btnStyle } from './admin/shared';
 import { useUser } from '../context/UserContext';
 import { apiFetch, apiPost, apiPatch, apiDelete } from '../api';
 import PwaInstallPrompt from './PwaInstallPrompt';
+import PushNotificationBanner from './PushNotificationBanner';
 
 interface Shift {
   id: number;
@@ -710,6 +711,8 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
           </div>
         </div>
       </div>
+
+      <PushNotificationBanner primaryColor={clubSecondary} />
 
       {/* Filter */}
       <div id="tour-filter" style={{ marginBottom: 16 }}>

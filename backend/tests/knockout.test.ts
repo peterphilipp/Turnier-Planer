@@ -174,3 +174,43 @@ describe('generateKnockoutTree – startStage-Offset', () => {
     expect(Math.max(...stages)).toBe(6);
   });
 });
+
+describe('generateKnockoutTree – 16 Teams', () => {
+  it('erzeugt 8 AF + 4 VF + 2 HF + Finale + Platz-3 = 16 Matches', () => {
+    const m = gen(teams(16), { thirdPlaceMatch: true });
+    expect(m).toHaveLength(16);
+    expect(m.filter(x => x.phase.startsWith('Achtelfinale'))).toHaveLength(8);
+    expect(m.filter(x => x.phase.startsWith('Viertelfinale'))).toHaveLength(4);
+    expect(m.filter(x => x.phase.startsWith('Halbfinale'))).toHaveLength(2);
+    expect(m.filter(x => x.phase === 'Finale')).toHaveLength(1);
+    expect(m.filter(x => x.phase === 'Spiel um Platz 3')).toHaveLength(1);
+  });
+
+  it('halbiert die Bounds pro Runde: [1,16] -> [1,8] -> [1,4] -> [1,2]', () => {
+    const m = gen(teams(16), { thirdPlaceMatch: true });
+    const bounds = (phase: string) => {
+      const x = m.find(y => y.phase.startsWith(phase))!;
+      return [x.upperBound, x.lowerBound];
+    };
+    expect(bounds('Achtelfinale')).toEqual([1, 16]);
+    expect(bounds('Viertelfinale')).toEqual([1, 8]);
+    expect(bounds('Halbfinale')).toEqual([1, 4]);
+    expect(bounds('Finale')).toEqual([1, 2]);
+    expect(bounds('Spiel um Platz 3')).toEqual([3, 4]);
+  });
+
+  it('Stages laufen von 0 (AF) bis 3 (Finale)', () => {
+    const m = gen(teams(16), { thirdPlaceMatch: true });
+    expect(m.filter(x => x.phase.startsWith('Achtelfinale')).every(x => x.stage === 0)).toBe(true);
+    expect(m.filter(x => x.phase.startsWith('Viertelfinale')).every(x => x.stage === 1)).toBe(true);
+    expect(m.filter(x => x.phase.startsWith('Halbfinale')).every(x => x.stage === 2)).toBe(true);
+    expect(m.find(x => x.phase === 'Finale')!.stage).toBe(3);
+  });
+
+  it('alle 16 Teams sind in der ersten Runde genau einmal gesetzt', () => {
+    const m = gen(teams(16), { thirdPlaceMatch: true });
+    const round0 = m.filter(x => x.stage === 0);
+    const ids = round0.flatMap(x => [x.teamAId, x.teamBId]).filter(Boolean).sort((a, b) => a - b);
+    expect(ids).toEqual(Array.from({ length: 16 }, (_, i) => i + 1));
+  });
+});

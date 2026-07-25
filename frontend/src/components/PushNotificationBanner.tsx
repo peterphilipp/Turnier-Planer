@@ -1,0 +1,94 @@
+import { useState, useEffect } from 'react';
+import { getVapidPublicKey, subscribeToPush } from '../api';
+import { modal } from './admin/Modal';
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+export default function PushNotificationBanner({ primaryColor = '#198754' }: { primaryColor?: string }) {
+  const [supported, setSupported] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      setSupported(true);
+      navigator.serviceWorker.ready.then(reg => {
+        reg.pushManager.getSubscription().then(sub => {
+          if (sub) {
+            setSubscribed(true);
+            // Resync mit Server im Hintergrund
+            subscribeToPush(sub).catch(() => {});
+          }
+        });
+      }).catch(() => {});
+    }
+  }, []);
+
+  if (!supported) return null;
+
+  const handleSubscribe = async () => {
+    setLoading(true);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        await modal.alert({ title: 'Hinweis', message: 'Benachrichtigungen wurden im Browser nicht erlaubt. Bitte berechtige die App in den Einstellungen.' });
+        setLoading(false);
+        return;
+      }
+      const keyRes = await getVapidPublicKey() as any;
+      if (!keyRes || !keyRes.publicKey) {
+        await modal.alert({ title: 'Fehler', message: 'Web-Push ist auf dem Server noch nicht konfiguriert.' });
+        setLoading(false);
+        return;
+      }
+      const reg = await navigator.serviceWorker.ready;
+      const convertedKey = urlBase64ToUint8Array(keyRes.publicKey);
+      const newSub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: convertedKey
+      });
+      await subscribeToPush(newSub);
+      setSubscribed(true);
+      await modal.alert({ title: 'Aktiviert 🎉', message: 'Du wirst nun bei Schicht-Änderungen sofort per Push auf diesem Gerät informiert!' });
+    } catch (err: any) {
+      console.error('Push Abo Fehler:', err);
+      await modal.alert({ title: 'Fehler', message: 'Konnte Push-Benachrichtigungen nicht aktivieren.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ background: subscribed ? '#e8f5e9' : '#fff3cd', border: `1px solid ${subscribed ? '#c8e6c9' : '#ffeeba'}`, borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 22 }}>🔔</span>
+        <div>
+          <div style={{ fontWeight: 'bold', fontSize: 14, color: subscribed ? '#2e7d32' : '#856404' }}>
+            {subscribed ? 'Push-Benachrichtigungen aktiv' : 'Schicht-Updates per PWA Push'}
+          </div>
+          <div style={{ fontSize: 12, color: subscribed ? '#388e3c' : '#856404', opacity: 0.9 }}>
+            {subscribed ? 'Du wirst bei Änderungen an deinen Schichten automatisch benachrichtigt.' : 'Keine E-Mails – lass dich direkt in deiner PWA benachrichtigen.'}
+          </div>
+        </div>
+      </div>
+      {!subscribed && (
+        <button
+          onClick={handleSubscribe}
+          disabled={loading}
+          style={{ background: primaryColor, color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: loading ? 'wait' : 'pointer' }}
+        >
+          {loading ? 'Aktivieren...' : 'Auf diesem Gerät aktivieren'}
+        </button>
+      )}
+    </div>
+  );
+}

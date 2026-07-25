@@ -93,6 +93,7 @@ export const removeTournamentClub = (tournamentId: number, clubId: number) =>
 
 export const getShifts = (tournamentId?: string | number | null) => 
   tournamentId ? apiFetch(`/api/shifts?tournamentId=${tournamentId}`) : Promise.resolve([]);
+export const updateShift = (id: number, data: any) => apiPatch(`/api/shifts/${id}`, data);
 
 export const getVolunteerShifts = (tournamentId?: string | number | null) => 
   tournamentId ? apiFetch(`/api/volunteer-shifts?tournamentId=${tournamentId}`) : Promise.resolve([]);
@@ -183,3 +184,10 @@ export const updateDaySlot = (id: number, data: any) => apiPatch(`/api/day-slots
 export const deleteDaySlot = (id: number) => apiDelete(`/api/day-slots/${id}`);
 export const generateShifts = (tid: number) => apiPost('/api/tournament-days/generate-shifts', { tournamentId: tid });
 export const clearShifts = (tid: number) => apiPost('/api/tournament-days/clear-shifts', { tournamentId: tid });
+export const exportDayToTemplate = (dayId: number, data: { name: string; description?: string }) => apiPost(`/api/tournament-days/${dayId}/export-template`, data);
+
+// ===================== Web Push =====================
+export const getVapidPublicKey = () => apiFetch('/api/self/vapid-public-key');
+export const subscribeToPush = (subscription: any) => apiPost('/api/self/push-subscribe', subscription);
+export const broadcastPush = (data: any) => apiPost('/api/volunteers/push-broadcast', data);
+

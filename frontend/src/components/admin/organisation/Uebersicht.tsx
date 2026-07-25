@@ -1,11 +1,20 @@
 import { useState, Fragment } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Shift, VolunteerShift, FoodDonationSlot, thStyle, tdStyle, minToTime } from '../shared';
-import { getShifts, getVolunteerShifts, getFoodDonationSlots } from '../../../api';
+import { getShifts, getVolunteerShifts, getFoodDonationSlots, getVolunteers, apiPost, apiDelete } from '../../../api';
+import { modal } from '../Modal';
 
 export default function Uebersicht({ selectedTournament }: { selectedTournament: number | null }) {
-  // Hooks MÜSSEN vor allen early returns stehen
+  const queryClient = useQueryClient();
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
+  const [selectedVolunteerToAssign, setSelectedVolunteerToAssign] = useState<number | ''>('');
+  const [assigning, setAssigning] = useState(false);
+
+  const { data: allVolunteers = [] } = useQuery<any[]>({
+    queryKey: ['volunteers', selectedTournament],
+    queryFn: () => getVolunteers(selectedTournament),
+    enabled: !!selectedTournament
+  });
 
   const { data: jobSlots = [], isLoading: busySlots } = useQuery<Shift[]>({
     queryKey: ['shifts', selectedTournament],
@@ -159,11 +168,81 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
                             {vs.user?.phone && <div style={{ fontSize: 12, color: '#6c757d' }}>📞 {vs.user.phone}</div>}
                           </div>
                         </div>
+                        <button
+                          onClick={async () => {
+                            if (!(await modal.confirm({ title: 'Helfer ausplanen', message: `Soll "${vs.user?.name || 'Helfer'}" aus dieser Schicht entfernt werden? Der Helfer erhält eine Web-Push-Benachrichtigung.` }))) return;
+                            try {
+                              await apiDelete(`/api/volunteer-shifts/${vs.id}`);
+                              queryClient.invalidateQueries({ queryKey: ['volunteerShifts'] });
+                              await modal.alert({ title: 'Ausgeplant', message: 'Der Helfer wurde aus der Schicht entfernt.' });
+                            } catch (err: any) {
+                              await modal.alert({ title: 'Fehler', message: err?.message || 'Fehler beim Ausplanen' });
+                            }
+                          }}
+                          style={{ padding: '6px 10px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}
+                          title="Aus Schicht entfernen"
+                        >
+                          ❌ Ausplanen
+                        </button>
                       </div>
                     ))}
                   </div>
                 );
               })()}
+
+              <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid #e9ecef' }}>
+                <h5 style={{ margin: '0 0 10px 0', color: '#212529', fontSize: 14 }}>➕ Helfer in Schicht einplanen</h5>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <select
+                    value={selectedVolunteerToAssign}
+                    onChange={e => setSelectedVolunteerToAssign(e.target.value ? Number(e.target.value) : '')}
+                    style={{ flex: 1, minWidth: 200, padding: '8px 12px', border: '1px solid #ced4da', borderRadius: 8, fontSize: 14 }}
+                  >
+                    <option value="">-- Helfer auswählen --</option>
+                    {allVolunteers
+                      .filter(v => !volunteerShifts.some(vs => vs.shiftId === selectedShift.id && vs.userId === v.id))
+                      .map(v => (
+                        <option key={v.id} value={v.id}>{v.name} {v.email ? `(${v.email})` : ''}</option>
+                      ))}
+                  </select>
+                  <button
+                    onClick={async () => {
+                      if (!selectedVolunteerToAssign || !selectedShift) return;
+                      setAssigning(true);
+                      try {
+                        const shiftDate = (selectedShift as any).day?.date || selectedShift.date;
+                        const startMin = (selectedShift as any).startMin ?? (selectedShift as any).daySlot?.startMin ?? 0;
+                        const endMin = (selectedShift as any).endMin ?? (selectedShift as any).daySlot?.endMin ?? 0;
+                        const slotLabel = `${minToTime(startMin)}-${minToTime(endMin)}`;
+                        const roleName = (selectedShift as any).workArea?.name || (selectedShift as any).arbeitsbereich?.name || 'Helfer';
+                        const areaIdStr = (selectedShift as any).tournamentWorkAreaId ? String((selectedShift as any).tournamentWorkAreaId) : null;
+
+                        await apiPost('/api/volunteer-shifts', {
+                          userId: Number(selectedVolunteerToAssign),
+                          tournamentId: selectedShift.tournamentId || selectedTournament,
+                          shiftId: selectedShift.id,
+                          date: shiftDate,
+                          slot: slotLabel,
+                          role: roleName,
+                          areaId: areaIdStr
+                        });
+
+                        queryClient.invalidateQueries({ queryKey: ['volunteerShifts'] });
+                        setSelectedVolunteerToAssign('');
+                        await modal.alert({ title: 'Eingeplant ✅', message: 'Der Helfer wurde eingeplant und per Web-Push benachrichtigt!' });
+                      } catch (err: any) {
+                        await modal.alert({ title: 'Fehler', message: err?.message || 'Fehler beim Einplanen' });
+                      } finally {
+                        setAssigning(false);
+                      }
+                    }}
+                    disabled={!selectedVolunteerToAssign || assigning}
+                    style={{ padding: '8px 16px', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 8, cursor: !selectedVolunteerToAssign || assigning ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: !selectedVolunteerToAssign || assigning ? 0.6 : 1 }}
+                  >
+                    {assigning ? '...' : 'Einplanen'}
+                  </button>
+                </div>
+              </div>
             </div>
             
             <div style={{ padding: '16px 20px', borderTop: '1px solid #e9ecef', background: '#f8f9fa', textAlign: 'right' }}>

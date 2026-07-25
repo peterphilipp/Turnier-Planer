@@ -130,6 +130,87 @@ export const deleteTournamentDay = async (req: Request, res: Response) => {
   return res.status(204).send();
 };
 
+export const exportDayToTemplate = async (req: Request, res: Response) => {
+  const tournamentDayId = parseInt(req.params.id as string);
+  const { name, description } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Name der Vorlage erforderlich' });
+
+  const day = await prisma.tournamentDay.findUnique({
+    where: { id: tournamentDayId },
+    include: {
+      slots: true,
+      shifts: {
+        include: {
+          workArea: true,
+          daySlot: true
+        }
+      }
+    }
+  });
+  if (!day) return res.status(404).json({ error: 'Turniertag nicht gefunden' });
+
+  const intervalsMap = new Map<string, { startMin: number; endMin: number; shifts: typeof day.shifts }>();
+  
+  for (const s of day.shifts) {
+    const st = s.startMin ?? s.daySlot?.startMin ?? 480;
+    const en = s.endMin ?? s.daySlot?.endMin ?? 1080;
+    const key = `${st}-${en}`;
+    if (!intervalsMap.has(key)) {
+      intervalsMap.set(key, { startMin: st, endMin: en, shifts: [] });
+    }
+    intervalsMap.get(key)!.shifts.push(s);
+  }
+
+  const createdTemplate = await prisma.$transaction(async (tx) => {
+    const tmpl = await tx.globalDayTemplate.create({
+      data: {
+        name: name.trim(),
+        description: description?.trim() || null
+      }
+    });
+
+    let order = 0;
+    const sortedIntervals = Array.from(intervalsMap.values()).sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+
+    for (const interval of sortedIntervals) {
+      const gSlot = await tx.globalDaySlot.create({
+        data: {
+          templateId: tmpl.id,
+          startMin: interval.startMin,
+          endMin: interval.endMin,
+          order: order++
+        }
+      });
+
+      const workAreaIds = new Set<number>();
+      for (const s of interval.shifts) {
+        if (s.workArea?.sourceWorkAreaId) {
+          workAreaIds.add(s.workArea.sourceWorkAreaId);
+        } else if (s.workArea?.name) {
+          const match = await tx.workArea.findFirst({ where: { name: s.workArea.name, isObsolete: false } });
+          if (match) workAreaIds.add(match.id);
+        }
+      }
+
+      for (const waId of workAreaIds) {
+        await tx.globalDaySlotWorkArea.create({
+          data: {
+            globalSlotId: gSlot.id,
+            workAreaId: waId
+          }
+        });
+      }
+    }
+
+    return tx.globalDayTemplate.findUnique({
+      where: { id: tmpl.id },
+      include: { slots: { include: { workAreas: true } } }
+    });
+  });
+
+  return res.status(201).json(createdTemplate);
+};
+
 // ==================== DaySlot ====================
 export const addDaySlot = async (req: Request, res: Response) => {
   const { tournamentDayId, startMin, endMin, label, color, order } = req.body;

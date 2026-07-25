@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getTournamentWorkAreas, syncTournamentWorkAreas, updateTournamentWorkArea,
   getTournamentDays, createTournamentDay, deleteTournamentDay,
-  getDayTemplates, generateShifts, clearShifts, getShifts, getTournaments
+  getDayTemplates, generateShifts, clearShifts, getShifts, getTournaments,
+  updateShift, exportDayToTemplate
 } from '../../../api';
 import { modal } from '../Modal';
 import { btnStyle, inputStyle, minToTime, tdStyle, thStyle, getTemplateDisplayName } from '../shared';
@@ -132,6 +133,87 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
     qc.invalidateQueries({ queryKey: ['shifts', tid] });
   });
 
+  const doUpdateShiftTime = useCallback((shiftId: number, startMin: number, endMin: number) => {
+    guard(async () => {
+      await updateShift(shiftId, { startMin, endMin });
+      qc.invalidateQueries({ queryKey: ['shifts', tid] });
+    });
+  }, [tid, qc]);
+
+  const doEditShift = useCallback(async (s: PlanningShift) => {
+    const currentStart = minToTime(s.startMin ?? s.daySlot?.startMin ?? 480);
+    const currentEnd = minToTime(s.endMin ?? s.daySlot?.endMin ?? 1080);
+    
+    const res = await modal.form({
+      title: `✏️ Schicht anpassen: ${s.workArea?.name || 'Bereich'}`,
+      fields: [
+        { key: 'startTime', label: 'Startzeit (Uhrzeit HH:MM)', type: 'text', placeholder: 'z.B. 09:30', defaultValue: currentStart },
+        { key: 'endTime', label: 'Endzeit (Uhrzeit HH:MM)', type: 'text', placeholder: 'z.B. 12:30', defaultValue: currentEnd },
+        { key: 'minVolunteers', label: 'Min. Helfer', type: 'number', defaultValue: s.minVolunteers },
+        { key: 'maxVolunteers', label: 'Max. Helfer', type: 'number', defaultValue: s.maxVolunteers },
+        { key: 'description', label: 'Notiz / Beschreibung', type: 'text', defaultValue: s.description || '' }
+      ]
+    });
+
+    if (!res || Object.keys(res).length === 0) return;
+
+    let newStartMin: number | undefined = undefined;
+    let newEndMin: number | undefined = undefined;
+
+    if (res.startTime && String(res.startTime).includes(':')) {
+      const [h, m] = String(res.startTime).split(':').map(Number);
+      if (!isNaN(h) && !isNaN(m)) newStartMin = h * 60 + m;
+    }
+    if (res.endTime && String(res.endTime).includes(':')) {
+      const [h, m] = String(res.endTime).split(':').map(Number);
+      if (!isNaN(h) && !isNaN(m)) newEndMin = h * 60 + m;
+    }
+
+    const minV = res.minVolunteers !== undefined && res.minVolunteers !== '' ? Number(res.minVolunteers) : undefined;
+    const maxV = res.maxVolunteers !== undefined && res.maxVolunteers !== '' ? Number(res.maxVolunteers) : undefined;
+
+    guard(async () => {
+      await updateShift(s.id, {
+        startMin: newStartMin,
+        endMin: newEndMin,
+        minVolunteers: minV,
+        maxVolunteers: maxV,
+        description: res.description !== undefined ? String(res.description) : undefined
+      });
+      qc.invalidateQueries({ queryKey: ['shifts', tid] });
+    });
+  }, [tid, qc]);
+
+  const doExportTemplate = useCallback(async (day: TournamentDay) => {
+    const dayShifts = shifts.filter(s => s.tournamentDayId === day.id);
+    if (dayShifts.length === 0) {
+      await modal.alert({ title: 'Hinweis', message: 'Für diesen Tag existieren keine Schichten, die als Vorlage exportiert werden könnten.' });
+      return;
+    }
+
+    const res = await modal.form({
+      title: '✨ Als neue Tagesvorlage speichern',
+      fields: [
+        { key: 'name', label: 'Name der neuen Vorlage', type: 'text', placeholder: 'z.B. Samstag - Optimierter Zeitplan', defaultValue: `${day.label || 'Turniertag'} - Optimiert` },
+        { key: 'description', label: 'Beschreibung / Notiz (optional)', type: 'text', placeholder: 'z.B. Angepasste Aufbauzeiten aus dem Sommerturnier' }
+      ]
+    });
+
+    if (!res || !res.name || !String(res.name).trim()) return;
+
+    guard(async () => {
+      const created = await exportDayToTemplate(day.id, {
+        name: String(res.name).trim(),
+        description: res.description ? String(res.description).trim() : undefined
+      });
+      qc.invalidateQueries({ queryKey: ['day-templates'] });
+      await modal.alert({
+        title: 'Vorlage gespeichert 🚀',
+        message: `Die Vorlage „${created.name}“ wurde erfolgreich im Katalog unter Stammdaten angelegt und kann ab sofort für zukünftige Turniere verwendet werden!`
+      });
+    });
+  }, [shifts, qc]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Arbeitsbereiche */}
@@ -234,7 +316,8 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
             globalEndMin = 1080;
           }
           return [...days].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(d => 
-            <DayTimeline key={d.id} day={d} shifts={shifts.filter(s => s.tournamentDayId === d.id)} globalStartMin={globalStartMin} globalEndMin={globalEndMin} />
+            <DayTimeline key={d.id} day={d} shifts={shifts.filter(s => s.tournamentDayId === d.id)} globalStartMin={globalStartMin} globalEndMin={globalEndMin}
+              onEditShift={doEditShift} onExportDay={doExportTemplate} onUpdateShiftTime={doUpdateShiftTime} />
           );
         })()}
       </section>
@@ -243,7 +326,17 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
 }
 
 // ---- Visuelle Zeitleiste pro Tag (Balkenbreite proportional zur Slot-Dauer) ----
-function DayTimeline({ day, shifts, globalStartMin, globalEndMin }: { day: TournamentDay; shifts: PlanningShift[]; globalStartMin: number; globalEndMin: number; }) {
+function DayTimeline({
+  day, shifts, globalStartMin, globalEndMin, onEditShift, onExportDay, onUpdateShiftTime
+}: {
+  day: TournamentDay;
+  shifts: PlanningShift[];
+  globalStartMin: number;
+  globalEndMin: number;
+  onEditShift: (s: PlanningShift) => void;
+  onExportDay: (d: TournamentDay) => void;
+  onUpdateShiftTime: (shiftId: number, startMin: number, endMin: number) => void;
+}) {
   const slots = day.slots || [];
   if (slots.length === 0 || shifts.length === 0) return null;
   
@@ -259,7 +352,6 @@ function DayTimeline({ day, shifts, globalStartMin, globalEndMin }: { day: Tourn
     hours.push(h);
   }
 
-  // nach Area gruppieren
   const byArea = new Map<number, { name: string; icon: string; color: string; items: PlanningShift[] }>();
   for (const s of shifts) {
     const key = s.tournamentWorkAreaId;
@@ -267,10 +359,97 @@ function DayTimeline({ day, shifts, globalStartMin, globalEndMin }: { day: Tourn
     byArea.get(key)!.items.push(s);
   }
 
+  const [drag, setDrag] = useState<{
+    shiftId: number;
+    type: 'start' | 'end' | 'move';
+    origStart: number;
+    origEnd: number;
+    curStart: number;
+    curEnd: number;
+    startX: number;
+    containerWidth: number;
+  } | null>(null);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseDown = (e: React.MouseEvent, s: PlanningShift, type: 'start' | 'end' | 'move') => {
+    e.stopPropagation();
+    e.preventDefault();
+    const st = s.startMin ?? s.daySlot?.startMin ?? dayStart;
+    const en = s.endMin ?? s.daySlot?.endMin ?? dayEnd;
+    const width = containerRef.current?.getBoundingClientRect().width || 600;
+
+    setDrag({
+      shiftId: s.id,
+      type,
+      origStart: st,
+      origEnd: en,
+      curStart: st,
+      curEnd: en,
+      startX: e.clientX,
+      containerWidth: width
+    });
+  };
+
+  useEffect(() => {
+    if (!drag) return;
+
+    const onMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - drag.startX;
+      const deltaMin = Math.round((deltaX / drag.containerWidth) * span);
+      const gridDelta = Math.round(deltaMin / 15) * 15;
+
+      let nextStart = drag.origStart;
+      let nextEnd = drag.origEnd;
+
+      if (drag.type === 'start') {
+        nextStart = Math.max(dayStart, Math.min(drag.origEnd - 15, drag.origStart + gridDelta));
+      } else if (drag.type === 'end') {
+        nextEnd = Math.min(dayEnd, Math.max(drag.origStart + 15, drag.origEnd + gridDelta));
+      } else if (drag.type === 'move') {
+        const duration = drag.origEnd - drag.origStart;
+        nextStart = Math.max(dayStart, Math.min(dayEnd - duration, drag.origStart + gridDelta));
+        nextEnd = nextStart + duration;
+      }
+
+      setDrag(prev => prev ? { ...prev, curStart: nextStart, curEnd: nextEnd } : null);
+    };
+
+    const onUp = () => {
+      if (drag.curStart !== drag.origStart || drag.curEnd !== drag.origEnd) {
+        onUpdateShiftTime(drag.shiftId, drag.curStart, drag.curEnd);
+      } else if (drag.type === 'move') {
+        const s = shifts.find(x => x.id === drag.shiftId);
+        if (s) onEditShift(s);
+      }
+      setDrag(null);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [drag, dayStart, dayEnd, span, onUpdateShiftTime, onEditShift, shifts]);
+
   return (
     <div style={{ marginBottom: 32 }}>
-      <div style={{ fontWeight: 600, marginBottom: 12 }}>
-        {new Date(day.date).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })} {day.label ? `· ${day.label}` : ''}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 600, fontSize: 15, color: '#212557' }}>
+          {new Date(day.date).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })} {day.label ? `· ${day.label}` : ''}
+        </span>
+        <span style={{ fontSize: 12, color: '#6c757d', background: '#f8f9fa', padding: '2px 8px', borderRadius: 4, border: '1px solid #dee2e6' }}>
+          💡 Klicke auf Balken zum Bearbeiten oder ziehe die Ränder per Maus
+        </span>
+        <span style={{ flex: 1 }} />
+        <button
+          style={{ ...btnStyle, background: '#e2e3e5', color: '#383d41', padding: '4px 12px', fontSize: 12, minHeight: 28 }}
+          onClick={() => onExportDay(day)}
+          title="Erfolgreiche Schichten dieses Tages als neue Tagesvorlage in den Katalog exportieren"
+        >
+          ✨ Als neue Vorlage exportieren
+        </button>
       </div>
       
       <div style={{ paddingBottom: 8 }}>
@@ -286,7 +465,7 @@ function DayTimeline({ day, shifts, globalStartMin, globalEndMin }: { day: Tourn
           </div>
 
           {/* Raster und Balken */}
-          <div style={{ position: 'relative', marginLeft: 160 }}>
+          <div style={{ position: 'relative', marginLeft: 160 }} ref={containerRef}>
             {/* Vertikale Linien */}
             <div style={{ position: 'absolute', top: 0, bottom: '100%', minHeight: [...byArea.values()].length * 38 + 16, left: 0, right: 0, pointerEvents: 'none' }}>
               {hours.map(h => (
@@ -302,18 +481,44 @@ function DayTimeline({ day, shifts, globalStartMin, globalEndMin }: { day: Tourn
                   
                   <div style={{ position: 'relative', width: '100%', height: '100%', background: 'rgba(241, 243, 245, 0.4)', borderRadius: 6 }}>
                     {area.items.map(s => {
-                      const st = s.startMin ?? s.daySlot?.startMin ?? dayStart;
-                      const en = s.endMin ?? s.daySlot?.endMin ?? dayEnd;
+                      const isDragging = drag?.shiftId === s.id;
+                      const st = isDragging ? drag.curStart : (s.startMin ?? s.daySlot?.startMin ?? dayStart);
+                      const en = isDragging ? drag.curEnd : (s.endMin ?? s.daySlot?.endMin ?? dayEnd);
                       const left = ((st - dayStart) / span) * 100;
                       const width = ((en - st) / span) * 100;
                       const showTime = width > 15;
+                      const hasCustomTime = s.startMin != null || s.endMin != null;
                       
                       return (
-                        <div key={s.id} title={`${minToTime(st)}–${minToTime(en)} · ${s.minVolunteers}–${s.maxVolunteers} Helfer`}
-                          style={{ position: 'absolute', left: `${left}%`, width: `${width}%`, top: 2, bottom: 2, background: area.color, borderRadius: 6, boxShadow: '0 1px 3px rgba(0,0,0,0.2)', color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box' }}>
-                          <span style={{ fontWeight: 600, opacity: 0.9 }}>
+                        <div key={s.id} title={`${minToTime(st)}–${minToTime(en)} · ${s.minVolunteers}–${s.maxVolunteers} Helfer ${hasCustomTime ? '(Geänderte Zeit)' : ''}`}
+                          onMouseDown={e => handleMouseDown(e, s, 'move')}
+                          style={{
+                            position: 'absolute', left: `${left}%`, width: `${width}%`, top: 2, bottom: 2,
+                            background: area.color, borderRadius: 6,
+                            boxShadow: isDragging ? '0 4px 12px rgba(0,0,0,0.4)' : '0 1px 3px rgba(0,0,0,0.2)',
+                            border: hasCustomTime ? '2px dashed rgba(255,255,255,0.9)' : 'none',
+                            color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            overflow: 'hidden', whiteSpace: 'nowrap', padding: '0 8px', boxSizing: 'border-box',
+                            cursor: isDragging ? 'grabbing' : 'grab',
+                            opacity: isDragging ? 0.9 : 1, zIndex: isDragging ? 50 : 1, transition: isDragging ? 'none' : 'left 0.15s, width 0.15s'
+                          }}>
+                          {/* Linker Anfasser (Startzeit Resizing) */}
+                          <div
+                            onMouseDown={e => handleMouseDown(e, s, 'start')}
+                            style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 8, cursor: 'ew-resize', background: 'rgba(0,0,0,0.1)' }}
+                            title="Startzeit verschieben"
+                          />
+                          
+                          <span style={{ fontWeight: 600, opacity: 0.9, pointerEvents: 'none' }}>
                             {showTime ? `${minToTime(st)}–${minToTime(en)} (${s.minVolunteers}-${s.maxVolunteers})` : `${s.minVolunteers}-${s.maxVolunteers}`}
                           </span>
+
+                          {/* Rechter Anfasser (Endzeit Resizing) */}
+                          <div
+                            onMouseDown={e => handleMouseDown(e, s, 'end')}
+                            style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 8, cursor: 'ew-resize', background: 'rgba(0,0,0,0.1)' }}
+                            title="Endzeit verschieben"
+                          />
                         </div>
                       );
                     })}

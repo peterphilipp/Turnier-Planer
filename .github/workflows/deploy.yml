@@ -11,7 +11,52 @@ env:
   IMAGE: turnier-planer
 
 jobs:
+  # Qualitäts-Gate: läuft VOR dem Build. Schlägt es fehl, wird kein Image
+  # gebaut und gepusht (build-and-push hat `needs: test`).
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # --- Backend ---
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Typecheck backend
+        working-directory: backend
+        run: npx tsc --noEmit
+
+      - name: Run backend tests
+        working-directory: backend
+        # Dummy-Werte: die Unit-Tests sprechen keine DB an, aber der
+        # Prisma-Client und config/jwt.ts erwarten gesetzte Variablen.
+        env:
+          DATABASE_URL: "file:./prisma/data/ci.db"
+          JWT_SECRET: "ci-only-dummy-secret-not-used-for-anything"
+        run: npm test
+
+      # --- Frontend ---
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Typecheck frontend
+        working-directory: frontend
+        run: npx tsc --noEmit
+
   build-and-push:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read

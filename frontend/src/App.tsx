@@ -20,6 +20,7 @@ import Uebersicht from './components/admin/organisation/Uebersicht';
 import Spielplan from './components/admin/organisation/Spielplan';
 import FoodDonationSlots from './components/admin/organisation/FoodDonationSlots';
 import TurnierTage from './components/admin/organisation/TurnierTage';
+import PushBroadcast from './components/admin/organisation/PushBroadcast';
 
 import Teilnehmer from './components/admin/organisation/Teilnehmer';
 import Felder from './components/admin/organisation/Felder';
@@ -30,7 +31,7 @@ import { UserProvider, useUser } from './context/UserContext';
 type View = 'admin' | 'selfservice' | 'privacy';
 type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
 type SpielplanTab = 'turnier-tage' | 'felder' | 'teilnehmer' | 'modus' | 'spielplan-gruppenphase' | 'spielplan-ko';
-type OrgTab = 'uebersicht' | 'jobslots' | 'food-donation-slots';
+type OrgTab = 'uebersicht' | 'jobslots' | 'food-donation-slots' | 'push-broadcast';
 type StammTab = 'turniere' | 'vereine' | 'work-areas' | 'global-time-slots' | 'template-tags' | 'helfer' | 'jahrgaenge' | 'lebensmittel';
 
 // ===================== Admin UI mit Rollen-Check =====================
@@ -322,7 +323,8 @@ function AdminView() {
           {[
             { key: 'uebersicht' as OrgTab, icon: '📊', label: 'Übersicht' },
             { key: 'jobslots' as OrgTab, icon: '🧩', label: 'Schicht Planung' },
-            { key: 'food-donation-slots' as OrgTab, icon: '🍰', label: 'Verpflegung' }
+            { key: 'food-donation-slots' as OrgTab, icon: '🍰', label: 'Verpflegung' },
+            { key: 'push-broadcast' as OrgTab, icon: '🔔', label: 'Push-Nachrichten' }
           ].map(tab => (
             <button key={tab.key} onClick={() => setActiveOrgTab(tab.key)}
               style={{ padding: '12px 16px', cursor: 'pointer', background: activeOrgTab === tab.key ? '#198754' : '#e9ecef', color: activeOrgTab === tab.key ? '#fff' : '#000', border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -354,6 +356,7 @@ function AdminView() {
         {activeMainTab === 'organisation' && activeOrgTab === 'uebersicht' && <Uebersicht selectedTournament={selectedTournamentId} />}
         {activeMainTab === 'organisation' && activeOrgTab === 'jobslots' && <TournamentDays selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
         {activeMainTab === 'organisation' && activeOrgTab === 'food-donation-slots' && <FoodDonationSlots selectedTournament={selectedTournamentId} tournament={tournaments.find(t => t.id === selectedTournamentId) || null} adminPrimary="#198754" />}
+        {activeMainTab === 'organisation' && activeOrgTab === 'push-broadcast' && <PushBroadcast selectedTournament={selectedTournamentId} />}
 
         {activeMainTab === 'stammdaten' && activeStammTab === 'turniere' && <Turniere adminPrimary="#6c757d" adminSecondary="#adb5bd" />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'vereine' && <Vereine adminPrimary="#6c757d" />}
