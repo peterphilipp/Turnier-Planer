@@ -47,14 +47,14 @@ export default defineConfig({
         display: 'standalone',
         icons: [
           {
-            src: 'pwa-192x192.svg',
-            sizes: '192x192',
-            type: 'image/svg+xml'
+            src: 'logo.webp',
+            sizes: '512x512',
+            type: 'image/webp'
           },
           {
-            src: 'pwa-512x512.svg',
-            sizes: '512x512',
-            type: 'image/svg+xml'
+            src: 'logo.webp',
+            sizes: '192x192',
+            type: 'image/webp'
           }
         ]
       }
