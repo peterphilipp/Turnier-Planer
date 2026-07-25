@@ -43,8 +43,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   const [volunteerShifts, setVolunteerShifts] = useState<VolunteerShift[]>([]);
   const [tournament, setTournament] = useState<any>(null);
   const [filterDate, setFilterDate] = useState('');
-  const [filterTimesOfDay, setFilterTimesOfDay] = useState<Set<'vormittag' | 'nachmittag' | 'abend'>>(new Set());
-  const [onlyUpcoming, setOnlyUpcoming] = useState(true);
+  const [filterTimesOfDay, setFilterTimesOfDay] = useState<Set<'vormittag' | 'mittag' | 'nachmittag' | 'abend'>>(new Set());
   const [busy, setBusy] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -174,11 +173,12 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   };
 
-  /** Grobe Tageszeit-Einordnung für die Filter-Chips (06-13 / 13-19 / 19-24 Uhr). */
-  const timeOfDay = (startMin: number | null | undefined): 'vormittag' | 'nachmittag' | 'abend' | null => {
+  /** Grobe Tageszeit-Einordnung für die Filter-Chips (bis 12 / 12-14 / 14-18 / ab 18 Uhr). */
+  const timeOfDay = (startMin: number | null | undefined): 'vormittag' | 'mittag' | 'nachmittag' | 'abend' | null => {
     if (startMin == null) return null;
-    if (startMin < 780) return 'vormittag'; // < 13:00
-    if (startMin < 1140) return 'nachmittag'; // < 19:00
+    if (startMin < 720) return 'vormittag'; // < 12:00
+    if (startMin < 840) return 'mittag'; // < 14:00
+    if (startMin < 1080) return 'nachmittag'; // < 18:00
     return 'abend';
   };
 
@@ -936,10 +936,13 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
         </button>
         </div>
 
-        {/* Uhrzeit-Chips (kombinierbar) + "Nur kommende Schichten"-Toggle */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Uhrzeit-Chips (kombinierbar). Kein "Nur kommende"-Toggle mehr -
+            vergangene Slots werden jetzt immer (nicht optional) ausgeblendet,
+            siehe Filter-Kette weiter unten. */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {([
             { key: 'vormittag' as const, label: '🌅 Vormittag' },
+            { key: 'mittag' as const, label: '🕛 Mittag' },
             { key: 'nachmittag' as const, label: '☀️ Nachmittag' },
             { key: 'abend' as const, label: '🌙 Abend' }
           ]).map(t => {
@@ -953,7 +956,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                   return next;
                 })}
                 style={{
-                  padding: '8px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                  flex: '1 1 0', minWidth: 0, padding: '7px 6px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap',
                   background: active ? clubSecondary : '#fff',
                   color: active ? clubSecondaryText : '#495057',
                   boxShadow: active ? 'none' : '0 1px 3px rgba(0,0,0,0.08)'
@@ -963,16 +966,6 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               </button>
             );
           })}
-          <span style={{ flex: 1 }} />
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#495057', cursor: 'pointer', userSelect: 'none' }}>
-            🕐 Nur kommende
-            <span
-              onClick={() => setOnlyUpcoming(v => !v)}
-              style={{ position: 'relative', width: 40, height: 22, borderRadius: 11, background: onlyUpcoming ? clubPrimary : '#dee2e6', transition: 'background 0.2s', display: 'inline-block' }}
-            >
-              <span style={{ position: 'absolute', top: 2, left: onlyUpcoming ? 20 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
-            </span>
-          </label>
         </div>
       </div>
       )}
@@ -1024,53 +1017,46 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                       {d.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })}
                     </div>
                   )}
-                  <div style={{ position: 'relative', background: '#fff', borderRadius: 12, padding: '14px 16px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', borderLeft: '4px solid ' + clubAccent, overflow: 'hidden' }}>
-                    {/* Zeile 1: Arbeitsbereich prominent - primäres Suchkriterium */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <span style={{ fontSize: 20, flexShrink: 0 }}>{s?.arbeitsbereich?.icon || '📍'}</span>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: '#212529', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s?.arbeitsbereich?.name || '–'}</span>
-                    </div>
-                    {/* Zeile 2: Datum + Zeit zusammen, Belegung rechts */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8 }}>
-                      <span style={{ fontSize: 13, color: '#666' }}>
+                  <div style={{ position: 'relative', background: '#fff', borderRadius: 12, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 10, borderLeft: '4px solid ' + clubAccent, overflow: 'hidden' }}>
+                    <span style={{ fontSize: 20, flexShrink: 0 }}>{s?.arbeitsbereich?.icon || '📍'}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#212529', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s?.arbeitsbereich?.name || '–'}</div>
+                      <div style={{ fontSize: 12, color: '#666' }}>
                         {d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
                         {(s?.startMin != null || s?.endMin != null) && <> · {minToTime(s.startMin)}–{minToTime(s.endMin)}</>}
-                      </span>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: remaining > 0 ? clubAccent : '#6c757d', flexShrink: 0 }}>{remaining}/{s?.maxVolunteers || 0}</span>
+                      </div>
                     </div>
-                    {/* Zeile 3: Prominenter, beschrifteter Action-Button */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      {shiftOver ? (
-                        // Schicht vorbei → nur Bewertungs-Button
-                        <button
-                          onClick={() => openRatingModal(vs)}
-                          title={alreadyRated ? 'Bewertung bearbeiten' : 'Schicht bewerten'}
-                          style={{
-                            height: 40,
-                            padding: '0 16px',
-                            borderRadius: 10,
-                            border: 'none',
-                            background: alreadyRated ? '#ffc107' : clubPrimary,
-                            color: alreadyRated ? '#000' : '#fff',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            fontWeight: 'bold',
-                            fontSize: 14
-                          }}
-                        >
-                          <span>{alreadyRated ? '⭐' : '📝'}</span>
-                          <span>{alreadyRated ? 'Bewertet' : 'Bewerten'}</span>
-                        </button>
-                      ) : (
-                        // Schicht noch nicht vorbei → nur Stornierungsbutton (bewusst
-                        // Icon-only mit X, siehe Harmonisierung mit Verpflegung).
-                        <button onClick={() => unassign(vs.id)} title="Abmelden" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: '#fde8e8', color: '#dc3545', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, fontSize: 20, fontWeight: 'bold' }}>
-                          ✕
-                        </button>
-                      )}
-                    </div>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: remaining > 0 ? clubAccent : '#6c757d', flexShrink: 0 }}>{remaining}/{s?.maxVolunteers || 0}</span>
+                    {shiftOver ? (
+                      // Schicht vorbei → nur Bewertungs-Button
+                      <button
+                        onClick={() => openRatingModal(vs)}
+                        title={alreadyRated ? 'Bewertung bearbeiten' : 'Schicht bewerten'}
+                        style={{
+                          height: 40,
+                          padding: '0 14px',
+                          borderRadius: 10,
+                          border: 'none',
+                          background: alreadyRated ? '#ffc107' : clubPrimary,
+                          color: alreadyRated ? '#000' : '#fff',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontWeight: 'bold',
+                          fontSize: 13,
+                          flexShrink: 0
+                        }}
+                      >
+                        <span>{alreadyRated ? '⭐' : '📝'}</span>
+                      </button>
+                    ) : (
+                      // Schicht noch nicht vorbei → nur Stornierungsbutton (bewusst
+                      // Icon-only mit X, siehe Harmonisierung mit Verpflegung).
+                      <button onClick={() => unassign(vs.id)} title="Abmelden" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: '#fde8e8', color: '#dc3545', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, fontSize: 20, fontWeight: 'bold' }}>
+                        ✕
+                      </button>
+                    )}
                     <FillBar assigned={assignedCount} max={s?.maxVolunteers || 0} />
                   </div>
                 </div>
@@ -1108,7 +1094,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
           {shifts
             .filter(s => !filterDate || new Date(s.date).toLocaleDateString('de-DE') === filterDate)
             .filter(s => filterTimesOfDay.size === 0 || (() => { const t = timeOfDay(s.startMin); return t != null && filterTimesOfDay.has(t); })())
-            .filter(s => !onlyUpcoming || !isPastShift(s.date, s.endMin))
+            .filter(s => !isPastShift(s.date, s.endMin))
             .filter(s => {
               // Verstecke den Job, wenn der aktuelle User bereits eingetragen ist
               if (ctxToken && volunteerShifts.some(vs => vs.shiftId === s.id && vs.userId === ctxVolunteer?.id)) {
@@ -1145,35 +1131,28 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                       {new Date(slot.date).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })}
                     </div>
                   )}
-                  <div style={{ position: 'relative', background: '#fff', borderRadius: 12, padding: '14px 16px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
-                    {/* Zeile 1: Arbeitsbereich prominent - primäres Suchkriterium */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <span style={{ fontSize: 20, flexShrink: 0 }}>{slot.arbeitsbereich?.icon || '📍'}</span>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: '#212529', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot.arbeitsbereich?.name || '–'}</span>
-                    </div>
-                    {/* Zeile 2: Datum + Zeit zusammen, Belegung rechts */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8 }}>
-                      <span style={{ fontSize: 13, color: '#666' }}>
+                  <div style={{ position: 'relative', background: '#fff', borderRadius: 12, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
+                    <span style={{ fontSize: 20, flexShrink: 0 }}>{slot.arbeitsbereich?.icon || '📍'}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#212529', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot.arbeitsbereich?.name || '–'}</div>
+                      <div style={{ fontSize: 12, color: '#666' }}>
                         {new Date(slot.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
                         {(slot.startMin != null || slot.endMin != null) && <> · {minToTime(slot.startMin)}–{minToTime(slot.endMin)}</>}
-                      </span>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: remaining > 0 ? clubAccent : '#6c757d', flexShrink: 0 }}>{remaining}/{slot.maxVolunteers}</span>
+                      </div>
                     </div>
-                    {/* Zeile 3: Prominenter, beschrifteter Action-Button */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      {assigned ? (
-                        // Bewusst Icon-only mit X (Harmonisierung mit Verpflegung).
-                        <button onClick={() => unassign(myShift!.id)} title="Abmelden" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: '#fde8e8', color: '#dc3545', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, fontSize: 18, fontWeight: 'bold' }}>
-                          ✕
-                        </button>
-                      ) : remaining > 0 ? (
-                        <button onClick={() => assign(slot.id, dateStr)} style={{ height: 40, padding: '0 18px', borderRadius: 10, border: 'none', background: clubSecondary, color: clubSecondaryText, cursor: 'pointer', fontWeight: 'bold', fontSize: 14 }}>
-                          Zusagen
-                        </button>
-                      ) : (
-                        <span style={{ height: 40, padding: '0 18px', borderRadius: 10, display: 'flex', alignItems: 'center', background: '#e9ecef', color: '#adb5bd', fontSize: 14, fontWeight: 'bold' }}>Ausgebucht</span>
-                      )}
-                    </div>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: remaining > 0 ? clubAccent : '#6c757d', flexShrink: 0 }}>{remaining}/{slot.maxVolunteers}</span>
+                    {assigned ? (
+                      // Bewusst Icon-only mit X (Harmonisierung mit Verpflegung).
+                      <button onClick={() => unassign(myShift!.id)} title="Abmelden" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: '#fde8e8', color: '#dc3545', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, fontSize: 18, fontWeight: 'bold' }}>
+                        ✕
+                      </button>
+                    ) : remaining > 0 ? (
+                      <button onClick={() => assign(slot.id, dateStr)} title="Zusagen" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: clubSecondary, color: clubSecondaryText, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                        <span style={{ lineHeight: 1, fontWeight: 'bold', fontSize: 20 }}>+</span>
+                      </button>
+                    ) : (
+                      <span style={{ width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e9ecef', color: '#adb5bd', fontSize: 20, flexShrink: 0 }}>✖</span>
+                    )}
                     <FillBar assigned={assignedCount} max={slot.maxVolunteers} />
                   </div>
                 </div>
@@ -1261,7 +1240,6 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                             return aDone ? 1 : -1;
                           })
                           .map(slot => {
-                          const slotProgress = slot.targetQuantity > 0 ? Math.min(100, (slot.collected / slot.targetQuantity) * 100) : 0;
                           const remaining = slot.targetQuantity - slot.collected;
                           // Wie viel hat DER Helfer bereits für diesen Slot zugesagt?
                           const myCommitted = myDonations
@@ -1271,25 +1249,23 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                           return (
                             <div key={slot.id} style={{ position: 'relative', padding: 12, background: '#f8f9fa', borderRadius: 10, overflow: 'hidden' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <span style={{ fontSize: 20 }}>{slot.foodItem?.icon || '🍽️'}</span>
+                                <span style={{ fontSize: 20, flexShrink: 0 }}>{slot.foodItem?.icon || '🍽️'}</span>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                   <div style={{ fontWeight: '600', fontSize: 14, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot.foodItem?.name || '–'}</div>
-                                  <div style={{ fontSize: 12, color: '#999' }}>{remaining > 0 ? `${remaining} ${slot.foodItem?.unit} noch gesucht` : '✓ Erfüllt'}</div>
+                                  <div style={{ fontSize: 12, color: '#999' }}>{slot.collected}/{slot.targetQuantity} {slot.foodItem?.unit}{remaining <= 0 && ' · ✓ Erfüllt'}</div>
                                 </div>
-                                <div style={{ textAlign: 'right', minWidth: 70 }}>
-                                  <div style={{ fontSize: 16, fontWeight: 'bold', color: slotProgress >= 100 ? '#198754' : clubAccent }}>{slot.collected}</div>
-                                  <div style={{ fontSize: 11, color: '#999' }}>von {slot.targetQuantity} {slot.foodItem?.unit}</div>
-                                </div>
+                                {/* Zusage-Button: gleiche Höhe/Position wie bei den Jobs (rechts, Icon-only). */}
+                                {remaining > 0 && !committed && (
+                                  <button onClick={() => setSlotCommitments({ ...slotCommitments, [slot.id]: 1 })} title="Zusagen" style={{ width: 40, height: 40, borderRadius: 8, border: 'none', background: clubSecondary, color: clubSecondaryText, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                                    <span style={{ fontSize: 20, fontWeight: 'bold', lineHeight: 1 }}>+</span>
+                                  </button>
+                                )}
                               </div>
                               {/* Zeige wie viel der Helfer bereits bringt */}
                               {myCommitted > 0 && (
-                                <div style={{ fontSize: 13, color: clubSecondary, fontWeight: '600', marginTop: 4 }}>
+                                <div style={{ fontSize: 13, color: clubSecondary, fontWeight: '600', marginTop: 6 }}>
                                   ✅ Du bringst: {myCommitted} {slot.foodItem?.unit}
                                 </div>
-                              )}
-                              {/* Zusage-Button/Input */}
-                              {remaining > 0 && !committed && (
-                                <button onClick={() => setSlotCommitments({ ...slotCommitments, [slot.id]: 1 })} style={{ marginTop: 8, width: '100%', padding: '10px 0', background: clubSecondary, color: clubSecondaryText, border: 'none', borderRadius: 8, fontSize: 20, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                               )}
                               {committed > 0 && (
                                 <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
