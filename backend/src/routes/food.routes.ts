@@ -23,4 +23,7 @@ router.get('/donations', authenticate, ctrl.getDonations);
 router.post('/donations', authenticate, validate(createFoodDonationSchema), ctrl.createDonation);
 router.delete('/donations/:id', authenticate, ctrl.deleteDonation);
 
+// Admin/Organisator: alle Spenden eines Turniers (Dienstplan-Detailansicht)
+router.get('/donations/all', authenticate, requireAdmin, ctrl.getAllDonations);
+
 export default router;

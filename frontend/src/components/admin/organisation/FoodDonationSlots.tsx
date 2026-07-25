@@ -216,8 +216,8 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
 
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-      <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>Verpflegungs-Slots (turnierweit)</h3>
-      <p style={{ color: '#666', fontSize: 14, marginBottom: 20 }}>Lege hier fest, welche Jahrgänge während des gesamten Turniers welche Verpflegung beitragen sollen.</p>
+      <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>🍰 Verpflegungsziele erstellen (turnierweit)</h3>
+      <p style={{ color: '#666', fontSize: 14, marginBottom: 20 }}>Lege hier fest, welche Jahrgänge während des gesamten Turniers welche Verpflegung beitragen sollen. Wer konkret was gespendet hat, siehst du im Dienstplan.</p>
 
       {/* Neuen Slot anlegen: inline oben. Einen bestehenden Slot bearbeiten:
           Modal (siehe unten) statt Scroll-zurück-nach-oben - man springt beim

@@ -104,7 +104,9 @@ export const getVolunteerShifts = (tournamentId?: string | number | null) =>
 export const getFoodCategories = () => apiFetch('/api/food/categories');
 export const getFoodItems = () => apiFetch('/api/food/items');
 export const getFoodDonations = () => apiFetch('/api/food/donations');
-export const getFoodDonationSlots = (tournamentId?: number | null) => 
+export const getAllFoodDonations = (tournamentId: number | null) =>
+  tournamentId ? apiFetch(`/api/food/donations/all?tournamentId=${tournamentId}`) : Promise.resolve({ donations: [] });
+export const getFoodDonationSlots = (tournamentId?: number | null) =>
   apiFetch(`/api/food-donation-slots?tournamentId=${tournamentId}`);
 
 // ===================== Year Groups =====================

@@ -331,7 +331,7 @@ function AdminView() {
           {[
             { key: 'uebersicht' as OrgTab, icon: '📋', label: 'Dienstplan' },
             { key: 'jobslots' as OrgTab, icon: '🧩', label: 'Schichten erstellen' },
-            { key: 'food-donation-slots' as OrgTab, icon: '🍰', label: 'Verpflegung' },
+            { key: 'food-donation-slots' as OrgTab, icon: '🍰', label: 'Verpflegungsziele erstellen' },
             { key: 'push-broadcast' as OrgTab, icon: '🔔', label: 'Push-Nachrichten' }
           ].map(tab => (
             <button key={tab.key} onClick={() => setActiveOrgTab(tab.key)}

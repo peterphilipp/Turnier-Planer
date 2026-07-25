@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Shift, VolunteerShift, FoodDonationSlot, minToTime } from '../shared';
-import { getShifts, getVolunteerShifts, getFoodDonationSlots, getVolunteers, apiPost, apiDelete, updateShiftsBatch } from '../../../api';
+import { Shift, VolunteerShift, FoodDonationSlot, FoodDonation, minToTime } from '../shared';
+import { getShifts, getVolunteerShifts, getFoodDonationSlots, getAllFoodDonations, getVolunteers, apiPost, apiDelete, updateShiftsBatch } from '../../../api';
 import { modal } from '../Modal';
 import ShiftFeedbackModal from './ShiftFeedbackModal';
 import ShiftTimeline from './ShiftTimeline';
@@ -22,6 +22,7 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth < 768;
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
+  const [selectedFoodSlot, setSelectedFoodSlot] = useState<FoodDonationSlot | null>(null);
   const [selectedVolunteerToAssign, setSelectedVolunteerToAssign] = useState<number | ''>('');
   const [assigning, setAssigning] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -68,6 +69,18 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
     queryFn: () => getFoodDonationSlots(selectedTournament),
     enabled: !!selectedTournament
   });
+
+  // Für die Detailansicht "Wer hat gespendet?" je Verpflegungs-Ziel, sowie für
+  // die Sichtbarkeit spontaner Spenden ohne Ziel (freie "Zusätzliche
+  // Verpflegung" aus dem Self-Service, die sonst nirgends im Dienstplan
+  // auftauchen würden - siehe foodDonationSlotId: null unten).
+  const { data: foodDonationsResp } = useQuery<{ donations: FoodDonation[] }>({
+    queryKey: ['allFoodDonations', selectedTournament],
+    queryFn: () => getAllFoodDonations(selectedTournament),
+    enabled: !!selectedTournament
+  });
+  const foodDonations = foodDonationsResp?.donations || [];
+  const unassignedDonations = foodDonations.filter(d => !d.foodDonationSlotId);
 
 
   /**
@@ -261,7 +274,16 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
           const firstSlot = slots[0];
           const firstDate = new Date(firstSlot.day?.date || firstSlot.date);
           const dayName = firstDate.toLocaleDateString('de-DE', { weekday: 'long' });
-          slots.sort((a: any, b: any) => (a.startMin ?? a.daySlot?.startMin ?? 0) - (b.startMin ?? b.daySlot?.startMin ?? 0));
+          slots.sort((a: any, b: any) => {
+            const timeDiff = (a.startMin ?? a.daySlot?.startMin ?? 0) - (b.startMin ?? b.daySlot?.startMin ?? 0);
+            if (timeDiff !== 0) return timeDiff;
+            const orderA = a.workArea?.order ?? a.arbeitsbereich?.order ?? 9999;
+            const orderB = b.workArea?.order ?? b.arbeitsbereich?.order ?? 9999;
+            if (orderA !== orderB) return orderA - orderB;
+            const nameA = a.workArea?.name || a.arbeitsbereich?.name || '';
+            const nameB = b.workArea?.name || b.arbeitsbereich?.name || '';
+            return nameA.localeCompare(nameB);
+          });
           const totalHelfer = slots.reduce((sum: number, s: any) => sum + volunteerShifts.filter(vs => vs.shiftId === s.id).length, 0);
           const isExpanded = expandedDays.has(dateStr);
 
@@ -346,6 +368,102 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
         });
       })()}
 
+      {/* Verpflegung: eigener Abschnitt analog zur Job-Timeline oben - Soll/Ist
+          je Ziel MIT "Details"-Drilldown (wer hat was gespendet), plus
+          spontane Spenden ohne Ziel (freie "Zusätzliche Verpflegung" aus dem
+          Self-Service), die sonst nirgends im Dienstplan sichtbar wären. */}
+      {foodSlots.length > 0 && (
+        <div style={{ marginTop: 32 }}>
+          <h4 style={{ fontSize: 16, marginBottom: 16, color: '#212529' }}>🍞 Verpflegung</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {foodSlots.map(slot => {
+              const slotDonations = foodDonations.filter(d => d.foodDonationSlotId === slot.id);
+              const isDone = slot.collected >= slot.targetQuantity;
+              return (
+                <div key={slot.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', background: isDone ? '#f0fdf4' : '#fff3cd', border: `1px solid ${isDone ? '#86efac' : '#ffeeba'}`, borderRadius: 10, flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: '#212529' }}>
+                      {slot.yearGroup?.name || 'Ohne Jahrgang'} – {slot.foodItem ? `${slot.foodItem.category?.icon ?? '🍽️'} ${slot.foodItem.name}` : 'Alle Artikel'}
+                    </div>
+                    <div style={{ fontSize: 12, color: isDone ? '#155724' : '#856404' }}>
+                      {isDone ? '✅' : '⚠️'} {slot.collected}/{slot.targetQuantity} {slot.foodItem?.unit || 'Stk'}
+                      {slotDonations.length > 0 && ` · ${slotDonations.length} Spende${slotDonations.length === 1 ? '' : 'n'}`}
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedFoodSlot(slot)} style={{ minHeight: 40, padding: '8px 14px', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+                    👥 Details
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          {unassignedDonations.length > 0 && (
+            <div style={{ marginTop: 20 }}>
+              <h5 style={{ fontSize: 14, color: '#212529', marginBottom: 10 }}>🎁 Zusätzliche Spenden (ohne Ziel)</h5>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {unassignedDonations.map(d => (
+                  <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8f9fa', borderRadius: 8, border: '1px solid #e9ecef', fontSize: 13, flexWrap: 'wrap', gap: 8 }}>
+                    <div>
+                      <strong>{d.user?.name || 'Unbekannt'}</strong>: {d.foodItem?.category?.icon ?? '🍽️'} {d.foodItem?.name} × {d.quantity} {d.foodItem?.unit || 'Stk'}
+                      {d.note && <span style={{ color: '#6c757d' }}> – "{d.note}"</span>}
+                    </div>
+                    <span style={{ color: '#adb5bd' }}>{new Date(d.createdAt).toLocaleDateString('de-DE')}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal für Verpflegungs-Details (wer hat für dieses Ziel gespendet) */}
+      {selectedFoodSlot && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}>
+          <div style={{ background: '#fff', borderRadius: isMobile ? '16px 16px 0 0' : 16, width: '100%', maxWidth: isMobile ? undefined : 500, boxShadow: '0 10px 40px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: isMobile ? '92vh' : '90vh' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e9ecef', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8f9fa' }}>
+              <div style={{ fontSize: 18, fontWeight: 'bold', color: '#212529' }}>
+                {selectedFoodSlot.foodItem ? `${selectedFoodSlot.foodItem.category?.icon ?? '🍽️'} ${selectedFoodSlot.foodItem.name}` : '🍽️ Alle Artikel'}
+              </div>
+              <button onClick={() => setSelectedFoodSlot(null)} style={{ border: 'none', background: 'transparent', fontSize: 24, lineHeight: 1, cursor: 'pointer', color: '#adb5bd' }}>×</button>
+            </div>
+
+            <div style={{ padding: 20, overflowY: 'auto' }}>
+              <div style={{ marginBottom: 20, color: '#666', fontSize: 14 }}>
+                {selectedFoodSlot.yearGroup?.name || 'Ohne Jahrgang'} · {selectedFoodSlot.collected}/{selectedFoodSlot.targetQuantity} {selectedFoodSlot.foodItem?.unit || 'Stk'}
+              </div>
+
+              <h4 style={{ margin: '0 0 12px 0', color: '#212529' }}>Spenden für dieses Ziel</h4>
+              {(() => {
+                const slotDonations = foodDonations.filter(d => d.foodDonationSlotId === selectedFoodSlot.id);
+                if (slotDonations.length === 0) return <div style={{ color: '#adb5bd', fontStyle: 'italic' }}>Noch keine Spenden für dieses Ziel.</div>;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {slotDonations.map(d => (
+                      <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8f9fa', borderRadius: 8, border: '1px solid #e9ecef' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#0d6efd', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 14 }}>
+                            {d.user?.name?.charAt(0).toUpperCase() || '?'}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: '600', color: '#212529' }}>{d.user?.name || 'Unbekannt'}</div>
+                            {d.note && <div style={{ fontSize: 12, color: '#6c757d' }}>„{d.note}"</div>}
+                          </div>
+                        </div>
+                        <div style={{ fontWeight: 600, color: '#212529' }}>{d.quantity} {selectedFoodSlot.foodItem?.unit || 'Stk'}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div style={{ padding: '16px 20px', borderTop: '1px solid #e9ecef', background: '#f8f9fa', textAlign: 'right' }}>
+              <button onClick={() => setSelectedFoodSlot(null)} style={{ padding: '12px 20px', minHeight: 44, minWidth: 100, background: '#6c757d', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold' }}>Schließen</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal für Helfer-Details */}
       {selectedShift && (

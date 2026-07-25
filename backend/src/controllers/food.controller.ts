@@ -166,6 +166,28 @@ export const getDonations = async (req: Request, res: Response) => {
   }
 };
 
+// Admin/Organisator: alle Spenden eines Turniers (nicht nur die eigenen) -
+// inkl. Spenden ohne foodDonationSlotId (spontane "Zusätzliche Verpflegung"
+// aus dem Self-Service, die sonst nirgends im Dienstplan sichtbar wären).
+export const getAllDonations = async (req: Request, res: Response) => {
+  try {
+    const { tournamentId } = req.query;
+    if (!tournamentId) return res.status(400).json({ error: 'tournamentId erforderlich' });
+
+    const donations = await prisma.foodDonation.findMany({
+      where: { tournamentId: Number(tournamentId) },
+      include: {
+        foodItem: { include: { category: true } },
+        user: { select: { id: true, name: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ donations });
+  } catch (e) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+};
+
 export const createDonation = async (req: Request, res: Response) => {
   try {
     const userId = getUserId(req);
