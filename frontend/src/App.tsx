@@ -321,8 +321,8 @@ function AdminView() {
       {activeMainTab === 'organisation' && (
         <nav style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
           {[
-            { key: 'uebersicht' as OrgTab, icon: '📊', label: 'Übersicht' },
-            { key: 'jobslots' as OrgTab, icon: '🧩', label: 'Schicht Planung' },
+            { key: 'uebersicht' as OrgTab, icon: '📋', label: 'Dienstplan' },
+            { key: 'jobslots' as OrgTab, icon: '🧩', label: 'Schichten erstellen' },
             { key: 'food-donation-slots' as OrgTab, icon: '🍰', label: 'Verpflegung' },
             { key: 'push-broadcast' as OrgTab, icon: '🔔', label: 'Push-Nachrichten' }
           ].map(tab => (
@@ -354,7 +354,7 @@ function AdminView() {
         {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan-ko' && <Spielplan tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} phase="ko" />}
         
         {activeMainTab === 'organisation' && activeOrgTab === 'uebersicht' && <Uebersicht selectedTournament={selectedTournamentId} />}
-        {activeMainTab === 'organisation' && activeOrgTab === 'jobslots' && <TournamentDays selectedTournament={selectedTournamentId} adminPrimary="#198754" />}
+        {activeMainTab === 'organisation' && activeOrgTab === 'jobslots' && <TournamentDays selectedTournament={selectedTournamentId} adminPrimary="#198754" onGoToDienstplan={() => setActiveOrgTab('uebersicht')} />}
         {activeMainTab === 'organisation' && activeOrgTab === 'food-donation-slots' && <FoodDonationSlots selectedTournament={selectedTournamentId} tournament={tournaments.find(t => t.id === selectedTournamentId) || null} adminPrimary="#198754" />}
         {activeMainTab === 'organisation' && activeOrgTab === 'push-broadcast' && <PushBroadcast selectedTournament={selectedTournamentId} />}
 

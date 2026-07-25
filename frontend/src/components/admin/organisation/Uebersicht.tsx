@@ -1,9 +1,10 @@
-import { useState, Fragment } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Shift, VolunteerShift, FoodDonationSlot, thStyle, tdStyle, minToTime } from '../shared';
-import { getShifts, getVolunteerShifts, getFoodDonationSlots, getVolunteers, apiPost, apiDelete } from '../../../api';
+import { Shift, VolunteerShift, FoodDonationSlot, minToTime } from '../shared';
+import { getShifts, getVolunteerShifts, getFoodDonationSlots, getVolunteers, apiPost, apiDelete, updateShift } from '../../../api';
 import { modal } from '../Modal';
 import ShiftFeedbackModal from './ShiftFeedbackModal';
+import ShiftTimeline from './ShiftTimeline';
 
 export default function Uebersicht({ selectedTournament }: { selectedTournament: number | null }) {
   const queryClient = useQueryClient();
@@ -37,6 +38,21 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
     queryFn: () => getFoodDonationSlots(selectedTournament),
     enabled: !!selectedTournament
   });
+
+
+  /**
+   * Zeiten einer Schicht anpassen. Liegt jetzt hier (nicht mehr im Generator):
+   * der Dienstplan ist der Ort, an dem der bestehende Plan gepflegt wird –
+   * Besetzung UND Zeiten. Der Generator erzeugt nur.
+   */
+  const handleUpdateShiftTime = async (shiftId: number, startMin: number, endMin: number) => {
+    try {
+      await updateShift(shiftId, { startMin, endMin });
+      queryClient.invalidateQueries({ queryKey: ['shifts', selectedTournament] });
+    } catch (err: any) {
+      await modal.alert({ title: 'Fehler', message: err?.message || 'Zeit konnte nicht geändert werden' });
+    }
+  };
 
   if (!selectedTournament) {
     return (
@@ -78,7 +94,7 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <h3 style={{ margin: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>📊 Management Buchungen (Übersicht)</h3>
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>📋 Dienstplan</h3>
         <button onClick={() => setShowFeedbackModal(true)} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: '#ffc107', color: '#000', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}>
           <span>⭐</span> Helfer-Feedback & Learnings
         </button>
@@ -127,15 +143,22 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
           slots.sort((a: any, b: any) => (a.startMin ?? a.daySlot?.startMin ?? 0) - (b.startMin ?? b.daySlot?.startMin ?? 0));
 
           return (
-            <OverviewTimeline 
+            <ShiftTimeline
               key={dateStr}
-              dateStr={dateStr}
-              dayName={dayName}
-              slots={slots}
+              title={`📅 ${dateStr} (${dayName})`}
+              subtitle={
+                <span style={{ fontSize: 12, color: '#6c757d', background: '#f8f9fa', padding: '2px 8px', borderRadius: 4, border: '1px solid #dee2e6' }}>
+                  {slots.length} Schichten · {slots.reduce((sum: number, s: any) => sum + volunteerShifts.filter(vs => vs.shiftId === s.id).length, 0)} Helfer
+                  {' · '}💡 Balken klicken = Helfer · Ränder ziehen = Zeiten
+                </span>
+              }
+              shifts={slots as any}
               volunteerShifts={volunteerShifts}
               globalStartMin={globalStartMin}
               globalEndMin={globalEndMin}
-              onShiftClick={setSelectedShift}
+              editable
+              onShiftClick={s => setSelectedShift(s as any)}
+              onUpdateShiftTime={handleUpdateShiftTime}
             />
           );
         });
@@ -265,100 +288,6 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
           onClose={() => setShowFeedbackModal(false)}
         />
       )}
-    </div>
-  );
-}
-
-function OverviewTimeline({ dateStr, dayName, slots, volunteerShifts, globalStartMin, globalEndMin, onShiftClick }: { dateStr: string, dayName: string, slots: Shift[], volunteerShifts: VolunteerShift[], globalStartMin: number, globalEndMin: number, onShiftClick: (s: Shift) => void }) {
-  if (slots.length === 0) return null;
-  
-  const startHour = Math.floor(globalStartMin / 60);
-  const endHour = Math.ceil(globalEndMin / 60);
-  
-  const dayStart = startHour * 60;
-  const dayEnd = endHour * 60;
-  const span = Math.max(1, dayEnd - dayStart);
-  
-  const hours = [];
-  for (let h = startHour; h <= endHour; h++) {
-    hours.push(h);
-  }
-
-  // nach Area gruppieren
-  const byArea = new Map<number, { name: string; icon: string; color: string; items: any[] }>();
-  for (const s of slots as any[]) {
-    const key = s.tournamentWorkAreaId || s.arbeitsbereichId;
-    if (!byArea.has(key)) byArea.set(key, { name: s.workArea?.name || s.arbeitsbereich?.name || '?', icon: s.workArea?.icon || s.arbeitsbereich?.icon || '📍', color: s.workArea?.color || s.arbeitsbereich?.color || '#3b98f8', items: [] });
-    byArea.get(key)!.items.push(s);
-  }
-
-  return (
-    <div style={{ marginBottom: 32 }}>
-      <h4 style={{ background: '#f8f9fa', padding: '14px 18px', borderRadius: 10, marginTop: 0, fontSize: 16, fontWeight: '600', border: '1px solid #e9ecef', marginBottom: 16 }}>
-        📅 {dateStr} ({dayName})
-        <span style={{ float: 'right', fontSize: 14, color: '#666' }}>{slots.length} Schichten · {slots.reduce((sum, s) => sum + volunteerShifts.filter(vs => vs.shiftId === s.id).length, 0)} Helfer</span>
-      </h4>
-      
-      <div style={{ paddingBottom: 8 }}>
-        <div style={{ position: 'relative', paddingRight: 20 }}>
-          
-          {/* Header mit Uhrzeiten */}
-          <div style={{ display: 'flex', alignItems: 'flex-end', marginLeft: 160, height: 24, borderBottom: '1px solid #ccc', position: 'relative' }}>
-            {hours.map(h => (
-              <div key={h} style={{ position: 'absolute', left: `${((h * 60 - dayStart) / span) * 100}%`, transform: 'translateX(-50%)', fontSize: 11, color: '#666', bottom: 4 }}>
-                {h.toString().padStart(2, '0')}:00
-              </div>
-            ))}
-          </div>
-
-          {/* Raster und Balken */}
-          <div style={{ position: 'relative', marginLeft: 160 }}>
-            {/* Vertikale Linien */}
-            <div style={{ position: 'absolute', top: 0, bottom: '100%', minHeight: [...byArea.values()].length * 38 + 16, left: 0, right: 0, pointerEvents: 'none' }}>
-              {hours.map(h => (
-                <div key={h} style={{ position: 'absolute', left: `${((h * 60 - dayStart) / span) * 100}%`, top: 0, bottom: 0, width: 1, background: '#e9ecef' }} />
-              ))}
-            </div>
-
-            {/* Zeilen für Arbeitsbereiche */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-              {[...byArea.values()].map((area, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', height: 32, position: 'relative' }}>
-                  <div style={{ position: 'absolute', left: -160, width: 150, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{area.icon} {area.name}</div>
-                  
-                  <div style={{ position: 'relative', width: '100%', height: '100%', background: 'rgba(241, 243, 245, 0.4)', borderRadius: 6 }}>
-                    {area.items.map(s => {
-                      const st = s.startMin ?? s.daySlot?.startMin ?? 480;
-                      const en = s.endMin ?? s.daySlot?.endMin ?? 1080;
-                      const left = ((st - dayStart) / span) * 100;
-                      const width = ((en - st) / span) * 100;
-                      const showTime = width > 15;
-                      
-                      const assigned = volunteerShifts.filter(vs => vs.shiftId === s.id).length;
-                      const isFull = assigned >= (s.maxVolunteers || 1);
-                      const hasVolunteers = assigned > 0;
-                      const borderColor = isFull ? '#198754' : (hasVolunteers ? '#ffc107' : 'transparent');
-                      const shadow = hasVolunteers ? `0 0 0 2px ${borderColor}` : '0 1px 3px rgba(0,0,0,0.2)';
-                      const check = isFull ? ' ✓' : '';
-                      
-                      return (
-                        <div key={s.id} onClick={() => onShiftClick(s)} title={`${minToTime(st)}–${minToTime(en)} · ${assigned}/${s.maxVolunteers} Helfer`}
-                          style={{ position: 'absolute', left: `${left}%`, width: `${width}%`, top: 2, bottom: 2, background: area.color, borderRadius: 6, boxShadow: shadow, color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', cursor: 'pointer', transition: 'transform 0.1s' }}
-                          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
-                          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-                          <span style={{ fontWeight: 600, opacity: 0.95 }}>
-                            {showTime ? `${minToTime(st)}–${minToTime(en)} (${assigned}/${s.maxVolunteers}${check})` : `(${assigned}/${s.maxVolunteers}${check})`}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
