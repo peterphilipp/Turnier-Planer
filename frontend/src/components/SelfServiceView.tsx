@@ -122,12 +122,24 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
 
   // Polling: Daten alle 60 Sekunden neu laden, wenn der User eingeloggt ist.
   // So werden Admin-Änderungen (z.B. Ausplanen) automatisch sichtbar.
+  // Zusätzlich sofort bei Rückkehr auf den Tab/das Fenster: wer die Self-Service-
+  // Seite schon offen hatte, während im Admin-Bereich etwas geändert wurde, soll
+  // nicht bis zu 60 Sekunden auf die Aktualisierung warten müssen.
   useEffect(() => {
     if (!ctxLoggedIn) return;
     const interval = setInterval(() => {
       loadAvailable().catch(() => {});
     }, 60000);
-    return () => clearInterval(interval);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadAvailable().catch(() => {});
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
   }, [ctxLoggedIn, ctxToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchClubColors = async (tournamentId: number) => {
@@ -760,11 +772,19 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
       <PushNotificationBanner primaryColor={clubSecondary} />
 
       {/* Filter */}
-      <div id="tour-filter" style={{ marginBottom: 16 }}>
-        <select value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ width: '100%', padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box', background: '#fff' }}>
+      <div id="tour-filter" style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
+        <select value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ flex: 1, padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box', background: '#fff', minWidth: 0 }}>
           <option value="">Alle Daten</option>
           {Array.from(new Set(shifts.map(s => new Date(s.date).toLocaleDateString('de-DE')))).sort().map(d => (<option key={d} value={d}>{d}</option>))}
         </select>
+        <button
+          onClick={() => loadAvailable()}
+          disabled={busy}
+          title="Aktualisieren"
+          style={{ flexShrink: 0, width: 48, border: '2px solid #e9ecef', borderRadius: 10, background: '#fff', cursor: busy ? 'not-allowed' : 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.6 : 1 }}
+        >
+          🔄
+        </button>
       </div>
 
       {/* Tabs */}
