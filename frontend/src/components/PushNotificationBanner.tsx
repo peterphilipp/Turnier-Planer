@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { subscribeToPushNotifications } from '../utils/push';
 import { modal } from './admin/Modal';
 
-export default function PushNotificationBanner({ primaryColor = '#198754' }: { primaryColor?: string }) {
+export default function PushNotificationBanner({ primaryColor = '#198754', textColor = '#fff' }: { primaryColor?: string; textColor?: string }) {
   const [supported, setSupported] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -66,7 +66,7 @@ export default function PushNotificationBanner({ primaryColor = '#198754' }: { p
         <button
           onClick={handleSubscribe}
           disabled={loading}
-          style={{ background: primaryColor, color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: loading ? 'wait' : 'pointer' }}
+          style={{ background: primaryColor, color: textColor, border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: loading ? 'wait' : 'pointer' }}
         >
           {loading ? 'Aktivieren...' : 'Auf diesem Gerät aktivieren'}
         </button>

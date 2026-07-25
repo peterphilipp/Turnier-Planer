@@ -415,6 +415,24 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     return '#' + (R.toString(16).padStart(2, '0')) + (G.toString(16).padStart(2, '0')) + (B.toString(16).padStart(2, '0'));
   };
 
+  /**
+   * Vereine legen ihre Marken-Farben (primaryColor/secondaryColor/accentColor)
+   * frei in den Stammdaten fest. Buttons/Header hier gingen bisher immer von
+   * weißer Schrift darauf aus - bei einer hellen Vereinsfarbe (z.B. Weiß/Gelb)
+   * unlesbar (weiß auf weiß). Kontrast per grober Luminanz statt hartkodiertem
+   * '#fff' bestimmen.
+   */
+  const getContrastText = (hex: string) => {
+    const R = parseInt(hex.substring(1, 3), 16) || 0;
+    const G = parseInt(hex.substring(3, 5), 16) || 0;
+    const B = parseInt(hex.substring(5, 7), 16) || 0;
+    const luminance = 0.299 * R + 0.587 * G + 0.114 * B;
+    return luminance > 150 ? '#212529' : '#fff';
+  };
+  const clubPrimaryText = getContrastText(clubPrimary);
+  const clubSecondaryText = getContrastText(clubSecondary);
+  const clubAccentText = getContrastText(clubAccent);
+
   /* ===== PIN WIEDERHERSTELLUNG SCREEN ===== */
   if (showPinModal) {
     return (
@@ -435,7 +453,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
           <p style={{ color: '#dc3545', fontSize: 14, fontWeight: 'bold', marginTop: 0, marginBottom: 24 }}>
             ⚠️ Bitte schreibe dir diese Daten JETZT auf oder mache einen Screenshot!
           </p>
-          <button onClick={() => setShowPinModal(null)} style={{ padding: '16px', width: '100%', background: clubAccent, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
+          <button onClick={() => setShowPinModal(null)} style={{ padding: '16px', width: '100%', background: clubAccent, color: clubAccentText, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
             Ich habe mir die PIN gemerkt
           </button>
         </div>
@@ -464,7 +482,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                 await modal.alert({ title: 'Erfolg', message: 'Passwort erfolgreich zurückgesetzt! Du kannst dich jetzt anmelden.' });
                 setShowResetPassword(false);
               } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler beim Zurücksetzen' }); }
-            }} style={{ padding: '16px', background: clubAccent, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Passwort zuruecksetzen</button>
+            }} style={{ padding: '16px', background: clubAccent, color: clubAccentText, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Passwort zuruecksetzen</button>
             <button onClick={() => setShowResetPassword(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Zurueck</button>
           </div>
         </div>
@@ -498,7 +516,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                 }
                 setTimeout(() => setShowForgotPassword(false), 5000);
               } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler beim Senden' }); }
-            }} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Push / E-Mail senden</button>
+            }} style={{ padding: '16px', background: clubPrimary, color: clubPrimaryText, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Push / E-Mail senden</button>
             <button onClick={async () => {
               const res = await modal.form({ title: 'Passwort per Helfer-PIN zuruecksetzen', fields: [ { key: 'pin', label: 'Deine Helfer-PIN', type: 'text' }, { key: 'newPassword', label: 'Neues Passwort (min. 6)', type: 'password' }] });
               if (!res) return;
@@ -538,7 +556,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <input type="text" placeholder="Name oder Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} autoFocus />
             <input type="password" placeholder="Passwort" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') login(); }} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
-            <button onClick={login} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Anmelden</button>
+            <button onClick={login} style={{ padding: '16px', background: clubPrimary, color: clubPrimaryText, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Anmelden</button>
             <button onClick={() => setShowRegisterForm(true)} style={{ padding: '14px', background: 'transparent', color: clubPrimary, border: '2px solid ' + clubPrimary, borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15 }}>Registrieren</button>
             <button onClick={() => setShowForgotPassword(true)} style={{ padding: '12px', background: 'transparent', color: clubSecondary, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: '500', fontSize: 14, textDecoration: 'underline' }}>Passwort vergessen?</button>
           </div>
@@ -612,7 +630,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                 // Trigger Web Push Erlaubnis
                 import('../utils/push').then(m => m.subscribeToPushNotifications().catch(() => {}));
               } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler bei der Registrierung' }); }
-            }} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Registrieren</button>
+            }} style={{ padding: '16px', background: clubPrimary, color: clubPrimaryText, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Registrieren</button>
             <button onClick={() => setShowRegisterForm(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Zurueck zum Login</button>
           </div>
         </div>
@@ -659,7 +677,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                 setShowProfile(false);
                 await modal.alert({ title: 'Erfolg', message: 'Profil aktualisiert!' });
               } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler beim Aktualisieren' }); }
-            }} style={{ padding: '16px', background: clubPrimary, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Speichern</button>
+            }} style={{ padding: '16px', background: clubPrimary, color: clubPrimaryText, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Speichern</button>
             <button onClick={() => setShowProfile(false)} style={{ padding: '14px', background: 'transparent', border: '2px solid #6c757d', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: '#6c757d' }}>Abbrechen</button>
           </div>
         </div>
@@ -674,7 +692,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
       <PwaInstallPrompt />
 
       {/* Header mit Logo, Name & Hamburger */}
-      <div style={{ background: 'linear-gradient(135deg, ' + clubPrimary + ' 0%, ' + shadeColor(clubPrimary, -20) + ' 100%)', borderRadius: 20, padding: isMobile ? 16 : 20, marginBottom: 20, color: '#fff', position: 'relative' }}>
+      <div style={{ background: 'linear-gradient(135deg, ' + clubPrimary + ' 0%, ' + shadeColor(clubPrimary, -20) + ' 100%)', borderRadius: 20, padding: isMobile ? 16 : 20, marginBottom: 20, color: clubPrimaryText, position: 'relative' }}>
         <button
           onClick={startTour}
           title="Hilfe / Tour starten"
@@ -780,7 +798,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
         </div>
       </div>
 
-      <PushNotificationBanner primaryColor={clubSecondary} />
+      <PushNotificationBanner primaryColor={clubSecondary} textColor={clubSecondaryText} />
 
       {/* Filter */}
       <div id="tour-filter" style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
@@ -800,8 +818,8 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
 
       {/* Tabs */}
       <div id="tour-tabs" style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        <button onClick={() => setActiveSection('jobs')} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'jobs' ? '600' : '400', background: activeSection === 'jobs' ? clubSecondary : '#fff', color: activeSection === 'jobs' ? '#fff' : '#666', boxShadow: activeSection === 'jobs' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>📋 Jobs</button>
-        <button onClick={() => { setActiveSection('verpflegung'); loadFood(); }} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'verpflegung' ? '600' : '400', background: activeSection === 'verpflegung' ? clubSecondary : '#fff', color: activeSection === 'verpflegung' ? '#fff' : '#666', boxShadow: activeSection === 'verpflegung' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>🍞 Verpflegung</button>
+        <button onClick={() => setActiveSection('jobs')} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'jobs' ? '600' : '400', background: activeSection === 'jobs' ? clubSecondary : '#fff', color: activeSection === 'jobs' ? clubSecondaryText : '#666', boxShadow: activeSection === 'jobs' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>📋 Jobs</button>
+        <button onClick={() => { setActiveSection('verpflegung'); loadFood(); }} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'verpflegung' ? '600' : '400', background: activeSection === 'verpflegung' ? clubSecondary : '#fff', color: activeSection === 'verpflegung' ? clubSecondaryText : '#666', boxShadow: activeSection === 'verpflegung' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>🍞 Verpflegung</button>
       </div>
 
       {/* Deine Jobs */}
@@ -962,7 +980,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                           ✕
                         </button>
                       ) : remaining > 0 ? (
-                        <button onClick={() => assign(slot.id, dateStr)} title="Zuweisen" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                        <button onClick={() => assign(slot.id, dateStr)} title="Zuweisen" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: clubSecondary, color: clubSecondaryText, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                           <span style={{ color: '#fff', lineHeight: 1, fontWeight: 'bold' }}>+</span>
                         </button>
                       ) : (
@@ -1094,13 +1112,13 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                               )}
                               {/* Zusage-Button/Input */}
                               {remaining > 0 && !committed && (
-                                <button onClick={() => setSlotCommitments({ ...slotCommitments, [slot.id]: 1 })} style={{ marginTop: 8, width: '100%', padding: '10px 0', background: clubSecondary, color: '#fff', border: 'none', borderRadius: 8, fontSize: 20, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                                <button onClick={() => setSlotCommitments({ ...slotCommitments, [slot.id]: 1 })} style={{ marginTop: 8, width: '100%', padding: '10px 0', background: clubSecondary, color: clubSecondaryText, border: 'none', borderRadius: 8, fontSize: 20, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                               )}
                               {committed > 0 && (
                                 <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
                                   <input type="number" min="1" value={committed} onChange={e => setSlotCommitments({ ...slotCommitments, [slot.id]: parseInt(e.target.value) || 0 })} style={{ width: 70, padding: '8px 10px', border: '2px solid #e9ecef', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
                                   <span style={{ fontSize: 13, color: '#666' }}>{slot.foodItem?.unit}</span>
-                                  <button onClick={() => commitSlot(slot.id, slot.foodItemId!)} title="Zusagen" style={{ width: 40, height: 40, borderRadius: 8, border: 'none', background: clubSecondary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                  <button onClick={() => commitSlot(slot.id, slot.foodItemId!)} title="Zusagen" style={{ width: 40, height: 40, borderRadius: 8, border: 'none', background: clubSecondary, color: clubSecondaryText, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                       <polyline points="20 6 9 17 4 12" />
                                     </svg>
@@ -1137,7 +1155,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               </select>
               <input value={donationQuantity} onChange={e => setDonationQuantity(e.target.value)} placeholder="Menge" type="number" min="1" style={{ padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }} />
               <input value={donationNote} onChange={e => setDonationNote(e.target.value)} placeholder="Notiz (optional)" style={{ padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }} />
-              <button onClick={submitDonation} style={{ padding: '14px 0', background: clubSecondary, color: '#fff', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: '600', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>📦 Verpflegung eintragen</button>
+              <button onClick={submitDonation} style={{ padding: '14px 0', background: clubSecondary, color: clubSecondaryText, border: 'none', borderRadius: 10, fontSize: 16, fontWeight: '600', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>📦 Verpflegung eintragen</button>
             </div>
           </div>
         </div>
@@ -1239,7 +1257,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
 
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
               <button onClick={() => setRatingModalVs(null)} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1px solid #ccc', background: '#fff', color: '#333', fontWeight: 'bold', cursor: 'pointer' }}>Abbrechen</button>
-              <button onClick={saveRating} style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: clubPrimary, color: '#fff', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>Bewertung speichern</button>
+              <button onClick={saveRating} style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: clubPrimary, color: clubPrimaryText, fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>Bewertung speichern</button>
             </div>
           </div>
         </div>
