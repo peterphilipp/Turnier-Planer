@@ -13,12 +13,12 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
   
   const { items: sortedTournaments, requestSort, getSortIndicator } = useSortableData(tournaments, { key: 'startDate', direction: 'desc' });
 
-  const [statusDialog, setStatusDialog] = useState({ open: false, tournament: null as Tournament | null, editName: '', editClubId: '', editStart: '', editEnd: '', editModus: 'GRUPPEN_KO', yearGroupIds: [] as number[], logoFile: null as File | null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '' });
-  
-  const [newTourn, setNewTourn] = useState({ name: '', start: '', end: '', clubId: '', modus: 'GRUPPEN_KO' });
+  const [statusDialog, setStatusDialog] = useState({ open: false, tournament: null as Tournament | null, editName: '', editClubId: '', editStart: '', editEnd: '', yearGroupIds: [] as number[], logoFile: null as File | null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '' });
+
+  const [newTourn, setNewTourn] = useState({ name: '', start: '', end: '', clubId: '' });
   const [isEndTouched, setIsEndTouched] = useState(false);
 
-  const closeStatusDialog = () => setStatusDialog({ open: false, tournament: null, editName: '', editClubId: '', editStart: '', editEnd: '', editModus: 'GRUPPEN_KO', yearGroupIds: [], logoFile: null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '' });
+  const closeStatusDialog = () => setStatusDialog({ open: false, tournament: null, editName: '', editClubId: '', editStart: '', editEnd: '', yearGroupIds: [], logoFile: null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '' });
   
   const updateTournamentStatus = async (status: string) => {
     if (!statusDialog.tournament) return; 
@@ -35,7 +35,7 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
     const patchData: any = {
       name: statusDialog.editName, startDate: statusDialog.editStart, endDate: statusDialog.editEnd,
       clubId: statusDialog.editClubId && statusDialog.editClubId !== '' ? parseInt(statusDialog.editClubId) : null,
-      turnierModus: statusDialog.editModus, yearGroupIds: statusDialog.yearGroupIds,
+      yearGroupIds: statusDialog.yearGroupIds,
       hasSponsor: statusDialog.editHasSponsor,
       sponsorName: statusDialog.editSponsorName || null,
       sponsorUrl: statusDialog.editSponsorUrl || null
@@ -71,20 +71,22 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
   };
 
   const createTournament = async () => {
-    const { name, start, end, clubId, modus } = newTourn;
+    const { name, start, end, clubId } = newTourn;
     if (!name || !start || !end) return await modal.alert({ title: 'Hinweis', message: 'Name, Start- und Enddatum erforderlich!' });
     if (start > end) return await modal.alert({ title: 'Hinweis', message: 'Startdatum darf nicht nach dem Enddatum liegen!' });
     await apiPost('/api/tournaments', {
-      name, 
-      startDate: start, 
-      endDate: end, 
-      status: 'aktiv', 
-      clubId: clubId ? parseInt(clubId) : null, 
-      turnierModus: modus, 
-      yearGroupIds: [] 
+      name,
+      startDate: start,
+      endDate: end,
+      status: 'aktiv',
+      clubId: clubId ? parseInt(clubId) : null,
+      // turnierModus bewusst nicht gesetzt (Backend-Default GRUPPEN_KO greift) -
+      // der Modus wird jetzt ausschließlich über den "Modus"-Tab im
+      // Spielplanmanagement gepflegt, nicht mehr bei der Turnier-Anlage.
+      yearGroupIds: []
     });
     queryClient.invalidateQueries({ queryKey: ['tournaments'] });
-    setNewTourn({ name: '', start: '', end: '', clubId: '', modus: 'GRUPPEN_KO' });
+    setNewTourn({ name: '', start: '', end: '', clubId: '' });
     setIsEndTouched(false);
   };
 
@@ -100,8 +102,6 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
     return <span style={{ padding: '4px 12px', background: c.bg, color: c.color, borderRadius: 20, fontSize: 13, fontWeight: 600 }}>{status}</span>;
   };
 
-  const modusIcon = (m: string) => m === 'GRUPPEN_KO' ? '🏆 Gruppen+KO' : m === 'KO' ? '⚡ KO' : m === 'LIGA' ? '📊 Liga' : m;
-
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>🏆 Turnier-Verwaltung</h3>
@@ -114,11 +114,6 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
         <select value={newTourn.clubId} onChange={e => setNewTourn(prev => ({...prev, clubId: e.target.value}))} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }}>
           <option value="">-- Kein Verein --</option>
           {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <select value={newTourn.modus} onChange={e => setNewTourn(prev => ({...prev, modus: e.target.value}))} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }}>
-          <option value="GRUPPEN_KO">🏆 Gruppenphase + K.O.</option>
-          <option value="KO">⚡ Reines K.O.</option>
-          <option value="LIGA">📊 Liga/Rundspiel</option>
         </select>
         <button onClick={createTournament} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>➕ Turnier</button>
       </div>
@@ -144,13 +139,13 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
               </td>
               <td style={{ padding: '10px 12px', textAlign: 'right' }}>{new Date(t.startDate).toLocaleDateString('de-DE')}</td>
               <td style={{ padding: '10px 12px', textAlign: 'right' }}>{new Date(t.endDate).toLocaleDateString('de-DE')}</td>
-              <td style={{ padding: '10px 12px', textAlign: 'center' }}>{statusBadge(t.status)}<span style={{ marginLeft: 6, fontSize: 12 }}>{modusIcon(t.turnierModus)}</span></td>
+              <td style={{ padding: '10px 12px', textAlign: 'center' }}>{statusBadge(t.status)}</td>
               <td style={{ padding: '10px 12px' }}>
                 {t.yearGroups && t.yearGroups.length > 0 ? (<div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{t.yearGroups.map(yg => (<span key={yg.id} style={{ fontSize: 11, background: '#e7f3ff', color: '#0d6efd', padding: '2px 6px', borderRadius: 4 }}>{yg.name}</span>))}</div>) : <span style={{ color: '#999' }}>–</span>}
               </td>
               <td style={{ padding: '8px 12px' }}>
                 <div style={{ display: 'flex', gap: 4 }}>
-                  <button onClick={() => setStatusDialog({ open: true, tournament: t, editName: t.name, editClubId: String(t.clubId || ''), editStart: t.startDate.split('T')[0], editEnd: t.endDate.split('T')[0], editModus: t.turnierModus, yearGroupIds: t.yearGroups?.map(yg => yg.id) || [], logoFile: null, editHasSponsor: t.hasSponsor || false, editSponsorName: t.sponsorName || '', editSponsorUrl: t.sponsorUrl || '' })} style={{ padding: '10px 16px', border: 'none', background: adminSecondary, color: '#fff', borderRadius: 8, cursor: 'pointer', minHeight: 40, minWidth: 80, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 15 }}>
+                  <button onClick={() => setStatusDialog({ open: true, tournament: t, editName: t.name, editClubId: String(t.clubId || ''), editStart: t.startDate.split('T')[0], editEnd: t.endDate.split('T')[0], yearGroupIds: t.yearGroups?.map(yg => yg.id) || [], logoFile: null, editHasSponsor: t.hasSponsor || false, editSponsorName: t.sponsorName || '', editSponsorUrl: t.sponsorUrl || '' })} style={{ padding: '10px 16px', border: 'none', background: adminSecondary, color: '#fff', borderRadius: 8, cursor: 'pointer', minHeight: 40, minWidth: 80, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 15 }}>
                     <span>⚙️</span><span>Edit</span>
                   </button>
                   <button onClick={() => deleteTournament(t)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
@@ -228,12 +223,6 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
                 ))}
               </div>
             </div>
-            <div><label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Turnier-Modus</label>
-              <select value={statusDialog.editModus} onChange={e => setStatusDialog({ ...statusDialog, editModus: e.target.value })} style={{ width: '100%', padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }}>
-                <option value="GRUPPEN_KO">🏆 Gruppenphase + K.O.</option><option value="KO">⚡ Reines K.O.</option><option value="LIGA">📊 Liga/Rundspiel</option>
-              </select>
-            </div>
-
             {/* Status Buttons */}
             <div style={{ display: 'flex', gap: 8, paddingTop: 12, borderTop: '1px solid #e9ecef' }}>
               <button onClick={() => updateTournamentStatus('aktiv')} style={{ flex: 1, padding: '8px 16px', background: '#d1e7dd', color: '#0f5132', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>🟢 Aktiv</button>
