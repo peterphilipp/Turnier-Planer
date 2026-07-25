@@ -95,6 +95,27 @@ function resolveEmailFrom(): string {
 }
 
 /**
+ * Basis-URL fürs Frontend (Passwort-Reset-Links). Der Dev-Default
+ * (localhost:5173) ist absichtlich NICHT produktionstauglich - fehlt
+ * FRONTEND_URL in der Server-Umgebung (z.B. weil die Quadlet/systemd-Unit sie
+ * nicht setzt), landet der Link sonst kommentarlos auf localhost statt auf der
+ * echten Domain. Ein klar benannter Log-Eintrag macht das sofort auffindbar,
+ * statt erst durch einen kaputten Link beim Nutzer entdeckt zu werden.
+ */
+function resolveFrontendUrl(): string {
+  const configured = process.env.FRONTEND_URL;
+  if (configured) return configured;
+
+  console.error(JSON.stringify({
+    event: 'FRONTEND_URL_NOT_CONFIGURED',
+    fallback: 'http://localhost:5173',
+    hint: 'FRONTEND_URL ist in dieser Umgebung nicht gesetzt - Links (z.B. Passwort-Reset) zeigen auf den Dev-Fallback statt auf die echte Domain.',
+    timestamp: new Date().toISOString()
+  }));
+  return 'http://localhost:5173';
+}
+
+/**
  * Einheitliche Login-Fehlermeldung (verhindert User-Enumeration). Die genaue
  * Ursache landet nur im Server-Log, nicht in der HTTP-Antwort.
  */
@@ -201,7 +222,7 @@ router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), asy
     });
 
     // E-Mail über Resend senden
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
+    const resetUrl = `${resolveFrontendUrl()}/reset-password?token=${token}`;
     
     if (process.env.RESEND_API_KEY) {
       try {
@@ -790,7 +811,7 @@ router.post('/forgot-password-push', authLimiter, validate(forgotPasswordPushSch
       data: { userId: user.id, token, expiresAt: new Date(Date.now() + 3600000) }
     });
 
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
+    const resetUrl = `${resolveFrontendUrl()}/reset-password?token=${token}`;
 
     // sendPushToUser laedt die Subscriptions selbst neu und raeumt tote Abos
     // (abgelaufen ODER durch VAPID-Key-Wechsel ungueltig geworden) zentral auf.
