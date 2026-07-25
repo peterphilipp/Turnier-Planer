@@ -129,7 +129,7 @@ export interface WorkAreaCategory { id: number; name: string; order: number; col
 export interface GlobalDaySlotWorkArea { id: number; workAreaId: number; order: number; workArea?: WorkArea; }
 export interface GlobalDaySlot { id: number; templateId: number; startMin: number; endMin: number; label: string | null; color: string; order: number; workAreas?: GlobalDaySlotWorkArea[]; }
 export interface GlobalDayTemplate { id: number; name: string; isObsolete: boolean; slots?: GlobalDaySlot[]; }
-export interface TournamentWorkArea { id: number; tournamentId: number; sourceWorkAreaId: number | null; name: string; icon: string; color: string; minVolunteers: number; maxVolunteers: number; operatingStartMin: number | null; operatingEndMin: number | null; active: boolean; }
+export interface TournamentWorkArea { id: number; tournamentId: number; sourceWorkAreaId: number | null; name: string; icon: string; order?: number; color: string; minVolunteers: number; maxVolunteers: number; operatingStartMin: number | null; operatingEndMin: number | null; active: boolean; }
 export interface DaySlot { id: number; tournamentDayId: number; startMin: number; endMin: number; label: string | null; color: string; order: number; }
 export interface TournamentDay { id: number; tournamentId: number; date: string; order: number; label: string | null; sourceTemplateId: number | null; slots?: DaySlot[]; }
 export interface PlanningShift {
@@ -167,10 +167,10 @@ export interface Tournament {
   club?: Club | null;
   yearGroups?: YearGroup[];
 }
-export interface Shift { id: number; tournamentId: number; date: string; zeitslotId: number | null; slot: string; arbeitsbereichId: number | null; maxVolunteers: number; description: string | null; zeitslot: { id: number; name: string; startTime: string; endTime: string; color: string; order: number } | null; arbeitsbereich: { id: number; name: string; icon: string; color: string } | null; }
-export interface WorkArea { id: number; name: string; icon: string; color: string; minVolunteers: number; maxVolunteers: number; categories?: WorkAreaCategory[]; }
+export interface Shift { id: number; tournamentId: number; date: string; zeitslotId: number | null; slot: string; arbeitsbereichId: number | null; maxVolunteers: number; description: string | null; zeitslot: { id: number; name: string; startTime: string; endTime: string; color: string; order: number } | null; arbeitsbereich: { id: number; name: string; icon: string; order?: number; color: string } | null; workArea?: { id: number; name: string; icon: string; order?: number; color: string } | null; }
+export interface WorkArea { id: number; name: string; icon: string; order?: number; color: string; minVolunteers: number; maxVolunteers: number; categories?: WorkAreaCategory[]; }
 export interface GlobalTimeSlot { id: number; name: string; startTime: string; endTime: string; color: string; order: number; }
-export interface VolunteerShift { id: number; userId: number; tournamentId: number | null; date: string; slot: string; role: string; areaId: number | null; shiftId: number | null; arbeitsbereichId?: number | null; arbeitsbereich: { id: number; name: string; icon: string; color: string } | null; user?: { id: number; name: string; role?: string; phone?: string }; }
+export interface VolunteerShift { id: number; userId: number; tournamentId: number | null; date: string; slot: string; role: string; areaId: number | null; shiftId: number | null; arbeitsbereichId?: number | null; arbeitsbereich: { id: number; name: string; icon: string; order?: number; color: string } | null; user?: { id: number; name: string; role?: string; phone?: string }; shift?: any; }
 export interface Volunteer { id: number; name: string; email: string | null; phone: string | null; role?: 'HELPER' | 'ORGANIZER' | 'ADMIN'; tournamentId: number | null; consentGiven?: boolean; consentDate?: string; children?: { childName: string; childYear: number }[]; }
 export interface Club { id: number; name: string; city: string | null; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
 export interface FoodCategory { id: number; name: string; icon: string; order: number; items: FoodItem[]; }

@@ -9,6 +9,7 @@ import { logLoginSuccess, logLoginFailed, logPasswordResetRequested, logPassword
 import JWT_SECRET from '../config/jwt.js';
 import { authLimiter, pinResetLimiter } from '../middleware/security.js';
 import { sendPushToUser } from '../utils/push.js';
+import { formatPhoneNumber } from '../utils/phone.js';
 import validate from '../middleware/validate.js';
 
 function getClientIp(req: express.Request): string | undefined {

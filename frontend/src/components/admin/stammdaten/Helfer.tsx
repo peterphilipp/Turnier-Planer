@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getVolunteers, getYearGroups, apiPost, apiPatch, apiDelete } from '../../../api';
 import { btnStyleSecondary, Volunteer, YearGroup, useSortableData, confirmWithImpact } from '../shared';
 import EditModal from '../EditModal';
+import { formatPhoneNumber } from '../../../utils/phone';
 
 const ROLES = [
   { value: 'HELPER', label: '🔒 Helfer', color: '#6c757d', bg: '#f8f9fa' },
@@ -105,7 +106,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <input value={volForm.name} onChange={e => setVolForm({ ...volForm, name: e.target.value })} placeholder="Name" style={{ flex: 1, minWidth: 200, padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
         <input value={volForm.email} onChange={e => setVolForm({ ...volForm, email: e.target.value })} placeholder="E-Mail" style={{ flex: 1, minWidth: 200, padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
-        <input value={volForm.phone} onChange={e => setVolForm({ ...volForm, phone: e.target.value })} placeholder="Telefon" style={{ width: 160, padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
+        <input value={volForm.phone} onChange={e => setVolForm({ ...volForm, phone: e.target.value })} onBlur={() => setVolForm({ ...volForm, phone: formatPhoneNumber(volForm.phone) || volForm.phone })} placeholder="Telefon" style={{ width: 160, padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
         <select value={volForm.role} onChange={e => setVolForm({ ...volForm, role: e.target.value })} style={{ width: 160, padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }}>
           {ROLES.map(r => (<option key={r.value} value={r.value}>{r.label}</option>))}
         </select>
@@ -166,7 +167,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <input value={volForm.name} onChange={e => setVolForm({ ...volForm, name: e.target.value })} placeholder="Name" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
             <input value={volForm.email} onChange={e => setVolForm({ ...volForm, email: e.target.value })} placeholder="E-Mail" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-            <input value={volForm.phone} onChange={e => setVolForm({ ...volForm, phone: e.target.value })} placeholder="Telefon" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
+            <input value={volForm.phone} onChange={e => setVolForm({ ...volForm, phone: e.target.value })} onBlur={() => setVolForm({ ...volForm, phone: formatPhoneNumber(volForm.phone) || volForm.phone })} placeholder="Telefon" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
             
             <div><label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Rolle</label>
               <select value={volForm.role} onChange={e => setVolForm({ ...volForm, role: e.target.value })} style={{ width: '100%', padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }}>

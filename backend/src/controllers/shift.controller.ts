@@ -36,7 +36,7 @@ export const getShifts = async (req: Request, res: Response) => {
   const shifts = await prisma.shift.findMany({
     where: { tournamentId: parseInt(tournamentId as string) },
     include: { day: true, daySlot: true, workArea: true },
-    orderBy: [{ tournamentDayId: 'asc' }, { daySlotId: 'asc' }]
+    orderBy: [{ tournamentDayId: 'asc' }, { daySlotId: 'asc' }, { workArea: { order: 'asc' } }, { id: 'asc' }]
   });
   return res.json(shifts);
 };

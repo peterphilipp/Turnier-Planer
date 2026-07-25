@@ -4,6 +4,7 @@ import { z } from 'zod';
 import bcrypt from 'bcrypt';
 import { logVolunteerUpdated, logClubCreated } from '../utils/logger.js';
 import { sendPushToUser } from '../utils/push.js';
+import { formatPhoneNumber } from '../utils/phone.js';
 
 // Gleiche Jahrgangs-Grenzen wie bei den Turnier-Jahrgängen selbst (Jahrgaenge.tsx),
 // da genau darüber (childYear innerhalb YearGroup.birthYearStart/-End) die
@@ -17,7 +18,7 @@ const childSchema = z.object({
 export const volunteerSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
   email: z.string().email('Ungültige E-Mail').optional().or(z.literal('')),
-  phone: z.string().optional().or(z.literal('')),
+  phone: z.union([z.string(), z.literal('')]).nullable().optional().transform(val => val === undefined ? undefined : (formatPhoneNumber(val) ?? '')),
   role: z.enum(['HELPER', 'ORGANIZER', 'ADMIN']).optional(),
   password: z.string().min(1).optional(),
   tournamentId: z.number().int().nullable().optional(),

@@ -8,13 +8,18 @@ export const workAreaSchema = z.object({
   minVolunteers: z.number().int().min(1).optional(),
   maxVolunteers: z.number().int().min(1).optional(),
   color: z.string().optional(),
+  order: z.number().int().min(0).optional(),
   categoryIds: z.array(z.number()).optional(),
   isObsolete: z.boolean().optional()
 });
 
+export const reorderSchema = z.object({
+  order: z.array(z.number().int().positive())
+});
+
 export const getWorkAreas = async (req: Request, res: Response) => {
   const areas = await prisma.workArea.findMany({ 
-    orderBy: { id: 'asc' },
+    orderBy: [{ order: 'asc' }, { name: 'asc' }, { id: 'asc' }],
     include: { categories: true }
   });
   return res.json(areas || []);
@@ -28,9 +33,15 @@ export const createWorkArea = async (req: Request, res: Response) => {
       const validCats = await prisma.workAreaCategory.findMany({ where: { id: { in: categoryIds } }, select: { id: true } });
       validIds = validCats.map(c => c.id);
     }
+    let order = data.order;
+    if (order === undefined) {
+      const agg = await prisma.workArea.aggregate({ _max: { order: true } });
+      order = (agg._max.order ?? -1) + 1;
+    }
     const a = await prisma.workArea.create({ 
       data: {
         ...data,
+        order,
         ...(validIds.length > 0 && { categories: { connect: validIds.map(id => ({ id })) } })
       },
       include: { categories: true }
@@ -78,4 +89,27 @@ export const deleteWorkArea = async (req: Request, res: Response) => {
 
   await prisma.workArea.delete({ where: { id: areaId } });
   return res.status(204).send();
+};
+
+export const updateWorkAreaOrder = async (req: Request, res: Response) => {
+  try {
+    const { order } = req.body as { order: number[] };
+    await prisma.$transaction(
+      order.map((id, index) =>
+        prisma.workArea.update({ where: { id }, data: { order: index } })
+      )
+    );
+    // Auch in allen Turnier-Snapshots die Reihenfolge aktualisieren
+    await prisma.$transaction(async (tx) => {
+      for (let i = 0; i < order.length; i++) {
+        await tx.tournamentWorkArea.updateMany({
+          where: { sourceWorkAreaId: order[i] },
+          data: { order: i }
+        });
+      }
+    });
+    return res.json({ message: 'Reihenfolge gespeichert' });
+  } catch (error) {
+    return res.status(500).json({ error: 'Fehler beim Speichern der Reihenfolge' });
+  }
 };

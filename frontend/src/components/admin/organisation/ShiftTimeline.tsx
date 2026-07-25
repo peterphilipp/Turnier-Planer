@@ -38,8 +38,8 @@ export interface TimelineShift {
   minVolunteers?: number;
   maxVolunteers?: number;
   daySlot?: { startMin: number; endMin: number } | null;
-  workArea?: { name: string; icon: string; color: string } | null;
-  arbeitsbereich?: { name: string; icon: string; color: string } | null;
+  workArea?: { name: string; icon: string; color: string; order?: number } | null;
+  arbeitsbereich?: { name: string; icon: string; color: string; order?: number } | null;
 }
 
 const GRID_MINUTES = 15;

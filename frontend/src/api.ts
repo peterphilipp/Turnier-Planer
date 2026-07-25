@@ -166,6 +166,7 @@ export const createWorkAreaCategory = (data: any) => apiPost('/api/work-area-cat
 export const updateWorkAreaCategory = (id: number, data: any) => apiPatch(`/api/work-area-categories/${id}`, data);
 export const deleteWorkAreaCategory = (id: number) => apiDelete(`/api/work-area-categories/${id}`);
 export const updateWorkAreaCategoryOrder = (order: number[]) => apiPost('/api/work-area-categories/reorder', { order });
+export const updateWorkAreaOrder = (order: number[]) => apiPost('/api/work-areas/reorder', { order });
 export const updateTemplateSlot = (id: number, data: any) => apiPatch(`/api/day-templates/slots/${id}`, data);
 export const deleteTemplateSlot = (id: number) => apiDelete(`/api/day-templates/slots/${id}`);
 export const setSlotWorkAreas = (slotId: number, workAreaIds: number[]) =>

@@ -144,7 +144,8 @@ export const getAvailable = async (req: Request, res: Response) => {
 
   const shifts = await prisma.shift.findMany({
     where: { tournamentId: targetTournamentId },
-    include: { day: true, daySlot: true, workArea: true }
+    include: { day: true, daySlot: true, workArea: true },
+    orderBy: [{ tournamentDayId: 'asc' }, { daySlotId: 'asc' }, { workArea: { order: 'asc' } }, { id: 'asc' }]
   });
 
   const volunteerShifts = await prisma.volunteerShift.findMany({

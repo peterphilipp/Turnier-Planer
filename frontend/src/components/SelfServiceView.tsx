@@ -8,6 +8,7 @@ import { useUser } from '../context/UserContext';
 import { apiFetch, apiPost, apiPatch, apiDelete } from '../api';
 import PwaInstallPrompt from './PwaInstallPrompt';
 import PushNotificationBanner from './PushNotificationBanner';
+import { formatPhoneNumber } from '../utils/phone';
 
 interface Shift {
   id: number;
@@ -15,8 +16,8 @@ interface Shift {
   slot: string;
   startMin?: number | null;
   endMin?: number | null;
-  zeitslot: { name: string; startTime: string; endTime: string; color: string } | null;
-  arbeitsbereich: { name: string; icon: string; color: string } | null;
+  zeitslot: { name: string; startTime: string; endTime: string; color: string; order?: number } | null;
+  arbeitsbereich: { name: string; icon: string; color: string; order?: number } | null;
   arbeitsbereichId: number | null;
   maxVolunteers: number;
 }
@@ -580,7 +581,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <input type="text" placeholder="Vor- und Nachname" value={regName} onChange={e => setRegName(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <input type="email" placeholder="Email-Adresse (optional)" value={regEmail} onChange={e => setRegEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
-            <input type="tel" placeholder="Handynummer (optional)" value={regPhone} onChange={e => setRegPhone(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            <input type="tel" placeholder="Handynummer (optional)" value={regPhone} onChange={e => setRegPhone(e.target.value)} onBlur={() => setRegPhone(formatPhoneNumber(regPhone) || regPhone)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <div style={{ marginTop: 8 }}>
               <div style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 8 }}>Kinder (optional)</div>
               {regChildren.map((child, idx) => (
@@ -662,7 +663,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <input type="text" placeholder="Vor- und Nachname" value={editName} onChange={e => setEditName(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <input type="email" placeholder="Email-Adresse" value={editEmail} onChange={e => setEditEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
-            <input type="tel" placeholder="Handynummer" value={editPhone} onChange={e => setEditPhone(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
+            <input type="tel" placeholder="Handynummer" value={editPhone} onChange={e => setEditPhone(e.target.value)} onBlur={() => setEditPhone(formatPhoneNumber(editPhone) || editPhone)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <div style={{ marginTop: 8 }}>
               <div style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 8 }}>Kinder</div>
               {editChildren.map((child, idx) => (
@@ -857,7 +858,16 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
           </h3>
           {volunteerShifts
             .filter(vs => vs.userId === ctxVolunteer?.id)
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+            .sort((a, b) => {
+              const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+              if (dateDiff !== 0) return dateDiff;
+              const timeDiff = (a.shift?.startMin ?? 0) - (b.shift?.startMin ?? 0);
+              if (timeDiff !== 0) return timeDiff;
+              const orderA = a.shift?.arbeitsbereich?.order ?? 9999;
+              const orderB = b.shift?.arbeitsbereich?.order ?? 9999;
+              if (orderA !== orderB) return orderA - orderB;
+              return (a.shift?.arbeitsbereich?.name || '').localeCompare(b.shift?.arbeitsbereich?.name || '');
+            })
             .map((vs, idx, myShifts) => {
               const s = vs.shift;
               const d = new Date(vs.date);
@@ -971,7 +981,16 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               const assignedCount = volunteerShifts.filter(vs => vs.shiftId === s.id).length;
               return (s.maxVolunteers - assignedCount) > 0;
             })
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+            .sort((a, b) => {
+              const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+              if (dateDiff !== 0) return dateDiff;
+              const timeDiff = (a.startMin ?? 0) - (b.startMin ?? 0);
+              if (timeDiff !== 0) return timeDiff;
+              const orderA = a.arbeitsbereich?.order ?? 9999;
+              const orderB = b.arbeitsbereich?.order ?? 9999;
+              if (orderA !== orderB) return orderA - orderB;
+              return (a.arbeitsbereich?.name || '').localeCompare(b.arbeitsbereich?.name || '');
+            })
             .map((slot, idx) => {
               const prevSlot = idx > 0 ? shifts[idx - 1] : null;
               const d = new Date(slot.date);

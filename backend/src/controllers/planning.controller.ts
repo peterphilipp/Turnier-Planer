@@ -53,7 +53,7 @@ export const exportDayToTemplateSchema = z.object({
 export const listTournamentWorkAreas = async (req: Request, res: Response) => {
   const tournamentId = req.query.tournamentId ? parseInt(String(req.query.tournamentId)) : null;
   if (!tournamentId) return res.status(400).json({ error: 'tournamentId erforderlich' });
-  const areas = await prisma.tournamentWorkArea.findMany({ where: { tournamentId }, orderBy: { name: 'asc' } });
+  const areas = await prisma.tournamentWorkArea.findMany({ where: { tournamentId }, orderBy: [{ order: 'asc' }, { name: 'asc' }, { id: 'asc' }] });
   return res.json(areas);
 };
 
@@ -72,6 +72,7 @@ export const syncTournamentWorkAreas = async (req: Request, res: Response) => {
         sourceWorkAreaId: w.id,
         name: w.name,
         icon: w.icon,
+        order: w.order,
         color: w.color,
         minVolunteers: w.minVolunteers,
         maxVolunteers: w.maxVolunteers,
@@ -80,9 +81,17 @@ export const syncTournamentWorkAreas = async (req: Request, res: Response) => {
         active: true
       }));
     if (toCreate.length) await tx.tournamentWorkArea.createMany({ data: toCreate });
+
+    // Auch bei bestehenden Bereichen die aktuelle Reihenfolge aus dem Katalog synchronisieren
+    for (const cat of catalog) {
+      await tx.tournamentWorkArea.updateMany({
+        where: { tournamentId, sourceWorkAreaId: cat.id },
+        data: { order: cat.order }
+      });
+    }
   });
 
-  const areas = await prisma.tournamentWorkArea.findMany({ where: { tournamentId }, orderBy: { name: 'asc' } });
+  const areas = await prisma.tournamentWorkArea.findMany({ where: { tournamentId }, orderBy: [{ order: 'asc' }, { name: 'asc' }, { id: 'asc' }] });
   return res.json(areas);
 };
 
@@ -314,7 +323,7 @@ export const generateShifts = async (req: Request, res: Response) => {
       }
     }
 
-    const areas = await tx.tournamentWorkArea.findMany({ where: { tournamentId, active: true } });
+    const areas = await tx.tournamentWorkArea.findMany({ where: { tournamentId, active: true }, orderBy: [{ order: 'asc' }, { name: 'asc' }, { id: 'asc' }] });
     const existing = await tx.shift.findMany({
       where: { tournamentId },
       select: { tournamentDayId: true, daySlotId: true, tournamentWorkAreaId: true }

@@ -221,6 +221,7 @@ model WorkArea {
   id                Int                     @id @default(autoincrement())
   name              String
   icon              String                  @default("📍")
+  order             Int                     @default(0)
   minVolunteers     Int                     @default(2) @map("min_volunteers")
   maxVolunteers     Int                     @default(8) @map("max_volunteers")
   color             String                  @default("#3b98f8")
@@ -291,6 +292,7 @@ model TournamentWorkArea {
   sourceWorkAreaId  Int?       @map("source_work_area_id")
   name              String
   icon              String     @default("📍")
+  order             Int        @default(0)
   color             String     @default("#3b98f8")
   minVolunteers     Int        @default(2) @map("min_volunteers")
   maxVolunteers     Int        @default(8) @map("max_volunteers")
