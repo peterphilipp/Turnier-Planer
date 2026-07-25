@@ -1,33 +1,27 @@
 import { useState, Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Shift, VolunteerShift, FoodDonationSlot, thStyle, tdStyle } from '../shared';
+import { Shift, VolunteerShift, FoodDonationSlot, thStyle, tdStyle, minToTime } from '../shared';
 import { getShifts, getVolunteerShifts, getFoodDonationSlots } from '../../../api';
 
 export default function Uebersicht({ selectedTournament }: { selectedTournament: number | null }) {
   // Hooks MÜSSEN vor allen early returns stehen
-  const [expandedSlots, setExpandedSlots] = useState<Set<number>>(new Set());
-  const toggleSlot = (slotId: number) => {
-    setExpandedSlots(prev => {
-      const next = new Set(prev);
-      if (next.has(slotId)) next.delete(slotId);
-      else next.add(slotId);
-      return next;
-    });
-  };
+  const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
 
-  const { data: jobSlots = [], isFetching: busySlots } = useQuery<Shift[]>({
+  const { data: jobSlots = [], isLoading: busySlots } = useQuery<Shift[]>({
     queryKey: ['shifts', selectedTournament],
     queryFn: () => getShifts(selectedTournament),
-    enabled: !!selectedTournament
+    enabled: !!selectedTournament,
+    refetchInterval: 10000 // alle 10 Sekunden automatisch aktualisieren
   });
 
-  const { data: volunteerShifts = [], isFetching: busyVolShifts } = useQuery<VolunteerShift[]>({
+  const { data: volunteerShifts = [], isLoading: busyVolShifts } = useQuery<VolunteerShift[]>({
     queryKey: ['volunteerShifts', selectedTournament],
     queryFn: () => getVolunteerShifts(selectedTournament),
-    enabled: !!selectedTournament
+    enabled: !!selectedTournament,
+    refetchInterval: 5000 // alle 5 Sekunden automatisch aktualisieren
   });
 
-  const { data: foodSlots = [], isFetching: busyFood } = useQuery<FoodDonationSlot[]>({
+  const { data: foodSlots = [], isLoading: busyFood } = useQuery<FoodDonationSlot[]>({
     queryKey: ['foodDonationSlots', selectedTournament],
     queryFn: () => getFoodDonationSlots(selectedTournament),
     enabled: !!selectedTournament
@@ -51,9 +45,14 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
     return <div style={{ textAlign: 'center', padding: 40, color: '#666', background: '#fff', borderRadius: 16 }}>Bisher keine Job-Slots für dieses Turnier angelegt.</div>;
   }
 
-  const grouped: Record<string, Shift[]> = {};
-  jobSlots.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).forEach(slot => {
-    const dateKey = new Date(slot.date).toLocaleDateString('de-DE');
+  const grouped: Record<string, any[]> = {};
+  jobSlots.sort((a: any, b: any) => {
+    const dateA = a.day?.date || a.date;
+    const dateB = b.day?.date || b.date;
+    return new Date(dateA).getTime() - new Date(dateB).getTime();
+  }).forEach((slot: any) => {
+    const dateVal = slot.day?.date || slot.date;
+    const dateKey = new Date(dateVal).toLocaleDateString('de-DE');
     if (!grouped[dateKey]) grouped[dateKey] = [];
     grouped[dateKey].push(slot);
   });
@@ -91,101 +90,182 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
         )}
       </div>
 
-      {Object.entries(grouped).map(([dateStr, slots]) => {
-        const firstSlot = slots[0];
-        const firstDate = new Date(firstSlot.date);
-        const dayName = firstDate.toLocaleDateString('de-DE', { weekday: 'long' });
-        
-        // Sort slots by time
-        slots.sort((a, b) => (a.zeitslot?.order ?? 99) - (b.zeitslot?.order ?? 99));
+      {(() => {
+        let globalStartMin = 1440;
+        let globalEndMin = 0;
+        jobSlots.forEach(s => {
+          const st = s.startMin ?? s.daySlot?.startMin ?? 480;
+          const en = s.endMin ?? s.daySlot?.endMin ?? 1080;
+          globalStartMin = Math.min(globalStartMin, st);
+          globalEndMin = Math.max(globalEndMin, en);
+        });
+        if (globalStartMin > globalEndMin) {
+          globalStartMin = 480;
+          globalEndMin = 1080;
+        }
 
-        return (
-          <div key={dateStr} style={{ marginBottom: 24 }}>
-            <h4 style={{ background: '#f8f9fa', padding: '14px 18px', borderRadius: 10, marginTop: 0, fontSize: 16, fontWeight: '600', border: '1px solid #e9ecef' }}>
-              📅 {dateStr} ({dayName})
-              <span style={{ float: 'right', fontSize: 14, color: '#666' }}>{slots.length} Schichten · {slots.reduce((sum, s) => sum + volunteerShifts.filter(vs => vs.shiftId === s.id).length, 0)} Helfer</span>
-            </h4>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                <thead>
-                  <tr>
-                    <th style={{ ...thStyle, borderTopLeftRadius: 12 }}>Zeitslot</th>
-                    <th style={thStyle}>Bereich</th>
-                    <th style={{ ...thStyle, textAlign: 'center' }}>Belegt</th>
-                    <th style={{ ...thStyle, textAlign: 'center' }}>Max.</th>
-                    <th style={{ ...thStyle, borderTopRightRadius: 12, textAlign: 'center' }}>Helfer</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {slots.map(slot => {
-                    const assigned = volunteerShifts.filter(vs => vs.shiftId === slot.id);
-                    const isExpanded = expandedSlots.has(slot.id);
-                    return (
-                      <Fragment key={`frag-${slot.id}`}>
-                        <tr key={slot.id} style={{ borderBottom: '1px solid #f0f0f0', cursor: 'pointer' }} onClick={() => toggleSlot(slot.id)}>
-                          <td style={{ ...tdStyle, fontWeight: '600' }}>
-                            {slot.zeitslot ? (
-                              <span style={{ background: slot.zeitslot.color || '#3b98f8', color: '#fff', padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: '600' }}>
-                                {slot.zeitslot.name} ({slot.zeitslot.startTime} - {slot.zeitslot.endTime})
-                              </span>
-                            ) : <span style={{ color: '#adb5bd' }}>–</span>}
-                          </td>
-                          <td style={tdStyle}>
-                            {slot.arbeitsbereich ? (
-                              <span style={{ background: slot.arbeitsbereich.color || '#6c757d', color: '#fff', padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: '600' }}>
-                                {slot.arbeitsbereich.icon} {slot.arbeitsbereich.name}
-                              </span>
-                            ) : '–'}
-                          </td>
-                          <td style={{ ...tdStyle, textAlign: 'center', fontWeight: '600' }}>
-                            {(() => {
-                              const count = assigned.length;
-                              const status = count >= (slot.maxVolunteers || 0) ? 'full' : count > 0 ? 'partial' : 'empty';
-                              const color = status === 'full' ? '#198754' : status === 'partial' ? '#ffc107' : '#dc3545';
-                              const emoji = status === 'full' ? '🟢' : status === 'partial' ? '🟡' : '🔴';
-                              return <span style={{ color, fontWeight: 'bold' }}>{emoji} {count}/{slot.maxVolunteers}</span>;
-                            })()}
-                          </td>
-                          <td style={{ ...tdStyle, textAlign: 'center', fontWeight: '600', color: '#666' }}>{slot.maxVolunteers}</td>
-                          <td style={{ ...tdStyle, textAlign: 'center', fontSize: 18 }}>
-                            {assigned.length > 0 ? (isExpanded ? '▼' : '▶') : '–'}
-                          </td>
-                        </tr>
-                        {/* Aufgeklappte Helfer */}
-                        {isExpanded && (
-                          <tr key={`${slot.id}-detail`} style={{ background: '#f8f9fa' }}>
-                            <td colSpan={4} style={{ padding: 0 }}>
-                              <div style={{ padding: '12px 16px' }}>
-                                <div style={{ fontSize: 13, fontWeight: 'bold', color: '#495057', marginBottom: 8 }}>
-                                  📋 Zugewiesene Helfer ({assigned.length})
-                                </div>
-                                {assigned.length === 0 ? (
-                                  <div style={{ color: '#adb5bd', fontSize: 13, fontStyle: 'italic' }}>Keine Helfer zugewiesen</div>
-                                ) : (
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                    {assigned.map(vs => (
-                                      <div key={vs.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: '6px 10px', minWidth: 180 }}>
-                                        <span style={{ background: '#e7f3ff', color: '#0d6efd', padding: '2px 10px', borderRadius: 6, fontSize: 13, fontWeight: 'bold' }}>
-                                          {vs.user?.name || '?'}
-                                        </span>
-                                        <span style={{ color: '#6c757d', fontSize: 12 }}>{vs.user?.phone ? vs.user.phone.replace(/(.{3}).*({.*})/, '$1…$2') : ''}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+        return Object.entries(grouped).map(([dateStr, slots]) => {
+          const firstSlot = slots[0];
+          const firstDate = new Date(firstSlot.day?.date || firstSlot.date);
+          const dayName = firstDate.toLocaleDateString('de-DE', { weekday: 'long' });
+          slots.sort((a, b) => (a.startMin ?? a.daySlot?.startMin ?? 0) - (b.startMin ?? b.daySlot?.startMin ?? 0));
+
+          return (
+            <OverviewTimeline 
+              key={dateStr}
+              dateStr={dateStr}
+              dayName={dayName}
+              slots={slots}
+              volunteerShifts={volunteerShifts}
+              globalStartMin={globalStartMin}
+              globalEndMin={globalEndMin}
+              onShiftClick={setSelectedShift}
+            />
+          );
+        });
+      })()}
+
+      {/* Modal für Helfer-Details */}
+      {selectedShift && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 500, boxShadow: '0 10px 40px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e9ecef', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8f9fa' }}>
+              <div style={{ fontSize: 18, fontWeight: 'bold', color: '#212529' }}>
+                {(selectedShift as any).workArea?.icon || (selectedShift as any).arbeitsbereich?.icon} {(selectedShift as any).workArea?.name || (selectedShift as any).arbeitsbereich?.name}
+              </div>
+              <button onClick={() => setSelectedShift(null)} style={{ border: 'none', background: 'transparent', fontSize: 24, lineHeight: 1, cursor: 'pointer', color: '#adb5bd' }}>×</button>
+            </div>
+            
+            <div style={{ padding: 20, overflowY: 'auto' }}>
+              <div style={{ display: 'flex', gap: 20, marginBottom: 20, color: '#666', fontSize: 14 }}>
+                <div>📅 {new Date((selectedShift as any).day?.date || selectedShift.date).toLocaleDateString('de-DE')}</div>
+                <div>⏰ {minToTime(selectedShift.startMin ?? (selectedShift as any).daySlot?.startMin ?? 0)} - {minToTime(selectedShift.endMin ?? (selectedShift as any).daySlot?.endMin ?? 0)}</div>
+              </div>
+
+              <h4 style={{ margin: '0 0 12px 0', color: '#212529' }}>Zugewiesene Helfer</h4>
+              {(() => {
+                const assigned = volunteerShifts.filter(vs => vs.shiftId === selectedShift.id);
+                if (assigned.length === 0) return <div style={{ color: '#adb5bd', fontStyle: 'italic' }}>Noch keine Helfer zugewiesen.</div>;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {assigned.map(vs => (
+                      <div key={vs.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8f9fa', borderRadius: 8, border: '1px solid #e9ecef' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#0d6efd', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 14 }}>
+                            {vs.user?.name?.charAt(0).toUpperCase() || '?'}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: '600', color: '#212529' }}>{vs.user?.name || 'Unbekannt'}</div>
+                            {vs.user?.phone && <div style={{ fontSize: 12, color: '#6c757d' }}>📞 {vs.user.phone}</div>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+            
+            <div style={{ padding: '16px 20px', borderTop: '1px solid #e9ecef', background: '#f8f9fa', textAlign: 'right' }}>
+              <button onClick={() => setSelectedShift(null)} style={{ padding: '8px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold' }}>Schließen</button>
             </div>
           </div>
-        );
-      })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OverviewTimeline({ dateStr, dayName, slots, volunteerShifts, globalStartMin, globalEndMin, onShiftClick }: { dateStr: string, dayName: string, slots: Shift[], volunteerShifts: VolunteerShift[], globalStartMin: number, globalEndMin: number, onShiftClick: (s: Shift) => void }) {
+  if (slots.length === 0) return null;
+  
+  const startHour = Math.floor(globalStartMin / 60);
+  const endHour = Math.ceil(globalEndMin / 60);
+  
+  const dayStart = startHour * 60;
+  const dayEnd = endHour * 60;
+  const span = Math.max(1, dayEnd - dayStart);
+  
+  const hours = [];
+  for (let h = startHour; h <= endHour; h++) {
+    hours.push(h);
+  }
+
+  // nach Area gruppieren
+  const byArea = new Map<number, { name: string; icon: string; color: string; items: any[] }>();
+  for (const s of slots as any[]) {
+    const key = s.tournamentWorkAreaId || s.arbeitsbereichId;
+    if (!byArea.has(key)) byArea.set(key, { name: s.workArea?.name || s.arbeitsbereich?.name || '?', icon: s.workArea?.icon || s.arbeitsbereich?.icon || '📍', color: s.workArea?.color || s.arbeitsbereich?.color || '#3b98f8', items: [] });
+    byArea.get(key)!.items.push(s);
+  }
+
+  return (
+    <div style={{ marginBottom: 32 }}>
+      <h4 style={{ background: '#f8f9fa', padding: '14px 18px', borderRadius: 10, marginTop: 0, fontSize: 16, fontWeight: '600', border: '1px solid #e9ecef', marginBottom: 16 }}>
+        📅 {dateStr} ({dayName})
+        <span style={{ float: 'right', fontSize: 14, color: '#666' }}>{slots.length} Schichten · {slots.reduce((sum, s) => sum + volunteerShifts.filter(vs => vs.shiftId === s.id).length, 0)} Helfer</span>
+      </h4>
+      
+      <div style={{ paddingBottom: 8 }}>
+        <div style={{ position: 'relative', paddingRight: 20 }}>
+          
+          {/* Header mit Uhrzeiten */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', marginLeft: 160, height: 24, borderBottom: '1px solid #ccc', position: 'relative' }}>
+            {hours.map(h => (
+              <div key={h} style={{ position: 'absolute', left: `${((h * 60 - dayStart) / span) * 100}%`, transform: 'translateX(-50%)', fontSize: 11, color: '#666', bottom: 4 }}>
+                {h.toString().padStart(2, '0')}:00
+              </div>
+            ))}
+          </div>
+
+          {/* Raster und Balken */}
+          <div style={{ position: 'relative', marginLeft: 160 }}>
+            {/* Vertikale Linien */}
+            <div style={{ position: 'absolute', top: 0, bottom: '100%', minHeight: [...byArea.values()].length * 38 + 16, left: 0, right: 0, pointerEvents: 'none' }}>
+              {hours.map(h => (
+                <div key={h} style={{ position: 'absolute', left: `${((h * 60 - dayStart) / span) * 100}%`, top: 0, bottom: 0, width: 1, background: '#e9ecef' }} />
+              ))}
+            </div>
+
+            {/* Zeilen für Arbeitsbereiche */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+              {[...byArea.values()].map((area, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', height: 32, position: 'relative' }}>
+                  <div style={{ position: 'absolute', left: -160, width: 150, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{area.icon} {area.name}</div>
+                  
+                  <div style={{ position: 'relative', width: '100%', height: '100%', background: 'rgba(241, 243, 245, 0.4)', borderRadius: 6 }}>
+                    {area.items.map(s => {
+                      const st = s.startMin ?? s.daySlot?.startMin ?? 480;
+                      const en = s.endMin ?? s.daySlot?.endMin ?? 1080;
+                      const left = ((st - dayStart) / span) * 100;
+                      const width = ((en - st) / span) * 100;
+                      const showTime = width > 15;
+                      
+                      const assigned = volunteerShifts.filter(vs => vs.shiftId === s.id).length;
+                      const isFull = assigned >= (s.maxVolunteers || 1);
+                      const hasVolunteers = assigned > 0;
+                      const borderColor = isFull ? '#198754' : (hasVolunteers ? '#ffc107' : 'transparent');
+                      const shadow = hasVolunteers ? `0 0 0 2px ${borderColor}` : '0 1px 3px rgba(0,0,0,0.2)';
+                      const check = isFull ? ' ✓' : '';
+                      
+                      return (
+                        <div key={s.id} onClick={() => onShiftClick(s)} title={`${minToTime(st)}–${minToTime(en)} · ${assigned}/${s.maxVolunteers} Helfer`}
+                          style={{ position: 'absolute', left: `${left}%`, width: `${width}%`, top: 2, bottom: 2, background: area.color, borderRadius: 6, boxShadow: shadow, color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', cursor: 'pointer', transition: 'transform 0.1s' }}
+                          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                          <span style={{ fontWeight: 600, opacity: 0.95 }}>
+                            {showTime ? `${minToTime(st)}–${minToTime(en)} (${assigned}/${s.maxVolunteers}${check})` : `(${assigned}/${s.maxVolunteers}${check})`}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

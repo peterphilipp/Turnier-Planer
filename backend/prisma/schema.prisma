@@ -8,25 +8,25 @@ datasource db {
 }
 
 model Tournament {
-  id                     Int                @id @default(autoincrement()) @map("id")
+  id                     Int                  @id @default(autoincrement()) @map("id")
   name                   String
-  description            String?            @map("description")
-  startDate              DateTime           @map("start_date")
-  endDate                DateTime           @map("end_date")
-  status                 String             @default("aktiv") @map("status")
-  turnierModus           String             @default("GRUPPEN_KO") @map("turnier_modus")
-  teamsAdvancingPerGroup Int                @default(2) @map("teams_advancing_per_group")
-  playoutAllPlacements   Boolean            @default(false) @map("playout_all_placements")
-  thirdPlaceMatch        Boolean            @default(true) @map("third_place_match")
-  qualificationRule      String?            @map("qualification_rule")
-  createdAt              DateTime           @default(now()) @map("created_at")
-  clubId                 Int?               @map("club_id")
+  description            String?              @map("description")
+  startDate              DateTime             @map("start_date")
+  endDate                DateTime             @map("end_date")
+  status                 String               @default("aktiv") @map("status")
+  turnierModus           String               @default("GRUPPEN_KO") @map("turnier_modus")
+  teamsAdvancingPerGroup Int                  @default(2) @map("teams_advancing_per_group")
+  playoutAllPlacements   Boolean              @default(false) @map("playout_all_placements")
+  thirdPlaceMatch        Boolean              @default(true) @map("third_place_match")
+  qualificationRule      String?              @map("qualification_rule")
+  createdAt              DateTime             @default(now()) @map("created_at")
+  clubId                 Int?                 @map("club_id")
   logo                   String?
-  hasSponsor             Boolean            @default(false) @map("has_sponsor")
-  sponsorName            String?            @map("sponsor_name")
-  sponsorUrl             String?            @map("sponsor_url")
-  estimatedVisitors      Int?               @map("estimated_visitors")
-  teamCount              Int?               @map("team_count")
+  hasSponsor             Boolean              @default(false) @map("has_sponsor")
+  sponsorName            String?              @map("sponsor_name")
+  sponsorUrl             String?              @map("sponsor_url")
+  estimatedVisitors      Int?                 @map("estimated_visitors")
+  teamCount              Int?                 @map("team_count")
   fields                 Field[]
   foodDonationSlots      FoodDonationSlot[]
   donations              FoodDonation[]
@@ -41,9 +41,9 @@ model Tournament {
   timeSlots              TimeSlot[]
   tournamentClubs        TournamentClub[]
   users                  User[]
-  club                   Club?              @relation(fields: [clubId], references: [id])
+  club                   Club?                @relation(fields: [clubId], references: [id])
   volunteerShifts        VolunteerShift[]
-  yearGroups             YearGroup[]        @relation("TournamentYearGroups")
+  yearGroups             YearGroup[]          @relation("TournamentYearGroups")
   teams                  Team[]
 
   @@map("tournaments")
@@ -223,6 +223,7 @@ model WorkArea {
   operatingEndMin   Int?                    @map("operating_end_min")
   isObsolete        Boolean                 @default(false) @map("is_obsolete")
   catalogSlots      GlobalDaySlotWorkArea[]
+  categories        WorkAreaCategory[]      @relation("WorkAreaToCategories")
 
   @@map("arbeitsbereiche")
 }
@@ -236,6 +237,18 @@ model GlobalDayTemplate {
   slots      GlobalDaySlot[]
 
   @@map("global_day_templates")
+}
+
+model WorkAreaCategory {
+  id         Int                 @id @default(autoincrement())
+  name       String              @unique
+  order      Int                 @default(0)
+  color      String              @default("#e7f1ff")
+  isObsolete Boolean             @default(false) @map("is_obsolete")
+  createdAt  DateTime            @default(now()) @map("created_at")
+  workAreas  WorkArea[]          @relation("WorkAreaToCategories")
+
+  @@map("work_area_categories")
 }
 
 model GlobalDaySlot {
@@ -303,16 +316,16 @@ model TournamentDay {
 }
 
 model DaySlot {
-  id                Int           @id @default(autoincrement())
-  tournamentDayId   Int           @map("tournament_day_id")
-  startMin          Int           @map("start_min")
-  endMin            Int           @map("end_min")
-  label             String?
-  color             String        @default("#3b98f8")
-  order             Int           @default(0)
-  sourceGlobalSlotId Int?         @map("source_global_slot_id")
-  day               TournamentDay @relation(fields: [tournamentDayId], references: [id], onDelete: Cascade)
-  shifts            Shift[]
+  id                 Int           @id @default(autoincrement())
+  tournamentDayId    Int           @map("tournament_day_id")
+  startMin           Int           @map("start_min")
+  endMin             Int           @map("end_min")
+  label              String?
+  color              String        @default("#3b98f8")
+  order              Int           @default(0)
+  sourceGlobalSlotId Int?          @map("source_global_slot_id")
+  day                TournamentDay @relation(fields: [tournamentDayId], references: [id], onDelete: Cascade)
+  shifts             Shift[]
 
   @@index([tournamentDayId])
   @@map("day_slots")

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getWorkAreas, apiPost, apiPatch, apiDelete } from '../../../api';
-import { WorkArea, useSortableData, confirmWithImpact } from '../shared';
+import { getWorkAreas, getWorkAreaCategories, apiPost, apiPatch, apiDelete } from '../../../api';
+import { WorkArea, WorkAreaCategory, useSortableData, confirmWithImpact } from '../shared';
 import EditModal from '../EditModal';
 
 const emojiList = ['🏪', '🍳', '🔥', '🎪', '🎯', '⚽', '🍰', '☕', '🥤', '🏆', '📦', '🗑️', '💰', '🎁', '🎵', '🎠', '🧸', '🎴', '🎲', '🏅', '🥇', '🎖️', '📋', '✅', '❌', '⏰', '📍', '📞', '🔧', '📢', '📣', '📝'];
@@ -10,10 +10,11 @@ const emojiList = ['🏪', '🍳', '🔥', '🎪', '🎯', '⚽', '🍰', '☕',
 export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
   const queryClient = useQueryClient();
   const { data: workAreas = [] } = useQuery<WorkArea[]>({ queryKey: ['workAreas'], queryFn: getWorkAreas });
+  const { data: allCategories = [] } = useQuery<WorkAreaCategory[]>({ queryKey: ['work-area-categories'], queryFn: getWorkAreaCategories });
   
   const { items: sortedWorkAreas, requestSort, getSortIndicator } = useSortableData(workAreas, { key: 'name', direction: 'asc' });
 
-  const [abForm, setAbForm] = useState({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8 });
+  const [abForm, setAbForm] = useState({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8, categoryIds: [] as number[] });
   const [editingAb, setEditingAb] = useState<number | null>(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
@@ -22,7 +23,8 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
     if (editingAb) { await apiPatch(`/api/work-areas/${editingAb}`, abForm); }
     else { await apiPost('/api/work-areas', abForm); }
     queryClient.invalidateQueries({ queryKey: ['workAreas'] });
-    setAbForm({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8 });
+    queryClient.invalidateQueries({ queryKey: ['day-templates'] }); // in case template tags change
+    setAbForm({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8, categoryIds: [] });
     setEditingAb(null);
   };
 
@@ -32,8 +34,8 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
     queryClient.invalidateQueries({ queryKey: ['workAreas'] });
   };
 
-  const openEdit = (ab: WorkArea) => { setEditingAb(ab.id); setAbForm({ name: ab.name, icon: ab.icon, color: ab.color, minVolunteers: ab.minVolunteers, maxVolunteers: ab.maxVolunteers }); setEmojiPickerOpen(false); };
-  const closeEdit = () => { setEditingAb(null); setAbForm({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8 }); setEmojiPickerOpen(false); };
+  const openEdit = (ab: WorkArea) => { setEditingAb(ab.id); setAbForm({ name: ab.name, icon: ab.icon, color: ab.color, minVolunteers: ab.minVolunteers, maxVolunteers: ab.maxVolunteers, categoryIds: ab.categories?.map(c => c.id) || [] }); setEmojiPickerOpen(false); };
+  const closeEdit = () => { setEditingAb(null); setAbForm({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8, categoryIds: [] }); setEmojiPickerOpen(false); };
 
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
@@ -57,12 +59,19 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
       </div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Icon</th><th onClick={() => requestSort('name')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Name{getSortIndicator('name')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Farbe</th><th onClick={() => requestSort('minVolunteers')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Min{getSortIndicator('minVolunteers')}</th><th onClick={() => requestSort('maxVolunteers')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Max{getSortIndicator('maxVolunteers')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
+        <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Icon</th><th onClick={() => requestSort('name')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Name{getSortIndicator('name')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Kategorien</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Farbe</th><th onClick={() => requestSort('minVolunteers')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Min{getSortIndicator('minVolunteers')}</th><th onClick={() => requestSort('maxVolunteers')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Max{getSortIndicator('maxVolunteers')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
         <tbody>
           {sortedWorkAreas.map(ab => (
             <tr key={ab.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
               <td style={{ padding: '10px 12px', fontSize: 24, textAlign: 'center' }}>{ab.icon}</td>
               <td style={{ padding: '10px 12px', fontWeight: 500 }}>{ab.name}</td>
+              <td style={{ padding: '10px 12px' }}>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {(ab.categories || []).map(cat => (
+                    <span key={cat.id} style={{ fontSize: 11, background: cat.color, border: `1px solid ${cat.color}`, padding: '2px 6px', borderRadius: 10 }}>{cat.name}</span>
+                  ))}
+                </div>
+              </td>
               <td style={{ padding: '10px 12px' }}><div style={{ background: ab.color, width: 40, height: 20, borderRadius: 4 }} /></td>
               <td style={{ padding: '10px 12px', textAlign: 'right' }}>{ab.minVolunteers}</td>
               <td style={{ padding: '10px 12px', textAlign: 'right' }}>{ab.maxVolunteers}</td>
@@ -88,6 +97,33 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
                 {emojiList.map(e => (
                   <button key={e} onClick={() => setAbForm({ ...abForm, icon: e })} style={{ fontSize: 20, padding: '6px 8px', border: abForm.icon === e ? '2px solid #0d6efd' : '1px solid #dee2e6', background: abForm.icon === e ? '#e8f4fd' : '#fff', borderRadius: 8, cursor: 'pointer' }}>{e}</button>
                 ))}
+              </div>
+            </div>
+
+            {/* Kategorien */}
+            <div>
+              <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Kategorien</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {allCategories.filter(c => !c.isObsolete).map(cat => {
+                  const isActive = abForm.categoryIds.includes(cat.id);
+                  return (
+                    <label key={cat.id} style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, background: isActive ? cat.color : '#fff', border: isActive ? `1px solid ${cat.color}` : '1px solid #dee2e6', color: isActive ? '#000' : '#666', borderRadius: 12, padding: '4px 10px', cursor: 'pointer' }}>
+                      <input 
+                        type="checkbox" 
+                        style={{ display: 'none' }} 
+                        checked={isActive}
+                        onChange={e => {
+                          const nextIds = e.target.checked 
+                            ? [...abForm.categoryIds, cat.id] 
+                            : abForm.categoryIds.filter(id => id !== cat.id);
+                          setAbForm({ ...abForm, categoryIds: nextIds });
+                        }}
+                      />
+                      {cat.name}
+                    </label>
+                  );
+                })}
+                {allCategories.length === 0 && <span style={{ fontSize: 13, color: '#888' }}>Keine Kategorien vorhanden. Lege zuerst welche unter Stammdaten &gt; Kategorien an.</span>}
               </div>
             </div>
 

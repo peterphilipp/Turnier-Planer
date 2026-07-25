@@ -1,0 +1,1 @@
+import { PrismaClient } from '@prisma/client'; const prisma = new PrismaClient(); async function main() { await prisma.tournamentDay.delete({ where: { id: 6 } }); console.log('Deleted test day'); } main();

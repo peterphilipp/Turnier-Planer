@@ -87,21 +87,66 @@ export const shadeColor = (color: string, percent: number) => {
 export const statusBadge = (status: string) => status === 'aktiv' ? '🟢' : status === 'beendet' ? '🟡' : '⚪';
 
 // Zeit-Helfer: Minuten seit Mitternacht <-> "HH:MM"
-export const minToTime = (m: number): string =>
-  `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-export const timeToMin = (t: string): number => {
-  const [h, m] = (t || '').split(':').map(Number);
-  return (h || 0) * 60 + (m || 0);
-};
+export const minToTime = (min: number) => `${Math.floor(min / 60).toString().padStart(2, '0')}:${(min % 60).toString().padStart(2, '0')}`;
+export const timeToMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+
+export function getTemplateDisplayName(t: GlobalDayTemplate): string {
+  // 1. Sammle alle Kategorien aus allen WorkAreas in allen Slots
+  const categoryMap = new Map<number, WorkAreaCategory>();
+  
+  if (t.slots) {
+    t.slots.forEach(slot => {
+      if (slot.workAreas) {
+        slot.workAreas.forEach(wa => {
+          if (wa.workArea?.categories) {
+            wa.workArea.categories.forEach(cat => {
+              if (!categoryMap.has(cat.id)) {
+                categoryMap.set(cat.id, cat);
+              }
+            });
+          }
+        });
+      }
+    });
+  }
+
+  // 2. Sortiere nach globaler Order
+  const sortedCategories = Array.from(categoryMap.values()).sort((a, b) => a.order - b.order);
+  const tagsStr = sortedCategories.length > 0 ? `[${sortedCategories.map(c => c.name).join(', ')}]` : '';
+  
+  let timeStr = '';
+  if (t.slots && t.slots.length > 0) {
+    const minStart = Math.min(...t.slots.map(s => s.startMin));
+    const maxEnd = Math.max(...t.slots.map(s => s.endMin));
+    timeStr = `(${minToTime(minStart)}–${minToTime(maxEnd)})`;
+  }
+  
+  return [timeStr, tagsStr, t.name].filter(Boolean).join(' ').trim();
+}
 
 // ---- Tag-/Slot-System (Etappe 3) ----
+export interface WorkAreaCategory { id: number; name: string; order: number; color: string; isObsolete: boolean; }
 export interface GlobalDaySlotWorkArea { id: number; workAreaId: number; order: number; workArea?: WorkArea; }
 export interface GlobalDaySlot { id: number; templateId: number; startMin: number; endMin: number; label: string | null; color: string; order: number; workAreas?: GlobalDaySlotWorkArea[]; }
 export interface GlobalDayTemplate { id: number; name: string; isObsolete: boolean; slots?: GlobalDaySlot[]; }
 export interface TournamentWorkArea { id: number; tournamentId: number; sourceWorkAreaId: number | null; name: string; icon: string; color: string; minVolunteers: number; maxVolunteers: number; operatingStartMin: number | null; operatingEndMin: number | null; active: boolean; }
 export interface DaySlot { id: number; tournamentDayId: number; startMin: number; endMin: number; label: string | null; color: string; order: number; }
 export interface TournamentDay { id: number; tournamentId: number; date: string; order: number; label: string | null; sourceTemplateId: number | null; slots?: DaySlot[]; }
-export interface PlanningShift { id: number; tournamentId: number; tournamentDayId: number; daySlotId: number; tournamentWorkAreaId: number; minVolunteers: number; maxVolunteers: number; day?: TournamentDay; daySlot?: DaySlot; workArea?: TournamentWorkArea; }
+export interface PlanningShift {
+  id: number;
+  tournamentId: number;
+  tournamentDayId: number;
+  daySlotId: number;
+  tournamentWorkAreaId: number;
+  startMin: number | null;
+  endMin: number | null;
+  minVolunteers: number;
+  maxVolunteers: number;
+  description: string | null;
+  workArea?: WorkArea;
+  daySlot?: DaySlot;
+  volunteerShifts?: VolunteerShift[];
+}
 
 export interface Tournament {
   id: number;
@@ -123,7 +168,7 @@ export interface Tournament {
   yearGroups?: YearGroup[];
 }
 export interface Shift { id: number; tournamentId: number; date: string; zeitslotId: number | null; slot: string; arbeitsbereichId: number | null; maxVolunteers: number; description: string | null; zeitslot: { id: number; name: string; startTime: string; endTime: string; color: string; order: number } | null; arbeitsbereich: { id: number; name: string; icon: string; color: string } | null; }
-export interface WorkArea { id: number; name: string; icon: string; color: string; minVolunteers: number; maxVolunteers: number; }
+export interface WorkArea { id: number; name: string; icon: string; color: string; minVolunteers: number; maxVolunteers: number; categories?: WorkAreaCategory[]; }
 export interface GlobalTimeSlot { id: number; name: string; startTime: string; endTime: string; color: string; order: number; }
 export interface VolunteerShift { id: number; userId: number; tournamentId: number | null; date: string; slot: string; role: string; areaId: number | null; shiftId: number | null; arbeitsbereichId?: number | null; arbeitsbereich: { id: number; name: string; icon: string; color: string } | null; user?: { id: number; name: string; role?: string; phone?: string }; }
 export interface Volunteer { id: number; name: string; email: string | null; phone: string | null; role?: 'HELPER' | 'ORGANIZER' | 'ADMIN'; tournamentId: number | null; consentGiven?: boolean; consentDate?: string; isPrimaryAdmin?: boolean; children?: { childName: string; childYear: number }[]; }

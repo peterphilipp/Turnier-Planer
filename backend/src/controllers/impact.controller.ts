@@ -69,6 +69,12 @@ export const getDeleteImpact = async (req: Request, res: Response) => {
         break;
       }
 
+      case 'workAreaCategory': {
+        const workAreas = await prisma.workArea.count({ where: { categories: { some: { id: numId } } } });
+        if (workAreas > 0) impact.push(`Wird von ${workAreas} Arbeitsbereich(en) entfernt`);
+        break;
+      }
+
       case 'club': {
         const teams = await prisma.team.count({ where: { clubId: numId } });
         const tournaments = await prisma.tournamentClub.count({ where: { clubId: numId } });

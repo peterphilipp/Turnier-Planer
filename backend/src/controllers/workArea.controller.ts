@@ -7,25 +7,60 @@ export const workAreaSchema = z.object({
   icon: z.string().optional(),
   minVolunteers: z.number().int().min(1).optional(),
   maxVolunteers: z.number().int().min(1).optional(),
-  color: z.string().optional()
+  color: z.string().optional(),
+  categoryIds: z.array(z.number()).optional(),
+  isObsolete: z.boolean().optional()
 });
 
 export const getWorkAreas = async (req: Request, res: Response) => {
-  const areas = await prisma.workArea.findMany({ orderBy: { id: 'asc' } });
+  const areas = await prisma.workArea.findMany({ 
+    orderBy: { id: 'asc' },
+    include: { categories: true }
+  });
   return res.json(areas || []);
 };
 
 export const createWorkArea = async (req: Request, res: Response) => {
-  const a = await prisma.workArea.create({ data: req.body });
-  return res.status(201).json(a);
+  try {
+    const { categoryIds, ...data } = req.body;
+    let validIds: number[] = [];
+    if (categoryIds && categoryIds.length > 0) {
+      const validCats = await prisma.workAreaCategory.findMany({ where: { id: { in: categoryIds } }, select: { id: true } });
+      validIds = validCats.map(c => c.id);
+    }
+    const a = await prisma.workArea.create({ 
+      data: {
+        ...data,
+        ...(validIds.length > 0 && { categories: { connect: validIds.map(id => ({ id })) } })
+      },
+      include: { categories: true }
+    });
+    return res.status(201).json(a);
+  } catch (error) {
+    return res.status(400).json({ error: 'Fehler beim Erstellen', details: error });
+  }
 };
 
 export const updateWorkArea = async (req: Request, res: Response) => {
-  const a = await prisma.workArea.update({
-    where: { id: parseInt(req.params.id as string) },
-    data: req.body
-  });
-  return res.json(a);
+  try {
+    const { categoryIds, ...data } = req.body;
+    let validIds: number[] | undefined = undefined;
+    if (categoryIds !== undefined) {
+      const validCats = await prisma.workAreaCategory.findMany({ where: { id: { in: categoryIds } }, select: { id: true } });
+      validIds = validCats.map(c => c.id);
+    }
+    const a = await prisma.workArea.update({
+      where: { id: parseInt(req.params.id as string) },
+      data: {
+        ...data,
+        ...(validIds !== undefined && { categories: { set: validIds.map(id => ({ id })) } })
+      },
+      include: { categories: true }
+    });
+    return res.json(a);
+  } catch (error) {
+    return res.status(400).json({ error: 'Fehler beim Aktualisieren', details: error });
+  }
 };
 
 export const deleteWorkArea = async (req: Request, res: Response) => {

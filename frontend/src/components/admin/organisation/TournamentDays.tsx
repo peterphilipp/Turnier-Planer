@@ -6,7 +6,7 @@ import {
   getDayTemplates, generateShifts, clearShifts, getShifts, getTournaments
 } from '../../../api';
 import { modal } from '../Modal';
-import { btnStyle, inputStyle, minToTime, tdStyle, thStyle } from '../shared';
+import { btnStyle, inputStyle, minToTime, tdStyle, thStyle, getTemplateDisplayName } from '../shared';
 import type { TournamentWorkArea, TournamentDay, GlobalDayTemplate, PlanningShift, Tournament } from '../shared';
 
 /** Datum (Date) -> "YYYY-MM-DD" in UTC, unabhängig von der lokalen Zeitzone. */
@@ -195,7 +195,7 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
                       <select style={inputStyle} value={day?.sourceTemplateId ? String(day.sourceTemplateId) : ''}
                         onChange={e => setDayTemplate(dateStr, day, e.target.value)}>
                         <option value="">-- kein Tag-Typ --</option>
-                        {templates.filter(t => !t.isObsolete).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        {templates.filter(t => !t.isObsolete).map(t => <option key={t.id} value={t.id}>{getTemplateDisplayName(t)}</option>)}
                       </select>
                     </td>
                     <td style={{ ...tdStyle, fontSize: 13, color: '#666' }}>
@@ -217,22 +217,47 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
           {shifts.length > 0 && (
             <button style={{ ...btnStyle, background: '#f8d7da', color: '#842029' }} onClick={doClear}>Schichten löschen</button>
           )}
-          <button style={{ ...btnStyle, background: '#0d6efd', color: '#fff' }} onClick={doGenerate}>Shifts generieren</button>
+          <button style={{ ...btnStyle, background: '#0d6efd', color: '#fff' }} onClick={doGenerate}>Schichten generieren</button>
         </div>
-        {shifts.length === 0 && <p style={{ color: '#888' }}>Noch keine Shifts. Lege Tage + Bereiche an und klicke „Shifts generieren".</p>}
-        {days.map(d => <DayTimeline key={d.id} day={d} shifts={shifts.filter(s => s.tournamentDayId === d.id)} />)}
+        {shifts.length === 0 && <p style={{ color: '#888' }}>Noch keine Schichten. Lege Tage + Bereiche an und klicke „Schichten generieren".</p>}
+        {(() => {
+          let globalStartMin = 1440;
+          let globalEndMin = 0;
+          for (const d of days) {
+            if (d.slots && d.slots.length > 0) {
+              globalStartMin = Math.min(globalStartMin, ...d.slots.map(s => s.startMin));
+              globalEndMin = Math.max(globalEndMin, ...d.slots.map(s => s.endMin));
+            }
+          }
+          if (globalStartMin > globalEndMin) {
+            globalStartMin = 480;
+            globalEndMin = 1080;
+          }
+          return [...days].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(d => 
+            <DayTimeline key={d.id} day={d} shifts={shifts.filter(s => s.tournamentDayId === d.id)} globalStartMin={globalStartMin} globalEndMin={globalEndMin} />
+          );
+        })()}
       </section>
     </div>
   );
 }
 
 // ---- Visuelle Zeitleiste pro Tag (Balkenbreite proportional zur Slot-Dauer) ----
-function DayTimeline({ day, shifts }: { day: TournamentDay; shifts: PlanningShift[] }) {
+function DayTimeline({ day, shifts, globalStartMin, globalEndMin }: { day: TournamentDay; shifts: PlanningShift[]; globalStartMin: number; globalEndMin: number; }) {
   const slots = day.slots || [];
   if (slots.length === 0 || shifts.length === 0) return null;
-  const dayStart = Math.min(...slots.map(s => s.startMin));
-  const dayEnd = Math.max(...slots.map(s => s.endMin));
+  
+  const startHour = Math.floor(globalStartMin / 60);
+  const endHour = Math.ceil(globalEndMin / 60);
+  
+  const dayStart = startHour * 60;
+  const dayEnd = endHour * 60;
   const span = Math.max(1, dayEnd - dayStart);
+  
+  const hours = [];
+  for (let h = startHour; h <= endHour; h++) {
+    hours.push(h);
+  }
 
   // nach Area gruppieren
   const byArea = new Map<number, { name: string; icon: string; color: string; items: PlanningShift[] }>();
@@ -243,31 +268,61 @@ function DayTimeline({ day, shifts }: { day: TournamentDay; shifts: PlanningShif
   }
 
   return (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ fontWeight: 600, marginBottom: 6 }}>
+    <div style={{ marginBottom: 32 }}>
+      <div style={{ fontWeight: 600, marginBottom: 12 }}>
         {new Date(day.date).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })} {day.label ? `· ${day.label}` : ''}
-        <span style={{ color: '#999', fontWeight: 400, fontSize: 12 }}> ({minToTime(dayStart)}–{minToTime(dayEnd)})</span>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {[...byArea.values()].map((area, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 150, flexShrink: 0, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{area.icon} {area.name}</div>
-            <div style={{ position: 'relative', flex: 1, height: 26, background: '#f1f3f5', borderRadius: 6 }}>
-              {area.items.map(s => {
-                const st = s.daySlot?.startMin ?? dayStart;
-                const en = s.daySlot?.endMin ?? dayEnd;
-                const left = ((st - dayStart) / span) * 100;
-                const width = ((en - st) / span) * 100;
-                return (
-                  <div key={s.id} title={`${minToTime(st)}–${minToTime(en)} · ${s.minVolunteers}–${s.maxVolunteers} Helfer`}
-                    style={{ position: 'absolute', left: `${left}%`, width: `${width}%`, top: 3, bottom: 3, background: area.color, borderRadius: 4, color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                    {s.minVolunteers}–{s.maxVolunteers}
+      
+      <div style={{ paddingBottom: 8 }}>
+        <div style={{ position: 'relative', paddingRight: 20 }}>
+          
+          {/* Header mit Uhrzeiten */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', marginLeft: 160, height: 24, borderBottom: '1px solid #ccc', position: 'relative' }}>
+            {hours.map(h => (
+              <div key={h} style={{ position: 'absolute', left: `${((h * 60 - dayStart) / span) * 100}%`, transform: 'translateX(-50%)', fontSize: 11, color: '#666', bottom: 4 }}>
+                {h.toString().padStart(2, '0')}:00
+              </div>
+            ))}
+          </div>
+
+          {/* Raster und Balken */}
+          <div style={{ position: 'relative', marginLeft: 160 }}>
+            {/* Vertikale Linien */}
+            <div style={{ position: 'absolute', top: 0, bottom: '100%', minHeight: [...byArea.values()].length * 38 + 16, left: 0, right: 0, pointerEvents: 'none' }}>
+              {hours.map(h => (
+                <div key={h} style={{ position: 'absolute', left: `${((h * 60 - dayStart) / span) * 100}%`, top: 0, bottom: 0, width: 1, background: '#e9ecef' }} />
+              ))}
+            </div>
+
+            {/* Zeilen für Arbeitsbereiche */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+              {[...byArea.values()].map((area, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', height: 32, position: 'relative' }}>
+                  <div style={{ position: 'absolute', left: -160, width: 150, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{area.icon} {area.name}</div>
+                  
+                  <div style={{ position: 'relative', width: '100%', height: '100%', background: 'rgba(241, 243, 245, 0.4)', borderRadius: 6 }}>
+                    {area.items.map(s => {
+                      const st = s.startMin ?? s.daySlot?.startMin ?? exactStartMin;
+                      const en = s.endMin ?? s.daySlot?.endMin ?? exactEndMin;
+                      const left = ((st - dayStart) / span) * 100;
+                      const width = ((en - st) / span) * 100;
+                      const showTime = width > 15;
+                      
+                      return (
+                        <div key={s.id} title={`${minToTime(st)}–${minToTime(en)} · ${s.minVolunteers}–${s.maxVolunteers} Helfer`}
+                          style={{ position: 'absolute', left: `${left}%`, width: `${width}%`, top: 2, bottom: 2, background: area.color, borderRadius: 6, boxShadow: '0 1px 3px rgba(0,0,0,0.2)', color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box' }}>
+                          <span style={{ fontWeight: 600, opacity: 0.9 }}>
+                            {showTime ? `${minToTime(st)}–${minToTime(en)} (${s.minVolunteers}-${s.maxVolunteers})` : `${s.minVolunteers}-${s.maxVolunteers}`}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );

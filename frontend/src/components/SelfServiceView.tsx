@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { driver } from 'driver.js';
+import 'driver.js/dist/driver.css';
 import { modal } from './admin/Modal';
 import { inputStyle, btnStyle } from './admin/shared';
 import { useUser } from '../context/UserContext';
@@ -26,6 +29,7 @@ interface SelfServiceViewProps {
 
 export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps) {
   const { volunteer: ctxVolunteer, token: ctxToken, isLoggedIn: ctxLoggedIn, role, isAdmin, isOrganizer, login: contextLogin, logout: contextLogout } = useUser();
+  const queryClient = useQueryClient();
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -60,6 +64,8 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   const [clubAccent, setClubAccent] = useState('#198754');
   const [clubLogo, setClubLogo] = useState<string | null>(null);
   const [tournamentName, setTournamentName] = useState('');
+  const [availableTournaments, setAvailableTournaments] = useState<{id: number, name: string}[]>([]);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<number | null>(null);
   const [hasSponsor, setHasSponsor] = useState(false);
   const [sponsorName, setSponsorName] = useState<string | null>(null);
   const [sponsorUrl, setSponsorUrl] = useState<string | null>(null);
@@ -145,6 +151,8 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     if (d.tournament) {
       setTournament(d.tournament);
       setTournamentName(d.tournament.name || '');
+      setSelectedTournamentId(d.tournament.id);
+      setAvailableTournaments(d.availableTournaments || []);
       setHasSponsor(d.tournament.hasSponsor || false);
       setSponsorName(d.tournament.sponsorName || null);
       setSponsorUrl(d.tournament.sponsorUrl || null);
@@ -183,28 +191,56 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     setShifts([]); setVolunteerShifts([]);
   }, [contextLogout]);
 
-  const loadAvailable = async () => {
+  const startTour = () => {
+    const driverObj = driver({
+      showProgress: true,
+      nextBtnText: 'Weiter',
+      prevBtnText: 'Zurück',
+      doneBtnText: 'Fertig',
+      steps: [
+        { element: '#tour-header', popover: { title: 'Dein Turnier', description: 'Hier siehst du, für welches Turnier du gerade eingeteilt bist. Falls du bei mehreren Turnieren aktiv bist, kannst du hier wechseln.', side: 'bottom' } },
+        { element: '#tour-filter', popover: { title: 'Schichten filtern', description: 'Finde schneller die passende Schicht, indem du nach einem bestimmten Tag filterst.', side: 'bottom' } },
+        { element: '#tour-tabs', popover: { title: 'Aufgaben-Bereiche', description: 'Wechsle hier zwischen Helfer-Schichten und Verpflegungs-Spenden (z.B. Kuchen oder Salate).', side: 'top' } },
+        { element: '#tour-myshifts', popover: { title: 'Deine Zusagen', description: 'Hier findest du immer deine bereits zugesagten Schichten und Spenden im Überblick.', side: 'top' } },
+      ]
+    });
+    driverObj.drive();
+    localStorage.setItem('hasSeenTour', 'true');
+  };
+
+  const loadAvailable = async (tId?: number) => {
     setBusy(true);
     try {
-      const data = await apiFetch('/api/self/available', { headers: { Authorization: 'Bearer ' + ctxToken } });
+      const url = tId ? `/api/self/available?tournamentId=${tId}` : '/api/self/available';
+      const data = await apiFetch(url, { headers: { Authorization: 'Bearer ' + ctxToken } });
       applyAvailableData(data);
-    } catch { /* stumm – z.B. wenn (noch) kein Turnier zugewiesen */ } finally { setBusy(false); }
+    } catch { /* stumm - z.B. wenn (noch) kein Turnier zugewiesen */ } finally { setBusy(false); }
   };
 
   const assign = async (shiftId: number, date: string) => {
     try {
       await apiPost('/api/self/assign', { shiftId, date });
       await loadAvailable();
+      queryClient.invalidateQueries({ queryKey: ['volunteerShifts'] });
       await modal.alert({ title: 'Erfolg', message: 'Zugewiesen!' });
     } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler bei der Zuweisung' }); }
   };
 
   const unassign = async (id: number) => {
-    if (!(await modal.confirm({ title: 'Job abmelden', message: 'Möchtest du dich von diesem Job abmelden?', variant: 'warning' }))) return;
+    if (!(await modal.confirm({ title: 'Job abmelden', message: 'Möchtest du dich von diesem Job abmelden?', variant: 'warning' }))) {
+      return;
+    }
     try {
       await apiDelete('/api/self/unassign/' + id);
       await loadAvailable();
-    } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler bei der Abmeldung' }); }
+      try {
+        queryClient.invalidateQueries({ queryKey: ['volunteerShifts'] });
+      } catch (qErr) {
+        // queryClient error (ignored)
+      }
+    } catch (e: any) { 
+      await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler bei der Abmeldung' }); 
+    }
   };
 
   const loadFood = async () => {
@@ -549,6 +585,17 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
       {/* Header mit Logo, Name & Hamburger */}
       <div style={{ background: 'linear-gradient(135deg, ' + clubPrimary + ' 0%, ' + shadeColor(clubPrimary, -20) + ' 100%)', borderRadius: 20, padding: isMobile ? 16 : 20, marginBottom: 20, color: '#fff', position: 'relative' }}>
         <button
+          onClick={startTour}
+          title="Hilfe / Tour starten"
+          style={{
+            position: 'absolute', top: '50%', right: 64, transform: 'translateY(-50%)', width: 44, height: 44,
+            background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 10,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: '#fff'
+          }}
+        >
+          <span style={{ fontFamily: 'system-ui, sans-serif', fontWeight: 'bold' }}>?</span>
+        </button>
+        <button
           onClick={() => setMenuOpen(!menuOpen)}
           style={{
             position: 'absolute', top: '50%', right: 12, transform: 'translateY(-50%)', width: 44, height: 44,
@@ -608,30 +655,42 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                 await modal.alert({ title: 'Erfolg', message: 'Dein Konto wurde gelöscht.' });
                 logout();
               } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler beim Löschen' }); }
-            }} style={{ width: '100%', padding: '10px 16px', background: '#fff3f3', border: '2px solid #dc3545', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#dc3545', fontWeight: 'bold' }}>🗑️ Konto löschen (Art. 17 DSGVO)</button>
+            }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>🗑️ Konto löschen (Art. 17 DSGVO)</button>
             {isAdmin || isOrganizer ? (
-              <button onClick={() => { setMenuOpen(false); if (onLoginAsAdmin) onLoginAsAdmin(); }} style={{ width: '100%', padding: '10px 16px', background: '#e8f5e9', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#2e7d32', fontWeight: 'bold' }}>⚙️ Admin-Bereich</button>
+              <button onClick={() => { setMenuOpen(false); if (onLoginAsAdmin) onLoginAsAdmin(); }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>⚙️ Admin-Bereich</button>
             ) : null}
             <button onClick={() => { setMenuOpen(false); setShowRegisterForm(false); logout(); }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#dc3545' }}>🚪 Abmelden</button>
             <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #e9ecef', textAlign: 'center', fontSize: 10, color: '#ced4da', letterSpacing: 0.5 }}>{__APP_VERSION__} · {__GIT_SHA__}</div>
           </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div id="tour-header" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           {clubLogo ? (
             <img src={clubLogo} alt={tournamentName} style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'contain', border: '2px solid rgba(255,255,255,0.3)', flexShrink: 0, padding: 4, background: '#fff' }} />
           ) : (
             <img src="/logo.webp" alt="App Logo" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: '22%', flexShrink: 0, boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} />
           )}
           <div>
-            <h2 style={{ margin: 0, fontSize: isMobile ? 18 : 22 }}>{tournamentName || 'Turnier'}</h2>
+            {availableTournaments.length > 1 ? (
+              <select 
+                value={selectedTournamentId || ''} 
+                onChange={e => loadAvailable(parseInt(e.target.value))}
+                style={{ margin: 0, fontSize: isMobile ? 18 : 22, fontWeight: 'bold', background: 'transparent', border: 'none', color: '#fff', outline: 'none', cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', paddingRight: 16, backgroundImage: 'url("data:image/svg+xml;utf8,<svg fill=\'white\' height=\'24\' viewBox=\'0 0 24 24\' width=\'24\' xmlns=\'http://www.w3.org/2000/svg\'><path d=\'M7 10l5 5 5-5z\'/></svg>")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right center' }}
+              >
+                {availableTournaments.map(t => (
+                  <option key={t.id} value={t.id} style={{color: '#333'}}>{t.name}</option>
+                ))}
+              </select>
+            ) : (
+              <h2 style={{ margin: 0, fontSize: isMobile ? 18 : 22 }}>{tournamentName || 'Turnier'}</h2>
+            )}
             <p style={{ margin: '2px 0 0', opacity: 0.85, fontSize: 13 }}>Hallo, {ctxVolunteer?.name}!</p>
           </div>
         </div>
       </div>
 
       {/* Filter */}
-      <div style={{ marginBottom: 16 }}>
+      <div id="tour-filter" style={{ marginBottom: 16 }}>
         <select value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ width: '100%', padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box', background: '#fff' }}>
           <option value="">Alle Daten</option>
           {Array.from(new Set(shifts.map(s => new Date(s.date).toLocaleDateString('de-DE')))).sort().map(d => (<option key={d} value={d}>{d}</option>))}
@@ -639,15 +698,17 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+      <div id="tour-tabs" style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         <button onClick={() => setActiveSection('jobs')} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'jobs' ? '600' : '400', background: activeSection === 'jobs' ? clubSecondary : '#fff', color: activeSection === 'jobs' ? '#fff' : '#666', boxShadow: activeSection === 'jobs' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>📋 Jobs</button>
         <button onClick={() => { setActiveSection('verpflegung'); loadFood(); }} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'verpflegung' ? '600' : '400', background: activeSection === 'verpflegung' ? clubSecondary : '#fff', color: activeSection === 'verpflegung' ? '#fff' : '#666', boxShadow: activeSection === 'verpflegung' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>🍞 Verpflegung</button>
       </div>
 
       {/* Deine Jobs */}
       {activeSection === 'jobs' && volunteerShifts.filter(vs => vs.userId === ctxVolunteer?.id).length > 0 && (
-        <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <h3 style={{ margin: '0 0 6px', fontSize: 16, color: clubPrimary }}>Deine Jobs ({volunteerShifts.filter(vs => vs.userId === ctxVolunteer?.id).length})</h3>
+        <div id="tour-myshifts" style={{ marginBottom: 24, padding: 16, border: `2px solid ${clubPrimary}`, borderRadius: 16, background: 'rgba(255, 255, 255, 0.4)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <h3 style={{ margin: '0 0 6px', fontSize: 16, color: clubPrimary, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>⭐</span> Deine Jobs ({volunteerShifts.filter(vs => vs.userId === ctxVolunteer?.id).length})
+          </h3>
           {volunteerShifts
             .filter(vs => vs.userId === ctxVolunteer?.id)
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -721,8 +782,13 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
           {shifts
             .filter(s => !filterDate || new Date(s.date).toLocaleDateString('de-DE') === filterDate)
             .filter(s => {
-              if (!ctxToken) return true;
-              return !volunteerShifts.some(vs => vs.shiftId === s.id);
+              // Verstecke den Job, wenn der aktuelle User bereits eingetragen ist
+              if (ctxToken && volunteerShifts.some(vs => vs.shiftId === s.id && vs.userId === ctxVolunteer?.id)) {
+                return false;
+              }
+              // Verstecke den Job, wenn er voll ist
+              const assignedCount = volunteerShifts.filter(vs => vs.shiftId === s.id).length;
+              return (s.maxVolunteers - assignedCount) > 0;
             })
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
             .map((slot, idx) => {
@@ -730,8 +796,8 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               const d = new Date(slot.date);
               const showDayHeader = !prevSlot || new Date(prevSlot.date).toDateString() !== d.toDateString();
               const dateStr = isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
-              const assigned = volunteerShifts.some(vs => vs.shiftId === slot.id);
-              const myShift = volunteerShifts.find(vs => vs.shiftId === slot.id);
+              const assigned = volunteerShifts.some(vs => vs.shiftId === slot.id && vs.userId === ctxVolunteer?.id);
+              const myShift = volunteerShifts.find(vs => vs.shiftId === slot.id && vs.userId === ctxVolunteer?.id);
               const assignedCount = volunteerShifts.filter(vs => vs.shiftId === slot.id).length;
               const remaining = slot.maxVolunteers - assignedCount;
 
@@ -742,7 +808,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                       {new Date(slot.date).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })}
                     </div>
                   )}
-                  <div style={{ background: '#fff', borderRadius: 12, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
+                  <div style={{ position: 'relative', background: '#fff', borderRadius: 12, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
                     <div style={{ minWidth: 0, flexShrink: 0 }}>
                       <div style={{ fontSize: 16 }}>{slot.arbeitsbereich?.icon || '📍'}</div>
                       <div style={{ fontSize: 13, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>{slot.arbeitsbereich?.name || '–'}</div>
@@ -769,6 +835,10 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                       ) : (
                         <span style={{ width: 44, height: 44, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e9ecef', color: '#adb5bd', fontSize: 22, overflow: 'hidden' }}>✖</span>
                       )}
+                    </div>
+                    {/* Füllgrad Farbbalken */}
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, height: 4, background: '#e9ecef', width: '100%' }}>
+                      <div style={{ height: '100%', background: assignedCount === 0 ? 'transparent' : clubAccent, width: `${(assignedCount / Math.max(1, slot.maxVolunteers)) * 100}%`, transition: 'width 0.3s' }} />
                     </div>
                   </div>
                 </div>
@@ -968,7 +1038,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
             }}
             style={{ width: '100%', maxWidth: 480, padding: '12px 16px', background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(8px)', borderTop: '1px solid rgba(0,0,0,0.05)', pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, boxSizing: 'border-box', boxShadow: '0 -4px 20px rgba(0,0,0,0.05)', textDecoration: 'none', cursor: sponsorUrl ? 'pointer' : 'default' }}
           >
-            <span style={{ fontSize: 11, color: '#666', fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.5 }}>Mit freundlicher Unterstützung von</span>
+            <span style={{ fontSize: 11, color: '#666', fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.5 }}>Powered By</span>
             {sponsorLogo ? (
               <img src={sponsorLogo} alt={sponsorName || 'Sponsor'} style={{ height: 28, objectFit: 'contain' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
             ) : sponsorName ? (

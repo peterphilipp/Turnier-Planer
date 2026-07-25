@@ -3,7 +3,7 @@ import prisma from '../config/prisma.js';
 import { z } from 'zod';
 
 export const dayTemplateSchema = z.object({
-  name: z.string().min(1, 'Name ist erforderlich'),
+  name: z.string(),
   isObsolete: z.boolean().optional()
 });
 
@@ -25,7 +25,20 @@ export const listDayTemplates = async (_req: Request, res: Response) => {
       // erscheint an der richtigen zeitlichen Position, nicht am Ende.
       slots: {
         orderBy: [{ startMin: 'asc' }, { endMin: 'asc' }, { id: 'asc' }],
-        include: { workAreas: { orderBy: { order: 'asc' }, include: { workArea: true } } }
+        include: { 
+          workAreas: { 
+            orderBy: { order: 'asc' }, 
+            include: { 
+              workArea: {
+                include: {
+                  categories: {
+                    orderBy: { order: 'asc' }
+                  }
+                }
+              } 
+            } 
+          } 
+        }
       }
     }
   });
@@ -33,14 +46,22 @@ export const listDayTemplates = async (_req: Request, res: Response) => {
 };
 
 export const createDayTemplate = async (req: Request, res: Response) => {
-  const t = await prisma.globalDayTemplate.create({ data: { name: req.body.name } });
+  const { name } = req.body;
+  const t = await prisma.globalDayTemplate.create({ 
+    data: { name } 
+  });
   return res.status(201).json(t);
 };
 
 export const updateDayTemplate = async (req: Request, res: Response) => {
+  const { name, isObsolete } = req.body;
+  
   const t = await prisma.globalDayTemplate.update({
     where: { id: parseInt(req.params.id as string) },
-    data: req.body
+    data: {
+      ...(name !== undefined && { name }),
+      ...(isObsolete !== undefined && { isObsolete })
+    }
   });
   return res.json(t);
 };

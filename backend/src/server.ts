@@ -35,6 +35,7 @@ import dayTemplateRoutes from './routes/dayTemplate.routes.js';
 import tournamentWorkAreaRoutes from './routes/tournamentWorkArea.routes.js';
 import tournamentDayRoutes from './routes/tournamentDay.routes.js';
 import daySlotRoutes from './routes/daySlot.routes.js';
+import workAreaCategoryRoutes from './routes/workAreaCategory.routes.js';
 // Middleware imports
 import errorHandler from './middleware/errorHandler.js';
 
@@ -57,6 +58,7 @@ app.use('/api/health', healthRoutes);
 app.use('/api/auth', passwordRoutes);
 app.use('/api/clubs', clubRoutes);
 app.use('/api/self', selfRoutes);
+app.use('/api/work-area-categories', workAreaCategoryRoutes);
 app.use('/api/knockout-brackets', knockoutBracketRoutes);
 app.use('/api/tournament-clubs', tournamentClubRoutes);
 app.use('/api/food', foodRoutes);

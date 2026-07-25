@@ -174,6 +174,46 @@ export const generateShifts = async (req: Request, res: Response) => {
 
   const result = await prisma.$transaction(async (tx) => {
     const days = await tx.tournamentDay.findMany({ where: { tournamentId }, include: { slots: true } });
+
+    // Sync DaySlots with their source templates
+    for (const day of days) {
+      if (day.sourceTemplateId) {
+        const templateSlots = await tx.globalDaySlot.findMany({ where: { templateId: day.sourceTemplateId } });
+        const existingDaySlots = day.slots;
+        const existingSlotIds = new Set(existingDaySlots.map(s => s.sourceGlobalSlotId).filter(id => id != null));
+        const templateSlotIds = new Set(templateSlots.map(s => s.id));
+
+        for (const ts of templateSlots) {
+          if (existingSlotIds.has(ts.id)) {
+            const es = existingDaySlots.find(s => s.sourceGlobalSlotId === ts.id)!;
+            if (es.startMin !== ts.startMin || es.endMin !== ts.endMin || es.label !== ts.label || es.color !== ts.color || es.order !== ts.order) {
+              await tx.daySlot.update({
+                where: { id: es.id },
+                data: { startMin: ts.startMin, endMin: ts.endMin, label: ts.label, color: ts.color, order: ts.order }
+              });
+              es.startMin = ts.startMin;
+              es.endMin = ts.endMin;
+              es.label = ts.label;
+              es.color = ts.color;
+              es.order = ts.order;
+            }
+          } else {
+            const newSlot = await tx.daySlot.create({
+              data: { tournamentDayId: day.id, startMin: ts.startMin, endMin: ts.endMin, label: ts.label, color: ts.color, order: ts.order, sourceGlobalSlotId: ts.id }
+            });
+            day.slots.push(newSlot);
+          }
+        }
+
+        for (const es of existingDaySlots) {
+          if (es.sourceGlobalSlotId != null && !templateSlotIds.has(es.sourceGlobalSlotId)) {
+            await tx.daySlot.delete({ where: { id: es.id } });
+            day.slots = day.slots.filter(s => s.id !== es.id);
+          }
+        }
+      }
+    }
+
     const areas = await tx.tournamentWorkArea.findMany({ where: { tournamentId, active: true } });
     const existing = await tx.shift.findMany({
       where: { tournamentId },
@@ -197,7 +237,7 @@ export const generateShifts = async (req: Request, res: Response) => {
     const allSlotsHaveTemplate = days.every(d => d.slots.every(s => s.sourceGlobalSlotId != null));
     const usedCatalogWorkAreaIds = new Set<number>();
 
-    const toCreate: { tournamentId: number; tournamentDayId: number; daySlotId: number; tournamentWorkAreaId: number; minVolunteers: number; maxVolunteers: number }[] = [];
+    const toCreate: { tournamentId: number; tournamentDayId: number; daySlotId: number; tournamentWorkAreaId: number; startMin: number | null; endMin: number | null; minVolunteers: number; maxVolunteers: number }[] = [];
     for (const day of days) {
       for (const slot of day.slots) {
         const allowedCatalogAreaIds = slot.sourceGlobalSlotId != null ? allowedByCatalogSlot.get(slot.sourceGlobalSlotId) : null;
@@ -210,9 +250,14 @@ export const generateShifts = async (req: Request, res: Response) => {
             usedCatalogWorkAreaIds.add(area.sourceWorkAreaId);
           }
 
-          // Betriebszeiten-Filter: Area muss den ganzen Slot abdecken
-          if (area.operatingStartMin != null && area.operatingStartMin > slot.startMin) continue;
-          if (area.operatingEndMin != null && area.operatingEndMin < slot.endMin) continue;
+          let shiftStart = slot.startMin;
+          let shiftEnd = slot.endMin;
+
+          // Betriebszeiten-Filter: Zeitfenster zuschneiden, statt den ganzen Slot zu überspringen
+          if (area.operatingStartMin != null && area.operatingStartMin > shiftStart) shiftStart = area.operatingStartMin;
+          if (area.operatingEndMin != null && area.operatingEndMin < shiftEnd) shiftEnd = area.operatingEndMin;
+
+          if (shiftStart >= shiftEnd) continue; // Außerhalb der Betriebszeiten
 
           const key = `${day.id}-${slot.id}-${area.id}`;
           if (seen.has(key)) continue;
@@ -221,6 +266,8 @@ export const generateShifts = async (req: Request, res: Response) => {
             tournamentDayId: day.id,
             daySlotId: slot.id,
             tournamentWorkAreaId: area.id,
+            startMin: shiftStart > slot.startMin ? shiftStart : null,
+            endMin: shiftEnd < slot.endMin ? shiftEnd : null,
             minVolunteers: area.minVolunteers,
             maxVolunteers: area.maxVolunteers
           });

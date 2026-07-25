@@ -150,10 +150,17 @@ export const getDeleteImpact = (type: string, id: number) =>
 // ===================== Tag-/Slot-System (Etappe 3) =====================
 // Katalog (Tag-Vorlagen)
 export const getDayTemplates = () => apiFetch('/api/day-templates');
-export const createDayTemplate = (name: string) => apiPost('/api/day-templates', { name });
+export const createDayTemplate = (data: { name: string }) => apiPost('/api/day-templates', data);
 export const updateDayTemplate = (id: number, data: any) => apiPatch(`/api/day-templates/${id}`, data);
 export const deleteDayTemplate = (id: number) => apiDelete(`/api/day-templates/${id}`);
 export const addTemplateSlot = (data: any) => apiPost('/api/day-templates/slots', data);
+
+// Work Area Categories (Stammdaten)
+export const getWorkAreaCategories = () => apiFetch('/api/work-area-categories');
+export const createWorkAreaCategory = (data: any) => apiPost('/api/work-area-categories', data);
+export const updateWorkAreaCategory = (id: number, data: any) => apiPatch(`/api/work-area-categories/${id}`, data);
+export const deleteWorkAreaCategory = (id: number) => apiDelete(`/api/work-area-categories/${id}`);
+export const updateWorkAreaCategoryOrder = (order: number[]) => apiPost('/api/work-area-categories/reorder', { order });
 export const updateTemplateSlot = (id: number, data: any) => apiPatch(`/api/day-templates/slots/${id}`, data);
 export const deleteTemplateSlot = (id: number) => apiDelete(`/api/day-templates/slots/${id}`);
 export const setSlotWorkAreas = (slotId: number, workAreaIds: number[]) =>

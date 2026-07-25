@@ -1,0 +1,1 @@
+const run = async () => { const res = await fetch('http://localhost:3000/api/tournament-days', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tournamentId: 1, date: '2026-09-07T00:00:00Z', label: 'Test', order: 3, templateId: 3 }) }); console.log(await res.json()); }; run();

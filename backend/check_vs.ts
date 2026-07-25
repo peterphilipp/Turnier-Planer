@@ -1,0 +1,1 @@
+import { PrismaClient } from '@prisma/client'; const prisma = new PrismaClient(); async function main() { const shifts = await prisma.volunteerShift.findMany(); console.log(JSON.stringify(shifts, null, 2)); } main();
