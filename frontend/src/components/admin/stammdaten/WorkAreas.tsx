@@ -60,6 +60,8 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <WorkAreaCategories adminPrimary={adminPrimary} />
+
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>📍 Arbeitsbereiche</h3>
 
@@ -173,8 +175,6 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
         </EditModal>
       )}
     </div>
-
-    <WorkAreaCategories adminPrimary={adminPrimary} />
     </div>
   );
 }
