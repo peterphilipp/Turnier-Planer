@@ -83,13 +83,26 @@ app.use('/api/tournament-days', tournamentDayRoutes);
 app.use('/api/day-slots', daySlotRoutes);
 // ===================== Serve Frontend (SPA) =====================
 const distPath = path.resolve(__dirname, '../dist');
-app.use(express.static(distPath));
+app.use(express.static(distPath, {
+  setHeaders: (res, filePath) => {
+    // sw.js und index.html müssen bei jedem Request neu vom Server geholt
+    // werden (kein Cache dazwischen, auch nicht kurzzeitig) - sonst verzögert
+    // ein zwischengespeicherter alter Stand zusätzlich zum eigenen
+    // Update-Zyklus des Service Workers das Erkennen eines neuen Deployments.
+    // Gehashte Assets (index-XXXX.js) sind davon nicht betroffen und dürfen
+    // wie bisher normal gecacht werden.
+    if (filePath.endsWith('sw.js') || filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  }
+}));
 
 // SPA fallback: alle nicht-API-Routen -> index.html
 app.get('*', (req: Request, res: Response) => {
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'Not found' });
   }
+  res.setHeader('Cache-Control', 'no-cache');
   res.sendFile(path.resolve(distPath, 'index.html'));
 });
 

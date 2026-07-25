@@ -37,6 +37,11 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.js',
       registerType: 'autoUpdate',
+      // 'auto' würde ein fest verdrahtetes, minimales Register-Script injizieren
+      // (nur `navigator.serviceWorker.register(...)`, kein Update-Handling) -
+      // das ignoriert `registerType` komplett. Für echtes Auto-Update rufen wir
+      // `registerSW()` aus `virtual:pwa-register` selbst in main.tsx auf.
+      injectRegister: false,
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'Macht das Turnier!',
