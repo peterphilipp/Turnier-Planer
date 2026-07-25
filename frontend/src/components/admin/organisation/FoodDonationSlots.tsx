@@ -138,9 +138,21 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
     itemsMap.set(itemKey(slot.foodItem), { id: itemKey(slot.foodItem), name: slot.foodItem?.name || 'Alle Artikel', icon: slot.foodItem?.category?.icon || '🍽️', unit: slot.foodItem?.unit || 'Stk' });
   }
   const allRows = [...yearGroupsMap.values()].sort((a, b) => a.id === -1 ? 1 : b.id === -1 ? -1 : a.name.localeCompare(b.name));
-  const rows = filterYear ? allRows.filter(r => r.name.toLowerCase().includes(filterYear.toLowerCase())) : allRows;
+  const rows = filterYear ? allRows.filter(r => String(r.id) === filterYear) : allRows;
   const cols = [...itemsMap.values()].sort((a, b) => a.id === -1 ? 1 : b.id === -1 ? -1 : a.name.localeCompare(b.name));
   const slotAt = (ygId: number, itId: number) => slots.find(s => yearGroupKey(s.yearGroup) === ygId && itemKey(s.foodItem) === itId);
+
+  /** Gesamt-Erreichungsgrad eines Jahrgangs über alle Artikel - gab es vorher
+      in der Listenansicht pro Jahrgangs-Header, ist in der Matrix sonst nicht
+      mehr auf einen Blick ersichtlich. */
+  const rowTotal = (ygId: number) => {
+    let target = 0, collected = 0;
+    for (const col of cols) {
+      const slot = slotAt(ygId, col.id);
+      if (slot) { target += slot.targetQuantity; collected += slot.collected; }
+    }
+    return { target, collected };
+  };
 
   // Geteilt zwischen "neuen Slot anlegen" (inline oben) und "Slot bearbeiten"
   // (Modal, siehe unten) - vermeidet, denselben Formular-Code zweimal zu pflegen.
@@ -261,7 +273,11 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
           Zelle öffnet den Detail-Dialog (wer hat gespendet, bearbeiten, löschen). */}
       <h4 style={{ fontSize: 16, marginBottom: 12, color: '#212529' }}>Übersicht ({slots.length} Ziele)</h4>
       <div style={{ marginBottom: 16 }}>
-        <input placeholder="Jahrgang filtern" value={filterYear} onChange={e => setFilterYear(e.target.value)} style={{ ...inputStyle, maxWidth: 240 }} />
+        <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={{ ...inputStyle, maxWidth: 240 }}>
+          <option value="">-- Alle Jahrgänge --</option>
+          {yearGroups.map(yg => <option key={yg.id} value={yg.id}>{yg.name}</option>)}
+          {allRows.some(r => r.id === -1) && <option value="-1">Ohne Jahrgang</option>}
+        </select>
       </div>
 
       {slots.length === 0 ? (
@@ -281,10 +297,14 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
                     </div>
                   </th>
                 ))}
+                <th style={{ minWidth: 90, padding: '4px 8px', borderBottom: '2px solid #e9ecef', borderLeft: '2px solid #e9ecef', verticalAlign: 'bottom', textAlign: 'center', fontWeight: 700, color: '#495057' }}>Gesamt</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map(row => (
+              {rows.map(row => {
+                const total = rowTotal(row.id);
+                const progress = total.target > 0 ? Math.min(100, (total.collected / total.target) * 100) : 0;
+                return (
                 <tr key={row.id}>
                   <td style={{ position: 'sticky', left: 0, background: '#fff', fontWeight: 600, padding: '4px 10px 4px 0', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' }}>{row.name}</td>
                   {cols.map(col => {
@@ -308,8 +328,17 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
                       </td>
                     );
                   })}
+                  <td style={{ borderBottom: '1px solid #f0f0f0', borderLeft: '2px solid #e9ecef', padding: '4px 8px', textAlign: 'center' }}>
+                    <div style={{ fontWeight: 700, fontSize: 12, color: progress >= 100 ? '#155724' : progress > 0 ? '#856404' : '#721c24' }}>
+                      {total.collected}/{total.target}
+                    </div>
+                    <div style={{ background: '#e9ecef', borderRadius: 4, height: 6, overflow: 'hidden', marginTop: 3 }}>
+                      <div style={{ width: `${progress}%`, height: '100%', background: progress >= 100 ? '#198754' : '#ffc107', borderRadius: 4 }} />
+                    </div>
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

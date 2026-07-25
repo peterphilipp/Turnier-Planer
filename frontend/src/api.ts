@@ -93,6 +93,8 @@ export const removeTournamentClub = (tournamentId: number, clubId: number) =>
 
 export const getShifts = (tournamentId?: string | number | null) => 
   tournamentId ? apiFetch(`/api/shifts?tournamentId=${tournamentId}`) : Promise.resolve([]);
+export const createShift = (data: { tournamentId: number; tournamentDayId: number; daySlotId: number; tournamentWorkAreaId: number; minVolunteers?: number; maxVolunteers?: number }) =>
+  apiPost('/api/shifts', data);
 export const updateShift = (id: number, data: any) => apiPatch(`/api/shifts/${id}`, data);
 export const updateShiftsBatch = (changes: { id: number; startMin: number; endMin: number }[]) =>
   apiPatch('/api/shifts/batch', { changes });

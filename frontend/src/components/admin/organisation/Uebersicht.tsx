@@ -1,11 +1,11 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Shift, VolunteerShift, TournamentWorkArea, TournamentDay, GlobalDayTemplate, Tournament, minToTime } from '../shared';
+import { Shift, VolunteerShift, TournamentWorkArea, TournamentDay, GlobalDayTemplate, Tournament, minToTime, timeToMin } from '../shared';
 import {
   getShifts, getVolunteerShifts, getVolunteers, apiPost, apiDelete, updateShiftsBatch,
   getTournamentWorkAreas, syncTournamentWorkAreas, updateTournamentWorkArea,
-  getTournamentDays, createTournamentDay, deleteTournamentDay,
-  getDayTemplates, generateShifts, clearShifts, exportDayToTemplate, getTournaments
+  getTournamentDays, createTournamentDay, deleteTournamentDay, addDaySlot,
+  getDayTemplates, generateShifts, clearShifts, exportDayToTemplate, getTournaments, createShift
 } from '../../../api';
 import { modal } from '../Modal';
 import { btnStyle, inputStyle, tdStyle, thStyle, getTemplateDisplayName } from '../shared';
@@ -225,35 +225,66 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobSlots, queryClient]);
 
-  /**
-   * "+ Arbeitsbereich hinzufügen" pro Tag: zeigt nur aktive Arbeitsbereiche,
-   * die an DIESEM Tag noch keine Schicht haben, zur Auswahl an. Nutzt dieselbe
-   * sichere, additive generateShifts()-Logik wie der große "Schichten
-   * generieren"-Knopf (turnierweit, rührt Bestehendes nie an) - kein eigener
-   * Endpoint nötig. Ist der gewählte Arbeitsbereich keinem Zeit-Slot des
-   * Tag-Typs zugeordnet, erzeugt generateShifts() dafür schlicht nichts; das
-   * wird in der Rückmeldung transparent gemacht statt stillschweigend zu tun.
+/**
+   * "+ Schicht hinzufügen" pro Tag: bewusst nicht auf generateShifts()
+   * gestützt, weil das den Fall nicht abdeckt, dass ein Arbeitsbereich an
+   * diesem Tag schon eine Schicht hat, aber eine WEITERE (anderer Zeit-Slot)
+   * gebraucht wird - generateShifts() erzeugt nur Katalog-Kombinationen, die
+   * es noch nie gab, und ist zudem an die Tagesvorlagen-Zuordnung gebunden.
+   * Hier wählt der Admin Arbeitsbereich + Zeit-Slot bewusst selbst (auch
+   * mehrfach für denselben Bereich möglich) und legt direkt eine Schicht an;
+   * bei Bedarf wird zuerst ein neuer Zeit-Slot für den Tag erzeugt.
    */
-  const addWorkAreaToDay = (day: TournamentDay) => guard(async () => {
+  const addShiftToDay = (day: TournamentDay) => guard(async () => {
     if (!tid) return;
-    const dayAreaIds = new Set(jobSlots.filter(s => (s as any).tournamentDayId === day.id).map(s => (s as any).tournamentWorkAreaId));
-    const candidates = areas.filter(a => a.active && !dayAreaIds.has(a.id));
-    if (candidates.length === 0) {
-      await modal.alert({ title: 'Hinweis', message: 'Alle aktiven Arbeitsbereiche dieses Turniers sind an diesem Tag bereits eingeplant.' });
+    const activeAreas = areas.filter(a => a.active);
+    if (activeAreas.length === 0) {
+      await modal.alert({ title: 'Hinweis', message: 'Keine aktiven Arbeitsbereiche für dieses Turnier. Lege oben unter „Dienstplan-Generierung" erst welche an.' });
       return;
     }
+    const slotOptions = (day.slots || []).map(s => ({ value: String(s.id), label: `${minToTime(s.startMin)}–${minToTime(s.endMin)}${s.label ? ' · ' + s.label : ''}` }));
     const res = await modal.form({
-      title: '➕ Arbeitsbereich zu diesem Tag hinzufügen',
-      fields: [{ key: 'areaId', label: 'Arbeitsbereich', type: 'select', options: candidates.map(a => ({ value: a.id, label: `${a.icon} ${a.name}` })) }]
+      title: '➕ Schicht zu diesem Tag hinzufügen',
+      fields: [
+        { key: 'areaId', label: 'Arbeitsbereich', type: 'select', options: activeAreas.map(a => ({ value: a.id, label: `${a.icon} ${a.name}` })) },
+        { key: 'daySlotId', label: 'Zeit-Slot', type: 'select', options: [...slotOptions, { value: 'custom', label: '➕ Neue Zeit erstellen...' }] }
+      ]
     });
-    if (!res || !res.areaId) return;
-    const chosen = candidates.find(a => String(a.id) === String(res.areaId));
-    const genRes = await generateShifts(tid);
-    queryClient.invalidateQueries({ queryKey: ['shifts', tid] });
-    await modal.alert({
-      title: 'Erledigt',
-      message: `${genRes.created} neue Schicht(en) erzeugt (${genRes.existing} bereits vorhanden). Falls „${chosen?.name}" hier nicht auftaucht, ist er keinem Zeit-Slot des Tag-Typs dieses Tages zugeordnet – das lässt sich unter Stammdaten → Tagesvorlagen anpassen.`
-    });
+    if (!res || !res.areaId || !res.daySlotId) return;
+    const areaId = Number(res.areaId);
+    const area = activeAreas.find(a => a.id === areaId);
+
+    let daySlotId: number;
+    if (String(res.daySlotId) === 'custom') {
+      const timeRes = await modal.form({
+        title: '➕ Neue Zeit für diesen Tag',
+        fields: [
+          { key: 'start', label: 'Start (HH:MM)', type: 'text', placeholder: '10:30' },
+          { key: 'end', label: 'Ende (HH:MM)', type: 'text', placeholder: '13:00' },
+          { key: 'label', label: 'Label (optional)', type: 'text' }
+        ]
+      });
+      if (!timeRes || !timeRes.start || !timeRes.end) return;
+      const startMin = timeToMin(String(timeRes.start));
+      const endMin = timeToMin(String(timeRes.end));
+      if (Number.isNaN(startMin) || Number.isNaN(endMin) || endMin <= startMin) {
+        await modal.alert({ title: 'Hinweis', message: 'Bitte gültige Uhrzeiten im Format HH:MM angeben, Ende nach Start.' });
+        return;
+      }
+      const newSlot = await addDaySlot({ tournamentDayId: day.id, startMin, endMin, label: timeRes.label ? String(timeRes.label) : null });
+      daySlotId = newSlot.id;
+      queryClient.invalidateQueries({ queryKey: ['t-days', tid] });
+    } else {
+      daySlotId = Number(res.daySlotId);
+    }
+
+    try {
+      await createShift({ tournamentId: tid, tournamentDayId: day.id, daySlotId, tournamentWorkAreaId: areaId });
+      queryClient.invalidateQueries({ queryKey: ['shifts', tid] });
+      await modal.alert({ title: 'Hinzugefügt ✅', message: `Schicht für „${area?.name}" wurde angelegt.` });
+    } catch (err: any) {
+      await modal.alert({ title: 'Fehler', message: err?.message || 'Schicht konnte nicht angelegt werden.' });
+    }
   });
 
   /**
@@ -353,7 +384,7 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
           onClick={() => setSetupExpandedOverride(!setupExpanded)}
           style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', background: '#f8f9fa', border: 'none', cursor: 'pointer', textAlign: 'left' }}
         >
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#212557' }}>⚙️ Turnier-Einrichtung</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#212557' }}>⚙️ Dienstplan-Generierung</span>
           <span style={{ fontSize: 13, color: '#6c757d' }}>Arbeitsbereiche, Turnier-Tage, Schichten generieren</span>
           <span style={{ flex: 1 }} />
           <span style={{ fontSize: 18, color: '#6c757d', transition: 'transform 0.2s', display: 'inline-block', transform: setupExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>›</span>
@@ -452,7 +483,7 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
                 und Helferzuweisungen bleiben unangetastet, es werden nur die Kombinationen aus (neuem)
                 Arbeitsbereich und Zeit-Slot ergänzt, die es noch nicht gibt. Feinschliff der Zeiten,
                 Helfer einplanen und einzelne Schichten entfernen geschieht weiter unten in der
-                Tages-Übersicht – oder direkt über „➕ Arbeitsbereich" bei jedem Tag.
+                Tages-Übersicht – oder direkt über „➕ Schicht" bei jedem Tag.
               </p>
               {jobSlots.length === 0 && <p style={{ color: '#888' }}>Noch keine Schichten. Arbeitsbereiche + Tage oben einrichten und „Schichten generieren" klicken.</p>}
             </section>
@@ -578,7 +609,7 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
                       <div style={{ background: '#fff' }}>
                         {tournamentDay && (
                           <div style={{ display: 'flex', gap: 8, padding: '10px 16px', borderTop: '1px solid #e9ecef', flexWrap: 'wrap' }}>
-                            <button style={{ ...btnStyle, background: '#e7f1ff', color: '#0d6efd', fontSize: 12, minHeight: 32, padding: '4px 10px' }} onClick={() => addWorkAreaToDay(tournamentDay)}>➕ Arbeitsbereich</button>
+                            <button style={{ ...btnStyle, background: '#e7f1ff', color: '#0d6efd', fontSize: 12, minHeight: 32, padding: '4px 10px' }} onClick={() => addShiftToDay(tournamentDay)}>➕ Schicht</button>
                             <button style={{ ...btnStyle, background: '#e2e3e5', color: '#383d41', fontSize: 12, minHeight: 32, padding: '4px 10px' }} onClick={() => doExportTemplate(tournamentDay)}>✨ Als Vorlage</button>
                           </div>
                         )}
@@ -631,10 +662,10 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button
                           style={{ ...btnStyle, background: '#e7f1ff', color: '#0d6efd', padding: '4px 10px', fontSize: 12, minHeight: 28 }}
-                          onClick={() => addWorkAreaToDay(tournamentDay)}
-                          title="Einen weiteren, bereits aktiven Arbeitsbereich für diesen Tag einplanen"
+                          onClick={() => addShiftToDay(tournamentDay)}
+                          title="Eine Schicht für diesen Tag hinzufügen (neuer oder bereits vorhandener Arbeitsbereich, bestehender oder neuer Zeit-Slot)"
                         >
-                          ➕ Arbeitsbereich
+                          ➕ Schicht
                         </button>
                         <button
                           style={{ ...btnStyle, background: '#e2e3e5', color: '#383d41', padding: '4px 10px', fontSize: 12, minHeight: 28 }}

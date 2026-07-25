@@ -6,6 +6,15 @@ import { sendPushToUser } from '../utils/push.js';
 // Hinweis: Das Erzeugen von Shifts erfolgt künftig über die Tag-/Template-basierte
 // Generierung (Etappe 2), nicht mehr über manuelles Anlegen einzelner Slots.
 
+export const createShiftSchema = z.object({
+  tournamentId: z.number().int().positive(),
+  tournamentDayId: z.number().int().positive(),
+  daySlotId: z.number().int().positive(),
+  tournamentWorkAreaId: z.number().int().positive(),
+  minVolunteers: z.number().int().min(0).max(200).optional(),
+  maxVolunteers: z.number().int().min(0).max(200).optional()
+});
+
 export const updateShiftSchema = z.object({
   startMin: z.number().int().min(0).max(1440).nullable().optional(),
   endMin: z.number().int().min(0).max(1440).nullable().optional(),
@@ -40,6 +49,40 @@ export const getShifts = async (req: Request, res: Response) => {
     orderBy: [{ tournamentDayId: 'asc' }, { daySlotId: 'asc' }, { workArea: { order: 'asc' } }, { id: 'asc' }]
   });
   return res.json(shifts);
+};
+
+/**
+ * Legt eine einzelne Schicht direkt an - im Unterschied zu generateShifts()
+ * NICHT durch den Tagesvorlagen-Katalog eingeschränkt (der Admin entscheidet
+ * hier bewusst pro Schicht, nicht der Katalog-Abgleich). Deckt den Fall ab,
+ * dass für einen bereits im Dienstplan vorhandenen Arbeitsbereich eine
+ * weitere, zusätzliche Schicht in einem anderen Zeit-Slot desselben Tages
+ * gebraucht wird - "+ Arbeitsbereich" (generateShifts) hilft dort nicht,
+ * weil der Bereich an diesem Tag schon existiert.
+ */
+export const createShift = async (req: Request, res: Response) => {
+  const { tournamentId, tournamentDayId, daySlotId, tournamentWorkAreaId, minVolunteers, maxVolunteers } = req.body;
+
+  const existing = await prisma.shift.findFirst({ where: { tournamentDayId, daySlotId, tournamentWorkAreaId } });
+  if (existing) {
+    return res.status(409).json({ error: 'Für diesen Arbeitsbereich existiert in diesem Zeit-Slot bereits eine Schicht.' });
+  }
+
+  const area = await prisma.tournamentWorkArea.findUnique({ where: { id: tournamentWorkAreaId } });
+  if (!area) return res.status(404).json({ error: 'Arbeitsbereich nicht gefunden' });
+
+  const shift = await prisma.shift.create({
+    data: {
+      tournamentId,
+      tournamentDayId,
+      daySlotId,
+      tournamentWorkAreaId,
+      minVolunteers: minVolunteers ?? area.minVolunteers,
+      maxVolunteers: maxVolunteers ?? area.maxVolunteers
+    },
+    include: { day: true, daySlot: true, workArea: true }
+  });
+  return res.status(201).json(shift);
 };
 
 // Entfernt eine einzelne, bereits generierte Schicht wieder aus dem
