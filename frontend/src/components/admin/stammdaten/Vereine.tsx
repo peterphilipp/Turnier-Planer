@@ -62,6 +62,17 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
     if (!hexColorRegex.test(clubForm.primaryColor)) return await modal.alert({ title: 'Hinweis', message: 'Primärfarbe muss ein Hex-Wert wie #aabbcc sein' });
     if (!hexColorRegex.test(clubForm.secondaryColor)) return await modal.alert({ title: 'Hinweis', message: 'Sekundärfarbe muss ein Hex-Wert wie #aabbcc sein' });
     if (!hexColorRegex.test(clubForm.accentColor)) return await modal.alert({ title: 'Hinweis', message: 'Akzentfarbe muss ein Hex-Wert wie #aabbcc sein' });
+    // Gleiche Grenze wie beim Ausschluss zu heller Pixel in der Logo-Farbextraktion
+    // (extractColors, MAX_BRIGHTNESS): verhindert nahezu-weiße Farben auch bei
+    // manueller Eingabe über den Farbwähler - sonst blieb genau die Lücke offen,
+    // die der Screenshot-Bug (weißer Button auf weißem Grund) gezeigt hat.
+    const tooLight = (hex: string) => {
+      const r = parseInt(hex.substring(1, 3), 16), g = parseInt(hex.substring(3, 5), 16), b = parseInt(hex.substring(5, 7), 16);
+      return r > 235 && g > 235 && b > 235;
+    };
+    if (tooLight(clubForm.primaryColor)) return await modal.alert({ title: 'Hinweis', message: 'Primärfarbe ist zu hell (nahezu weiß) und würde Buttons/Verläufe unleserlich machen. Bitte eine kräftigere Farbe wählen.' });
+    if (tooLight(clubForm.secondaryColor)) return await modal.alert({ title: 'Hinweis', message: 'Sekundärfarbe ist zu hell (nahezu weiß) und würde Buttons/Verläufe unleserlich machen. Bitte eine kräftigere Farbe wählen.' });
+    if (tooLight(clubForm.accentColor)) return await modal.alert({ title: 'Hinweis', message: 'Akzentfarbe ist zu hell (nahezu weiß) und würde Buttons/Verläufe unleserlich machen. Bitte eine kräftigere Farbe wählen.' });
     const data: { name: string; city?: string | null; primaryColor: string; secondaryColor: string; accentColor: string; logo?: string } = {
       name: clubForm.name, city: clubForm.city || undefined, primaryColor: clubForm.primaryColor, secondaryColor: clubForm.secondaryColor, accentColor: clubForm.accentColor
     };

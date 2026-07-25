@@ -3,8 +3,17 @@ import prisma from '../config/prisma.js';
 import { logClubCreated } from '../utils/logger.js';
 import { z } from 'zod';
 
-// Hex-Farbe, da der Wert im Frontend direkt in style/background landet
-const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Farbe muss ein Hex-Wert wie #aabbcc sein');
+// Hex-Farbe, da der Wert im Frontend direkt in style/background landet.
+// Zusätzlich zu heller (nahezu weißer) Farben ablehnen: der Wert wird u.a. als
+// Button-Hintergrund verwendet und würde sonst mit weißer/eigener Schrift
+// unleserlich - Frontend prüft das schon vor dem Absenden, hier zusätzlich
+// serverseitig, falls die API direkt (ohne UI) angesprochen wird.
+const hexColor = z.string()
+  .regex(/^#[0-9a-fA-F]{6}$/, 'Farbe muss ein Hex-Wert wie #aabbcc sein')
+  .refine(hex => {
+    const r = parseInt(hex.substring(1, 3), 16), g = parseInt(hex.substring(3, 5), 16), b = parseInt(hex.substring(5, 7), 16);
+    return !(r > 235 && g > 235 && b > 235);
+  }, { message: 'Farbe ist zu hell (nahezu weiß) und würde Buttons/Verläufe unleserlich machen.' });
 
 export const clubSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich').max(200),
