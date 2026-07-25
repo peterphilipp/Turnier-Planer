@@ -12,6 +12,10 @@ export const tournamentWorkAreaUpdateSchema = z.object({
   operatingEndMin: z.number().int().min(1).max(1440).nullable().optional()
 });
 
+export const tournamentWorkAreaSyncSchema = z.object({
+  tournamentId: z.number().int().positive()
+});
+
 export const tournamentDaySchema = z.object({
   tournamentId: z.number().int().positive(),
   date: z.string().or(z.date()),
@@ -29,6 +33,22 @@ export const daySlotSchema = z.object({
   order: z.number().int().optional()
 });
 
+export const updateTournamentDaySchema = z.object({
+  date: z.string().or(z.date()),
+  label: z.string().max(200, 'Label darf maximal 200 Zeichen lang sein').nullable(),
+  order: z.number().int()
+});
+
+/** Body von generate-shifts / clear-shifts: beide nehmen nur die Turnier-ID entgegen. */
+export const tournamentIdBodySchema = z.object({
+  tournamentId: z.number().int().positive('tournamentId erforderlich')
+});
+
+export const exportDayToTemplateSchema = z.object({
+  name: z.string().min(1, 'Name der Vorlage erforderlich').max(200, 'Name darf maximal 200 Zeichen lang sein'),
+  description: z.string().max(1000, 'Beschreibung darf maximal 1000 Zeichen lang sein').optional()
+});
+
 // ==================== TournamentWorkArea ====================
 export const listTournamentWorkAreas = async (req: Request, res: Response) => {
   const tournamentId = req.query.tournamentId ? parseInt(String(req.query.tournamentId)) : null;
@@ -39,8 +59,7 @@ export const listTournamentWorkAreas = async (req: Request, res: Response) => {
 
 /** Snapshotet alle nicht-obsoleten Katalog-WorkAreas in dieses Turnier (idempotent). */
 export const syncTournamentWorkAreas = async (req: Request, res: Response) => {
-  const tournamentId = Number(req.body.tournamentId);
-  if (!tournamentId) return res.status(400).json({ error: 'tournamentId erforderlich' });
+  const { tournamentId } = req.body as { tournamentId: number }; // bereits von validate() geparst
 
   await prisma.$transaction(async (tx) => {
     const catalog = await tx.workArea.findMany({ where: { isObsolete: false } });

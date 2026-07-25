@@ -16,6 +16,10 @@ export const catalogSlotSchema = z.object({
   order: z.number().int().optional()
 });
 
+export const setSlotWorkAreasSchema = z.object({
+  workAreaIds: z.array(z.number().int().positive()).max(200)
+});
+
 // ---------- Vorlagen ----------
 export const listDayTemplates = async (_req: Request, res: Response) => {
   const templates = await prisma.globalDayTemplate.findMany({
@@ -97,7 +101,7 @@ export const deleteTemplateSlot = async (req: Request, res: Response) => {
 /** Ersetzt die WorkArea-Zuordnungen eines Katalog-Slots atomar. Body: { workAreaIds: number[] } */
 export const setSlotWorkAreas = async (req: Request, res: Response) => {
   const slotId = parseInt(req.params.id as string);
-  const ids: number[] = Array.isArray(req.body.workAreaIds) ? req.body.workAreaIds.map(Number) : [];
+  const ids: number[] = req.body.workAreaIds;
   await prisma.$transaction(async (tx) => {
     await tx.globalDaySlotWorkArea.deleteMany({ where: { globalSlotId: slotId } });
     if (ids.length) {

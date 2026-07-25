@@ -1,5 +1,11 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
+import { z } from 'zod';
+
+export const addTournamentClubSchema = z.object({
+  tournamentId: z.number().int().positive(),
+  clubId: z.number().int().positive()
+});
 
 export const getTournamentClubs = async (req: Request, res: Response) => {
   const tournamentId = parseInt(String(req.query.tournamentId as string));
@@ -14,11 +20,8 @@ export const getTournamentClubs = async (req: Request, res: Response) => {
 };
 
 export const addTournamentClub = async (req: Request, res: Response) => {
+  // bereits von validate(addTournamentClubSchema) geparst/bereinigt
   const { tournamentId, clubId } = req.body;
-  
-  if (!tournamentId || !clubId) {
-    return res.status(400).json({ error: 'tournamentId und clubId erforderlich' });
-  }
 
   try {
     const tc = await prisma.tournamentClub.create({

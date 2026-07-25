@@ -1,13 +1,17 @@
 import { Router } from 'express';
-import { getAvailable, assignShift, unassignShift, getVapidPublicKey, subscribePush, rateShift } from '../controllers/self.controller.js';
+import validate from '../middleware/validate.js';
+import {
+  getAvailable, assignShift, unassignShift, getVapidPublicKey, subscribePush, rateShift,
+  assignShiftSchema, rateShiftSchema, pushSubscribeSchema
+} from '../controllers/self.controller.js';
 
 const router = Router();
 
 router.get('/available', getAvailable);
-router.post('/assign', assignShift);
+router.post('/assign', validate(assignShiftSchema), assignShift);
 router.delete('/unassign/:id', unassignShift);
-router.patch('/shifts/:id/rating', rateShift);
+router.patch('/shifts/:id/rating', validate(rateShiftSchema), rateShift);
 router.get('/vapid-public-key', getVapidPublicKey);
-router.post('/push-subscribe', subscribePush);
+router.post('/push-subscribe', validate(pushSubscribeSchema), subscribePush);
 
 export default router;

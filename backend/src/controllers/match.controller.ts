@@ -30,6 +30,15 @@ export const matchSchema = z.object({
   placeholderB: z.string().nullable().optional()
 });
 
+export const assignKOTeamsSchema = z.object({
+  tournamentId: z.number().int().positive(),
+  yearGroupId: z.number().int().positive()
+});
+
+// /:id/reset und /:id/toggle-completed erhalten keine Nutzdaten (nur die :id aus der URL),
+// das Frontend sendet stets einen leeren Body - unerwartete Felder werden hier abgelehnt.
+export const emptyBodySchema = z.object({}).strict();
+
 export const getMatchesByTournament = async (req: Request, res: Response) => {
   if (!req.params.tournamentId) return res.json([]);
   const ms = await prisma.match.findMany({

@@ -5,6 +5,17 @@ import prisma from '../config/prisma.js';
 // Hinweis: Das Erzeugen von Shifts erfolgt künftig über die Tag-/Template-basierte
 // Generierung (Etappe 2), nicht mehr über manuelles Anlegen einzelner Slots.
 
+export const updateShiftSchema = z.object({
+  startMin: z.number().int().min(0).max(1440).nullable().optional(),
+  endMin: z.number().int().min(0).max(1440).nullable().optional(),
+  minVolunteers: z.number().int().min(0).max(200).optional(),
+  maxVolunteers: z.number().int().min(0).max(200).optional(),
+  description: z.string().max(1000).nullable().optional()
+}).refine(
+  data => data.startMin == null || data.endMin == null || data.endMin > data.startMin,
+  { message: 'Endzeit muss nach der Startzeit liegen.', path: ['endMin'] }
+);
+
 export const updateShiftsBatchSchema = z.object({
   changes: z.array(z.object({
     id: z.number().int().positive(),

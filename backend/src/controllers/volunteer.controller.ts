@@ -15,6 +15,20 @@ export const volunteerSchema = z.object({
   tournamentId: z.number().int().nullable().optional()
 });
 
+export const updateVolunteerPasswordSchema = z.object({
+  password: z.string().min(1, 'Passwort ist erforderlich').max(200, 'Passwort ist zu lang')
+});
+
+export const broadcastPushSchema = z.object({
+  mode: z.enum(['all', 'shifts', 'users']),
+  userIds: z.array(z.number().int().positive()).optional(),
+  shiftIds: z.array(z.number().int().positive()).optional(),
+  tournamentId: z.number().int().positive().nullable().optional(),
+  title: z.string().min(1, 'Titel ist erforderlich').max(200, 'Titel ist zu lang'),
+  body: z.string().min(1, 'Nachrichtentext ist erforderlich').max(1000, 'Nachrichtentext ist zu lang'),
+  url: z.string().max(500, 'URL ist zu lang').optional().or(z.literal(''))
+});
+
 /** Entfernt den Passwort-Hash aus einem User-Objekt, bevor es ausgeliefert wird. */
 /**
  * Entfernt Geheimnisse (Passwort-Hash UND recoveryPin) aus einem User-Objekt.

@@ -1,8 +1,37 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 import { logFoodDonationCreated, logFoodDonationDeleted } from '../utils/logger.js';
 import JWT_SECRET from '../config/jwt.js';
+
+// Preis liegt in der DB als String vor (Prisma-Feld price: String?), das Frontend
+// schickt ihn aber je nach Formular als Number-Input-String oder leeren String.
+const priceSchema = z.union([
+  z.string().regex(/^\d{1,6}(\.\d{1,2})?$/, 'Preis muss eine Zahl mit bis zu 2 Nachkommastellen sein'),
+  z.number().nonnegative().max(999999),
+  z.literal('')
+]).nullable().optional();
+
+export const foodCategorySchema = z.object({
+  name: z.string().min(1, 'Name ist erforderlich').max(100),
+  icon: z.string().min(1).max(10).optional(),
+  order: z.number().int().min(0).max(9999).optional()
+});
+
+export const foodItemSchema = z.object({
+  categoryId: z.number().int().positive('Kategorie ist erforderlich'),
+  name: z.string().min(1, 'Name ist erforderlich').max(100),
+  price: priceSchema,
+  unit: z.string().min(1).max(20).optional()
+});
+
+export const createFoodDonationSchema = z.object({
+  foodItemId: z.number().int().positive('Artikel ist erforderlich'),
+  quantity: z.number().int().positive('Menge muss positiv sein').max(9999),
+  note: z.string().max(500).nullable().optional(),
+  slotId: z.number().int().positive().nullable().optional()
+});
 
 const getUserId = (req: Request): number | null => {
   const authHeader = req.headers.authorization;

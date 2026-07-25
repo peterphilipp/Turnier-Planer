@@ -8,7 +8,9 @@ import {
   updateVolunteer,
   updateVolunteerPassword,
   broadcastPush,
-  volunteerSchema
+  volunteerSchema,
+  updateVolunteerPasswordSchema,
+  broadcastPushSchema
 } from '../controllers/volunteer.controller.js';
 
 const router = Router();
@@ -17,12 +19,12 @@ const router = Router();
 router.get('/', authenticate, requireAdmin, getVolunteers);
 
 // Nur Admin/Organizer: Push Broadcast
-router.post('/push-broadcast', authenticate, requireAdmin, broadcastPush);
+router.post('/push-broadcast', authenticate, requireAdmin, validate(broadcastPushSchema), broadcastPush);
 
 // Nur Admin/Organizer
 router.post('/', authenticate, requireAdmin, validate(volunteerSchema), createVolunteer);
 router.patch('/:id', authenticate, requireAdmin, validate(volunteerSchema.partial()), updateVolunteer);
-router.patch('/:id/password', authenticate, requireAdmin, updateVolunteerPassword);
+router.patch('/:id/password', authenticate, requireAdmin, validate(updateVolunteerPasswordSchema), updateVolunteerPassword);
 router.delete('/:id', authenticate, requireAdmin, deleteVolunteer);
 
 export default router;

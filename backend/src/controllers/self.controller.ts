@@ -1,9 +1,35 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 import { logJobAssigned, logJobUnassigned } from '../utils/logger.js';
 import JWT_SECRET from '../config/jwt.js';
 import { getVapidPublicKey as getPubKey } from '../utils/push.js';
+
+// Öffentliche Self-Service-Endpunkte: Body-Formen entsprechen exakt dem, was
+// das Frontend sendet (SelfServiceView.tsx / utils/push.ts) - hier werden nur
+// plausible Grenzen ergänzt, kein neuer Vertrag erfunden.
+export const assignShiftSchema = z.object({
+  shiftId: z.number().int().positive('shiftId muss eine positive Ganzzahl sein'),
+  // Wird vom Frontend mitgeschickt, aber vom Controller aktuell nicht verwendet.
+  date: z.string().max(50).optional()
+});
+
+export const rateShiftSchema = z.object({
+  ratingWorkload: z.number().int().min(1, 'Wert muss zwischen 1 und 5 liegen').max(5, 'Wert muss zwischen 1 und 5 liegen').nullable().optional(),
+  ratingOrganization: z.number().int().min(1, 'Wert muss zwischen 1 und 5 liegen').max(5, 'Wert muss zwischen 1 und 5 liegen').nullable().optional(),
+  ratingFun: z.number().int().min(1, 'Wert muss zwischen 1 und 5 liegen').max(5, 'Wert muss zwischen 1 und 5 liegen').nullable().optional(),
+  ratingComment: z.string().max(1000, 'Kommentar darf maximal 1000 Zeichen lang sein').nullable().optional()
+});
+
+export const pushSubscribeSchema = z.object({
+  endpoint: z.string().url('Ungültiger Endpoint').max(2000),
+  expirationTime: z.number().nullable().optional(),
+  keys: z.object({
+    p256dh: z.string().min(1, 'p256dh erforderlich').max(500),
+    auth: z.string().min(1, 'auth erforderlich').max(500)
+  })
+});
 
 // Helper: Get userId from token
 const getUserId = (req: Request): number | null => {

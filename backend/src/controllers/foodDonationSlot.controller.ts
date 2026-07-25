@@ -1,5 +1,17 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
+import { z } from 'zod';
+
+export const foodDonationSlotSchema = z.object({
+  tournamentId: z.number().int().positive(),
+  yearGroupId: z.number().int().positive(),
+  foodItemId: z.number().int().positive().nullable().optional(),
+  targetQuantity: z.number().int().min(0).max(100000).optional(),
+  description: z.string().max(500, 'Beschreibung ist zu lang').nullable().optional(),
+  userId: z.number().int().positive().nullable().optional()
+});
+
+export const updateFoodDonationSlotSchema = foodDonationSlotSchema.partial();
 
 // Alle Slots eines Turniers
 export const getFoodDonationSlots = async (req: Request, res: Response) => {

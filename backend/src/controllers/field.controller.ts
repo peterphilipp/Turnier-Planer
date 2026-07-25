@@ -1,5 +1,15 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
+import { z } from 'zod';
+
+// Status ist im Schema ein freier String (Default "verfügbar"), aber Frontend
+// (Felder.tsx) bietet ausschließlich diese drei Werte über <select> an.
+export const fieldSchema = z.object({
+  tournamentId: z.number().int().positive(),
+  yearGroupId: z.number().int().positive().nullable().optional(),
+  name: z.string().min(1, 'Name ist erforderlich').max(100),
+  status: z.enum(['verfügbar', 'in_nutzung', 'wartung']).optional()
+});
 
 export const getFields = async (req: Request, res: Response) => {
   const tournamentId = parseInt(String(req.query.tournamentId as string));

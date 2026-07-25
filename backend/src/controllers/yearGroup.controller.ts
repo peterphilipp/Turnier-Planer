@@ -1,5 +1,25 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
+import { z } from 'zod';
+
+// Plausible Spanne für Geburtsjahrgänge im Jugendfußball (Bambini bis Senioren-Turniere).
+const yearGroupBaseSchema = z.object({
+  name: z.string().min(1, 'Name ist erforderlich').max(100),
+  birthYearStart: z.number().int().min(1990).max(2030),
+  birthYearEnd: z.number().int().min(1990).max(2030),
+  order: z.number().int().min(0).optional(),
+  isActive: z.boolean().optional()
+});
+
+export const createYearGroupSchema = yearGroupBaseSchema.refine(
+  data => data.birthYearStart <= data.birthYearEnd,
+  { message: 'birthYearStart darf nicht nach birthYearEnd liegen', path: ['birthYearEnd'] }
+);
+
+export const updateYearGroupSchema = yearGroupBaseSchema.partial().refine(
+  data => data.birthYearStart == null || data.birthYearEnd == null || data.birthYearStart <= data.birthYearEnd,
+  { message: 'birthYearStart darf nicht nach birthYearEnd liegen', path: ['birthYearEnd'] }
+);
 
 export const getYearGroups = async (_req: Request, res: Response) => {
   try {

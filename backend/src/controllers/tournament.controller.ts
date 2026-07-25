@@ -4,9 +4,10 @@ import { z } from 'zod';
 import { generateKnockoutTree } from '../utils/knockout.js';
 import { logTournamentCreated, logTournamentUpdated } from '../utils/logger.js';
 
-export const tournamentSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
+// Basis-Felder des Turniers, gemeinsam für Create (vollständig) und Update (partial).
+const tournamentBaseSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(2000).optional(),
   startDate: z.string().or(z.date()),
   endDate: z.string().or(z.date()),
   status: z.enum(['aktiv', 'beendet', 'archiviert']).default('aktiv'),
@@ -14,9 +15,55 @@ export const tournamentSchema = z.object({
   clubId: z.number().int().positive().nullable().optional(),
   yearGroupIds: z.array(z.number().int().positive()).optional(),
   hasSponsor: z.boolean().optional(),
-  sponsorName: z.string().nullable().optional(),
-  sponsorUrl: z.string().nullable().optional(),
-  logo: z.string().nullable().optional()
+  sponsorName: z.string().max(200).nullable().optional(),
+  sponsorUrl: z.string().max(500).nullable().optional(),
+  // Base64-Data-URI des Sponsoren-Logos; Obergrenze verhindert übergroße Payloads (~6MB dekodiert)
+  logo: z.string().max(8_000_000).nullable().optional(),
+  teamsAdvancingPerGroup: z.number().int().min(1).max(16).optional(),
+  playoutAllPlacements: z.boolean().optional(),
+  thirdPlaceMatch: z.boolean().optional(),
+  qualificationRule: z.string().max(50).nullable().optional()
+});
+
+const datesInOrder = (data: { startDate?: string | Date; endDate?: string | Date }) => {
+  if (!data.startDate || !data.endDate) return true;
+  return new Date(data.startDate) <= new Date(data.endDate);
+};
+
+export const tournamentSchema = tournamentBaseSchema.refine(datesInOrder, {
+  message: 'Enddatum darf nicht vor dem Startdatum liegen',
+  path: ['endDate']
+});
+
+// Für PATCH /:id: alle Felder optional, gleiche Cross-Field-Prüfung falls beide Daten gesetzt sind.
+export const updateTournamentSchema = tournamentBaseSchema.partial().refine(datesInOrder, {
+  message: 'Enddatum darf nicht vor dem Startdatum liegen',
+  path: ['endDate']
+});
+
+export const tournamentStatusSchema = z.object({
+  status: z.enum(['aktiv', 'beendet', 'archiviert'])
+});
+
+export const tournamentModeSchema = z.object({
+  turnierModus: z.enum(['GRUPPEN_KO', 'KO', 'LIGA']),
+  teamsAdvancingPerGroup: z.number().int().min(1).max(16).optional(),
+  playoutAllPlacements: z.boolean().optional(),
+  thirdPlaceMatch: z.boolean().optional(),
+  qualificationRule: z.string().max(50).nullable().optional()
+});
+
+export const uploadLogoSchema = z.object({
+  // Base64-Data-URI (Frontend nutzt FileReader.readAsDataURL); Obergrenze ~6MB dekodiert
+  logoBase64: z.string().min(1, 'Kein Logo übermittelt').max(8_000_000, 'Logo zu groß')
+});
+
+export const generateMatchesSchema = z.object({
+  yearGroupId: z.number().int().positive(),
+  matchDuration: z.number().int().min(1).max(180).optional(),
+  halves: z.number().int().min(1).max(4).optional(),
+  halftimeBreak: z.number().int().min(0).max(60).optional(),
+  breakDuration: z.number().int().min(0).max(120).optional()
 });
 
 export const getTournaments = async (req: Request, res: Response) => {

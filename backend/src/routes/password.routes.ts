@@ -2,12 +2,14 @@ import express from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 import prisma from '../config/prisma.js';
 import { Resend } from 'resend';
 import { logLoginSuccess, logLoginFailed, logPasswordResetRequested, logPasswordResetCompleted, logRegistrationCreated } from '../utils/logger.js';
 import JWT_SECRET from '../config/jwt.js';
 import { authLimiter, pinResetLimiter } from '../middleware/security.js';
 import { sendPushToUser } from '../utils/push.js';
+import validate from '../middleware/validate.js';
 
 function getClientIp(req: express.Request): string | undefined {
   return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
@@ -73,8 +75,81 @@ const DUMMY_BCRYPT_HASH = '$2b$10$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRST
  */
 const LOGIN_FAILED_MESSAGE = 'Anmeldung fehlgeschlagen. Bitte prüfe Name/E-Mail und Passwort.';
 
+/**
+ * Zod-Schemas: ergänzen nur Form-/Typ-/Format-Prüfungen (Längen-Caps gegen
+ * Abuse, E-Mail-Format) VOR den Handlern. Die bestehende Auth-Logik, die
+ * generischen/nicht-enumerierbaren Fehlermeldungen (LOGIN_FAILED_MESSAGE etc.),
+ * Rate-Limiter und konstant-zeitigen bcrypt-Vergleiche bleiben unverändert -
+ * die Handler behalten ihre eigenen (dadurch teils redundanten) Checks als
+ * zweite Verteidigungslinie.
+ *
+ * Wichtig für /login: Das Passwort-Feld bleibt in der Zod-Prüfung absichtlich
+ * optional/ohne Mindestlänge. Ein fehlendes Passwort muss weiterhin die
+ * einheitliche 401-Antwort (LOGIN_FAILED_MESSAGE) durchlaufen und darf nicht
+ * vorher als unterscheidbares 400 abgefangen werden - sonst würde die
+ * User-Enumeration-Verschleierung durchbrochen.
+ */
+const childInputSchema = z.object({
+  childName: z.string().trim().max(100).nullable().optional(),
+  childYear: z.number().int().min(1900).max(2100).nullable().optional()
+});
+
+const emailInput = z.union([
+  z.string().trim().max(255).email('Ungültige E-Mail'),
+  z.literal('')
+]).nullable();
+
+const phoneInput = z.string().trim().max(50).nullable();
+
+const loginSchema = z.object({
+  name: z.string().trim().max(255).optional(),
+  email: z.string().trim().max(255).optional(),
+  password: z.string().max(200).optional()
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().trim().min(1, 'Email required').max(255).email('Ungültige E-Mail')
+});
+
+const forgotPasswordPushSchema = z.object({
+  name: z.string().trim().min(1, 'Name required').max(255)
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1).max(512),
+  newPassword: z.string().min(6, 'Passwort muss mindestens 6 Zeichen haben').max(200)
+});
+
+const resetByPinSchema = z.object({
+  name: z.string().trim().min(1).max(255),
+  recoveryPin: z.string().min(1).max(64),
+  newPassword: z.string().min(6, 'Passwort muss mindestens 6 Zeichen haben').max(200)
+});
+
+const patchPasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(200),
+  newPassword: z.string().min(6, 'Passwort muss mindestens 6 Zeichen haben').max(200)
+});
+
+const profileSchema = z.object({
+  name: z.string().trim().min(1).max(255),
+  email: emailInput,
+  phone: phoneInput,
+  children: z.array(childInputSchema).max(20),
+  consentGiven: z.boolean()
+}).partial();
+
+const registerSchema = z.object({
+  name: z.string().trim().min(1).max(255),
+  email: emailInput.optional(),
+  phone: phoneInput.optional(),
+  password: z.string().min(6, 'Passwort muss mindestens 6 Zeichen haben').max(200),
+  children: z.array(childInputSchema).max(20).optional(),
+  consentGiven: z.boolean().optional()
+});
+
 // POST /api/auth/forgot-password
-router.post('/forgot-password', authLimiter, async (req, res, next) => {
+router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), async (req, res, next) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email required' });
@@ -171,7 +246,7 @@ router.post('/forgot-password', authLimiter, async (req, res, next) => {
 });
 
 // POST /api/auth/reset-password
-router.post('/reset-password', authLimiter, async (req, res, next) => {
+router.post('/reset-password', authLimiter, validate(resetPasswordSchema), async (req, res, next) => {
   try {
     const { token, newPassword } = req.body;
     if (!token || !newPassword) return res.status(400).json({ error: 'Token und neues Passwort erforderlich' });
@@ -210,7 +285,7 @@ router.post('/reset-password', authLimiter, async (req, res, next) => {
 });
 
 // POST /api/auth/login
-router.post('/login', authLimiter, async (req, res, next) => {
+router.post('/login', authLimiter, validate(loginSchema), async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
     const identifier = email || name;
@@ -353,7 +428,7 @@ router.get('/export', async (req, res, next) => {
 });
 
 // PATCH /api/auth/password
-router.patch('/password', async (req, res, next) => {
+router.patch('/password', validate(patchPasswordSchema), async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -434,7 +509,7 @@ router.delete('/account', async (req, res, next) => {
 });
 
 // PATCH /api/auth/profile
-router.patch('/profile', async (req, res, next) => {
+router.patch('/profile', validate(profileSchema), async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -530,7 +605,7 @@ router.patch('/profile', async (req, res, next) => {
 });
 
 // POST /api/auth/register
-router.post('/register', authLimiter, async (req, res, next) => {
+router.post('/register', authLimiter, validate(registerSchema), async (req, res, next) => {
   try {
     const { name: rawName, email: rawEmail, phone, password, children, consentGiven } = req.body;
     if (!rawName || !password) return res.status(400).json({ error: 'Fehlende Pflichtfelder (Name & Passwort)' });
@@ -621,7 +696,7 @@ router.post('/register', authLimiter, async (req, res, next) => {
 });
 
 // POST /api/auth/reset-by-pin
-router.post('/reset-by-pin', pinResetLimiter, async (req, res, next) => {
+router.post('/reset-by-pin', pinResetLimiter, validate(resetByPinSchema), async (req, res, next) => {
   try {
     const { name, recoveryPin, newPassword } = req.body;
     if (!name || !recoveryPin || !newPassword) return res.status(400).json({ error: 'Name, PIN und neues Passwort erforderlich' });
@@ -668,7 +743,7 @@ router.post('/reset-by-pin', pinResetLimiter, async (req, res, next) => {
 });
 
 // POST /api/auth/forgot-password-push
-router.post('/forgot-password-push', authLimiter, async (req, res, next) => {
+router.post('/forgot-password-push', authLimiter, validate(forgotPasswordPushSchema), async (req, res, next) => {
   try {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
