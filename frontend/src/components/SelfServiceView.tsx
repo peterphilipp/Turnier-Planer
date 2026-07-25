@@ -43,6 +43,8 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   const [volunteerShifts, setVolunteerShifts] = useState<VolunteerShift[]>([]);
   const [tournament, setTournament] = useState<any>(null);
   const [filterDate, setFilterDate] = useState('');
+  const [filterTimesOfDay, setFilterTimesOfDay] = useState<Set<'vormittag' | 'nachmittag' | 'abend'>>(new Set());
+  const [onlyUpcoming, setOnlyUpcoming] = useState(true);
   const [busy, setBusy] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -170,6 +172,23 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     const h = Math.floor(min / 60);
     const m = min % 60;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
+  /** Grobe Tageszeit-Einordnung für die Filter-Chips (06-13 / 13-19 / 19-24 Uhr). */
+  const timeOfDay = (startMin: number | null | undefined): 'vormittag' | 'nachmittag' | 'abend' | null => {
+    if (startMin == null) return null;
+    if (startMin < 780) return 'vormittag'; // < 13:00
+    if (startMin < 1140) return 'nachmittag'; // < 19:00
+    return 'abend';
+  };
+
+  /** Schicht liegt zeitlich komplett in der Vergangenheit (Ende vor jetzt). */
+  const isPastShift = (dateStr: string, endMin: number | null | undefined): boolean => {
+    if (!dateStr) return false;
+    const end = new Date(dateStr);
+    if (endMin != null) end.setHours(Math.floor(endMin / 60), endMin % 60, 0, 0);
+    else end.setHours(23, 59, 59, 999);
+    return new Date() > end;
   };
 
   /** Dezenter Füllgrad-Balken am unteren Rand einer Schicht-Kachel (0 belegt = rot, teilweise = gelb, voll = grün). */
@@ -873,21 +892,90 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
 
       <PushNotificationBanner primaryColor={clubSecondary} textColor={clubSecondaryText} />
 
-      {/* Filter */}
-      <div id="tour-filter" style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
-        <select value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ flex: 1, padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box', background: '#fff', minWidth: 0 }}>
-          <option value="">Alle Daten</option>
-          {Array.from(new Set(shifts.map(s => new Date(s.date).toLocaleDateString('de-DE')))).sort().map(d => (<option key={d} value={d}>{d}</option>))}
-        </select>
-        <button
-          onClick={() => loadAvailable()}
-          disabled={busy}
-          title="Aktualisieren"
-          style={{ flexShrink: 0, width: 48, border: '2px solid #e9ecef', borderRadius: 10, background: '#fff', cursor: busy ? 'not-allowed' : 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.6 : 1 }}
-        >
-          🔄
+      {/* Filter: nur bei Jobs relevant (Verpflegungsziele sind nicht nach
+          Tag/Uhrzeit strukturiert), vorher wurde die Filterzeile auch im
+          Verpflegungs-Tab angezeigt, obwohl sie dort wirkungslos war. */}
+      {activeSection === 'jobs' && (
+      <div id="tour-filter" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          {/* Tag-Chips statt Dropdown: horizontal scrollbar, chronologisch nach
+              echtem Datum sortiert (vorher .sort() auf lokalisierte Datums-
+              STRINGS wie "4.9.2026" - das sortiert bei zweistelligen Tagen
+              lexikographisch falsch, z.B. "10.9." vor "4.9."). */}
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', flex: 1, paddingBottom: 2 }}>
+            {(() => {
+              const uniqueDates = Array.from(new Map(shifts.map(s => [new Date(s.date).toLocaleDateString('de-DE'), new Date(s.date)])).entries())
+                .sort((a, b) => a[1].getTime() - b[1].getTime());
+              const chips: { value: string; label: string }[] = [
+                { value: '', label: 'Alle' },
+                ...uniqueDates.map(([dateKey, dateObj]) => ({ value: dateKey, label: dateObj.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }) }))
+              ];
+              return chips.map(chip => (
+                <button
+                  key={chip.value}
+                  onClick={() => setFilterDate(chip.value)}
+                  style={{
+                    flexShrink: 0, padding: '10px 16px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap',
+                    background: filterDate === chip.value ? clubPrimary : '#fff',
+                    color: filterDate === chip.value ? clubPrimaryText : '#495057',
+                    boxShadow: filterDate === chip.value ? 'none' : '0 1px 3px rgba(0,0,0,0.08)'
+                  }}
+                >
+                  {chip.label}
+                </button>
+              ));
+            })()}
+          </div>
+          <button
+            onClick={() => loadAvailable()}
+            disabled={busy}
+            title="Aktualisieren"
+            style={{ flexShrink: 0, width: 48, border: '2px solid #e9ecef', borderRadius: 10, background: '#fff', cursor: busy ? 'not-allowed' : 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.6 : 1 }}
+          >
+            🔄
         </button>
+        </div>
+
+        {/* Uhrzeit-Chips (kombinierbar) + "Nur kommende Schichten"-Toggle */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          {([
+            { key: 'vormittag' as const, label: '🌅 Vormittag' },
+            { key: 'nachmittag' as const, label: '☀️ Nachmittag' },
+            { key: 'abend' as const, label: '🌙 Abend' }
+          ]).map(t => {
+            const active = filterTimesOfDay.has(t.key);
+            return (
+              <button
+                key={t.key}
+                onClick={() => setFilterTimesOfDay(prev => {
+                  const next = new Set(prev);
+                  if (next.has(t.key)) next.delete(t.key); else next.add(t.key);
+                  return next;
+                })}
+                style={{
+                  padding: '8px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                  background: active ? clubSecondary : '#fff',
+                  color: active ? clubSecondaryText : '#495057',
+                  boxShadow: active ? 'none' : '0 1px 3px rgba(0,0,0,0.08)'
+                }}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+          <span style={{ flex: 1 }} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#495057', cursor: 'pointer', userSelect: 'none' }}>
+            🕐 Nur kommende
+            <span
+              onClick={() => setOnlyUpcoming(v => !v)}
+              style={{ position: 'relative', width: 40, height: 22, borderRadius: 11, background: onlyUpcoming ? clubPrimary : '#dee2e6', transition: 'background 0.2s', display: 'inline-block' }}
+            >
+              <span style={{ position: 'absolute', top: 2, left: onlyUpcoming ? 20 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+            </span>
+          </label>
+        </div>
       </div>
+      )}
 
       {/* Tabs */}
       <div id="tour-tabs" style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
@@ -936,19 +1024,22 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                       {d.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })}
                     </div>
                   )}
-                  <div style={{ position: 'relative', background: '#fff', borderRadius: 12, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 10, borderLeft: '4px solid ' + clubAccent, overflow: 'hidden' }}>
-                    <div style={{ minWidth: 0, flexShrink: 0 }}>
-                      <div style={{ fontSize: 16 }}>{s?.arbeitsbereich?.icon || '📍'}</div>
-                      <div style={{ fontSize: 13, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>{s?.arbeitsbereich?.name || '–'}</div>
+                  <div style={{ position: 'relative', background: '#fff', borderRadius: 12, padding: '14px 16px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', borderLeft: '4px solid ' + clubAccent, overflow: 'hidden' }}>
+                    {/* Zeile 1: Arbeitsbereich prominent - primäres Suchkriterium */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span style={{ fontSize: 20, flexShrink: 0 }}>{s?.arbeitsbereich?.icon || '📍'}</span>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: '#212529', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s?.arbeitsbereich?.name || '–'}</span>
                     </div>
-                    <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
-                      <div style={{ fontSize: 12, color: '#666' }}>{d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</div>
-                      {(s?.startMin != null || s?.endMin != null) && <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToTime(s.startMin)}–{minToTime(s.endMin)}</div>}
+                    {/* Zeile 2: Datum + Zeit zusammen, Belegung rechts */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8 }}>
+                      <span style={{ fontSize: 13, color: '#666' }}>
+                        {d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                        {(s?.startMin != null || s?.endMin != null) && <> · {minToTime(s.startMin)}–{minToTime(s.endMin)}</>}
+                      </span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: remaining > 0 ? clubAccent : '#6c757d', flexShrink: 0 }}>{remaining}/{s?.maxVolunteers || 0}</span>
                     </div>
-                    <div style={{ textAlign: 'center', minWidth: 40, flexShrink: 0 }}>
-                      <div style={{ fontSize: 16, fontWeight: 'bold', color: remaining > 0 ? clubAccent : '#6c757d' }}>{remaining}/{s?.maxVolunteers || 0}</div>
-                    </div>
-                    <div style={{ flexShrink: 0, display: 'flex', gap: 6 }}>
+                    {/* Zeile 3: Prominenter, beschrifteter Action-Button */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                       {shiftOver ? (
                         // Schicht vorbei → nur Bewertungs-Button
                         <button
@@ -956,7 +1047,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                           title={alreadyRated ? 'Bewertung bearbeiten' : 'Schicht bewerten'}
                           style={{
                             height: 40,
-                            padding: '0 12px',
+                            padding: '0 16px',
                             borderRadius: 10,
                             border: 'none',
                             background: alreadyRated ? '#ffc107' : clubPrimary,
@@ -964,18 +1055,17 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 4,
+                            gap: 6,
                             fontWeight: 'bold',
-                            fontSize: 13
+                            fontSize: 14
                           }}
                         >
                           <span>{alreadyRated ? '⭐' : '📝'}</span>
-                          <span style={{ display: 'inline-block' }}>
-                            {alreadyRated ? 'Bewertet' : 'Bewerten'}
-                          </span>
+                          <span>{alreadyRated ? 'Bewertet' : 'Bewerten'}</span>
                         </button>
                       ) : (
-                        // Schicht noch nicht vorbei → nur Stornierungsbutton
+                        // Schicht noch nicht vorbei → nur Stornierungsbutton (bewusst
+                        // Icon-only mit X, siehe Harmonisierung mit Verpflegung).
                         <button onClick={() => unassign(vs.id)} title="Abmelden" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: '#fde8e8', color: '#dc3545', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, fontSize: 20, fontWeight: 'bold' }}>
                           ✕
                         </button>
@@ -1017,6 +1107,8 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
           <h3 style={{ margin: '0 0 6px', fontSize: 16, color: clubPrimary }}>Offene Jobs</h3>
           {shifts
             .filter(s => !filterDate || new Date(s.date).toLocaleDateString('de-DE') === filterDate)
+            .filter(s => filterTimesOfDay.size === 0 || (() => { const t = timeOfDay(s.startMin); return t != null && filterTimesOfDay.has(t); })())
+            .filter(s => !onlyUpcoming || !isPastShift(s.date, s.endMin))
             .filter(s => {
               // Verstecke den Job, wenn der aktuelle User bereits eingetragen ist
               if (ctxToken && volunteerShifts.some(vs => vs.shiftId === s.id && vs.userId === ctxVolunteer?.id)) {
@@ -1053,36 +1145,36 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                       {new Date(slot.date).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })}
                     </div>
                   )}
-                  <div style={{ position: 'relative', background: '#fff', borderRadius: 12, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
-                    <div style={{ minWidth: 0, flexShrink: 0 }}>
-                      <div style={{ fontSize: 16 }}>{slot.arbeitsbereich?.icon || '📍'}</div>
-                      <div style={{ fontSize: 13, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>{slot.arbeitsbereich?.name || '–'}</div>
+                  <div style={{ position: 'relative', background: '#fff', borderRadius: 12, padding: '14px 16px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+                    {/* Zeile 1: Arbeitsbereich prominent - primäres Suchkriterium */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span style={{ fontSize: 20, flexShrink: 0 }}>{slot.arbeitsbereich?.icon || '📍'}</span>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: '#212529', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot.arbeitsbereich?.name || '–'}</span>
                     </div>
-                    <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
-                      <div style={{ fontSize: 12, color: '#666' }}>{new Date(slot.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</div>
-                      {(slot.startMin != null || slot.endMin != null) && <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToTime(slot.startMin)}–{minToTime(slot.endMin)}</div>}
+                    {/* Zeile 2: Datum + Zeit zusammen, Belegung rechts */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8 }}>
+                      <span style={{ fontSize: 13, color: '#666' }}>
+                        {new Date(slot.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                        {(slot.startMin != null || slot.endMin != null) && <> · {minToTime(slot.startMin)}–{minToTime(slot.endMin)}</>}
+                      </span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: remaining > 0 ? clubAccent : '#6c757d', flexShrink: 0 }}>{remaining}/{slot.maxVolunteers}</span>
                     </div>
-                    <div style={{ textAlign: 'center', minWidth: 40, flexShrink: 0 }}>
-                      <div style={{ fontSize: 16, fontWeight: 'bold', color: remaining > 0 ? clubAccent : '#6c757d' }}>{remaining}/{slot.maxVolunteers}</div>
-                    </div>
-                    <div style={{ flexShrink: 0 }}>
+                    {/* Zeile 3: Prominenter, beschrifteter Action-Button */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                       {assigned ? (
+                        // Bewusst Icon-only mit X (Harmonisierung mit Verpflegung).
                         <button onClick={() => unassign(myShift!.id)} title="Abmelden" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: '#fde8e8', color: '#dc3545', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, fontSize: 18, fontWeight: 'bold' }}>
                           ✕
                         </button>
                       ) : remaining > 0 ? (
-                        <button onClick={() => assign(slot.id, dateStr)} title="Zuweisen" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: clubSecondary, color: clubSecondaryText, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-                          <span style={{ color: '#fff', lineHeight: 1, fontWeight: 'bold' }}>+</span>
+                        <button onClick={() => assign(slot.id, dateStr)} style={{ height: 40, padding: '0 18px', borderRadius: 10, border: 'none', background: clubSecondary, color: clubSecondaryText, cursor: 'pointer', fontWeight: 'bold', fontSize: 14 }}>
+                          Zusagen
                         </button>
                       ) : (
-                        <span style={{ width: 44, height: 44, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e9ecef', color: '#adb5bd', fontSize: 22, overflow: 'hidden' }}>✖</span>
+                        <span style={{ height: 40, padding: '0 18px', borderRadius: 10, display: 'flex', alignItems: 'center', background: '#e9ecef', color: '#adb5bd', fontSize: 14, fontWeight: 'bold' }}>Ausgebucht</span>
                       )}
                     </div>
                     <FillBar assigned={assignedCount} max={slot.maxVolunteers} />
-                    {/* Füllgrad Farbbalken */}
-                    <div style={{ position: 'absolute', bottom: 0, left: 0, height: 4, background: '#e9ecef', width: '100%' }}>
-                      <div style={{ height: '100%', background: assignedCount === 0 ? 'transparent' : clubAccent, width: `${(assignedCount / Math.max(1, slot.maxVolunteers)) * 100}%`, transition: 'width 0.3s' }} />
-                    </div>
                   </div>
                 </div>
               );
