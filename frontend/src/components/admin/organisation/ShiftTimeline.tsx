@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, ReactNode } from 'react';
 import { minToTime } from '../shared';
 import type { VolunteerShift } from '../shared';
-import { modal } from '../Modal';
 
 /**
  * Gemeinsame Zeitleiste für Schichten (Gantt-Darstellung).
@@ -12,8 +11,14 @@ import { modal } from '../Modal';
  * Zwei Modi:
  *  - editable=false  -> reine Vorschau. Verwendet im Generator ("Schichten
  *                       erstellen") zur Kontrolle des erzeugten Plans.
- *  - editable=true   -> Balken lassen sich verschieben und an den Rändern
- *                       greifen (Zeiten ändern). Verwendet im "Dienstplan".
+ *  - editable=true   -> Balken bleiben per Klick für Helfer-Zuordnung nutzbar.
+ *                       Verwendet im "Dienstplan".
+ *
+ * Zeit ändern (Ränder ziehen/verschieben) ist zusätzlich an `timeEditMode`
+ * gekoppelt: nur wenn beides aktiv ist, lassen sich Balken ziehen. Die
+ * Änderung wird NICHT sofort übernommen, sondern über `onStageShiftTime` beim
+ * Elternteil zwischengespeichert (Businesstransaktion mit Sammel-Commit) und
+ * per `overrides` wieder sichtbar gemacht, bis committet oder verworfen wird.
  *
  * Balken-Beschriftung richtet sich danach, ob Besetzungsdaten übergeben werden:
  *  - mit volunteerShifts -> "x/max" plus Ampel-Rahmen (grün voll / gelb teils)
@@ -43,8 +48,10 @@ export default function ShiftTimeline({
   globalEndMin,
   volunteerShifts,
   editable = false,
+  timeEditMode = false,
+  overrides,
   onShiftClick,
-  onUpdateShiftTime
+  onStageShiftTime
 }: {
   title: string;
   subtitle?: ReactNode;
@@ -55,8 +62,12 @@ export default function ShiftTimeline({
   /** Wenn gesetzt, zeigen die Balken die Besetzung statt der Kapazität. */
   volunteerShifts?: VolunteerShift[];
   editable?: boolean;
+  /** Schaltet das Ziehen von Rändern/Balken frei (siehe Datei-Kommentar). */
+  timeEditMode?: boolean;
+  /** Noch nicht committete Zeit-Änderungen, keyed by Shift-ID. */
+  overrides?: Record<number, { startMin: number; endMin: number }>;
   onShiftClick?: (s: TimelineShift) => void;
-  onUpdateShiftTime?: (shiftId: number, startMin: number, endMin: number) => void;
+  onStageShiftTime?: (shiftId: number, startMin: number, endMin: number) => void;
 }) {
   const startHour = Math.floor(globalStartMin / 60);
   const endHour = Math.ceil(globalEndMin / 60);
@@ -85,7 +96,7 @@ export default function ShiftTimeline({
   const shiftEnd = (s: TimelineShift) => s.endMin ?? s.daySlot?.endMin ?? dayEnd;
 
   const handleMouseDown = (e: React.MouseEvent, s: TimelineShift, type: 'start' | 'end' | 'move') => {
-    if (!editable) return;
+    if (!editable || !timeEditMode) return;
     e.stopPropagation();
     e.preventDefault();
     setDrag({
@@ -126,22 +137,13 @@ export default function ShiftTimeline({
 
     const onUp = () => {
       const { shiftId, type, origStart, origEnd, curStart, curEnd, moved } = drag;
-      // Drag sofort beenden (Balken springt zurück auf die noch unveränderte
-      // Zeit) – die eigentliche Übernahme hängt an der Bestätigung unten.
       setDrag(null);
 
       const changed = curStart !== origStart || curEnd !== origEnd;
       if (changed) {
-        const s = shifts.find(x => x.id === shiftId);
-        const areaName = s?.workArea?.name || s?.arbeitsbereich?.name || '';
-        modal.confirm({
-          title: 'Zeit ändern?',
-          message: `${areaName ? areaName + '\n' : ''}${minToTime(origStart)}–${minToTime(origEnd)} → ${minToTime(curStart)}–${minToTime(curEnd)}\n\nEingeplante Helfer sehen die neue Zeit sofort im Dienstplan.`,
-          confirmText: 'Übernehmen',
-          cancelText: 'Verwerfen'
-        }).then(ok => {
-          if (ok) onUpdateShiftTime?.(shiftId, curStart, curEnd);
-        });
+        // Nur zwischenspeichern – die eigentliche Übernahme passiert gesammelt
+        // per Commit-Button im Elternteil (Editiermodus-Toolbar).
+        onStageShiftTime?.(shiftId, curStart, curEnd);
       } else if (type === 'move' && !moved) {
         // Klick ohne Ziehen = Detailansicht öffnen (Helfer ein-/ausplanen)
         const s = shifts.find(x => x.id === shiftId);
@@ -155,7 +157,7 @@ export default function ShiftTimeline({
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [drag, dayStart, dayEnd, span, onUpdateShiftTime, onShiftClick, shifts]);
+  }, [drag, dayStart, dayEnd, span, onStageShiftTime, onShiftClick, shifts]);
 
   // Nach Arbeitsbereich gruppieren (eine Zeile je Bereich)
   const byArea = new Map<number, { name: string; icon: string; color: string; items: TimelineShift[] }>();
@@ -213,12 +215,15 @@ export default function ShiftTimeline({
                   <div style={{ position: 'relative', width: '100%', height: '100%', background: 'rgba(241, 243, 245, 0.4)', borderRadius: 6 }}>
                     {area.items.map(s => {
                       const isDragging = drag?.shiftId === s.id;
-                      const st = isDragging ? drag!.curStart : shiftStart(s);
-                      const en = isDragging ? drag!.curEnd : shiftEnd(s);
+                      const override = overrides?.[s.id];
+                      const isPending = !isDragging && !!override;
+                      const st = isDragging ? drag!.curStart : override ? override.startMin : shiftStart(s);
+                      const en = isDragging ? drag!.curEnd : override ? override.endMin : shiftEnd(s);
                       const left = ((st - dayStart) / span) * 100;
                       const width = ((en - st) / span) * 100;
                       const showTime = width > 15;
                       const hasCustomTime = s.startMin != null || s.endMin != null;
+                      const canDrag = editable && timeEditMode;
 
                       // Besetzung nur anzeigen, wenn Zuweisungen übergeben wurden
                       const assigned = volunteerShifts
@@ -230,38 +235,39 @@ export default function ShiftTimeline({
                         ? undefined
                         : isFull ? '#198754' : assigned > 0 ? '#ffc107' : undefined;
 
-                      const label = assigned != null
+                      const label = (isPending ? '✎ ' : '') + (assigned != null
                         ? (showTime ? `${minToTime(st)}–${minToTime(en)} (${assigned}/${max}${isFull ? ' ✓' : ''})` : `${assigned}/${max}${isFull ? ' ✓' : ''}`)
-                        : (showTime ? `${minToTime(st)}–${minToTime(en)} (${s.minVolunteers}-${max})` : `${s.minVolunteers}-${max}`);
+                        : (showTime ? `${minToTime(st)}–${minToTime(en)} (${s.minVolunteers}-${max})` : `${s.minVolunteers}-${max}`));
 
-                      const tooltip = assigned != null
-                        ? `${minToTime(st)}–${minToTime(en)} · ${assigned}/${max} Helfer${editable ? ' · klicken für Details, Ränder ziehen für Zeiten' : ''}`
-                        : `${minToTime(st)}–${minToTime(en)} · ${s.minVolunteers}–${max} Helfer${hasCustomTime ? ' (angepasste Zeit)' : ''}`;
+                      const tooltip = (assigned != null
+                        ? `${minToTime(st)}–${minToTime(en)} · ${assigned}/${max} Helfer${canDrag ? ' · klicken für Details, Ränder ziehen für Zeiten' : ''}`
+                        : `${minToTime(st)}–${minToTime(en)} · ${s.minVolunteers}–${max} Helfer${hasCustomTime ? ' (angepasste Zeit)' : ''}`)
+                        + (isPending ? ' · Änderung noch nicht gespeichert' : '');
 
-                      const interactive = editable || !!onShiftClick;
+                      const interactive = canDrag || !!onShiftClick;
 
                       return (
                         <div
                           key={s.id}
                           title={tooltip}
-                          onMouseDown={editable ? e => handleMouseDown(e, s, 'move') : undefined}
-                          onClick={!editable && onShiftClick ? () => onShiftClick(s) : undefined}
+                          onMouseDown={canDrag ? e => handleMouseDown(e, s, 'move') : undefined}
+                          onClick={!canDrag && onShiftClick ? () => onShiftClick(s) : undefined}
                           style={{
                             position: 'absolute', left: `${left}%`, width: `${width}%`, top: 2, bottom: 2,
                             background: area.color, borderRadius: 6,
                             boxShadow: isDragging
                               ? '0 4px 12px rgba(0,0,0,0.4)'
                               : staffingBorder ? `0 0 0 2px ${staffingBorder}` : '0 1px 3px rgba(0,0,0,0.2)',
-                            border: hasCustomTime ? '2px dashed rgba(255,255,255,0.9)' : 'none',
+                            border: isPending ? '3px dashed #fd7e14' : hasCustomTime ? '2px dashed rgba(255,255,255,0.9)' : 'none',
                             color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
                             overflow: 'hidden', whiteSpace: 'nowrap', padding: '0 8px', boxSizing: 'border-box',
-                            cursor: isDragging ? 'grabbing' : editable ? 'grab' : interactive ? 'pointer' : 'default',
+                            cursor: isDragging ? 'grabbing' : canDrag ? 'grab' : interactive ? 'pointer' : 'default',
                             opacity: isDragging ? 0.9 : 1,
                             zIndex: isDragging ? 50 : 1,
                             transition: isDragging ? 'none' : 'left 0.15s, width 0.15s'
                           }}
                         >
-                          {editable && (
+                          {canDrag && (
                             <div
                               onMouseDown={e => handleMouseDown(e, s, 'start')}
                               style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 8, cursor: 'ew-resize', background: 'rgba(0,0,0,0.1)' }}
@@ -271,7 +277,7 @@ export default function ShiftTimeline({
 
                           <span style={{ fontWeight: 600, opacity: 0.92, pointerEvents: 'none' }}>{label}</span>
 
-                          {editable && (
+                          {canDrag && (
                             <div
                               onMouseDown={e => handleMouseDown(e, s, 'end')}
                               style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 8, cursor: 'ew-resize', background: 'rgba(0,0,0,0.1)' }}

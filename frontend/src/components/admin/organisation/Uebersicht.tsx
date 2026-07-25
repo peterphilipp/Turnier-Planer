@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Shift, VolunteerShift, FoodDonationSlot, minToTime } from '../shared';
-import { getShifts, getVolunteerShifts, getFoodDonationSlots, getVolunteers, apiPost, apiDelete, updateShift } from '../../../api';
+import { getShifts, getVolunteerShifts, getFoodDonationSlots, getVolunteers, apiPost, apiDelete, updateShiftsBatch } from '../../../api';
 import { modal } from '../Modal';
 import ShiftFeedbackModal from './ShiftFeedbackModal';
 import ShiftTimeline from './ShiftTimeline';
@@ -27,6 +27,20 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   // Für Accordion: Set von aufgeklappten Datums-Keys
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+
+  // Editiermodus für Zeiten: Änderungen werden lokal gesammelt (keyed by
+  // Shift-ID) und erst per Commit als eine Business-Transaktion übernommen.
+  const [timeEditMode, setTimeEditMode] = useState(false);
+  const [pendingTimeChanges, setPendingTimeChanges] = useState<Record<number, { startMin: number; endMin: number }>>({});
+  const [committing, setCommitting] = useState(false);
+  const pendingCount = Object.keys(pendingTimeChanges).length;
+
+  // Turnierwechsel: offene, nicht committete Änderungen würden sich sonst auf
+  // Shift-IDs eines nicht mehr sichtbaren Turniers beziehen.
+  useEffect(() => {
+    setTimeEditMode(false);
+    setPendingTimeChanges({});
+  }, [selectedTournament]);
 
 
   const { data: allVolunteers = [] } = useQuery<any[]>({
@@ -57,16 +71,61 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
 
 
   /**
-   * Zeiten einer Schicht anpassen. Liegt jetzt hier (nicht mehr im Generator):
-   * der Dienstplan ist der Ort, an dem der bestehende Plan gepflegt wird –
+   * Zeiten einer Schicht anpassen. Liegt hier (nicht mehr im Generator): der
+   * Dienstplan ist der Ort, an dem der bestehende Plan gepflegt wird –
    * Besetzung UND Zeiten. Der Generator erzeugt nur.
+   *
+   * Zeit-Änderungen laufen über einen expliziten Editiermodus statt sofort
+   * bei jedem Ziehen zu speichern: mehrere Anpassungen (z. B. eine Schicht
+   * verkürzen, weil eine andere verlängert wird) werden gesammelt und erst
+   * per Commit als eine Transaktion übernommen. Das vermeidet einen
+   * Zwischenzustand, der später unnötige/widersprüchliche Benachrichtigungen
+   * an eingeplante Helfer auslösen würde.
    */
-  const handleUpdateShiftTime = async (shiftId: number, startMin: number, endMin: number) => {
+  const handleStageShiftTime = (shiftId: number, startMin: number, endMin: number) => {
+    setPendingTimeChanges(prev => ({ ...prev, [shiftId]: { startMin, endMin } }));
+  };
+
+  const handleDiscardTimeChanges = async () => {
+    if (pendingCount > 0) {
+      const ok = await modal.confirm({
+        title: 'Änderungen verwerfen?',
+        message: `${pendingCount} ungespeicherte Zeit-Änderung${pendingCount === 1 ? '' : 'en'} ${pendingCount === 1 ? 'geht' : 'gehen'} verloren.`,
+        confirmText: 'Verwerfen',
+        cancelText: 'Zurück',
+        variant: 'warning'
+      });
+      if (!ok) return;
+    }
+    setPendingTimeChanges({});
+    setTimeEditMode(false);
+  };
+
+  const handleCommitTimeChanges = async () => {
+    if (pendingCount === 0) {
+      setTimeEditMode(false);
+      return;
+    }
+    const ok = await modal.confirm({
+      title: 'Zeiten übernehmen?',
+      message: `${pendingCount} Schicht${pendingCount === 1 ? '' : 'en'} ${pendingCount === 1 ? 'wird' : 'werden'} mit neuer Zeit gespeichert. Eingeplante Helfer sehen die neue Zeit im Dienstplan.`,
+      confirmText: 'Übernehmen',
+      cancelText: 'Abbrechen'
+    });
+    if (!ok) return;
+
+    setCommitting(true);
     try {
-      await updateShift(shiftId, { startMin, endMin });
+      const changes = Object.entries(pendingTimeChanges).map(([id, c]) => ({ id: Number(id), ...c }));
+      await updateShiftsBatch(changes);
       queryClient.invalidateQueries({ queryKey: ['shifts', selectedTournament] });
+      setPendingTimeChanges({});
+      setTimeEditMode(false);
+      await modal.alert({ title: 'Gespeichert ✅', message: `${changes.length} Schicht${changes.length === 1 ? '' : 'en'} aktualisiert.` });
     } catch (err: any) {
-      await modal.alert({ title: 'Fehler', message: err?.message || 'Zeit konnte nicht geändert werden' });
+      await modal.alert({ title: 'Fehler', message: err?.message || 'Änderungen konnten nicht gespeichert werden. Es wurde nichts übernommen.' });
+    } finally {
+      setCommitting(false);
     }
   };
 
@@ -115,7 +174,51 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
           <span>⭐</span> Helfer-Feedback & Learnings
         </button>
       </div>
-      
+
+      {/* Editiermodus-Toolbar: Zeiten sind standardmäßig gesperrt (nur Helfer
+          ein-/ausplanen ist ohne Umschalten möglich). Erst hier freigeschaltet
+          lassen sich Balken ziehen; verlassen geht nur über Commit oder Verwerfen. */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+        marginBottom: 24, padding: '10px 16px', borderRadius: 10,
+        background: timeEditMode ? '#fff3cd' : '#f8f9fa',
+        border: `1px solid ${timeEditMode ? '#ffe69c' : '#dee2e6'}`
+      }}>
+        {!timeEditMode ? (
+          <>
+            <span style={{ fontSize: 13, color: '#495057' }}>🔒 Schicht-Zeiten sind gesperrt</span>
+            <button
+              onClick={() => setTimeEditMode(true)}
+              style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #ced4da', background: '#fff', color: '#212529', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}
+            >
+              ✏️ Zeiten bearbeiten
+            </button>
+          </>
+        ) : (
+          <>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#856404' }}>✏️ Bearbeitungsmodus aktiv – Ränder ziehen zum Anpassen</span>
+            <span style={{ fontSize: 13, color: '#856404' }}>
+              {pendingCount === 0 ? 'Noch keine Änderungen' : `${pendingCount} Änderung${pendingCount === 1 ? '' : 'en'} ausstehend`}
+            </span>
+            <span style={{ flex: 1 }} />
+            <button
+              onClick={handleDiscardTimeChanges}
+              disabled={committing}
+              style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #ced4da', background: '#fff', color: '#495057', fontWeight: 600, cursor: committing ? 'not-allowed' : 'pointer', fontSize: 13, opacity: committing ? 0.6 : 1 }}
+            >
+              ✖️ Verwerfen
+            </button>
+            <button
+              onClick={handleCommitTimeChanges}
+              disabled={committing}
+              style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: '#198754', color: '#fff', fontWeight: 600, cursor: committing ? 'not-allowed' : 'pointer', fontSize: 13, opacity: committing ? 0.6 : 1 }}
+            >
+              {committing ? '...' : `✅ Übernehmen${pendingCount > 0 ? ` (${pendingCount})` : ''}`}
+            </button>
+          </>
+        )}
+      </div>
+
       {/* Offene Punkte Widgets */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, marginBottom: 32 }}>
         {unbesetzteSlots.length > 0 && (
@@ -224,7 +327,7 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
               subtitle={
                 <span style={{ fontSize: 12, color: '#6c757d', background: '#f8f9fa', padding: '2px 8px', borderRadius: 4, border: '1px solid #dee2e6' }}>
                   {slots.length} Schichten · {totalHelfer} Helfer
-                  {' · '}💡 Balken antippen = Helfer · Ränder ziehen = Zeiten
+                  {' · '}💡 {timeEditMode ? 'Ränder ziehen = Zeiten anpassen, dann oben übernehmen' : 'Balken antippen = Helfer'}
                 </span>
               }
               shifts={slots as any}
@@ -232,8 +335,10 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
               globalStartMin={globalStartMin}
               globalEndMin={globalEndMin}
               editable
+              timeEditMode={timeEditMode}
+              overrides={pendingTimeChanges}
               onShiftClick={s => setSelectedShift(s as any)}
-              onUpdateShiftTime={handleUpdateShiftTime}
+              onStageShiftTime={handleStageShiftTime}
             />
           );
         });

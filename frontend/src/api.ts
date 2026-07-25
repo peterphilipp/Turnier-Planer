@@ -94,6 +94,8 @@ export const removeTournamentClub = (tournamentId: number, clubId: number) =>
 export const getShifts = (tournamentId?: string | number | null) => 
   tournamentId ? apiFetch(`/api/shifts?tournamentId=${tournamentId}`) : Promise.resolve([]);
 export const updateShift = (id: number, data: any) => apiPatch(`/api/shifts/${id}`, data);
+export const updateShiftsBatch = (changes: { id: number; startMin: number; endMin: number }[]) =>
+  apiPatch('/api/shifts/batch', { changes });
 
 export const getVolunteerShifts = (tournamentId?: string | number | null) => 
   tournamentId ? apiFetch(`/api/volunteer-shifts?tournamentId=${tournamentId}`) : Promise.resolve([]);
