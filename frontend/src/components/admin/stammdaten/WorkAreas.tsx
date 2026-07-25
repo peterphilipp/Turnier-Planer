@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getWorkAreas, getWorkAreaCategories, apiPost, apiPatch, apiDelete } from '../../../api';
+import { getWorkAreas, getWorkAreaCategories, apiPost, apiPatch, apiDelete, updateWorkAreaOrder } from '../../../api';
 import { WorkArea, WorkAreaCategory, useSortableData, confirmWithImpact } from '../shared';
 import EditModal from '../EditModal';
+import WorkAreaCategories from './WorkAreaCategories';
 
 const emojiList = ['🏪', '🍳', '🔥', '🎪', '🎯', '⚽', '🍰', '☕', '🥤', '🏆', '📦', '🗑️', '💰', '🎁', '🎵', '🎠', '🧸', '🎴', '🎲', '🏅', '🥇', '🎖️', '📋', '✅', '❌', '⏰', '📍', '📞', '🔧', '📢', '📣', '📝'];
 
@@ -12,11 +13,31 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
   const { data: workAreas = [] } = useQuery<WorkArea[]>({ queryKey: ['workAreas'], queryFn: getWorkAreas });
   const { data: allCategories = [] } = useQuery<WorkAreaCategory[]>({ queryKey: ['work-area-categories'], queryFn: getWorkAreaCategories });
   
-  const { items: sortedWorkAreas, requestSort, getSortIndicator } = useSortableData(workAreas, { key: 'name', direction: 'asc' });
+  const { items: sortedWorkAreas, requestSort, getSortIndicator } = useSortableData(workAreas, { key: 'order', direction: 'asc' });
 
   const [abForm, setAbForm] = useState({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8, categoryIds: [] as number[] });
   const [editingAb, setEditingAb] = useState<number | null>(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+
+  const dragItemIndex = useRef<number | null>(null);
+  const dragOverItemIndex = useRef<number | null>(null);
+
+  const handleSort = async () => {
+    if (dragItemIndex.current === null || dragOverItemIndex.current === null) return;
+    if (dragItemIndex.current === dragOverItemIndex.current) return;
+
+    const _areas = [...sortedWorkAreas];
+    const draggedItem = _areas.splice(dragItemIndex.current, 1)[0];
+    _areas.splice(dragOverItemIndex.current, 0, draggedItem);
+
+    const newOrder = _areas.map(t => t.id);
+    await updateWorkAreaOrder(newOrder);
+    queryClient.invalidateQueries({ queryKey: ['workAreas'] });
+    queryClient.invalidateQueries({ queryKey: ['t-work-areas'] });
+
+    dragItemIndex.current = null;
+    dragOverItemIndex.current = null;
+  };
 
   const saveWorkArea = async () => {
     if (!abForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
@@ -38,9 +59,10 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
   const closeEdit = () => { setEditingAb(null); setAbForm({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8, categoryIds: [] }); setEmojiPickerOpen(false); };
 
   return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>📍 Arbeitsbereiche</h3>
-      
+
       {/* Neue ARB Form */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <input value={abForm.name} onChange={e => setAbForm({ ...abForm, name: e.target.value })} placeholder="Name" style={{ flex: 1, minWidth: 200, padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
@@ -59,10 +81,19 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
       </div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Icon</th><th onClick={() => requestSort('name')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Name{getSortIndicator('name')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Kategorien</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Farbe</th><th onClick={() => requestSort('minVolunteers')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Min{getSortIndicator('minVolunteers')}</th><th onClick={() => requestSort('maxVolunteers')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Max{getSortIndicator('maxVolunteers')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
+        <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ width: 30, padding: '10px 4px', textAlign: 'center' }}>⋮⋮</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Icon</th><th onClick={() => requestSort('name')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Name{getSortIndicator('name')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Kategorien</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Farbe</th><th onClick={() => requestSort('minVolunteers')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Min{getSortIndicator('minVolunteers')}</th><th onClick={() => requestSort('maxVolunteers')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Max{getSortIndicator('maxVolunteers')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
         <tbody>
-          {sortedWorkAreas.map(ab => (
-            <tr key={ab.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+          {sortedWorkAreas.map((ab, idx) => (
+            <tr 
+              key={ab.id} 
+              draggable 
+              onDragStart={() => (dragItemIndex.current = idx)} 
+              onDragEnter={() => (dragOverItemIndex.current = idx)} 
+              onDragEnd={handleSort} 
+              onDragOver={e => e.preventDefault()}
+              style={{ borderBottom: '1px solid #f0f0f0', cursor: 'grab' }}
+            >
+              <td style={{ padding: '10px 4px', cursor: 'grab', color: '#ccc', textAlign: 'center' }}>⋮⋮</td>
               <td style={{ padding: '10px 12px', fontSize: 24, textAlign: 'center' }}>{ab.icon}</td>
               <td style={{ padding: '10px 12px', fontWeight: 500 }}>{ab.name}</td>
               <td style={{ padding: '10px 12px' }}>
@@ -123,7 +154,7 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
                     </label>
                   );
                 })}
-                {allCategories.length === 0 && <span style={{ fontSize: 13, color: '#888' }}>Keine Kategorien vorhanden. Lege zuerst welche unter Stammdaten &gt; Kategorien an.</span>}
+                {allCategories.length === 0 && <span style={{ fontSize: 13, color: '#888' }}>Keine Kategorien vorhanden. Lege weiter unten auf dieser Seite welche an.</span>}
               </div>
             </div>
 
@@ -141,6 +172,9 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
           </div>
         </EditModal>
       )}
+    </div>
+
+    <WorkAreaCategories adminPrimary={adminPrimary} />
     </div>
   );
 }
