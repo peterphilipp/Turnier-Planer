@@ -1,6 +1,5 @@
 import 'express-async-errors'; // Must be at the very top for async error catching
 import express, { Request, Response } from 'express';
-import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import prisma from './config/prisma.js';
@@ -38,10 +37,18 @@ import daySlotRoutes from './routes/daySlot.routes.js';
 import workAreaCategoryRoutes from './routes/workAreaCategory.routes.js';
 // Middleware imports
 import errorHandler from './middleware/errorHandler.js';
+import { securityHeaders, corsMiddleware, globalLimiter } from './middleware/security.js';
 
 const app = express();
 
-app.use(cors());
+// Hinter dem Reverse-Proxy (Produktion) steht die echte Client-IP in
+// X-Forwarded-For. Ohne dies würde das Rate-Limiting alle Nutzer als eine
+// einzige IP (die des Proxys) zählen. 1 = nur dem ersten Hop vertrauen.
+app.set('trust proxy', 1);
+
+app.use(securityHeaders);
+app.use(corsMiddleware);
+app.use(globalLimiter);
 app.use(express.json({ limit: '10mb' }));
 
 // ===================== Endpoints =====================

@@ -7,6 +7,7 @@ import prisma from '../config/prisma.js';
 import { Resend } from 'resend';
 import { logLoginSuccess, logLoginFailed, logPasswordResetRequested, logPasswordResetCompleted, logRegistrationCreated } from '../utils/logger.js';
 import JWT_SECRET from '../config/jwt.js';
+import { authLimiter, pinResetLimiter } from '../middleware/security.js';
 
 function getClientIp(req: express.Request): string | undefined {
   return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() 
@@ -75,7 +76,7 @@ async function createPinPair(): Promise<{ plain: string; hash: string }> {
 const DUMMY_BCRYPT_HASH = '$2b$10$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345';
 
 // POST /api/auth/forgot-password
-router.post('/forgot-password', async (req, res, next) => {
+router.post('/forgot-password', authLimiter, async (req, res, next) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email required' });
@@ -172,7 +173,7 @@ router.post('/forgot-password', async (req, res, next) => {
 });
 
 // POST /api/auth/reset-password
-router.post('/reset-password', async (req, res, next) => {
+router.post('/reset-password', authLimiter, async (req, res, next) => {
   try {
     const { token, newPassword } = req.body;
     if (!token || !newPassword) return res.status(400).json({ error: 'Token und neues Passwort erforderlich' });
@@ -211,7 +212,7 @@ router.post('/reset-password', async (req, res, next) => {
 });
 
 // POST /api/auth/login
-router.post('/login', async (req, res, next) => {
+router.post('/login', authLimiter, async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
     const identifier = email || name;
@@ -523,7 +524,7 @@ router.patch('/profile', async (req, res, next) => {
 });
 
 // POST /api/auth/register
-router.post('/register', async (req, res, next) => {
+router.post('/register', authLimiter, async (req, res, next) => {
   try {
     const { name: rawName, email: rawEmail, phone, password, children, consentGiven } = req.body;
     if (!rawName || !password) return res.status(400).json({ error: 'Fehlende Pflichtfelder (Name & Passwort)' });
@@ -639,7 +640,7 @@ router.post('/push/subscribe', async (req, res, next) => {
 });
 
 // POST /api/auth/reset-by-pin
-router.post('/reset-by-pin', async (req, res, next) => {
+router.post('/reset-by-pin', pinResetLimiter, async (req, res, next) => {
   try {
     const { name, recoveryPin, newPassword } = req.body;
     if (!name || !recoveryPin || !newPassword) return res.status(400).json({ error: 'Name, PIN und neues Passwort erforderlich' });
@@ -686,7 +687,7 @@ router.post('/reset-by-pin', async (req, res, next) => {
 });
 
 // POST /api/auth/forgot-password-push
-router.post('/forgot-password-push', async (req, res, next) => {
+router.post('/forgot-password-push', authLimiter, async (req, res, next) => {
   try {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
