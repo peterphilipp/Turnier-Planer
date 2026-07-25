@@ -9,6 +9,7 @@ import { apiFetch, apiPost, apiPatch, apiDelete } from '../api';
 import PwaInstallPrompt from './PwaInstallPrompt';
 import PushNotificationBanner from './PushNotificationBanner';
 import { formatPhoneNumber } from '../utils/phone';
+import { subscribeToPushNotifications, usePushSubscriptionStatus } from '../utils/push';
 
 interface Shift {
   id: number;
@@ -77,6 +78,8 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   const [sponsorUrl, setSponsorUrl] = useState<string | null>(null);
   const [sponsorLogo, setSponsorLogo] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const { supported: pushSupported, subscribed: pushSubscribed, setSubscribed: setPushSubscribed } = usePushSubscriptionStatus();
+  const [pushMenuLoading, setPushMenuLoading] = useState(false);
   const [activeSection, setActiveSection] = useState<'jobs' | 'verpflegung'>('jobs');
   const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
   const [myDonations, setMyDonations] = useState<FoodDonation[]>([]);
@@ -797,6 +800,39 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                 logout();
               } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler beim Löschen' }); }
             }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>🗑️ Konto löschen (Art. 17 DSGVO)</button>
+            {pushSupported && (
+              pushSubscribed ? (
+                <div style={{ width: '100%', padding: '10px 16px', fontSize: 14, color: '#2e7d32', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  🔔 Push-Benachrichtigungen: Aktiv
+                </div>
+              ) : (
+                <button
+                  disabled={pushMenuLoading}
+                  onClick={async () => {
+                    setPushMenuLoading(true);
+                    try {
+                      const permission = await Notification.requestPermission();
+                      if (permission !== 'granted') {
+                        await modal.alert({ title: 'Hinweis', message: 'Benachrichtigungen wurden im Browser nicht erlaubt. Bitte berechtige die App in den Einstellungen.' });
+                        return;
+                      }
+                      const ok = await subscribeToPushNotifications();
+                      if (!ok) { await modal.alert({ title: 'Fehler', message: 'Konnte Push-Benachrichtigungen nicht aktivieren.' }); return; }
+                      setPushSubscribed(true);
+                      setMenuOpen(false);
+                      await modal.alert({ title: 'Aktiviert 🎉', message: 'Du wirst nun bei Schicht-Änderungen sofort per Push auf diesem Gerät informiert!' });
+                    } catch {
+                      await modal.alert({ title: 'Fehler', message: 'Konnte Push-Benachrichtigungen nicht aktivieren.' });
+                    } finally {
+                      setPushMenuLoading(false);
+                    }
+                  }}
+                  style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: pushMenuLoading ? 'wait' : 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}
+                >
+                  🔔 {pushMenuLoading ? 'Aktivieren...' : 'Push-Benachrichtigungen aktivieren'}
+                </button>
+              )
+            )}
             {isAdmin || isOrganizer ? (
               <button onClick={() => { setMenuOpen(false); if (onLoginAsAdmin) onLoginAsAdmin(); }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>⚙️ Admin-Bereich</button>
             ) : null}

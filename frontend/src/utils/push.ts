@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { getVapidPublicKey, subscribeToPush } from '../api';
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -76,4 +77,27 @@ export async function subscribeToPushNotifications() {
     console.error('Failed to subscribe to push notifications:', error);
     return false;
   }
+}
+
+/**
+ * Liest den aktuellen Push-Status (unterstützt? abonniert?) dieses Geräts.
+ * Eigener Hook statt Prop-Drilling, damit sowohl die Setup-Banner
+ * (PushNotificationBanner.tsx) als auch der Status-Eintrag im Hamburger-Menü
+ * (SelfServiceView.tsx) unabhängig voneinander denselben aktuellen Stand
+ * abfragen können, ohne den State eines der beiden zu verrenken.
+ */
+export function usePushSubscriptionStatus() {
+  const [supported, setSupported] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      setSupported(true);
+      navigator.serviceWorker.ready.then(reg => {
+        reg.pushManager.getSubscription().then(sub => setSubscribed(!!sub));
+      }).catch(() => {});
+    }
+  }, []);
+
+  return { supported, subscribed, setSubscribed };
 }
