@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, ReactNode } from 'react';
 import { minToTime } from '../shared';
 import type { VolunteerShift } from '../shared';
+import { modal } from '../Modal';
 
 /**
  * Gemeinsame Zeitleiste für Schichten (Gantt-Darstellung).
@@ -124,15 +125,28 @@ export default function ShiftTimeline({
     };
 
     const onUp = () => {
-      const changed = drag.curStart !== drag.origStart || drag.curEnd !== drag.origEnd;
+      const { shiftId, type, origStart, origEnd, curStart, curEnd, moved } = drag;
+      // Drag sofort beenden (Balken springt zurück auf die noch unveränderte
+      // Zeit) – die eigentliche Übernahme hängt an der Bestätigung unten.
+      setDrag(null);
+
+      const changed = curStart !== origStart || curEnd !== origEnd;
       if (changed) {
-        onUpdateShiftTime?.(drag.shiftId, drag.curStart, drag.curEnd);
-      } else if (drag.type === 'move' && !drag.moved) {
+        const s = shifts.find(x => x.id === shiftId);
+        const areaName = s?.workArea?.name || s?.arbeitsbereich?.name || '';
+        modal.confirm({
+          title: 'Zeit ändern?',
+          message: `${areaName ? areaName + '\n' : ''}${minToTime(origStart)}–${minToTime(origEnd)} → ${minToTime(curStart)}–${minToTime(curEnd)}\n\nEingeplante Helfer sehen die neue Zeit sofort im Dienstplan.`,
+          confirmText: 'Übernehmen',
+          cancelText: 'Verwerfen'
+        }).then(ok => {
+          if (ok) onUpdateShiftTime?.(shiftId, curStart, curEnd);
+        });
+      } else if (type === 'move' && !moved) {
         // Klick ohne Ziehen = Detailansicht öffnen (Helfer ein-/ausplanen)
-        const s = shifts.find(x => x.id === drag.shiftId);
+        const s = shifts.find(x => x.id === shiftId);
         if (s) onShiftClick?.(s);
       }
-      setDrag(null);
     };
 
     window.addEventListener('mousemove', onMove);
