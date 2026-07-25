@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getFoodDonationSlots, getYearGroups, getFoodCategories, getFoodItems, apiPost, apiPatch, apiDelete } from '../../../api';
-import { btnStyleSecondary, tdStyle, thStyle, btnStyle, inputStyle, FoodDonationSlot, YearGroup, FoodItem, FoodCategory, Tournament } from '../shared';
+import { getFoodDonationSlots, getAllFoodDonations, getYearGroups, getFoodCategories, getFoodItems, apiPost, apiPatch, apiDelete } from '../../../api';
+import { btnStyleSecondary, btnStyle, inputStyle, FoodDonationSlot, FoodDonation, YearGroup, FoodItem, FoodCategory, Tournament } from '../shared';
 
 /** Liefert die aktuelle Fensterbreite und aktualisiert bei Resize. */
 function useWindowWidth() {
@@ -25,7 +25,18 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
     queryFn: () => getFoodDonationSlots(selectedTournament),
     enabled: !!selectedTournament
   });
-  
+
+  // Für die Detailansicht "Wer hat gespendet?" je Ziel, sowie für die
+  // Sichtbarkeit spontaner Spenden ohne Ziel (freie "Zusätzliche
+  // Verpflegung" aus dem Self-Service, die sonst nirgends sichtbar wären).
+  const { data: foodDonationsResp } = useQuery<{ donations: FoodDonation[] }>({
+    queryKey: ['allFoodDonations', selectedTournament],
+    queryFn: () => getAllFoodDonations(selectedTournament),
+    enabled: !!selectedTournament
+  });
+  const foodDonations = foodDonationsResp?.donations || [];
+  const unassignedDonations = foodDonations.filter(d => !d.foodDonationSlotId);
+
   const { data: allYearGroups = [] } = useQuery<YearGroup[]>({ queryKey: ['yearGroups'], queryFn: getYearGroups });
 
   // Nur Jahrgänge des ausgewählten Turniers anzeigen
@@ -34,49 +45,65 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
     return new Set(tournament.yearGroups.map(yg => yg.id));
   }, [tournament]);
 
-  const yearGroups = useMemo(() => 
+  const yearGroups = useMemo(() =>
     allYearGroups.filter(yg => tournamentYearGroupIds.has(yg.id)),
     [allYearGroups, tournamentYearGroupIds]
   );
   const { data: foodCategories = [] } = useQuery<FoodCategory[]>({ queryKey: ['foodCategories'], queryFn: getFoodCategories });
   const { data: foodItems = [] } = useQuery<FoodItem[]>({ queryKey: ['foodItems'], queryFn: getFoodItems });
-  
+
   const [editingSlotId, setEditingSlotId] = useState<number | null>(null);
   const [slotForm, setSlotForm] = useState({ yearGroupIds: [] as number[], categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' });
-  
+
+  // Ziel-Erstellung: eingeklappt, sobald schon Ziele existieren (dann ist es
+  // Alltag, keine Ersteinrichtung mehr) - analog zum Dienstplan.
+  const [createExpandedOverride, setCreateExpandedOverride] = useState<boolean | null>(null);
+  const createExpanded = createExpandedOverride ?? (slots.length === 0);
+
   const [filterYear, setFilterYear] = useState('');
-  const [filterSearch, setFilterSearch] = useState('');
+
+  // Für den Detail-Dialog eines angeklickten Matrix-Feldes (wer hat gespendet,
+  // plus Bearbeiten/Löschen des Ziels selbst).
+  const [selectedSlotDetail, setSelectedSlotDetail] = useState<FoodDonationSlot | null>(null);
+
+  const resetSlotForm = () => setSlotForm({ yearGroupIds: [], categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' });
+
+  const openEditSlot = (slot: FoodDonationSlot) => {
+    setEditingSlotId(slot.id);
+    setSlotForm({ yearGroupIds: [slot.yearGroupId || 0], categoryId: slot.foodItem?.categoryId || 0, foodItemId: slot.foodItemId || 0, targetQuantity: slot.targetQuantity, description: slot.description || '' });
+    setCreateExpandedOverride(true);
+  };
 
   const saveSlot = async () => {
     if (!selectedTournament || slotForm.yearGroupIds.length === 0) {
       return await modal.alert({ title: 'Hinweis', message: 'Bitte mindestens einen Jahrgang wählen.' });
     }
-    
+
     if (editingSlotId) {
-      await apiPatch(`/api/food-donation-slots/${editingSlotId}`, { 
-        yearGroupId: slotForm.yearGroupIds[0], 
+      await apiPatch(`/api/food-donation-slots/${editingSlotId}`, {
+        yearGroupId: slotForm.yearGroupIds[0],
         foodItemId: slotForm.foodItemId || null,
-        targetQuantity: slotForm.targetQuantity, 
-        description: slotForm.description || null 
+        targetQuantity: slotForm.targetQuantity,
+        description: slotForm.description || null
       });
     } else {
       for (const yearGroupId of slotForm.yearGroupIds) {
-        await apiPost('/api/food-donation-slots', { 
-          tournamentId: selectedTournament, 
-          yearGroupId, 
+        await apiPost('/api/food-donation-slots', {
+          tournamentId: selectedTournament,
+          yearGroupId,
           foodItemId: slotForm.foodItemId || null,
-          targetQuantity: slotForm.targetQuantity, 
-          description: slotForm.description || null 
+          targetQuantity: slotForm.targetQuantity,
+          description: slotForm.description || null
         });
       }
     }
     queryClient.invalidateQueries({ queryKey: ['foodDonationSlots', selectedTournament] });
-    setSlotForm(prev => ({ ...prev, categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' }));
+    resetSlotForm();
     setEditingSlotId(null);
   };
 
   const deleteSlot = async (id: number) => {
-    if (!(await modal.confirm({ title: 'Slot löschen', message: 'Möchtest du diesen Slot wirklich löschen?', variant: 'danger' }))) return;
+    if (!(await modal.confirm({ title: 'Ziel löschen', message: 'Möchtest du dieses Verpflegungs-Ziel wirklich löschen?', variant: 'danger' }))) return;
     await apiDelete(`/api/food-donation-slots/${id}`);
     queryClient.invalidateQueries({ queryKey: ['foodDonationSlots', selectedTournament] });
   };
@@ -84,42 +111,6 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
   if (!selectedTournament) {
     return <div style={{ padding: 24, background: '#fff', borderRadius: 16 }}>Bitte wähle zunächst oben ein Turnier aus.</div>;
   }
-
-  const sortedSlots = [...slots].sort((a, b) => {
-    const aYear = a.yearGroup?.name || '';
-    const bYear = b.yearGroup?.name || '';
-    return aYear.localeCompare(bYear);
-  });
-
-  const filteredSlots = sortedSlots.filter(s => {
-    const yearName = s.yearGroup?.name || '';
-    if (filterYear && !yearName.toLowerCase().includes(filterYear.toLowerCase())) return false;
-    if (filterSearch && !yearName.toLowerCase().includes(filterSearch.toLowerCase())) return false;
-    return true;
-  });
-
-  // Nach Jahrgang gruppieren
-  const groupedByYear = useMemo(() => {
-    const groups: Record<string, FoodDonationSlot[]> = {};
-    filteredSlots.forEach(slot => {
-      const key = slot.yearGroup?.name || 'Ohne Jahrgang';
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(slot);
-    });
-    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
-  }, [filteredSlots]);
-
-  // Gesamtsummen pro Jahrgang berechnen
-  const totalsByYear = useMemo(() => {
-    const totals: Record<string, { target: number; collected: number }> = {};
-    filteredSlots.forEach(slot => {
-      const key = slot.yearGroup?.name || 'Ohne Jahrgang';
-      if (!totals[key]) totals[key] = { target: 0, collected: 0 };
-      totals[key].target += slot.targetQuantity;
-      totals[key].collected += slot.collected;
-    });
-    return totals;
-  }, [filteredSlots]);
 
   // Artikel nach Kategorie filtern
   const filteredItems = slotForm.categoryId
@@ -134,10 +125,22 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
     }));
   };
 
-  const getYearName = (id: number | null) => {
-    if (!id) return 'Ohne Jahrgang';
-    return yearGroups.find(yg => yg.id === id)?.name || `Jahrgang #${id}`;
-  };
+  // Matrix: Zeilen = Jahrgänge, Spalten = Lebensmittel. "Ohne Jahrgang"/"Alle
+  // Artikel" (kein yearGroupId bzw. kein foodItemId) landen als eigene
+  // Zeile/Spalte am Ende, statt zu verschwinden.
+  const yearGroupKey = (yg: FoodDonationSlot['yearGroup']) => yg?.id ?? -1;
+  const itemKey = (item: FoodDonationSlot['foodItem']) => item?.id ?? -1;
+
+  const yearGroupsMap = new Map<number, { id: number; name: string }>();
+  const itemsMap = new Map<number, { id: number; name: string; icon: string; unit: string }>();
+  for (const slot of slots) {
+    yearGroupsMap.set(yearGroupKey(slot.yearGroup), { id: yearGroupKey(slot.yearGroup), name: slot.yearGroup?.name || 'Ohne Jahrgang' });
+    itemsMap.set(itemKey(slot.foodItem), { id: itemKey(slot.foodItem), name: slot.foodItem?.name || 'Alle Artikel', icon: slot.foodItem?.category?.icon || '🍽️', unit: slot.foodItem?.unit || 'Stk' });
+  }
+  const allRows = [...yearGroupsMap.values()].sort((a, b) => a.id === -1 ? 1 : b.id === -1 ? -1 : a.name.localeCompare(b.name));
+  const rows = filterYear ? allRows.filter(r => r.name.toLowerCase().includes(filterYear.toLowerCase())) : allRows;
+  const cols = [...itemsMap.values()].sort((a, b) => a.id === -1 ? 1 : b.id === -1 ? -1 : a.name.localeCompare(b.name));
+  const slotAt = (ygId: number, itId: number) => slots.find(s => yearGroupKey(s.yearGroup) === ygId && itemKey(s.foodItem) === itId);
 
   // Geteilt zwischen "neuen Slot anlegen" (inline oben) und "Slot bearbeiten"
   // (Modal, siehe unten) - vermeidet, denselben Formular-Code zweimal zu pflegen.
@@ -205,10 +208,10 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
 
         <div style={{ marginTop: 10 }}>
           <button onClick={saveSlot} style={{ padding: '10px 24px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 15, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-            {editingSlotId ? '💾 Slot speichern' : `➕ ${slotForm.yearGroupIds.length} Slot${slotForm.yearGroupIds.length > 1 ? 's' : ''} erstellen`}
+            {editingSlotId ? '💾 Ziel speichern' : `➕ ${slotForm.yearGroupIds.length} Ziel${slotForm.yearGroupIds.length === 1 ? '' : 'e'} erstellen`}
           </button>
           {editingSlotId && (
-            <button onClick={() => { setEditingSlotId(null); setSlotForm({ yearGroupIds: [], categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' }); }} style={{ ...btnStyleSecondary, marginLeft: 10, padding: '10px 20px' }}>Abbrechen</button>
+            <button onClick={() => { setEditingSlotId(null); resetSlotForm(); }} style={{ ...btnStyleSecondary, marginLeft: 10, padding: '10px 20px' }}>Abbrechen</button>
           )}
         </div>
     </div>
@@ -216,138 +219,182 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
 
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-      <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>🍰 Verpflegungsziele erstellen (turnierweit)</h3>
-      <p style={{ color: '#666', fontSize: 14, marginBottom: 20 }}>Lege hier fest, welche Jahrgänge während des gesamten Turniers welche Verpflegung beitragen sollen. Wer konkret was gespendet hat, siehst du im Dienstplan.</p>
+      {/* Ziel-Erstellung: eingeklappt, sobald schon Ziele existieren (dann ist
+          es Alltag, keine Ersteinrichtung mehr), aber jederzeit auf einen
+          Klick erreichbar, ohne die Seite zu verlassen - analog zum
+          Dienstplan ("Turnier-Einrichtung"). */}
+      <div style={{ marginBottom: 24, border: '1px solid #e9ecef', borderRadius: 12, overflow: 'hidden' }}>
+        <button
+          onClick={() => setCreateExpandedOverride(!createExpanded)}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', background: '#f8f9fa', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+        >
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#212557' }}>🍰 Verpflegungsziele erstellen</span>
+          <span style={{ fontSize: 13, color: '#6c757d' }}>Welche Jahrgänge sollen welche Verpflegung beitragen?</span>
+          <span style={{ flex: 1 }} />
+          <span style={{ fontSize: 18, color: '#6c757d', transition: 'transform 0.2s', display: 'inline-block', transform: createExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>›</span>
+        </button>
 
-      {/* Neuen Slot anlegen: inline oben. Einen bestehenden Slot bearbeiten:
-          Modal (siehe unten) statt Scroll-zurück-nach-oben - man springt beim
-          Bearbeiten sonst quer durch eine ggf. lange Seite. */}
-      {!editingSlotId && <div style={{ marginBottom: 30 }}>{formContent}</div>}
+        {createExpanded && (
+          <div style={{ padding: 20 }}>
+            <p style={{ color: '#666', fontSize: 14, marginTop: 0 }}>Lege hier fest, welche Jahrgänge während des gesamten Turniers welche Verpflegung beitragen sollen. Wer konkret was gespendet hat, siehst du unten in der Matrix.</p>
+            {!editingSlotId && formContent}
+          </div>
+        )}
+      </div>
 
+      {/* Slot bearbeiten: eigenes Modal statt inline, damit man beim Klick auf
+          "✏️ Bearbeiten" in der Matrix nicht quer durch die Seite scrollen muss. */}
       {editingSlotId && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}>
           <div style={{ background: '#fff', borderRadius: isMobile ? '16px 16px 0 0' : 16, width: '100%', maxWidth: isMobile ? undefined : 560, maxHeight: isMobile ? '92vh' : '90vh', overflowY: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #e9ecef', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8f9fa' }}>
-              <div style={{ fontSize: 18, fontWeight: 'bold', color: '#212529' }}>✏️ Slot bearbeiten</div>
-              <button onClick={() => { setEditingSlotId(null); setSlotForm({ yearGroupIds: [], categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' }); }} style={{ border: 'none', background: 'transparent', fontSize: 24, lineHeight: 1, cursor: 'pointer', color: '#adb5bd' }}>×</button>
+              <div style={{ fontSize: 18, fontWeight: 'bold', color: '#212529' }}>✏️ Ziel bearbeiten</div>
+              <button onClick={() => { setEditingSlotId(null); resetSlotForm(); }} style={{ border: 'none', background: 'transparent', fontSize: 24, lineHeight: 1, cursor: 'pointer', color: '#adb5bd' }}>×</button>
             </div>
             <div style={{ padding: 20 }}>{formContent}</div>
           </div>
         </div>
       )}
 
-      <hr style={{ border: 'none', borderTop: '1px solid #e9ecef', margin: '30px 0' }} />
-      <h4 style={{ fontSize: 16, marginBottom: 16 }}>Vorhandene Slots ({filteredSlots.length})</h4>
-
-      {/* Filter */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-        <input placeholder="Jahrgang filtern" value={filterYear} onChange={e => setFilterYear(e.target.value)} style={inputStyle} />
-        <input placeholder="Suchen..." value={filterSearch} onChange={e => setFilterSearch(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+      {/* Matrix: Zeilen = Jahrgänge, Spalten = Lebensmittel. Kompakter und pro
+          Jahrgang besser überblickbar als eine lange Liste. Klick auf eine
+          Zelle öffnet den Detail-Dialog (wer hat gespendet, bearbeiten, löschen). */}
+      <h4 style={{ fontSize: 16, marginBottom: 12, color: '#212529' }}>Übersicht ({slots.length} Ziele)</h4>
+      <div style={{ marginBottom: 16 }}>
+        <input placeholder="Jahrgang filtern" value={filterYear} onChange={e => setFilterYear(e.target.value)} style={{ ...inputStyle, maxWidth: 240 }} />
       </div>
 
-      {/* Tabelle mit Jahrgang-Hierarchie */}
-      <div style={{ overflowX: isMobile ? undefined : 'auto' }}>
-        {groupedByYear.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>Keine Verpflegungs-Slots gefunden.</div>
-        ) : (
-          groupedByYear.map(([yearName, slots]) => {
-            const totals = totalsByYear[yearName] || { target: 0, collected: 0 };
-            const progress = totals.target > 0 ? Math.min(100, (totals.collected / totals.target) * 100) : 0;
-            return (
-              <div key={yearName} style={{ marginBottom: 24 }}>
-                <h4 style={{ background: '#f8f9fa', padding: '12px 16px', borderRadius: 10, marginTop: 0, fontSize: 16, fontWeight: '600', borderLeft: '4px solid ' + adminPrimary }}>
-                  {yearName} <span style={{ float: 'right', fontSize: 14, color: '#666' }}>{totals.collected} / {totals.target} gesamt</span>
-                </h4>
-                <div style={{ background: '#e9ecef', borderRadius: 4, height: 12, overflow: 'hidden', marginBottom: 12 }}>
-                  <div style={{ 
-                    width: `${progress}%`,
-                    height: '100%',
-                    background: progress >= 100 ? '#198754' : '#ffc107',
-                    borderRadius: 4
-                  }}></div>
-                </div>
+      {slots.length === 0 ? (
+        <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>Noch keine Verpflegungs-Ziele angelegt.</div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr>
+                <th style={{ position: 'sticky', left: 0, background: '#fff', textAlign: 'left', padding: '4px 10px 8px 0', borderBottom: '2px solid #e9ecef', verticalAlign: 'bottom' }}>Jahrgang</th>
+                {cols.map(col => (
+                  <th key={col.id} style={{ height: 120, minWidth: 34, maxWidth: 34, padding: 0, borderBottom: '2px solid #e9ecef', verticalAlign: 'bottom', overflow: 'visible' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-end', height: '100%' }}>
+                      <div style={{ transform: 'rotate(-45deg)', transformOrigin: 'bottom left', whiteSpace: 'nowrap', fontWeight: 600, color: '#495057', paddingBottom: 4 }}>
+                        {col.icon} {col.name}
+                      </div>
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(row => (
+                <tr key={row.id}>
+                  <td style={{ position: 'sticky', left: 0, background: '#fff', fontWeight: 600, padding: '4px 10px 4px 0', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' }}>{row.name}</td>
+                  {cols.map(col => {
+                    const slot = slotAt(row.id, col.id);
+                    if (!slot) return <td key={col.id} style={{ textAlign: 'center', color: '#dee2e6', borderBottom: '1px solid #f0f0f0' }}>–</td>;
+                    const isDone = slot.collected >= slot.targetQuantity;
+                    const hasProgress = slot.collected > 0;
+                    return (
+                      <td key={col.id} style={{ textAlign: 'center', borderBottom: '1px solid #f0f0f0', padding: 2 }}>
+                        <button
+                          onClick={() => setSelectedSlotDetail(slot)}
+                          title={`${row.name} – ${col.icon} ${col.name}: ${slot.collected}/${slot.targetQuantity} ${col.unit}`}
+                          style={{
+                            width: 30, height: 26, border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 11,
+                            background: isDone ? '#d4edda' : hasProgress ? '#fff3cd' : '#f8d7da',
+                            color: isDone ? '#155724' : hasProgress ? '#856404' : '#721c24'
+                          }}
+                        >
+                          {slot.collected}/{slot.targetQuantity}
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-                {isMobile ? (
-                  // Mobile: Kacheln statt Tabelle
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {slots.map(slot => {
-                      const slotProgress = slot.targetQuantity > 0 ? Math.min(100, (slot.collected / slot.targetQuantity) * 100) : 0;
-                      const isDone = slot.collected >= slot.targetQuantity;
-                      return (
-                        <div key={slot.id} style={{ background: isDone ? '#f0fdf4' : '#fff', border: `1px solid ${isDone ? '#86efac' : '#e9ecef'}`, borderRadius: 12, padding: '14px 16px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                            <div style={{ fontWeight: 600, fontSize: 15, color: '#212529' }}>
-                              {slot.foodItem ? `${slot.foodItem.category?.icon ?? '🍽️'} ${slot.foodItem.name}` : 'Alle'}
-                            </div>
-                            <span style={{ fontWeight: 700, fontSize: 14, color: isDone ? '#155724' : '#856404' }}>
-                              {isDone ? '✅' : '⚠️'} {slot.collected}/{slot.targetQuantity} {slot.foodItem?.unit || 'Stk'}
-                            </span>
+      {unassignedDonations.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <h5 style={{ fontSize: 14, color: '#212529', marginBottom: 10 }}>🎁 Zusätzliche Spenden (ohne Ziel)</h5>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {unassignedDonations.map(d => (
+              <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8f9fa', borderRadius: 8, border: '1px solid #e9ecef', fontSize: 13, flexWrap: 'wrap', gap: 8 }}>
+                <div>
+                  <strong>{d.user?.name || 'Unbekannt'}</strong>: {d.foodItem?.category?.icon ?? '🍽️'} {d.foodItem?.name} × {d.quantity} {d.foodItem?.unit || 'Stk'}
+                  {d.note && <span style={{ color: '#6c757d' }}> – "{d.note}"</span>}
+                </div>
+                <span style={{ color: '#adb5bd' }}>{new Date(d.createdAt).toLocaleDateString('de-DE')}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Detail-Dialog für eine angeklickte Matrix-Zelle: wer hat gespendet,
+          plus Bearbeiten/Löschen des Ziels selbst. */}
+      {selectedSlotDetail && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}>
+          <div style={{ background: '#fff', borderRadius: isMobile ? '16px 16px 0 0' : 16, width: '100%', maxWidth: isMobile ? undefined : 500, boxShadow: '0 10px 40px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: isMobile ? '92vh' : '90vh' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e9ecef', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8f9fa' }}>
+              <div style={{ fontSize: 18, fontWeight: 'bold', color: '#212529' }}>
+                {selectedSlotDetail.foodItem ? `${selectedSlotDetail.foodItem.category?.icon ?? '🍽️'} ${selectedSlotDetail.foodItem.name}` : '🍽️ Alle Artikel'}
+              </div>
+              <button onClick={() => setSelectedSlotDetail(null)} style={{ border: 'none', background: 'transparent', fontSize: 24, lineHeight: 1, cursor: 'pointer', color: '#adb5bd' }}>×</button>
+            </div>
+
+            <div style={{ padding: 20, overflowY: 'auto' }}>
+              <div style={{ marginBottom: 20, color: '#666', fontSize: 14 }}>
+                {selectedSlotDetail.yearGroup?.name || 'Ohne Jahrgang'} · {selectedSlotDetail.collected}/{selectedSlotDetail.targetQuantity} {selectedSlotDetail.foodItem?.unit || 'Stk'}
+                {selectedSlotDetail.description && <div style={{ marginTop: 4, fontStyle: 'italic' }}>{selectedSlotDetail.description}</div>}
+              </div>
+
+              <h4 style={{ margin: '0 0 12px 0', color: '#212529' }}>Spenden für dieses Ziel</h4>
+              {(() => {
+                const slotDonations = foodDonations.filter(d => d.foodDonationSlotId === selectedSlotDetail.id);
+                if (slotDonations.length === 0) return <div style={{ color: '#adb5bd', fontStyle: 'italic' }}>Noch keine Spenden für dieses Ziel.</div>;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {slotDonations.map(d => (
+                      <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8f9fa', borderRadius: 8, border: '1px solid #e9ecef' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#0d6efd', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 14 }}>
+                            {d.user?.name?.charAt(0).toUpperCase() || '?'}
                           </div>
-                          <div style={{ background: '#e9ecef', borderRadius: 4, height: 10, overflow: 'hidden', marginBottom: 12 }}>
-                            <div style={{ width: `${slotProgress}%`, height: '100%', background: isDone ? '#198754' : '#ffc107', borderRadius: 4 }}></div>
-                          </div>
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button
-                              onClick={() => {
-                                setEditingSlotId(slot.id);
-                                setSlotForm({ yearGroupIds: [slot.yearGroupId || 0], categoryId: slot.foodItem?.categoryId || 0, foodItemId: slot.foodItemId || 0, targetQuantity: slot.targetQuantity, description: slot.description || '' });
-                              }}
-                              style={{ flex: 1, minHeight: 44, padding: '10px 0', background: '#fff3cd', color: '#856404', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
-                            >✏️ Bearbeiten</button>
-                            <button
-                              onClick={() => deleteSlot(slot.id)}
-                              style={{ minWidth: 44, minHeight: 44, padding: '10px 14px', background: '#ffe3e3', color: '#dc3545', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
-                            >🗑️</button>
+                          <div>
+                            <div style={{ fontWeight: '600', color: '#212529' }}>{d.user?.name || 'Unbekannt'}</div>
+                            {d.note && <div style={{ fontSize: 12, color: '#6c757d' }}>„{d.note}"</div>}
                           </div>
                         </div>
-                      );
-                    })}
+                        <div style={{ fontWeight: 600, color: '#212529' }}>{d.quantity} {selectedSlotDetail.foodItem?.unit || 'Stk'}</div>
+                      </div>
+                    ))}
                   </div>
-                ) : (
-                  // Tablet/Desktop: Tabelle
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, borderLeft: '2px solid #e9ecef' }}>
-                    <thead>
-                      <tr>
-                        <th style={{ ...thStyle, background: '#f8f9fa' }}>Verpflegung</th>
-                        <th style={{ ...thStyle, background: '#f8f9fa' }}>Soll</th>
-                        <th style={{ ...thStyle, background: '#f8f9fa' }}>Ist</th>
-                        <th style={{ ...thStyle, background: '#f8f9fa' }}>Fortschritt</th>
-                        <th style={{ ...thStyle, background: '#f8f9fa' }}>Aktion</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {slots.map(slot => (
-                        <tr key={slot.id} style={{ borderBottom: '1px solid #eee' }}>
-                          <td style={tdStyle}>{slot.foodItem ? `${slot.foodItem.category?.icon ?? '🍽️'} ${slot.foodItem.name}` : 'Alle'}</td>
-                          <td style={tdStyle}>{slot.targetQuantity} <span style={{ color: '#666', fontSize: 12 }}>{slot.foodItem?.unit || 'Stk'}</span></td>
-                          <td style={tdStyle}>{slot.collected} <span style={{ color: '#666', fontSize: 12 }}>{slot.foodItem?.unit || 'Stk'}</span></td>
-                          <td style={tdStyle}>
-                            <div style={{ background: '#e9ecef', borderRadius: 4, height: 8, overflow: 'hidden', width: 100 }}>
-                              <div style={{ 
-                                width: `${slot.targetQuantity > 0 ? Math.min(100, (slot.collected / slot.targetQuantity) * 100) : 0}%`,
-                                height: '100%',
-                                background: slot.collected >= slot.targetQuantity ? '#198754' : '#ffc107',
-                                borderRadius: 4
-                              }}></div>
-                            </div>
-                          </td>
-                          <td style={tdStyle}>
-                            <button onClick={() => {
-                              setEditingSlotId(slot.id);
-                              setSlotForm({ yearGroupIds: [slot.yearGroupId || 0], categoryId: slot.foodItem?.categoryId || 0, foodItemId: slot.foodItemId || 0, targetQuantity: slot.targetQuantity, description: slot.description || '' });
-                            }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', marginRight: 6 }}>✏️</button>
-                            <button onClick={() => deleteSlot(slot.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>🗑️</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+                );
+              })()}
+            </div>
+
+            <div style={{ padding: '16px 20px', borderTop: '1px solid #e9ecef', background: '#f8f9fa', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => { const s = selectedSlotDetail; setSelectedSlotDetail(null); openEditSlot(s); }}
+                  style={{ padding: '12px 16px', minHeight: 44, background: '#fff3cd', color: '#856404', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  ✏️ Bearbeiten
+                </button>
+                <button
+                  onClick={async () => { const id = selectedSlotDetail.id; setSelectedSlotDetail(null); await deleteSlot(id); }}
+                  style={{ padding: '12px 16px', minHeight: 44, background: '#ffe3e3', color: '#dc3545', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  🗑️ Löschen
+                </button>
               </div>
-            );
-          })
-        )}
-      </div>
+              <button onClick={() => setSelectedSlotDetail(null)} style={{ padding: '12px 20px', minHeight: 44, minWidth: 100, background: '#6c757d', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold' }}>Schließen</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
