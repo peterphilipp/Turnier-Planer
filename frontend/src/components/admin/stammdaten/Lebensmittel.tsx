@@ -7,6 +7,7 @@ import type { FoodCategory, FoodItem } from '../shared';
 import EditModal from '../EditModal';
 
 const EMOJI_PICKER = ['🍞', '🥖', '🧀', '🥩', '🐟', '🥚', '🥛', '🍰', '🎂', '🍪', '🍫', '☕', '🍵', '🧃', '🍺', '🥤', '🍎', '🍌', '🥬', '🥕', '🍅', '🧅', '🥔', '🌽', '🍄', '🫒', '🧈', '🍯', '🧂', '🥜'];
+const FOOD_UNITS = ['Stk', 'Portion', 'Packung', 'kg', 'Liter', 'Tüte', 'Set'];
 
 interface LebensmittelProps {
   adminPrimary: string;
@@ -31,11 +32,20 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
   const { items: sortedItems, requestSort: sortItem, getSortIndicator: getItemInd } = useSortableData(foodItems, { key: 'name', direction: 'asc' });
 
   // Kategorien actions
+  //
+  // Verpflegungs-Slots (FoodDonationSlots.tsx) laden Kategorie/Artikel nicht
+  // separat, sondern eingebettet in ihre eigene foodDonationSlots-Abfrage
+  // (include: { foodItem: { include: { category: true } } }) - ein reines
+  // invalidateQueries(['foodItems']/['foodCategories']) aktualisiert nur die
+  // Listen hier auf dieser Seite. Ohne die zusätzliche Invalidierung unten
+  // blieb ein umbenannter Artikel/eine umbenannte Kategorie dort so lange
+  // beim alten Namen, bis die Seite neu geladen wurde.
   const saveFoodCategory = async () => {
     if (!foodCatForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
     if (editingFoodCat) { await apiPatch(`/api/food/categories/${editingFoodCat}`, foodCatForm); }
     else { await apiPost('/api/food/categories', foodCatForm); }
     queryClient.invalidateQueries({ queryKey: ['foodCategories'] });
+    queryClient.invalidateQueries({ queryKey: ['foodDonationSlots'] });
     setFoodCatForm({ name: '', icon: '🍽️', order: 0 });
     setEditingFoodCat(null);
   };
@@ -45,6 +55,7 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
     await apiDelete(`/api/food/categories/${cat.id}`);
     queryClient.invalidateQueries({ queryKey: ['foodCategories'] });
     queryClient.invalidateQueries({ queryKey: ['foodItems'] });
+    queryClient.invalidateQueries({ queryKey: ['foodDonationSlots'] });
   };
 
   // Artikel actions
@@ -55,6 +66,7 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
       if (editingFoodItem) { await apiPatch(`/api/food/items/${editingFoodItem}`, foodItemForm); }
       else { await apiPost('/api/food/items', foodItemForm); }
       queryClient.invalidateQueries({ queryKey: ['foodItems'] });
+      queryClient.invalidateQueries({ queryKey: ['foodDonationSlots'] });
       setFoodItemForm({ categoryId: 0, name: '', price: '', unit: 'Stk' });
       setEditingFoodItem(null);
     } catch (err) { await modal.alert({ title: 'Fehler', message: `Speichern fehlgeschlagen: ${(err as Error).message}` }); }
@@ -64,6 +76,7 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
     if (!(await confirmWithImpact('foodItem', item.id, item.name))) return;
     await apiDelete(`/api/food/items/${item.id}`);
     queryClient.invalidateQueries({ queryKey: ['foodItems'] });
+    queryClient.invalidateQueries({ queryKey: ['foodDonationSlots'] });
   };
 
   const selectEmoji = (emoji: string) => { setFoodCatForm(f => ({ ...f, icon: emoji })); setShowEmojiPicker(false); };
@@ -147,7 +160,7 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
           <input value={foodItemForm.name} onChange={e => setFoodItemForm(f => ({ ...f, name: e.target.value }))} placeholder="Artikelname" style={{ flex: 1, minWidth: 150, padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
           <input value={foodItemForm.price} onChange={e => setFoodItemForm(f => ({ ...f, price: e.target.value }))} placeholder="Preis" type="number" step="0.01" style={{ width: 90, padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
           <select value={foodItemForm.unit} onChange={e => setFoodItemForm(f => ({ ...f, unit: e.target.value }))} style={{ padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }}>
-            <option value="Stk">Stk</option><option value="kg">kg</option><option value="L">L</option><option value="Tüte">Tüte</option><option value="Set">Set</option>
+            {FOOD_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
           <button onClick={saveFoodItem} style={{ padding: '14px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, minHeight: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
             <span>➕</span><span>Hinzufügen</span>
@@ -187,7 +200,7 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <input value={foodItemForm.price} onChange={e => setFoodItemForm(f => ({ ...f, price: e.target.value }))} placeholder="Preis" type="number" step="0.01" style={{ padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
                 <select value={foodItemForm.unit} onChange={e => setFoodItemForm(f => ({ ...f, unit: e.target.value }))} style={{ padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }}>
-                  <option value="Stk">Stk</option><option value="kg">kg</option><option value="L">L</option><option value="Tüte">Tüte</option><option value="Set">Set</option>
+                  {FOOD_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid #e9ecef' }}>

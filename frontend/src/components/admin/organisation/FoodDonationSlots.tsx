@@ -139,13 +139,10 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
     return yearGroups.find(yg => yg.id === id)?.name || `Jahrgang #${id}`;
   };
 
-  return (
-    <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-      <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>Verpflegungs-Slots (turnierweit)</h3>
-      <p style={{ color: '#666', fontSize: 14, marginBottom: 20 }}>Lege hier fest, welche Jahrgänge während des gesamten Turniers welche Verpflegung beitragen sollen.</p>
-
-      {/* Formular für Verpflegungs-Slots */}
-      <div style={{ background: '#f8f9fa', padding: 20, borderRadius: 12, marginBottom: 30, display: 'flex', flexDirection: 'column', gap: 16 }}>
+  // Geteilt zwischen "neuen Slot anlegen" (inline oben) und "Slot bearbeiten"
+  // (Modal, siehe unten) - vermeidet, denselben Formular-Code zweimal zu pflegen.
+  const formContent = (
+    <div style={{ background: '#f8f9fa', padding: 20, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
           <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>1. Jahrgang(e) {editingSlotId ? '(Nur einer)' : '(Mehrfachauswahl)'}</label>
           <p style={{ color: '#666', fontSize: 12, marginBottom: 8 }}>{yearGroups.length} von {allYearGroups.length} Jahrgängen (Turnier-Jahrgänge)</p>
@@ -214,11 +211,34 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
             <button onClick={() => { setEditingSlotId(null); setSlotForm({ yearGroupIds: [], categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' }); }} style={{ ...btnStyleSecondary, marginLeft: 10, padding: '10px 20px' }}>Abbrechen</button>
           )}
         </div>
-      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
+      <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>Verpflegungs-Slots (turnierweit)</h3>
+      <p style={{ color: '#666', fontSize: 14, marginBottom: 20 }}>Lege hier fest, welche Jahrgänge während des gesamten Turniers welche Verpflegung beitragen sollen.</p>
+
+      {/* Neuen Slot anlegen: inline oben. Einen bestehenden Slot bearbeiten:
+          Modal (siehe unten) statt Scroll-zurück-nach-oben - man springt beim
+          Bearbeiten sonst quer durch eine ggf. lange Seite. */}
+      {!editingSlotId && <div style={{ marginBottom: 30 }}>{formContent}</div>}
+
+      {editingSlotId && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}>
+          <div style={{ background: '#fff', borderRadius: isMobile ? '16px 16px 0 0' : 16, width: '100%', maxWidth: isMobile ? undefined : 560, maxHeight: isMobile ? '92vh' : '90vh', overflowY: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e9ecef', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8f9fa' }}>
+              <div style={{ fontSize: 18, fontWeight: 'bold', color: '#212529' }}>✏️ Slot bearbeiten</div>
+              <button onClick={() => { setEditingSlotId(null); setSlotForm({ yearGroupIds: [], categoryId: 0, foodItemId: 0, targetQuantity: 0, description: '' }); }} style={{ border: 'none', background: 'transparent', fontSize: 24, lineHeight: 1, cursor: 'pointer', color: '#adb5bd' }}>×</button>
+            </div>
+            <div style={{ padding: 20 }}>{formContent}</div>
+          </div>
+        </div>
+      )}
 
       <hr style={{ border: 'none', borderTop: '1px solid #e9ecef', margin: '30px 0' }} />
       <h4 style={{ fontSize: 16, marginBottom: 16 }}>Vorhandene Slots ({filteredSlots.length})</h4>
-      
+
       {/* Filter */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
         <input placeholder="Jahrgang filtern" value={filterYear} onChange={e => setFilterYear(e.target.value)} style={inputStyle} />
@@ -271,7 +291,6 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
                               onClick={() => {
                                 setEditingSlotId(slot.id);
                                 setSlotForm({ yearGroupIds: [slot.yearGroupId || 0], categoryId: slot.foodItem?.categoryId || 0, foodItemId: slot.foodItemId || 0, targetQuantity: slot.targetQuantity, description: slot.description || '' });
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
                               }}
                               style={{ flex: 1, minHeight: 44, padding: '10px 0', background: '#fff3cd', color: '#856404', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
                             >✏️ Bearbeiten</button>
@@ -316,7 +335,6 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
                             <button onClick={() => {
                               setEditingSlotId(slot.id);
                               setSlotForm({ yearGroupIds: [slot.yearGroupId || 0], categoryId: slot.foodItem?.categoryId || 0, foodItemId: slot.foodItemId || 0, targetQuantity: slot.targetQuantity, description: slot.description || '' });
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
                             }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', marginRight: 6 }}>✏️</button>
                             <button onClick={() => deleteSlot(slot.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>🗑️</button>
                           </td>

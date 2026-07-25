@@ -566,8 +566,11 @@ router.post('/register', authLimiter, async (req, res, next) => {
     const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
     const isFirstAdmin = adminCount === 0;
 
-    // Recovery-PIN: kryptographisch erzeugt, in der DB nur als bcrypt-Hash
-    const pin = await createPinPair();
+    // Recovery-PIN: nur nötig, wenn keine E-Mail hinterlegt ist - mit E-Mail
+    // läuft die Passwort-Wiederherstellung über /forgot-password. Ein PIN, den
+    // der Nutzer nie braucht, ist nur eine verwirrende Extra-Anzeige bei der
+    // Registrierung und ein unnötiger zweiter Zugangsweg zum Account.
+    const pin = email ? null : await createPinPair();
 
     const hashed = await bcrypt.hash(password, 10);
     const createData: any = {
@@ -575,7 +578,7 @@ router.post('/register', authLimiter, async (req, res, next) => {
       email: email || null,
       phone: phone || null,
       password: hashed,
-      recoveryPin: pin.hash,
+      recoveryPin: pin?.hash ?? null,
       role: (isFirstAdmin || isForcedAdmin) ? 'ADMIN' : 'HELPER',
       tournamentId: activeTournament?.id || null,
       consentGiven: true,
@@ -606,7 +609,12 @@ router.post('/register', authLimiter, async (req, res, next) => {
     // Einmalige Ausnahme: der PIN im KLARTEXT (nicht der DB-Hash!), damit das
     // Frontend ihn dem Nutzer direkt nach der Registrierung anzeigen kann.
     // Danach ist er nirgends mehr abrufbar – in der DB liegt nur der Hash.
-    res.status(201).json({ token, user: { ...sanitizeUser(user), recoveryPin: pin.plain } });
+    // Ohne PIN (E-Mail-Fall) taucht das Feld im Response gar nicht erst auf,
+    // statt mit `undefined`/`null` befüllt zu sein - das Frontend prüft nur
+    // `data.user?.recoveryPin` und würde sonst ohnehin korrekt keinen PIN-
+    // Screen zeigen, aber so bleibt die Absicht im Objekt selbst sichtbar.
+    const responseUser = pin ? { ...sanitizeUser(user), recoveryPin: pin.plain } : sanitizeUser(user);
+    res.status(201).json({ token, user: responseUser });
   } catch (err) {
     next(err);
   }

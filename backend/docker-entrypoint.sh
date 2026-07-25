@@ -13,6 +13,9 @@ node scripts/backfill-slot-provenance.cjs
 echo "  Recovery-PINs hashen (falls noch im Klartext gespeichert)..."
 node scripts/migrate-hash-recovery-pins.cjs
 
+echo "  Lebensmittel-Einheit 'L' auf 'Liter' umstellen..."
+node scripts/migrate-food-unit-liter.cjs
+
 echo "  Standarddaten importieren (Ignition Phase)..."
 npx prisma db seed
 

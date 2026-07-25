@@ -168,6 +168,17 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   };
 
+  /** Dezenter Füllgrad-Balken am unteren Rand einer Schicht-Kachel (0 belegt = rot, teilweise = gelb, voll = grün). */
+  const FillBar = ({ assigned, max }: { assigned: number; max: number }) => {
+    const ratio = max > 0 ? Math.min(1, assigned / max) : 0;
+    const color = ratio >= 1 ? '#198754' : ratio > 0 ? '#ffc107' : '#dc3545';
+    return (
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, background: '#e9ecef' }}>
+        <div style={{ width: `${ratio * 100}%`, height: '100%', background: color, transition: 'width 0.3s' }} />
+      </div>
+    );
+  };
+
   /** Übernimmt die Antwort von /api/self/available in den lokalen State. */
   const applyAvailableData = (d: any) => {
     if (!d) return;
@@ -825,7 +836,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                       {d.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })}
                     </div>
                   )}
-                  <div style={{ background: '#fff', borderRadius: 12, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 10, borderLeft: '4px solid ' + clubAccent, overflow: 'hidden' }}>
+                  <div style={{ position: 'relative', background: '#fff', borderRadius: 12, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 10, borderLeft: '4px solid ' + clubAccent, overflow: 'hidden' }}>
                     <div style={{ minWidth: 0, flexShrink: 0 }}>
                       <div style={{ fontSize: 16 }}>{s?.arbeitsbereich?.icon || '📍'}</div>
                       <div style={{ fontSize: 13, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>{s?.arbeitsbereich?.name || '–'}</div>
@@ -873,6 +884,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                         </button>
                       )}
                     </div>
+                    <FillBar assigned={assignedCount} max={s?.maxVolunteers || 0} />
                   </div>
                 </div>
               );
@@ -963,6 +975,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                         <span style={{ width: 44, height: 44, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e9ecef', color: '#adb5bd', fontSize: 22, overflow: 'hidden' }}>✖</span>
                       )}
                     </div>
+                    <FillBar assigned={assignedCount} max={slot.maxVolunteers} />
                     {/* Füllgrad Farbbalken */}
                     <div style={{ position: 'absolute', bottom: 0, left: 0, height: 4, background: '#e9ecef', width: '100%' }}>
                       <div style={{ height: '100%', background: assignedCount === 0 ? 'transparent' : clubAccent, width: `${(assignedCount / Math.max(1, slot.maxVolunteers)) * 100}%`, transition: 'width 0.3s' }} />
