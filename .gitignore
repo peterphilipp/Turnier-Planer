@@ -7,7 +7,16 @@ build/
 prisma/migrations/
 .pnpm*
 pnpm-lock.yaml  ## für yarn
-backend/prisma/data/*.db*
+# SQLite-Datenbanken NIE versionieren: enthalten personenbezogene Daten
+# (Namen, E-Mails, Telefonnummern, Kinderdaten) und Auth-Geheimnisse.
+# Beide Pfad-Varianten, da DATABASE_URL relativ zum Schema-Verzeichnis aufgelöst
+# wird und dadurch auch backend/prisma/prisma/data/ entstehen kann.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+backend/prisma/data/
+backend/prisma/prisma/data/
 backend/prisma/backups/
 backend/data/
 _data/

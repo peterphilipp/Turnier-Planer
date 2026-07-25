@@ -10,6 +10,9 @@ npx prisma db push --accept-data-loss
 echo "  Slot-Herkunft nachtragen (Tage vor sourceGlobalSlotId-Einfuehrung)..."
 node scripts/backfill-slot-provenance.cjs
 
+echo "  Recovery-PINs hashen (falls noch im Klartext gespeichert)..."
+node scripts/migrate-hash-recovery-pins.cjs
+
 echo "  Standarddaten importieren (Ignition Phase)..."
 npx prisma db seed
 

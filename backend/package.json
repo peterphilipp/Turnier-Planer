@@ -10,6 +10,7 @@
     "db:backup": "node --env-file=.env scripts/backup-db.cjs",
     "db:push": "npm run db:backup && prisma db push",
     "db:backfill-slot-provenance": "node --env-file=.env scripts/backfill-slot-provenance.cjs",
+    "db:hash-pins": "node --env-file=.env scripts/migrate-hash-recovery-pins.cjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -38,6 +38,42 @@ function sanitizeUser<T extends { password?: string | null; recoveryPin?: string
   return safe;
 }
 
+/**
+ * Erzeugt einen Helfer-PIN mit crypto.randomBytes (NICHT Math.random(), das
+ * kein CSPRNG ist und aus wenigen bekannten Ausgaben vorhersagbar wäre).
+ * Alphabet ohne verwechselbare Zeichen (kein I/O/0/1). Rejection-Sampling,
+ * damit alle Zeichen gleich wahrscheinlich sind (kein Modulo-Bias).
+ */
+const PIN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 Zeichen
+const PIN_LENGTH = 8; // 32^8 = 2^40 statt 2^30 bei 6 Zeichen
+
+export function generateRecoveryPin(): string {
+  let pin = '';
+  while (pin.length < PIN_LENGTH) {
+    for (const byte of crypto.randomBytes(PIN_LENGTH)) {
+      if (pin.length >= PIN_LENGTH) break;
+      // 256 ist durch 32 teilbar -> kein Bias, aber defensiv formuliert
+      if (byte < 256 - (256 % PIN_ALPHABET.length)) {
+        pin += PIN_ALPHABET[byte % PIN_ALPHABET.length];
+      }
+    }
+  }
+  return pin;
+}
+
+/** Erzeugt einen neuen PIN und gibt Klartext + bcrypt-Hash zurück. */
+async function createPinPair(): Promise<{ plain: string; hash: string }> {
+  const plain = generateRecoveryPin();
+  return { plain, hash: await bcrypt.hash(plain, 10) };
+}
+
+/**
+ * Dummy-Hash für konstantere Antwortzeiten: Wird verglichen, wenn kein Nutzer
+ * gefunden wurde, damit "Name existiert nicht" und "PIN falsch" nicht über die
+ * Laufzeit unterscheidbar sind.
+ */
+const DUMMY_BCRYPT_HASH = '$2b$10$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345';
+
 // POST /api/auth/forgot-password
 router.post('/forgot-password', async (req, res, next) => {
   try {
@@ -466,12 +502,8 @@ router.post('/register', async (req, res, next) => {
     const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
     const isFirstAdmin = adminCount === 0;
 
-    // Recovery PIN generieren (6 Zeichen)
-    const pinChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let recoveryPin = '';
-    for(let i = 0; i < 6; i++) {
-       recoveryPin += pinChars.charAt(Math.floor(Math.random() * pinChars.length));
-    }
+    // Recovery-PIN: kryptographisch erzeugt, in der DB nur als bcrypt-Hash
+    const pin = await createPinPair();
 
     const hashed = await bcrypt.hash(password, 10);
     const createData: any = {
@@ -479,7 +511,7 @@ router.post('/register', async (req, res, next) => {
       email: email || null,
       phone: phone || null,
       password: hashed,
-      recoveryPin,
+      recoveryPin: pin.hash,
       role: (isFirstAdmin || isForcedAdmin) ? 'ADMIN' : 'HELPER',
       tournamentId: activeTournament?.id || null,
       consentGiven: true,
@@ -507,10 +539,10 @@ router.post('/register', async (req, res, next) => {
       ? user.role
       : 'HELPER';
     const token = jwt.sign({ userId: user.id, role: newRole }, JWT_SECRET, { expiresIn: '30d' });
-    // Einmalige Ausnahme: Der PIN wird hier bewusst mitgeliefert, damit ihn das
-    // Frontend dem Nutzer direkt nach der Registrierung anzeigen kann. Ab
-    // diesem Zeitpunkt ist er über keine andere Antwort mehr abrufbar.
-    res.status(201).json({ token, user: { ...sanitizeUser(user), recoveryPin: user.recoveryPin } });
+    // Einmalige Ausnahme: der PIN im KLARTEXT (nicht der DB-Hash!), damit das
+    // Frontend ihn dem Nutzer direkt nach der Registrierung anzeigen kann.
+    // Danach ist er nirgends mehr abrufbar – in der DB liegt nur der Hash.
+    res.status(201).json({ token, user: { ...sanitizeUser(user), recoveryPin: pin.plain } });
   } catch (err) {
     next(err);
   }
@@ -554,18 +586,43 @@ router.post('/reset-by-pin', async (req, res, next) => {
   try {
     const { name, recoveryPin, newPassword } = req.body;
     if (!name || !recoveryPin || !newPassword) return res.status(400).json({ error: 'Name, PIN und neues Passwort erforderlich' });
+    if (String(newPassword).length < 6) return res.status(400).json({ error: 'Passwort muss mindestens 6 Zeichen haben' });
 
-    const user = await prisma.user.findFirst({ where: { name, recoveryPin } });
-    if (!user) return res.status(401).json({ error: 'Ungltiger Name oder PIN' });
+    // Der PIN liegt nur als bcrypt-Hash vor -> Nutzer über den Namen suchen und
+    // den PIN vergleichen. `recoveryPin: { not: null }` schließt Konten ohne PIN
+    // (z.B. vom Admin angelegte) explizit aus.
+    const user = await prisma.user.findFirst({ where: { name, recoveryPin: { not: null } } });
+
+    // Immer einen bcrypt-Vergleich durchführen (bei unbekanntem Namen gegen einen
+    // Dummy-Hash), damit "Name existiert nicht" und "PIN falsch" nicht über die
+    // Antwortzeit unterscheidbar sind.
+    const pinOk = await bcrypt.compare(String(recoveryPin), user?.recoveryPin || DUMMY_BCRYPT_HASH);
+    if (!user || !pinOk) {
+      logLoginFailed(String(name), 'Ungültiger Recovery-PIN', getClientIp(req) || '');
+      return res.status(401).json({ error: 'Ungültiger Name oder PIN' });
+    }
 
     const hashed = await bcrypt.hash(newPassword, 10);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { password: hashed }
+    // PIN nach Verwendung rotieren: ein einmal (etwa aus einem alten Backup oder
+    // einer früheren API-Antwort) bekannter PIN darf nicht dauerhaft als
+    // Nachschlüssel funktionieren. Der neue PIN wird einmalig zurückgegeben.
+    const nextPin = await createPinPair();
+
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { password: hashed, recoveryPin: nextPin.hash }
+      });
+      // Offene E-Mail-Reset-Tokens entwerten (analog zu POST /reset-password)
+      await tx.passwordResetToken.deleteMany({ where: { userId: user.id } });
     });
 
     logPasswordResetCompleted(user.id, user.name, getClientIp(req));
-    res.json({ message: 'Passwort erfolgreich zurckgesetzt' });
+    res.json({
+      message: 'Passwort erfolgreich zurückgesetzt',
+      recoveryPin: nextPin.plain,
+      pinRotated: true
+    });
   } catch (err) {
     next(err);
   }

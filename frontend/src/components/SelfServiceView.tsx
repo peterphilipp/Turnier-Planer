@@ -9,13 +9,17 @@ import { apiFetch, apiPost, apiPatch, apiDelete } from '../api';
 import PwaInstallPrompt from './PwaInstallPrompt';
 
 interface Shift {
-  id: number; date: string; slot: string;
+  id: number;
+  date: string;
+  slot: string;
+  startMin?: number | null;
+  endMin?: number | null;
   zeitslot: { name: string; startTime: string; endTime: string; color: string } | null;
   arbeitsbereich: { name: string; icon: string; color: string } | null;
   arbeitsbereichId: number | null;
   maxVolunteers: number;
 }
-interface VolunteerShift { id: number; userId: number; date: string; slot: string; role: string; areaId: string | null; shiftId: number | null; shift: { id: number; date: string; slot: string; zeitslot: { name: string; startTime: string; endTime: string; color: string } | null; arbeitsbereich: { name: string; icon: string; color: string } | null; arbeitsbereichId: number | null; maxVolunteers: number; } | null; }
+interface VolunteerShift { id: number; userId: number; date: string; slot: string; role: string; areaId: string | null; shiftId: number | null; shift: Shift | null; }
 interface VolunteerChild { id: number; childName: string; childYear: number; }
 interface Volunteer { id: number; name: string; email: string | null; phone: string | null; tournamentId: number | null; role?: string; consentGiven?: boolean; consentDate?: string; children?: VolunteerChild[]; }
 interface Club { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
@@ -129,6 +133,13 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     }
   };
 
+  const minToTime = (min: number | null | undefined) => {
+    if (min == null) return '';
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
   /** Übernimmt die Antwort von /api/self/available in den lokalen State. */
   const applyAvailableData = (d: any) => {
     if (!d) return;
@@ -137,6 +148,10 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
       ...s,
       date: s.day?.date || s.date,
       zeitslot: s.daySlot || s.timeSlot || s.zeitslot,
+      arbeitsbereichId: s.workArea?.id || s.arbeitsbereichId,
+      maxVolunteers: s.maxVolunteers,
+      startMin: s.startMin ?? s.daySlot?.startMin ?? s.timeSlot?.startMin ?? null,
+      endMin: s.endMin ?? s.daySlot?.endMin ?? s.timeSlot?.endMin ?? null,
       arbeitsbereich: s.workArea || s.arbeitsbereich
     });
 
@@ -420,8 +435,15 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               if (!res) return;
               if (String(res.newPassword).length < 6) { await modal.alert({ title: 'Hinweis', message: 'Passwort zu kurz' }); return; }
               try {
-                await apiPost('/api/auth/reset-by-pin', { name: forgotEmail, recoveryPin: res.pin, newPassword: res.newPassword });
-                await modal.alert({ title: 'Erfolg', message: 'Passwort erfolgreich zurueckgesetzt!' });
+                const resetRes = await apiPost('/api/auth/reset-by-pin', { name: forgotEmail, recoveryPin: res.pin, newPassword: res.newPassword });
+                // Der PIN wird aus Sicherheitsgründen bei jeder Nutzung ersetzt.
+                // Der neue PIN wird nur hier einmalig ausgeliefert – unbedingt anzeigen.
+                await modal.alert({
+                  title: 'Passwort zurückgesetzt',
+                  message: resetRes?.recoveryPin
+                    ? `Passwort erfolgreich zurückgesetzt!\n\nDeine PIN wurde aus Sicherheitsgründen erneuert. Neue Helfer-PIN:\n\n${resetRes.recoveryPin}\n\nBitte jetzt notieren – sie wird nicht erneut angezeigt.`
+                    : 'Passwort erfolgreich zurueckgesetzt!'
+                });
                 setShowForgotPassword(false);
               } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Ungueltige PIN oder Name' }); }
             }} style={{ padding: '14px', background: 'transparent', color: clubPrimary, border: '2px solid ' + clubPrimary, borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15 }}>Mit Helfer-PIN zuruecksetzen</button>
@@ -733,7 +755,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                     </div>
                     <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
                       <div style={{ fontSize: 12, color: '#666' }}>{d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</div>
-                      {s?.zeitslot && <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.zeitslot.startTime}–{s.zeitslot.endTime}</div>}
+                      {(s?.startMin != null || s?.endMin != null) && <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToTime(s.startMin)}–{minToTime(s.endMin)}</div>}
                     </div>
                     <div style={{ textAlign: 'center', minWidth: 40, flexShrink: 0 }}>
                       <div style={{ fontSize: 16, fontWeight: 'bold', color: remaining > 0 ? clubAccent : '#6c757d' }}>{remaining}/{s?.maxVolunteers || 0}</div>
@@ -815,7 +837,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                     </div>
                     <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
                       <div style={{ fontSize: 12, color: '#666' }}>{new Date(slot.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</div>
-                      {slot.zeitslot && <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{slot.zeitslot.startTime}–{slot.zeitslot.endTime}</div>}
+                      {(slot.startMin != null || slot.endMin != null) && <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToTime(slot.startMin)}–{minToTime(slot.endMin)}</div>}
                     </div>
                     <div style={{ textAlign: 'center', minWidth: 40, flexShrink: 0 }}>
                       <div style={{ fontSize: 16, fontWeight: 'bold', color: remaining > 0 ? clubAccent : '#6c757d' }}>{remaining}/{slot.maxVolunteers}</div>
