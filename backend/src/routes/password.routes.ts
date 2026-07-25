@@ -78,7 +78,7 @@ const DUMMY_BCRYPT_HASH = '$2b$10$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRST
  * Resend-422-Fehler beim Versand auffallen, statt klar benannt im Log.
  */
 const FROM_ADDRESS_REGEX = /^(?:[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+|[^<>]+<[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+>)$/;
-const DEFAULT_EMAIL_FROM = 'Turnier-Planer <noreply@mygate.dedyn.io>';
+const DEFAULT_EMAIL_FROM = 'Macht das Turnier! <noreply@mygate.dedyn.io>';
 
 function resolveEmailFrom(): string {
   const configured = process.env.EMAIL_FROM;
@@ -420,7 +420,7 @@ router.get('/export', async (req, res, next) => {
     // Keine sensiblen Daten exportieren (kein Passwort)
     const exportData = {
       exportedAt: new Date().toISOString(),
-      appName: 'Turnier-Planer',
+      appName: 'Macht das Turnier!',
       personalData: {
         id: user.id,
         name: user.name,
