@@ -175,12 +175,36 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
         </button>
       </div>
 
+      {/* Offene Punkte Widgets */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, marginBottom: 24 }}>
+        {unbesetzteSlots.length > 0 && (
+          <div style={{ background: '#fff3cd', border: '1px solid #ffeeba', padding: 16, borderRadius: 12 }}>
+            <div style={{ fontSize: 18, marginBottom: 8 }}>⚠️ <strong style={{ color: '#856404' }}>{unbesetzteSlots.length} unbesetzte Job-Slots</strong></div>
+            <p style={{ margin: 0, fontSize: 14, color: '#856404' }}>Es fehlen noch Helfer in verschiedenen Schichten. Bitte Dienstplan prüfen.</p>
+          </div>
+        )}
+        {fehlendeVerpflegung.length > 0 && (
+          <div style={{ background: '#f8d7da', border: '1px solid #f5c6cb', padding: 16, borderRadius: 12 }}>
+            <div style={{ fontSize: 18, marginBottom: 8 }}>⚠️ <strong style={{ color: '#721c24' }}>{fehlendeVerpflegung.length} offene Verpflegungs-Ziele</strong></div>
+            <p style={{ margin: 0, fontSize: 14, color: '#721c24' }}>Für verschiedene Jahrgänge fehlen noch Kuchen, Salate oder andere Spenden.</p>
+          </div>
+        )}
+        {unbesetzteSlots.length === 0 && fehlendeVerpflegung.length === 0 && jobSlots.length > 0 && (
+          <div style={{ background: '#d4edda', border: '1px solid #c3e6cb', padding: 16, borderRadius: 12 }}>
+            <div style={{ fontSize: 18, marginBottom: 8 }}>✅ <strong style={{ color: '#155724' }}>Alles besetzt!</strong></div>
+            <p style={{ margin: 0, fontSize: 14, color: '#155724' }}>Alle Job-Slots und Verpflegungs-Ziele sind erreicht. Gute Arbeit!</p>
+          </div>
+        )}
+      </div>
+
       {/* Editiermodus-Toolbar: Zeiten sind standardmäßig gesperrt (nur Helfer
           ein-/ausplanen ist ohne Umschalten möglich). Erst hier freigeschaltet
-          lassen sich Balken ziehen; verlassen geht nur über Commit oder Verwerfen. */}
+          lassen sich Balken ziehen; verlassen geht nur über Commit oder Verwerfen.
+          Bewusst UNTER den Status-Boxen (unbesetzte Job-Slots/offene
+          Verpflegungsziele), damit die Statusübersicht als Erstes ins Auge fällt. */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-        marginBottom: 24, padding: '10px 16px', borderRadius: 10,
+        marginBottom: 32, padding: '10px 16px', borderRadius: 10,
         background: timeEditMode ? '#fff3cd' : '#f8f9fa',
         border: `1px solid ${timeEditMode ? '#ffe69c' : '#dee2e6'}`
       }}>
@@ -216,28 +240,6 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
               {committing ? '...' : `✅ Übernehmen${pendingCount > 0 ? ` (${pendingCount})` : ''}`}
             </button>
           </>
-        )}
-      </div>
-
-      {/* Offene Punkte Widgets */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, marginBottom: 32 }}>
-        {unbesetzteSlots.length > 0 && (
-          <div style={{ background: '#fff3cd', border: '1px solid #ffeeba', padding: 16, borderRadius: 12 }}>
-            <div style={{ fontSize: 18, marginBottom: 8 }}>⚠️ <strong style={{ color: '#856404' }}>{unbesetzteSlots.length} unbesetzte Job-Slots</strong></div>
-            <p style={{ margin: 0, fontSize: 14, color: '#856404' }}>Es fehlen noch Helfer in verschiedenen Schichten. Bitte Dienstplan prüfen.</p>
-          </div>
-        )}
-        {fehlendeVerpflegung.length > 0 && (
-          <div style={{ background: '#f8d7da', border: '1px solid #f5c6cb', padding: 16, borderRadius: 12 }}>
-            <div style={{ fontSize: 18, marginBottom: 8 }}>⚠️ <strong style={{ color: '#721c24' }}>{fehlendeVerpflegung.length} offene Verpflegungs-Ziele</strong></div>
-            <p style={{ margin: 0, fontSize: 14, color: '#721c24' }}>Für verschiedene Jahrgänge fehlen noch Kuchen, Salate oder andere Spenden.</p>
-          </div>
-        )}
-        {unbesetzteSlots.length === 0 && fehlendeVerpflegung.length === 0 && jobSlots.length > 0 && (
-          <div style={{ background: '#d4edda', border: '1px solid #c3e6cb', padding: 16, borderRadius: 12 }}>
-            <div style={{ fontSize: 18, marginBottom: 8 }}>✅ <strong style={{ color: '#155724' }}>Alles besetzt!</strong></div>
-            <p style={{ margin: 0, fontSize: 14, color: '#155724' }}>Alle Job-Slots und Verpflegungs-Ziele sind erreicht. Gute Arbeit!</p>
-          </div>
         )}
       </div>
 
