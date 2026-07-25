@@ -85,3 +85,29 @@ export const deleteVolunteerShift = async (req: Request, res: Response) => {
   
   return res.status(204).send();
 };
+
+export const getFeedback = async (req: Request, res: Response) => {
+  const { tournamentId } = req.query;
+  const where: any = {};
+  if (tournamentId) {
+    where.tournamentId = parseInt(tournamentId as string, 10);
+  }
+  where.OR = [
+    { ratingWorkload: { not: null } },
+    { ratingOrganization: { not: null } },
+    { ratingFun: { not: null } },
+    { ratingComment: { not: null } }
+  ];
+
+  const feedbacks = await prisma.volunteerShift.findMany({
+    where,
+    orderBy: { date: 'desc' },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+      shift: { include: { workArea: true, daySlot: true, day: true } }
+    }
+  });
+
+  return res.json(feedbacks || []);
+};
+

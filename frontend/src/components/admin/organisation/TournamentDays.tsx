@@ -9,6 +9,7 @@ import {
 import { modal } from '../Modal';
 import { btnStyle, inputStyle, minToTime, tdStyle, thStyle, getTemplateDisplayName } from '../shared';
 import type { TournamentWorkArea, TournamentDay, GlobalDayTemplate, PlanningShift, Tournament } from '../shared';
+import ShiftFeedbackModal from './ShiftFeedbackModal';
 
 /** Datum (Date) -> "YYYY-MM-DD" in UTC, unabhängig von der lokalen Zeitzone. */
 const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
@@ -34,6 +35,7 @@ const formatDateOption = (dateStr: string) =>
 export default function TournamentDays({ selectedTournament, adminPrimary = '#198754' }: { selectedTournament: number | null; adminPrimary?: string }) {
   const qc = useQueryClient();
   const tid = selectedTournament;
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const { data: areas = [] } = useQuery<TournamentWorkArea[]>({ queryKey: ['t-work-areas', tid], queryFn: () => getTournamentWorkAreas(tid), enabled: !!tid });
   const { data: days = [] } = useQuery<TournamentDay[]>({ queryKey: ['t-days', tid], queryFn: () => getTournamentDays(tid), enabled: !!tid });
@@ -296,6 +298,7 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
           <h3 style={{ margin: 0, color: '#212557' }}>🧩 Schichtplan</h3>
           <span style={{ flex: 1 }} />
+          <button style={{ ...btnStyle, background: '#ffc107', color: '#000', fontWeight: 'bold' }} onClick={() => setShowFeedbackModal(true)}>📊 Helfer-Feedback & Learnings</button>
           {shifts.length > 0 && (
             <button style={{ ...btnStyle, background: '#f8d7da', color: '#842029' }} onClick={doClear}>Schichten löschen</button>
           )}
@@ -321,6 +324,13 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
           );
         })()}
       </section>
+
+      {showFeedbackModal && tournament && (
+        <ShiftFeedbackModal 
+          tournament={tournament}
+          onClose={() => setShowFeedbackModal(false)}
+        />
+      )}
     </div>
   );
 }

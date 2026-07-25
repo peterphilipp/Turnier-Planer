@@ -202,6 +202,10 @@ model VolunteerShift {
   slot         String
   role         String
   areaId       String?     @map("area_id")
+  ratingWorkload     Int?        @map("rating_workload")
+  ratingOrganization Int?        @map("rating_organization")
+  ratingFun          Int?        @map("rating_fun")
+  ratingComment      String?     @map("rating_comment")
   shift        Shift?      @relation(fields: [shiftId], references: [id], onDelete: Cascade)
   user         User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   tournament   Tournament? @relation(fields: [tournamentId], references: [id], onDelete: Cascade)

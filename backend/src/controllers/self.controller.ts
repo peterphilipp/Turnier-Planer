@@ -238,3 +238,34 @@ export const subscribePush = async (req: Request, res: Response) => {
   res.status(201).json({ success: true });
 };
 
+export const rateShift = async (req: Request, res: Response) => {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Nicht authentifiziert' });
+
+  const id = parseInt(String(req.params.id), 10);
+  if (isNaN(id)) return res.status(400).json({ error: 'Ungültige ID' });
+
+  const existing = await prisma.volunteerShift.findUnique({
+    where: { id }
+  });
+
+  if (!existing || existing.userId !== userId) {
+    return res.status(403).json({ error: 'Diese Schicht gehört dir nicht' });
+  }
+
+  const { ratingWorkload, ratingOrganization, ratingFun, ratingComment } = req.body;
+
+  const updated = await prisma.volunteerShift.update({
+    where: { id },
+    data: {
+      ratingWorkload: ratingWorkload != null ? parseInt(ratingWorkload, 10) : null,
+      ratingOrganization: ratingOrganization != null ? parseInt(ratingOrganization, 10) : null,
+      ratingFun: ratingFun != null ? parseInt(ratingFun, 10) : null,
+      ratingComment: ratingComment ? String(ratingComment).trim() : null
+    }
+  });
+
+  res.json(updated);
+};
+
+

@@ -1,3 +1,4 @@
+import { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import cors, { CorsOptions } from 'cors';
@@ -20,31 +21,54 @@ export const securityHeaders = helmet({
 });
 
 /**
- * CORS-Whitelist statt `cors()` mit Wildcard.
- *
- * In Produktion liefert derselbe Express-Prozess das Frontend aus (SPA aus
- * ../dist) – die App selbst braucht also gar kein CORS. Die Wildcard erlaubte
- * es hingegen jeder beliebigen Website, die unauthentifizierten Endpunkte
- * (/login, /reset-by-pin, /forgot-password*) aus den Browsern ihrer Besucher
- * heraus aufzurufen – also verteilten Brute-Force über fremde IPs, was
- * IP-basiertes Rate-Limiting aushebelt.
+ * Intelligente CORS-Prüfung:
+ * Erlaubt Same-Origin (wenn Origin-Header dem Host entspricht, wie von Browsern bei POST/PATCH
+ * auch bei Same-Origin gesendet), Localhost/Intranet-Hostnamen sowie via FRONTEND_URL
+ * konfigurierte Domains. Blockiert lediglich fremde externe Domains (gegen Brute-Force über fremde Websites).
  */
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'http://localhost:3000', // Vite dev
-  'http://localhost:5173'  // Vite default
-].filter((o): o is string => !!o);
+export const corsMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  const origin = req.headers.origin;
+  
+  // Kein Origin-Header = same-origin (z.B. einfache GET im Browser), curl, Health-Checks
+  if (!origin) {
+    return cors({ origin: false, credentials: true })(req, res, next);
+  }
 
-const corsOptions: CorsOptions = {
-  origin(origin, callback) {
-    // Kein Origin-Header = same-origin, curl, Health-Checks, Server-zu-Server
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('Origin nicht erlaubt (CORS)'));
-  },
-  credentials: true
+  // Same-Origin Erkennung: Wenn Origin mit dem Host-Header übereinstimmt (z.B. http://fcos1:5000 oder http://localhost:5000)
+  const host = req.headers.host;
+  if (host && (origin === `http://${host}` || origin === `https://${host}`)) {
+    return cors({ origin: true, credentials: true })(req, res, next);
+  }
+
+  // Erlaubte feste Origins (aus .env, unterstützte Kommaliste)
+  const envOrigins = (process.env.FRONTEND_URL || '')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
+
+  const isAllowed = envOrigins.includes(origin) ||
+    origin.startsWith('http://localhost:') ||
+    origin.startsWith('http://127.0.0.1:') ||
+    origin.startsWith('http://192.168.') ||
+    origin.startsWith('http://10.') ||
+    origin.startsWith('http://172.');
+
+  if (isAllowed) {
+    return cors({ origin: true, credentials: true })(req, res, next);
+  }
+
+  // Erlaube lokale Hostnamen im Netzwerk (z.B. http://fcos1:5000 oder http://turnier-server.local)
+  try {
+    const parsed = new URL(origin);
+    if (!parsed.hostname.includes('.') || parsed.hostname.endsWith('.local') || parsed.hostname.endsWith('.lan') || parsed.hostname.endsWith('.fritz.box')) {
+      return cors({ origin: true, credentials: true })(req, res, next);
+    }
+  } catch (e) {
+    // Ungültige URL
+  }
+
+  return next(new Error('Origin nicht erlaubt (CORS)'));
 };
-export const corsMiddleware = cors(corsOptions);
 
 /**
  * Globales Limit: absichtlich großzügig, damit normale Nutzung (Admin klickt

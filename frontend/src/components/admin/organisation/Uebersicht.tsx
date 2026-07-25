@@ -3,12 +3,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Shift, VolunteerShift, FoodDonationSlot, thStyle, tdStyle, minToTime } from '../shared';
 import { getShifts, getVolunteerShifts, getFoodDonationSlots, getVolunteers, apiPost, apiDelete } from '../../../api';
 import { modal } from '../Modal';
+import ShiftFeedbackModal from './ShiftFeedbackModal';
 
 export default function Uebersicht({ selectedTournament }: { selectedTournament: number | null }) {
   const queryClient = useQueryClient();
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [selectedVolunteerToAssign, setSelectedVolunteerToAssign] = useState<number | ''>('');
   const [assigning, setAssigning] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const { data: allVolunteers = [] } = useQuery<any[]>({
     queryKey: ['volunteers', selectedTournament],
@@ -75,7 +77,12 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
 
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-      <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529', marginBottom: 24 }}>📊 Management Buchungen (Übersicht)</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>📊 Management Buchungen (Übersicht)</h3>
+        <button onClick={() => setShowFeedbackModal(true)} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: '#ffc107', color: '#000', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}>
+          <span>⭐</span> Helfer-Feedback & Learnings
+        </button>
+      </div>
       
       {/* Offene Punkte Widgets */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, marginBottom: 32 }}>
@@ -250,6 +257,13 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
             </div>
           </div>
         </div>
+      )}
+
+      {showFeedbackModal && selectedTournament && (
+        <ShiftFeedbackModal 
+          tournament={{ id: selectedTournament, name: 'Turnier ' + selectedTournament } as any}
+          onClose={() => setShowFeedbackModal(false)}
+        />
       )}
     </div>
   );

@@ -20,7 +20,7 @@ interface Shift {
   arbeitsbereichId: number | null;
   maxVolunteers: number;
 }
-interface VolunteerShift { id: number; userId: number; date: string; slot: string; role: string; areaId: string | null; shiftId: number | null; shift: Shift | null; }
+interface VolunteerShift { id: number; userId: number; date: string; slot: string; role: string; areaId: string | null; shiftId: number | null; shift: Shift | null; ratingWorkload?: number | null; ratingOrganization?: number | null; ratingFun?: number | null; ratingComment?: string | null; }
 interface VolunteerChild { id: number; childName: string; childYear: number; }
 interface Volunteer { id: number; name: string; email: string | null; phone: string | null; tournamentId: number | null; role?: string; consentGiven?: boolean; consentDate?: string; children?: VolunteerChild[]; }
 interface Club { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
@@ -85,6 +85,11 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   const [donationNote, setDonationNote] = useState('');
   const [slotCommitments, setSlotCommitments] = useState<Record<number, number>>({});
   const [showPinModal, setShowPinModal] = useState<{name: string, pin: string} | null>(null);
+  const [ratingModalVs, setRatingModalVs] = useState<VolunteerShift | null>(null);
+  const [rateWorkload, setRateWorkload] = useState<number>(3);
+  const [rateOrganization, setRateOrganization] = useState<number>(5);
+  const [rateFun, setRateFun] = useState<number>(5);
+  const [rateComment, setRateComment] = useState<string>('');
 
   useEffect(() => {
     // Reset-Token aus URL auslesen
@@ -256,6 +261,36 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
       }
     } catch (e: any) { 
       await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler bei der Abmeldung' }); 
+    }
+  };
+
+  const openRatingModal = (vs: VolunteerShift) => {
+    setRatingModalVs(vs);
+    setRateWorkload(vs.ratingWorkload || 3);
+    setRateOrganization(vs.ratingOrganization || 5);
+    setRateFun(vs.ratingFun || 5);
+    setRateComment(vs.ratingComment || '');
+  };
+
+  const saveRating = async () => {
+    if (!ratingModalVs) return;
+    try {
+      await apiFetch(`/api/self/shifts/${ratingModalVs.id}/rating`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ctxToken },
+        body: JSON.stringify({
+          ratingWorkload: rateWorkload,
+          ratingOrganization: rateOrganization,
+          ratingFun: rateFun,
+          ratingComment: rateComment
+        })
+      });
+      setRatingModalVs(null);
+      await loadAvailable();
+      queryClient.invalidateQueries({ queryKey: ['volunteerShifts'] });
+      await modal.alert({ title: 'Danke!', message: 'Deine Bewertung wurde erfolgreich gespeichert.' });
+    } catch (e: any) {
+      await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler beim Speichern der Bewertung' });
     }
   };
 
@@ -763,7 +798,11 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                     <div style={{ textAlign: 'center', minWidth: 40, flexShrink: 0 }}>
                       <div style={{ fontSize: 16, fontWeight: 'bold', color: remaining > 0 ? clubAccent : '#6c757d' }}>{remaining}/{s?.maxVolunteers || 0}</div>
                     </div>
-                    <div style={{ flexShrink: 0 }}>
+                    <div style={{ flexShrink: 0, display: 'flex', gap: 6 }}>
+                      <button onClick={() => openRatingModal(vs)} title="Schicht bewerten" style={{ height: 40, padding: '0 10px', borderRadius: 10, border: 'none', background: (vs.ratingFun || vs.ratingWorkload || vs.ratingOrganization) ? '#ffc107' : clubPrimary, color: (vs.ratingFun || vs.ratingWorkload || vs.ratingOrganization) ? '#000' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 'bold', fontSize: 13 }}>
+                        <span>{(vs.ratingFun || vs.ratingWorkload || vs.ratingOrganization) ? '⭐' : '📝'}</span>
+                        <span style={{ display: 'inline-block' }}>{(vs.ratingFun || vs.ratingWorkload || vs.ratingOrganization) ? 'Bewertet' : 'Bewerten'}</span>
+                      </button>
                       <button onClick={() => unassign(vs.id)} title="Abmelden" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M3 7v6h6" />
@@ -1070,6 +1109,72 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               <span style={{ fontSize: 13, fontWeight: 'bold', color: clubPrimary }}>{sponsorName}</span>
             ) : null}
           </a>
+        </div>
+      )}
+
+      {/* Rating Modal */}
+      {ratingModalVs && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 24, maxWidth: 450, width: '100%', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e9ecef', paddingBottom: 12 }}>
+              <h3 style={{ margin: 0, fontSize: 18, color: clubPrimary }}>⭐ Schicht bewerten</h3>
+              <button onClick={() => setRatingModalVs(null)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#666' }}>✕</button>
+            </div>
+            <div style={{ fontSize: 13, color: '#555' }}>
+              <strong>{ratingModalVs.shift?.arbeitsbereich?.name || 'Job'}</strong> am {new Date(ratingModalVs.date).toLocaleDateString('de-DE')} ({minToTime(ratingModalVs.shift?.startMin ?? 0)}–{minToTime(ratingModalVs.shift?.endMin ?? 0)})
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 'bold', marginBottom: 6, color: '#333' }}>
+                1. Stress & Auslastung: {['1 (Viel zu ruhig)', '2 (Eher ruhig)', '3 (Genau richtig)', '4 (Stressig)', '5 (Überlastet / Zu wenig Helfer)'][rateWorkload - 1]}
+              </label>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button key={star} type="button" onClick={() => setRateWorkload(star)} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: '2px solid ' + (rateWorkload === star ? clubPrimary : '#e9ecef'), background: rateWorkload === star ? clubPrimary + '15' : '#fff', fontWeight: 'bold', fontSize: 16, cursor: 'pointer' }}>
+                    {star} {['😴', '🙂', '😊', '🥵', '🚨'][star - 1]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 'bold', marginBottom: 6, color: '#333' }}>
+                2. Organisation & Einweisung: {['1 (Chaotisch)', '2 (Lückenhaft)', '3 (Okay)', '4 (Gut)', '5 (Perfekt organisiert)'][rateOrganization - 1]}
+              </label>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button key={star} type="button" onClick={() => setRateOrganization(star)} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: '2px solid ' + (rateOrganization === star ? clubPrimary : '#e9ecef'), background: rateOrganization === star ? clubPrimary + '15' : '#fff', fontWeight: 'bold', fontSize: 16, cursor: 'pointer' }}>
+                    {star} ⭐
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 'bold', marginBottom: 6, color: '#333' }}>
+                3. Spaß & Stimmung: {['1 (Kein Spaß)', '2 (Eher zäh)', '3 (In Ordnung)', '4 (Gut)', '5 (Super Stimmung!)'][rateFun - 1]}
+              </label>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button key={star} type="button" onClick={() => setRateFun(star)} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: '2px solid ' + (rateFun === star ? clubPrimary : '#e9ecef'), background: rateFun === star ? clubPrimary + '15' : '#fff', fontWeight: 'bold', fontSize: 16, cursor: 'pointer' }}>
+                    {star} {['😞', '😐', '🙂', '😄', '🤩'][star - 1]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 'bold', marginBottom: 6, color: '#333' }}>
+                4. Notiz / Verbesserungsvorschlag (optional):
+              </label>
+              <textarea value={rateComment} onChange={e => setRateComment(e.target.value)} placeholder="Was können wir beim nächsten Mal besser machen? (z. B. fehlendes Material, Uhrzeit...)" rows={3} style={{ width: '100%', padding: '10px', border: '2px solid #e9ecef', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+              <button onClick={() => setRatingModalVs(null)} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1px solid #ccc', background: '#fff', color: '#333', fontWeight: 'bold', cursor: 'pointer' }}>Abbrechen</button>
+              <button onClick={saveRating} style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: clubPrimary, color: '#fff', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>Bewertung speichern</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
