@@ -84,6 +84,22 @@ export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { admin
     refresh();
   };
 
+  // setSlotWorkAreas persistiert die Reihenfolge, in der die Checkboxen
+  // angeklickt wurden (siehe toggleWorkArea) - das hat nichts mit der in den
+  // Stammdaten per Drag & Drop gepflegten Arbeitsbereichs-Reihenfolge
+  // (WorkArea.order) zu tun. Sowohl Editor-Checkboxen als auch Anzeige
+  // sortieren deshalb hier explizit nach WorkArea.order statt sich auf die
+  // API-Reihenfolge bzw. die Zuordnungs-Reihenfolge zu verlassen.
+  const byWorkAreaOrder = <T,>(items: T[], getWorkAreaId: (item: T) => number) => {
+    return [...items].sort((a, b) => {
+      const waA = workAreas.find(w => w.id === getWorkAreaId(a));
+      const waB = workAreas.find(w => w.id === getWorkAreaId(b));
+      const orderDiff = (waA?.order ?? 9999) - (waB?.order ?? 9999);
+      if (orderDiff !== 0) return orderDiff;
+      return (waA?.name || '').localeCompare(waB?.name || '');
+    });
+  };
+
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <h3 style={{ margin: '0 0 4px 0', color: '#212557' }}>📅 Tag-Vorlagen</h3>
@@ -178,7 +194,7 @@ export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { admin
                   {/* WorkArea-Zuordnung */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                     {isEditing ? (
-                      workAreas.map(wa => {
+                      byWorkAreaOrder(workAreas, wa => wa.id).map(wa => {
                         const checked = (slot.workAreas || []).some(w => w.workAreaId === wa.id);
                         return (
                           <label key={wa.id} style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, background: checked ? '#e7f1ff' : '#fff', border: '1px solid #dee2e6', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>
@@ -192,7 +208,7 @@ export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { admin
                         {(slot.workAreas || []).length === 0 ? (
                           <span style={{ fontSize: 13, color: '#999', fontStyle: 'italic' }}>Keine Arbeitsbereiche zugewiesen</span>
                         ) : (
-                          (slot.workAreas || []).map(sw => {
+                          byWorkAreaOrder(slot.workAreas || [], sw => sw.workAreaId).map(sw => {
                             const wa = workAreas.find(w => w.id === sw.workAreaId);
                             if (!wa) return null;
                             return (
