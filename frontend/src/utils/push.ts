@@ -24,21 +24,21 @@ export async function subscribeToPushNotifications() {
   try {
     const registration = await navigator.serviceWorker.ready;
     let subscription = await registration.pushManager.getSubscription();
-    
-    if (subscription) {
-      // Already subscribed
-      return true;
+
+    if (!subscription) {
+      const { publicKey } = await apiFetch('/api/auth/vapid-public-key');
+      if (!publicKey) throw new Error('No VAPID public key available');
+
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey)
+      });
     }
 
-    const { publicKey } = await apiFetch('/api/auth/vapid-public-key');
-    if (!publicKey) throw new Error('No VAPID public key available');
-
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey)
-    });
-
+    // WICHTIG: Immer ans Backend senden, auch wenn das Abo im Browser bereits existiert!
+    // Nur so stellen wir sicher, dass das Backend das Abonnement nach einem Server-Neustart oder DB-Reset kennt.
     await apiPost('/api/auth/push/subscribe', subscription.toJSON());
+    console.log('Push-Abonnement erfolgreich mit dem Backend synchronisiert.');
     return true;
   } catch (error) {
     console.error('Failed to subscribe to push notifications:', error);

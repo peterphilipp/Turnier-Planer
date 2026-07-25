@@ -36,7 +36,12 @@ export async function sendPushToUser(
       where: { userId }
     });
 
-    if (subscriptions.length === 0) return;
+    if (subscriptions.length === 0) {
+      console.warn(`[Push-WARN] Keine aktiven Push-Abonnements für User ID ${userId} in der Datenbank!`);
+      return;
+    }
+
+    console.log(`[Push] Sende Benachrichtigung "${title}" an User ID ${userId} (${subscriptions.length} Abos)...`);
 
     const payload = JSON.stringify({
       title,
@@ -56,6 +61,7 @@ export async function sendPushToUser(
           },
           payload
         );
+        console.log(`[Push-OK] Nachricht an Sub ID ${sub.id} (User ${userId}) erfolgreich versendet.`);
       } catch (err: any) {
         // HTTP 404/410 bedeutet, dass das Abo abgelaufen ist oder die PWA deinstalliert wurde
         if (err.statusCode === 404 || err.statusCode === 410) {

@@ -638,14 +638,29 @@ router.post('/push/subscribe', async (req, res, next) => {
     const { endpoint, keys } = req.body;
     if (!endpoint || !keys) return res.status(400).json({ error: 'Invalid subscription object' });
 
-    await prisma.pushSubscription.create({
-      data: {
-        userId: decoded.userId,
-        endpoint,
-        p256dh: keys.p256dh,
-        auth: keys.auth
-      }
+    const existing = await prisma.pushSubscription.findFirst({
+      where: { endpoint }
     });
+
+    if (existing) {
+      if (existing.userId !== decoded.userId || existing.p256dh !== keys.p256dh || existing.auth !== keys.auth) {
+        await prisma.pushSubscription.update({
+          where: { id: existing.id },
+          data: { userId: decoded.userId, p256dh: keys.p256dh, auth: keys.auth }
+        });
+      }
+      console.log(`[Push-Abo] Aktualisiert: User ${decoded.userId}, Endpoint: ...${endpoint.slice(-15)}`);
+    } else {
+      await prisma.pushSubscription.create({
+        data: {
+          userId: decoded.userId,
+          endpoint,
+          p256dh: keys.p256dh,
+          auth: keys.auth
+        }
+      });
+      console.log(`[Push-Abo] NEU registriert: User ${decoded.userId}, Endpoint: ...${endpoint.slice(-15)}`);
+    }
 
     res.status(201).json({ success: true });
   } catch (err) {
