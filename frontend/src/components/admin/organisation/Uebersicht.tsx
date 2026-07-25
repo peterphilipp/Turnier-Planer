@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Shift, VolunteerShift, FoodDonationSlot, minToTime } from '../shared';
 import { getShifts, getVolunteerShifts, getFoodDonationSlots, getVolunteers, apiPost, apiDelete, updateShift } from '../../../api';
@@ -6,12 +6,28 @@ import { modal } from '../Modal';
 import ShiftFeedbackModal from './ShiftFeedbackModal';
 import ShiftTimeline from './ShiftTimeline';
 
+/** Liefert die aktuelle Fensterbreite und aktualisiert bei Resize. */
+function useWindowWidth() {
+  const [width, setWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return width;
+}
+
 export default function Uebersicht({ selectedTournament }: { selectedTournament: number | null }) {
   const queryClient = useQueryClient();
+  const windowWidth = useWindowWidth();
+  const isMobile = windowWidth < 768;
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [selectedVolunteerToAssign, setSelectedVolunteerToAssign] = useState<number | ''>('');
   const [assigning, setAssigning] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  // Für Accordion: Set von aufgeklappten Datums-Keys
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+
 
   const { data: allVolunteers = [] } = useQuery<any[]>({
     queryKey: ['volunteers', selectedTournament],
@@ -141,15 +157,74 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
           const firstDate = new Date(firstSlot.day?.date || firstSlot.date);
           const dayName = firstDate.toLocaleDateString('de-DE', { weekday: 'long' });
           slots.sort((a: any, b: any) => (a.startMin ?? a.daySlot?.startMin ?? 0) - (b.startMin ?? b.daySlot?.startMin ?? 0));
+          const totalHelfer = slots.reduce((sum: number, s: any) => sum + volunteerShifts.filter(vs => vs.shiftId === s.id).length, 0);
+          const isExpanded = expandedDays.has(dateStr);
 
+          if (isMobile) {
+            // Mobile: aufklappbares Accordion pro Tag
+            return (
+              <div key={dateStr} style={{ marginBottom: 12, border: '1px solid #e9ecef', borderRadius: 12, overflow: 'hidden' }}>
+                <button
+                  onClick={() => {
+                    setExpandedDays(prev => {
+                      const next = new Set(prev);
+                      if (next.has(dateStr)) next.delete(dateStr);
+                      else next.add(dateStr);
+                      return next;
+                    });
+                  }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: isExpanded ? '#0d6efd' : '#f8f9fa', border: 'none', cursor: 'pointer', textAlign: 'left', gap: 8 }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: isExpanded ? '#fff' : '#212529' }}>📅 {dateStr} – {dayName}</div>
+                    <div style={{ fontSize: 12, color: isExpanded ? 'rgba(255,255,255,0.8)' : '#6c757d', marginTop: 2 }}>{slots.length} Schichten · {totalHelfer} Helfer zugewiesen</div>
+                  </div>
+                  <span style={{ fontSize: 20, color: isExpanded ? '#fff' : '#6c757d', transition: 'transform 0.2s', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>›</span>
+                </button>
+                {isExpanded && (
+                  <div style={{ background: '#fff' }}>
+                    {slots.map((s: any) => {
+                      const assigned = volunteerShifts.filter(vs => vs.shiftId === s.id);
+                      const startMin = s.startMin ?? s.daySlot?.startMin ?? 0;
+                      const endMin = s.endMin ?? s.daySlot?.endMin ?? 0;
+                      const areaName = (s.workArea?.name || s.arbeitsbereich?.name || 'Schicht');
+                      const areaIcon = (s.workArea?.icon || s.arbeitsbereich?.icon || '📌');
+                      const isFull = assigned.length >= s.maxVolunteers;
+                      return (
+                        <div key={s.id} style={{ borderTop: '1px solid #e9ecef', padding: '12px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: 14, color: '#212529' }}>{areaIcon} {areaName}</div>
+                              <div style={{ fontSize: 12, color: '#6c757d' }}>⏰ {minToTime(startMin)} – {minToTime(endMin)}</div>
+                              <div style={{ fontSize: 12, color: isFull ? '#155724' : '#856404', marginTop: 2 }}>
+                                {isFull ? '✅' : '⚠️'} {assigned.length}/{s.maxVolunteers} besetzt
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setSelectedShift(s as any)}
+                              style={{ minWidth: 44, minHeight: 44, padding: '8px 14px', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, flexShrink: 0 }}
+                            >
+                              👥 Details
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // Tablet/Desktop: bestehende Timeline
           return (
             <ShiftTimeline
               key={dateStr}
               title={`📅 ${dateStr} (${dayName})`}
               subtitle={
                 <span style={{ fontSize: 12, color: '#6c757d', background: '#f8f9fa', padding: '2px 8px', borderRadius: 4, border: '1px solid #dee2e6' }}>
-                  {slots.length} Schichten · {slots.reduce((sum: number, s: any) => sum + volunteerShifts.filter(vs => vs.shiftId === s.id).length, 0)} Helfer
-                  {' · '}💡 Balken klicken = Helfer · Ränder ziehen = Zeiten
+                  {slots.length} Schichten · {totalHelfer} Helfer
+                  {' · '}💡 Balken antippen = Helfer · Ränder ziehen = Zeiten
                 </span>
               }
               shifts={slots as any}
@@ -164,10 +239,12 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
         });
       })()}
 
+
       {/* Modal für Helfer-Details */}
       {selectedShift && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 500, boxShadow: '0 10px 40px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}>
+          <div style={{ background: '#fff', borderRadius: isMobile ? '16px 16px 0 0' : 16, width: '100%', maxWidth: isMobile ? undefined : 500, boxShadow: '0 10px 40px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: isMobile ? '92vh' : '90vh' }}>
+
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #e9ecef', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8f9fa' }}>
               <div style={{ fontSize: 18, fontWeight: 'bold', color: '#212529' }}>
                 {(selectedShift as any).workArea?.icon || (selectedShift as any).arbeitsbereich?.icon} {(selectedShift as any).workArea?.name || (selectedShift as any).arbeitsbereich?.name}
@@ -209,11 +286,12 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
                               await modal.alert({ title: 'Fehler', message: err?.message || 'Fehler beim Ausplanen' });
                             }
                           }}
-                          style={{ padding: '6px 10px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}
+                          style={{ minWidth: 44, minHeight: 44, padding: '8px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 'bold', flexShrink: 0 }}
                           title="Aus Schicht entfernen"
                         >
                           ❌ Ausplanen
                         </button>
+
                       </div>
                     ))}
                   </div>
@@ -222,11 +300,11 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
 
               <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid #e9ecef' }}>
                 <h5 style={{ margin: '0 0 10px 0', color: '#212529', fontSize: 14 }}>➕ Helfer in Schicht einplanen</h5>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row', flexWrap: 'wrap' }}>
                   <select
                     value={selectedVolunteerToAssign}
                     onChange={e => setSelectedVolunteerToAssign(e.target.value ? Number(e.target.value) : '')}
-                    style={{ flex: 1, minWidth: 200, padding: '8px 12px', border: '1px solid #ced4da', borderRadius: 8, fontSize: 14 }}
+                    style={{ flex: 1, minWidth: 200, padding: isMobile ? '12px 14px' : '8px 12px', border: '1px solid #ced4da', borderRadius: 8, fontSize: 14, minHeight: 44 }}
                   >
                     <option value="">-- Helfer auswählen --</option>
                     {allVolunteers
@@ -267,16 +345,16 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
                       }
                     }}
                     disabled={!selectedVolunteerToAssign || assigning}
-                    style={{ padding: '8px 16px', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 8, cursor: !selectedVolunteerToAssign || assigning ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: !selectedVolunteerToAssign || assigning ? 0.6 : 1 }}
+                    style={{ padding: '12px 20px', minHeight: 44, background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 8, cursor: !selectedVolunteerToAssign || assigning ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: !selectedVolunteerToAssign || assigning ? 0.6 : 1, width: isMobile ? '100%' : undefined }}
                   >
-                    {assigning ? '...' : 'Einplanen'}
+                    {assigning ? '...' : '✅ Einplanen'}
                   </button>
                 </div>
               </div>
             </div>
             
             <div style={{ padding: '16px 20px', borderTop: '1px solid #e9ecef', background: '#f8f9fa', textAlign: 'right' }}>
-              <button onClick={() => setSelectedShift(null)} style={{ padding: '8px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold' }}>Schließen</button>
+              <button onClick={() => setSelectedShift(null)} style={{ padding: '12px 20px', minHeight: 44, minWidth: 100, background: '#6c757d', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold' }}>Schließen</button>
             </div>
           </div>
         </div>

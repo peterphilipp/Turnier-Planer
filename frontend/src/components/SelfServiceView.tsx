@@ -120,6 +120,16 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     }
   }, []);
 
+  // Polling: Daten alle 60 Sekunden neu laden, wenn der User eingeloggt ist.
+  // So werden Admin-Änderungen (z.B. Ausplanen) automatisch sichtbar.
+  useEffect(() => {
+    if (!ctxLoggedIn) return;
+    const interval = setInterval(() => {
+      loadAvailable().catch(() => {});
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [ctxLoggedIn, ctxToken]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const fetchClubColors = async (tournamentId: number) => {
     try {
       const t = await apiFetch('/api/tournaments/' + tournamentId);

@@ -1,11 +1,24 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getFoodDonationSlots, getYearGroups, getFoodCategories, getFoodItems, apiPost, apiPatch, apiDelete } from '../../../api';
 import { btnStyleSecondary, tdStyle, thStyle, btnStyle, inputStyle, FoodDonationSlot, YearGroup, FoodItem, FoodCategory, Tournament } from '../shared';
 
+/** Liefert die aktuelle Fensterbreite und aktualisiert bei Resize. */
+function useWindowWidth() {
+  const [width, setWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return width;
+}
+
 export default function FoodDonationSlots({ selectedTournament, tournament, adminPrimary }: { selectedTournament: number | null, tournament: Tournament | null, adminPrimary: string }) {
   const queryClient = useQueryClient();
+  const windowWidth = useWindowWidth();
+  const isMobile = windowWidth < 768;
 
   const { data: slots = [] } = useQuery<FoodDonationSlot[]>({
     queryKey: ['foodDonationSlots', selectedTournament],
@@ -213,7 +226,7 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
       </div>
 
       {/* Tabelle mit Jahrgang-Hierarchie */}
-      <div style={{ overflowX: 'auto' }}>
+      <div style={{ overflowX: isMobile ? undefined : 'auto' }}>
         {groupedByYear.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>Keine Verpflegungs-Slots gefunden.</div>
         ) : (
@@ -233,45 +246,85 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
                     borderRadius: 4
                   }}></div>
                 </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, borderLeft: '2px solid #e9ecef' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ ...thStyle, background: '#f8f9fa' }}>Verpflegung</th>
-                      <th style={{ ...thStyle, background: '#f8f9fa' }}>Soll</th>
-                      <th style={{ ...thStyle, background: '#f8f9fa' }}>Ist</th>
-                      <th style={{ ...thStyle, background: '#f8f9fa' }}>Fortschritt</th>
-                      <th style={{ ...thStyle, background: '#f8f9fa' }}>Aktion</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {slots.map(slot => (
-                      <tr key={slot.id} style={{ borderBottom: '1px solid #eee' }}>
-                        <td style={tdStyle}>{slot.foodItem ? `${slot.foodItem.category?.icon ?? '🍽️'} ${slot.foodItem.name}` : 'Alle'}</td>
-                        <td style={tdStyle}>{slot.targetQuantity} <span style={{ color: '#666', fontSize: 12 }}>{slot.foodItem?.unit || 'Stk'}</span></td>
-                        <td style={tdStyle}>{slot.collected} <span style={{ color: '#666', fontSize: 12 }}>{slot.foodItem?.unit || 'Stk'}</span></td>
-                        <td style={tdStyle}>
-                          <div style={{ background: '#e9ecef', borderRadius: 4, height: 8, overflow: 'hidden', width: 100 }}>
-                            <div style={{ 
-                              width: `${slot.targetQuantity > 0 ? Math.min(100, (slot.collected / slot.targetQuantity) * 100) : 0}%`,
-                              height: '100%',
-                              background: slot.collected >= slot.targetQuantity ? '#198754' : '#ffc107',
-                              borderRadius: 4
-                            }}></div>
-                          </div>
-                        </td>
 
-                        <td style={tdStyle}>
-                          <button onClick={() => {
-                            setEditingSlotId(slot.id);
-                            setSlotForm({ yearGroupIds: [slot.yearGroupId || 0], categoryId: slot.foodItem?.categoryId || 0, foodItemId: slot.foodItemId || 0, targetQuantity: slot.targetQuantity, description: slot.description || '' });
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', marginRight: 6 }}>✏️</button>
-                          <button onClick={() => deleteSlot(slot.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>🗑️</button>
-                        </td>
+                {isMobile ? (
+                  // Mobile: Kacheln statt Tabelle
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {slots.map(slot => {
+                      const slotProgress = slot.targetQuantity > 0 ? Math.min(100, (slot.collected / slot.targetQuantity) * 100) : 0;
+                      const isDone = slot.collected >= slot.targetQuantity;
+                      return (
+                        <div key={slot.id} style={{ background: isDone ? '#f0fdf4' : '#fff', border: `1px solid ${isDone ? '#86efac' : '#e9ecef'}`, borderRadius: 12, padding: '14px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                            <div style={{ fontWeight: 600, fontSize: 15, color: '#212529' }}>
+                              {slot.foodItem ? `${slot.foodItem.category?.icon ?? '🍽️'} ${slot.foodItem.name}` : 'Alle'}
+                            </div>
+                            <span style={{ fontWeight: 700, fontSize: 14, color: isDone ? '#155724' : '#856404' }}>
+                              {isDone ? '✅' : '⚠️'} {slot.collected}/{slot.targetQuantity} {slot.foodItem?.unit || 'Stk'}
+                            </span>
+                          </div>
+                          <div style={{ background: '#e9ecef', borderRadius: 4, height: 10, overflow: 'hidden', marginBottom: 12 }}>
+                            <div style={{ width: `${slotProgress}%`, height: '100%', background: isDone ? '#198754' : '#ffc107', borderRadius: 4 }}></div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                              onClick={() => {
+                                setEditingSlotId(slot.id);
+                                setSlotForm({ yearGroupIds: [slot.yearGroupId || 0], categoryId: slot.foodItem?.categoryId || 0, foodItemId: slot.foodItemId || 0, targetQuantity: slot.targetQuantity, description: slot.description || '' });
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                              style={{ flex: 1, minHeight: 44, padding: '10px 0', background: '#fff3cd', color: '#856404', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
+                            >✏️ Bearbeiten</button>
+                            <button
+                              onClick={() => deleteSlot(slot.id)}
+                              style={{ minWidth: 44, minHeight: 44, padding: '10px 14px', background: '#ffe3e3', color: '#dc3545', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
+                            >🗑️</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  // Tablet/Desktop: Tabelle
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, borderLeft: '2px solid #e9ecef' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ ...thStyle, background: '#f8f9fa' }}>Verpflegung</th>
+                        <th style={{ ...thStyle, background: '#f8f9fa' }}>Soll</th>
+                        <th style={{ ...thStyle, background: '#f8f9fa' }}>Ist</th>
+                        <th style={{ ...thStyle, background: '#f8f9fa' }}>Fortschritt</th>
+                        <th style={{ ...thStyle, background: '#f8f9fa' }}>Aktion</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {slots.map(slot => (
+                        <tr key={slot.id} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={tdStyle}>{slot.foodItem ? `${slot.foodItem.category?.icon ?? '🍽️'} ${slot.foodItem.name}` : 'Alle'}</td>
+                          <td style={tdStyle}>{slot.targetQuantity} <span style={{ color: '#666', fontSize: 12 }}>{slot.foodItem?.unit || 'Stk'}</span></td>
+                          <td style={tdStyle}>{slot.collected} <span style={{ color: '#666', fontSize: 12 }}>{slot.foodItem?.unit || 'Stk'}</span></td>
+                          <td style={tdStyle}>
+                            <div style={{ background: '#e9ecef', borderRadius: 4, height: 8, overflow: 'hidden', width: 100 }}>
+                              <div style={{ 
+                                width: `${slot.targetQuantity > 0 ? Math.min(100, (slot.collected / slot.targetQuantity) * 100) : 0}%`,
+                                height: '100%',
+                                background: slot.collected >= slot.targetQuantity ? '#198754' : '#ffc107',
+                                borderRadius: 4
+                              }}></div>
+                            </div>
+                          </td>
+                          <td style={tdStyle}>
+                            <button onClick={() => {
+                              setEditingSlotId(slot.id);
+                              setSlotForm({ yearGroupIds: [slot.yearGroupId || 0], categoryId: slot.foodItem?.categoryId || 0, foodItemId: slot.foodItemId || 0, targetQuantity: slot.targetQuantity, description: slot.description || '' });
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }} style={{ ...btnStyle, background: '#fff3cd', color: '#856404', border: 'none', marginRight: 6 }}>✏️</button>
+                            <button onClick={() => deleteSlot(slot.id)} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none' }}>🗑️</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             );
           })

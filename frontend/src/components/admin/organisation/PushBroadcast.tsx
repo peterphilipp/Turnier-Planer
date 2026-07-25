@@ -1,10 +1,23 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getVolunteers, getShifts, getVolunteerShifts, broadcastPush } from '../../../api';
 import { Shift, VolunteerShift, minToTime, inputStyle, btnStyle } from '../shared';
 import { modal } from '../Modal';
 
+/** Liefert die aktuelle Fensterbreite und aktualisiert bei Resize. */
+function useWindowWidth() {
+  const [width, setWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return width;
+}
+
 export default function PushBroadcast({ selectedTournament }: { selectedTournament: number | null }) {
+  const windowWidth = useWindowWidth();
+  const isMobile = windowWidth < 768;
   const [mode, setMode] = useState<'all' | 'shifts' | 'users'>('all');
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [selectedShiftIds, setSelectedShiftIds] = useState<number[]>([]);
@@ -130,10 +143,9 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
           Sende Sofort-Benachrichtigungen direkt auf die Geräte deiner Helfer. Keine E-Mails erforderlich!
         </p>
 
-        {/* Zielgruppen-Auswahl */}
         <div style={{ marginBottom: 24 }}>
           <label style={{ display: 'block', fontWeight: '600', marginBottom: 10, color: '#333' }}>1. Zielgruppe wählen:</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
             {[
               { id: 'all', label: '📢 Alle Helfer im Turnier', desc: 'An alle registrierten Helfer' },
               { id: 'shifts', label: '🧩 Schichten auswählen', desc: 'An Helfer bestimmter Schichten' },
@@ -143,15 +155,20 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
                 key={item.id}
                 onClick={() => setMode(item.id as any)}
                 style={{
-                  padding: 14,
+                  padding: isMobile ? '16px 18px' : 14,
+                  minHeight: isMobile ? 64 : undefined,
                   borderRadius: 12,
                   border: `2px solid ${mode === item.id ? '#0d6efd' : '#dee2e6'}`,
                   background: mode === item.id ? '#f0f7ff' : '#fff',
                   cursor: 'pointer',
-                  transition: 'all 0.15s ease'
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  flexDirection: isMobile ? 'row' : 'column',
+                  alignItems: isMobile ? 'center' : undefined,
+                  gap: isMobile ? 12 : 4
                 }}
               >
-                <div style={{ fontWeight: 'bold', color: mode === item.id ? '#0d6efd' : '#212529', marginBottom: 4 }}>
+                <div style={{ fontWeight: 'bold', color: mode === item.id ? '#0d6efd' : '#212529', fontSize: isMobile ? 16 : 14 }}>
                   {item.label}
                 </div>
                 <div style={{ fontSize: 12, color: '#6c757d' }}>{item.desc}</div>
@@ -208,7 +225,8 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        padding: '8px 12px',
+                        padding: isMobile ? '12px 14px' : '8px 12px',
+                        minHeight: isMobile ? 56 : undefined,
                         background: isChecked ? '#e7f1ff' : '#fff',
                         border: `1px solid ${isChecked ? '#b6d4fe' : '#dee2e6'}`,
                         borderRadius: 8,
@@ -221,7 +239,7 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => handleToggleShift(s.id)}
-                          style={{ width: 16, height: 16, cursor: 'pointer' }}
+                          style={{ width: isMobile ? 22 : 16, height: isMobile ? 22 : 16, cursor: 'pointer' }}
                         />
                         <div>
                           <strong style={{ color: '#212529' }}>{areaIcon} {roleName}</strong>
@@ -282,7 +300,8 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        padding: '8px 12px',
+                        padding: isMobile ? '12px 14px' : '8px 12px',
+                        minHeight: isMobile ? 56 : undefined,
                         background: isChecked ? '#e7f1ff' : '#fff',
                         border: `1px solid ${isChecked ? '#b6d4fe' : '#dee2e6'}`,
                         borderRadius: 8,
@@ -295,7 +314,7 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => handleToggleUser(v.id)}
-                          style={{ width: 16, height: 16, cursor: 'pointer' }}
+                          style={{ width: isMobile ? 22 : 16, height: isMobile ? 22 : 16, cursor: 'pointer' }}
                         />
                         <div>
                           <strong style={{ color: '#212529' }}>{v.name}</strong>
@@ -332,8 +351,8 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
               value={body}
               onChange={e => setBody(e.target.value)}
               placeholder="Gib hier deine Nachricht an die Helfer ein..."
-              rows={4}
-              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }}
+              rows={isMobile ? 6 : 4}
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical', fontSize: isMobile ? 16 : 14 }}
             />
           </div>
 
@@ -351,18 +370,21 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
         </div>
 
         {/* Absenden Button */}
-        <div style={{ borderTop: '1px solid #e9ecef', paddingTop: 20, textAlign: 'right' }}>
+        <div style={{ borderTop: '1px solid #e9ecef', paddingTop: 20, textAlign: isMobile ? 'center' : 'right' }}>
           <button
             onClick={handleSend}
             disabled={sending || !title.trim() || !body.trim()}
             style={{
               ...btnStyle,
               background: sending || !title.trim() || !body.trim() ? '#6c757d' : '#0d6efd',
-              padding: '12px 24px',
-              fontSize: 15,
+              padding: isMobile ? '16px 24px' : '12px 24px',
+              minHeight: 56,
+              fontSize: isMobile ? 16 : 15,
+              width: isMobile ? '100%' : undefined,
               cursor: sending || !title.trim() || !body.trim() ? 'not-allowed' : 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: 8
             }}
           >
