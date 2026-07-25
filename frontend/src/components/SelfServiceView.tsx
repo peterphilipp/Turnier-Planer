@@ -838,37 +838,40 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                       <div style={{ fontSize: 16, fontWeight: 'bold', color: remaining > 0 ? clubAccent : '#6c757d' }}>{remaining}/{s?.maxVolunteers || 0}</div>
                     </div>
                     <div style={{ flexShrink: 0, display: 'flex', gap: 6 }}>
-                      <button
-                        onClick={() => shiftOver && openRatingModal(vs)}
-                        title={shiftOver ? (alreadyRated ? 'Bewertung bearbeiten' : 'Schicht bewerten') : 'Bewertung erst nach Schichtende möglich'}
-                        disabled={!shiftOver}
-                        style={{
-                          height: 40,
-                          padding: '0 10px',
-                          borderRadius: 10,
-                          border: 'none',
-                          background: !shiftOver ? '#e9ecef' : alreadyRated ? '#ffc107' : clubPrimary,
-                          color: !shiftOver ? '#adb5bd' : alreadyRated ? '#000' : '#fff',
-                          cursor: shiftOver ? 'pointer' : 'not-allowed',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          fontWeight: 'bold',
-                          fontSize: 13,
-                          opacity: shiftOver ? 1 : 0.65
-                        }}
-                      >
-                        <span>{!shiftOver ? '⏳' : alreadyRated ? '⭐' : '📝'}</span>
-                        <span style={{ display: 'inline-block' }}>
-                          {!shiftOver ? 'Nach Schicht' : alreadyRated ? 'Bewertet' : 'Bewerten'}
-                        </span>
-                      </button>
-                      <button onClick={() => unassign(vs.id)} title="Abmelden" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 7v6h6" />
-                          <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
-                        </svg>
-                      </button>
+                      {shiftOver ? (
+                        // Schicht vorbei → nur Bewertungs-Button
+                        <button
+                          onClick={() => openRatingModal(vs)}
+                          title={alreadyRated ? 'Bewertung bearbeiten' : 'Schicht bewerten'}
+                          style={{
+                            height: 40,
+                            padding: '0 12px',
+                            borderRadius: 10,
+                            border: 'none',
+                            background: alreadyRated ? '#ffc107' : clubPrimary,
+                            color: alreadyRated ? '#000' : '#fff',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            fontWeight: 'bold',
+                            fontSize: 13
+                          }}
+                        >
+                          <span>{alreadyRated ? '⭐' : '📝'}</span>
+                          <span style={{ display: 'inline-block' }}>
+                            {alreadyRated ? 'Bewertet' : 'Bewerten'}
+                          </span>
+                        </button>
+                      ) : (
+                        // Schicht noch nicht vorbei → nur Stornierungsbutton
+                        <button onClick={() => unassign(vs.id)} title="Abmelden" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 7v6h6" />
+                            <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
