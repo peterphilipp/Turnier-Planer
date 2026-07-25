@@ -71,6 +71,30 @@ async function createPinPair(): Promise<{ plain: string; hash: string }> {
 const DUMMY_BCRYPT_HASH = '$2b$10$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345';
 
 /**
+ * Von Resend geforderte Absender-Formate: `email@example.com` oder
+ * `Name <email@example.com>`. EMAIL_FROM kommt aus der Server-Umgebung (z.B.
+ * einer systemd/Quadlet Environment=-Zeile) - ein dort fehlerhaft gequotetes
+ * oder am Leerzeichen abgeschnittenes Value würde sonst erst als kryptischer
+ * Resend-422-Fehler beim Versand auffallen, statt klar benannt im Log.
+ */
+const FROM_ADDRESS_REGEX = /^(?:[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+|[^<>]+<[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+>)$/;
+const DEFAULT_EMAIL_FROM = 'Turnier-Planer <noreply@mygate.dedyn.io>';
+
+function resolveEmailFrom(): string {
+  const configured = process.env.EMAIL_FROM;
+  if (!configured) return DEFAULT_EMAIL_FROM;
+  if (FROM_ADDRESS_REGEX.test(configured.trim())) return configured.trim();
+
+  console.error(JSON.stringify({
+    event: 'EMAIL_FROM_INVALID_FORMAT',
+    configuredValue: configured,
+    fallback: DEFAULT_EMAIL_FROM,
+    timestamp: new Date().toISOString()
+  }));
+  return DEFAULT_EMAIL_FROM;
+}
+
+/**
  * Einheitliche Login-Fehlermeldung (verhindert User-Enumeration). Die genaue
  * Ursache landet nur im Server-Log, nicht in der HTTP-Antwort.
  */
@@ -186,7 +210,7 @@ router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), asy
         // funktioniert nur über die verifizierte Absenderadresse. Kein
         // Nutzer-Lookup mehr (ehem. Primary-Admin) - der Absender ist reine
         // Infrastruktur-Konfiguration, keine Personen-Eigenschaft.
-        const emailFrom = process.env.EMAIL_FROM || 'Turnier-Planer <noreply@mygate.dedyn.io>';
+        const emailFrom = resolveEmailFrom();
 
         const resend = new Resend(process.env.RESEND_API_KEY);
         const result = await resend.emails.send({

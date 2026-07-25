@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { driver, type DriveStep } from 'driver.js';
 import 'driver.js/dist/driver.css';
@@ -43,7 +43,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   const [volunteerShifts, setVolunteerShifts] = useState<VolunteerShift[]>([]);
   const [tournament, setTournament] = useState<any>(null);
   const [filterDate, setFilterDate] = useState('');
-  const [filterTimesOfDay, setFilterTimesOfDay] = useState<Set<'vormittag' | 'mittag' | 'nachmittag' | 'abend'>>(new Set());
+  const [filterTimesOfDay, setFilterTimesOfDay] = useState<Set<'morgen' | 'mittag' | 'nachmittag' | 'abend'>>(new Set());
   const [busy, setBusy] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -173,13 +173,23 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   };
 
-  /** Grobe Tageszeit-Einordnung für die Filter-Chips (bis 12 / 12-14 / 14-18 / ab 18 Uhr). */
-  const timeOfDay = (startMin: number | null | undefined): 'vormittag' | 'mittag' | 'nachmittag' | 'abend' | null => {
-    if (startMin == null) return null;
-    if (startMin < 720) return 'vormittag'; // < 12:00
-    if (startMin < 840) return 'mittag'; // < 14:00
-    if (startMin < 1080) return 'nachmittag'; // < 18:00
-    return 'abend';
+  /** Zeitblöcke für die Uhrzeit-Filter-Chips, in Minuten seit Mitternacht -
+      zentral definiert statt als Magic Numbers verstreut. Morgen: bis 12:00,
+      Mittag: 12:00–14:00, Nachmittag: 14:00–18:00, Abend: ab 18:00. */
+  const TIME_BLOCKS = {
+    morgen: { label: 'Morgen', startMin: 0, endMin: 720 },
+    mittag: { label: 'Mittag', startMin: 720, endMin: 840 },
+    nachmittag: { label: 'Nachmittag', startMin: 840, endMin: 1080 },
+    abend: { label: 'Abend', startMin: 1080, endMin: 1440 }
+  } as const;
+
+  /** Schicht matched einen Zeitblock, sobald sie hineinragt - nicht nur, wenn
+      sie darin beginnt. Eine Schicht 11:00–14:00 reicht z.B. in "Morgen" UND
+      "Mittag" hinein und soll bei beiden Filtern auftauchen. */
+  const shiftOverlapsBlock = (startMin: number | null | undefined, endMin: number | null | undefined, block: { startMin: number; endMin: number }): boolean => {
+    if (startMin == null) return false;
+    const end = endMin != null && endMin > startMin ? endMin : startMin + 1;
+    return startMin < block.endMin && end > block.startMin;
   };
 
   /** Schicht liegt zeitlich komplett in der Vergangenheit (Ende vor jetzt). */
@@ -301,6 +311,45 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
       const data = await apiFetch(url, { headers: { Authorization: 'Bearer ' + ctxToken } });
       applyAvailableData(data);
     } catch { /* stumm - z.B. wenn (noch) kein Turnier zugewiesen */ } finally { setBusy(false); }
+  };
+
+  // Pull-to-Refresh statt Reload-Button: in nativen Apps (iOS Mail, Twitter,
+  // Instagram) üblich mit Pfeil/Spinner-Indikator, damit der Nutzer erkennt,
+  // dass das Ziehen einen Reload auslöst - ohne den bräuchte es wieder einen
+  // Button. Reagiert nur, wenn ganz oben gescrollt UND nach unten gezogen
+  // wird, damit normales Scrollen nicht beeinträchtigt wird.
+  const [pullDistance, setPullDistance] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const pullStartY = useRef<number | null>(null);
+  const PULL_THRESHOLD = 60;
+  const PULL_MAX = 90;
+
+  const handlePullStart = (e: React.TouchEvent) => {
+    pullStartY.current = window.scrollY <= 0 && !refreshing ? e.touches[0].clientY : null;
+  };
+
+  const handlePullMove = (e: React.TouchEvent) => {
+    if (pullStartY.current == null || refreshing) return;
+    const delta = e.touches[0].clientY - pullStartY.current;
+    if (delta > 0 && window.scrollY <= 0) {
+      setPullDistance(Math.min(PULL_MAX, delta * 0.5));
+      if (e.cancelable) e.preventDefault();
+    } else {
+      setPullDistance(0);
+    }
+  };
+
+  const handlePullEnd = async () => {
+    if (pullStartY.current == null) return;
+    const shouldRefresh = pullDistance >= PULL_THRESHOLD;
+    pullStartY.current = null;
+    if (shouldRefresh) {
+      setRefreshing(true);
+      setPullDistance(PULL_THRESHOLD);
+      await loadAvailable();
+      setRefreshing(false);
+    }
+    setPullDistance(0);
   };
 
   const assign = async (shiftId: number, date: string) => {
@@ -741,8 +790,31 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
 
   /* ===== DASHBOARD ===== */
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', padding: isMobile ? 16 : 24, paddingBottom: 80, background: '#f0f2f5', minHeight: '100vh', boxSizing: 'border-box' }}>
-      
+    <div
+      onTouchStart={handlePullStart}
+      onTouchMove={handlePullMove}
+      onTouchEnd={handlePullEnd}
+      style={{ maxWidth: 480, margin: '0 auto', padding: isMobile ? 16 : 24, paddingBottom: 80, background: '#f0f2f5', minHeight: '100vh', boxSizing: 'border-box' }}
+    >
+      {/* Pull-to-Refresh-Indikator: Pfeil dreht sich Richtung Auslöse-Schwelle,
+          danach Spinner während des eigentlichen Reloads - Standard-Pattern
+          bei nativen Apps (iOS Mail, Twitter/X, Instagram), damit klar wird,
+          dass die Zieh-Geste einen Reload auslöst statt nur zu scrollen. */}
+      {(pullDistance > 0 || refreshing) && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: refreshing ? 40 : pullDistance, overflow: 'hidden', transition: refreshing ? 'height 0.15s' : undefined }}>
+          <span style={{
+            fontSize: 20,
+            display: 'inline-block',
+            transform: refreshing ? undefined : `rotate(${Math.min(180, (pullDistance / PULL_THRESHOLD) * 180)}deg)`,
+            animation: refreshing ? 'spin 0.8s linear infinite' : undefined,
+            opacity: Math.min(1, pullDistance / 30)
+          }}>
+            {refreshing ? '⏳' : '↓'}
+          </span>
+        </div>
+      )}
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+
       <PwaInstallPrompt />
 
       {/* Header mit Logo, Name & Hamburger */}
@@ -892,89 +964,79 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
 
       <PushNotificationBanner primaryColor={clubSecondary} textColor={clubSecondaryText} />
 
-      {/* Filter: nur bei Jobs relevant (Verpflegungsziele sind nicht nach
-          Tag/Uhrzeit strukturiert), vorher wurde die Filterzeile auch im
-          Verpflegungs-Tab angezeigt, obwohl sie dort wirkungslos war. */}
+      {/* Tabs: bewusst VOR der Filterzeile - erst den Bereich wählen (Jobs
+          oder Verpflegung), dann die dafür relevanten Filter darunter sehen,
+          statt umgekehrt. */}
+      <div id="tour-tabs" style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        <button onClick={() => setActiveSection('jobs')} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'jobs' ? '600' : '400', background: activeSection === 'jobs' ? clubSecondary : '#fff', color: activeSection === 'jobs' ? clubSecondaryText : '#666', boxShadow: activeSection === 'jobs' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>📋 Jobs</button>
+        <button onClick={() => { setActiveSection('verpflegung'); loadFood(); }} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'verpflegung' ? '600' : '400', background: activeSection === 'verpflegung' ? clubSecondary : '#fff', color: activeSection === 'verpflegung' ? clubSecondaryText : '#666', boxShadow: activeSection === 'verpflegung' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>🍞 Verpflegung</button>
+      </div>
+
+      {/* Filter: nur bei Jobs relevant (Verpflegungsziele sind nach Jahrgang,
+          nicht nach Tag/Uhrzeit strukturiert - FoodDonationSlot hat gar kein
+          Datumsfeld), vorher wurde die Filterzeile auch im Verpflegungs-Tab
+          angezeigt, obwohl sie dort wirkungslos war. */}
       {activeSection === 'jobs' && (
       <div id="tour-filter" style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          {/* Tag-Chips statt Dropdown: horizontal scrollbar, chronologisch nach
-              echtem Datum sortiert (vorher .sort() auf lokalisierte Datums-
-              STRINGS wie "4.9.2026" - das sortiert bei zweistelligen Tagen
-              lexikographisch falsch, z.B. "10.9." vor "4.9."). */}
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', flex: 1, paddingBottom: 2 }}>
-            {(() => {
-              const uniqueDates = Array.from(new Map(shifts.map(s => [new Date(s.date).toLocaleDateString('de-DE'), new Date(s.date)])).entries())
-                .sort((a, b) => a[1].getTime() - b[1].getTime());
-              const chips: { value: string; label: string }[] = [
-                { value: '', label: 'Alle' },
-                ...uniqueDates.map(([dateKey, dateObj]) => ({ value: dateKey, label: dateObj.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }) }))
-              ];
-              return chips.map(chip => (
+        {/* Tag-Chips statt Dropdown: kein "Alle"-Chip mehr - ohne Auswahl
+            werden ohnehin schon alle Tage gezeigt, ein Klick filtert, erneuter
+            Klick auf den aktiven Chip hebt den Filter wieder auf. Chronologisch
+            nach echtem Datum sortiert (vorher .sort() auf lokalisierte Datums-
+            STRINGS wie "4.9.2026" - das sortiert bei zweistelligen Tagen
+            lexikographisch falsch, z.B. "10.9." vor "4.9."). */}
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', justifyContent: 'center', flexWrap: 'wrap', marginBottom: 8, paddingBottom: 2 }}>
+          {(() => {
+            const uniqueDates = Array.from(new Map(shifts.map(s => [new Date(s.date).toLocaleDateString('de-DE'), new Date(s.date)])).entries())
+              .sort((a, b) => a[1].getTime() - b[1].getTime());
+            return uniqueDates.map(([dateKey, dateObj]) => {
+              const active = filterDate === dateKey;
+              return (
                 <button
-                  key={chip.value}
-                  onClick={() => setFilterDate(chip.value)}
+                  key={dateKey}
+                  onClick={() => setFilterDate(active ? '' : dateKey)}
                   style={{
                     flexShrink: 0, padding: '10px 16px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap',
-                    background: filterDate === chip.value ? clubPrimary : '#fff',
-                    color: filterDate === chip.value ? clubPrimaryText : '#495057',
-                    boxShadow: filterDate === chip.value ? 'none' : '0 1px 3px rgba(0,0,0,0.08)'
+                    background: active ? clubPrimary : '#fff',
+                    color: active ? clubPrimaryText : '#495057',
+                    boxShadow: active ? 'none' : '0 1px 3px rgba(0,0,0,0.08)'
                   }}
                 >
-                  {chip.label}
+                  {dateObj.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
                 </button>
-              ));
-            })()}
-          </div>
-          <button
-            onClick={() => loadAvailable()}
-            disabled={busy}
-            title="Aktualisieren"
-            style={{ flexShrink: 0, width: 48, border: '2px solid #e9ecef', borderRadius: 10, background: '#fff', cursor: busy ? 'not-allowed' : 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.6 : 1 }}
-          >
-            🔄
-        </button>
+              );
+            });
+          })()}
         </div>
 
-        {/* Uhrzeit-Chips (kombinierbar). Kein "Nur kommende"-Toggle mehr -
-            vergangene Slots werden jetzt immer (nicht optional) ausgeblendet,
-            siehe Filter-Kette weiter unten. */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {([
-            { key: 'vormittag' as const, label: '🌅 Vormittag' },
-            { key: 'mittag' as const, label: '🕛 Mittag' },
-            { key: 'nachmittag' as const, label: '☀️ Nachmittag' },
-            { key: 'abend' as const, label: '🌙 Abend' }
-          ]).map(t => {
-            const active = filterTimesOfDay.has(t.key);
+        {/* Uhrzeit-Chips (kombinierbar, aus TIME_BLOCKS abgeleitet). Kein
+            "Nur kommende"-Toggle mehr - vergangene Slots werden jetzt immer
+            ausgeblendet, siehe Filter-Kette weiter unten. Keine Emojis (Platz
+            sparen), zentriert. */}
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+          {(Object.keys(TIME_BLOCKS) as (keyof typeof TIME_BLOCKS)[]).map(key => {
+            const active = filterTimesOfDay.has(key);
             return (
               <button
-                key={t.key}
+                key={key}
                 onClick={() => setFilterTimesOfDay(prev => {
                   const next = new Set(prev);
-                  if (next.has(t.key)) next.delete(t.key); else next.add(t.key);
+                  if (next.has(key)) next.delete(key); else next.add(key);
                   return next;
                 })}
                 style={{
-                  flex: '1 1 0', minWidth: 0, padding: '7px 6px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap',
+                  padding: '8px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
                   background: active ? clubSecondary : '#fff',
                   color: active ? clubSecondaryText : '#495057',
                   boxShadow: active ? 'none' : '0 1px 3px rgba(0,0,0,0.08)'
                 }}
               >
-                {t.label}
+                {TIME_BLOCKS[key].label}
               </button>
             );
           })}
         </div>
       </div>
       )}
-
-      {/* Tabs */}
-      <div id="tour-tabs" style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        <button onClick={() => setActiveSection('jobs')} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'jobs' ? '600' : '400', background: activeSection === 'jobs' ? clubSecondary : '#fff', color: activeSection === 'jobs' ? clubSecondaryText : '#666', boxShadow: activeSection === 'jobs' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>📋 Jobs</button>
-        <button onClick={() => { setActiveSection('verpflegung'); loadFood(); }} style={{ flex: 1, padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: activeSection === 'verpflegung' ? '600' : '400', background: activeSection === 'verpflegung' ? clubSecondary : '#fff', color: activeSection === 'verpflegung' ? clubSecondaryText : '#666', boxShadow: activeSection === 'verpflegung' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)' }}>🍞 Verpflegung</button>
-      </div>
 
       {/* Deine Jobs */}
       {activeSection === 'jobs' && volunteerShifts.filter(vs => vs.userId === ctxVolunteer?.id).length > 0 && (
@@ -1093,7 +1155,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
           <h3 style={{ margin: '0 0 6px', fontSize: 16, color: clubPrimary }}>Offene Jobs</h3>
           {shifts
             .filter(s => !filterDate || new Date(s.date).toLocaleDateString('de-DE') === filterDate)
-            .filter(s => filterTimesOfDay.size === 0 || (() => { const t = timeOfDay(s.startMin); return t != null && filterTimesOfDay.has(t); })())
+            .filter(s => filterTimesOfDay.size === 0 || [...filterTimesOfDay].some(key => shiftOverlapsBlock(s.startMin, s.endMin, TIME_BLOCKS[key])))
             .filter(s => !isPastShift(s.date, s.endMin))
             .filter(s => {
               // Verstecke den Job, wenn der aktuelle User bereits eingetragen ist

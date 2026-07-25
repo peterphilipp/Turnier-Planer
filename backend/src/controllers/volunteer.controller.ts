@@ -59,7 +59,7 @@ export const getVolunteers = async (req: Request, res: Response) => {
   const users = await prisma.user.findMany({
     where: tournamentId ? { tournamentId: Number(tournamentId) } : undefined,
     orderBy: { name: 'asc' },
-    include: { children: true }
+    include: { children: true, pushSubscriptions: { select: { id: true } } }
   });
   // Rolle als String zurückgeben; Passwort-Hash niemals ausliefern
   return res.json(users?.map(u => ({ ...sanitizeUser(u), role: u.role as string })) || []);

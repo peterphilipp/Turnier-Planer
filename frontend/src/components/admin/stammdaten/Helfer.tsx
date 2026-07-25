@@ -133,6 +133,9 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
                 {(v.children || []).some(c => !matchingYearGroup(String(c.childYear))) && (
                   <span title="Mindestens ein Kind passt zu keinem Jahrgang - bitte prüfen" style={{ marginLeft: 6, fontSize: 13 }}>⚠️</span>
                 )}
+                {(v.pushSubscriptions?.length ?? 0) > 0 && (
+                  <span title="Push-Benachrichtigungen aktiviert" style={{ marginLeft: 6, fontSize: 13 }}>🔔</span>
+                )}
               </td>
               <td style={{ padding: '10px 12px' }}>{v.email || '–'}</td>
               <td style={{ padding: '10px 12px' }}>{v.phone || '–'}</td>

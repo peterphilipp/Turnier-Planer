@@ -5,6 +5,10 @@ import { modal } from './admin/Modal';
 export default function PushNotificationBanner({ primaryColor = '#198754', textColor = '#fff' }: { primaryColor?: string; textColor?: string }) {
   const { supported, subscribed, setSubscribed } = usePushSubscriptionStatus();
   const [loading, setLoading] = useState(false);
+  // Wie bei PwaInstallPrompt: Wegklicken gilt nur fuer die aktuelle Sitzung
+  // (kein localStorage) - beim naechsten Laden erscheint der Hinweis wieder,
+  // solange Push noch nicht aktiviert ist.
+  const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
     if (subscribed) {
@@ -17,7 +21,7 @@ export default function PushNotificationBanner({ primaryColor = '#198754', textC
   // Sobald aktiviert, verschwindet die Banner komplett statt dauerhaft Platz
   // zu belegen - der Status ist danach im Hamburger-Menü zu finden (dort
   // nutzt derselbe usePushSubscriptionStatus-Hook denselben Live-Stand).
-  if (!supported || subscribed) return null;
+  if (!supported || subscribed || isDismissed) return null;
 
   const handleSubscribe = async () => {
     setLoading(true);
@@ -44,8 +48,15 @@ export default function PushNotificationBanner({ primaryColor = '#198754', textC
   };
 
   return (
-    <div style={{ background: '#fff3cd', border: '1px solid #ffeeba', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div style={{ background: '#fff3cd', border: '1px solid #ffeeba', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, position: 'relative' }}>
+      <button
+        onClick={() => setIsDismissed(true)}
+        title="Schließen"
+        style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(133, 100, 4, 0.1)', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', fontSize: 16, cursor: 'pointer', color: '#856404' }}
+      >
+        ×
+      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingRight: 24 }}>
         <span style={{ fontSize: 22 }}>🔔</span>
         <div>
           <div style={{ fontWeight: 'bold', fontSize: 14, color: '#856404' }}>Schicht-Updates per PWA Push</div>
