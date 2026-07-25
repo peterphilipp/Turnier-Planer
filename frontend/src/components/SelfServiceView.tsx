@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { driver } from 'driver.js';
+import { driver, type DriveStep } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import { modal } from './admin/Modal';
 import { inputStyle, btnStyle } from './admin/shared';
@@ -247,17 +247,26 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   }, [contextLogout]);
 
   const startTour = () => {
+    // #tour-pwa-install existiert nur, wenn der Install-Hinweis gerade
+    // angezeigt wird (nicht schon installiert, nicht weggeklickt, auf diesem
+    // Gerät überhaupt möglich) - Schritt nur dann einbauen, sonst würde
+    // driver.js auf ein nicht vorhandenes Element zeigen wollen.
+    const steps: DriveStep[] = [];
+    if (document.querySelector('#tour-pwa-install')) {
+      steps.push({ element: '#tour-pwa-install', popover: { title: '📲 App installieren', description: 'Das ist kein Werbebanner, sondern lohnt sich wirklich: Als installierte App bekommst du Schicht-Updates direkt aufs Handy - ganz ohne E-Mail-Adresse - und findest die Seite künftig per Fingertipp auf deinem Homescreen, ohne die Adresse erneut einzutippen.', side: 'bottom' } });
+    }
+    steps.push(
+      { element: '#tour-header', popover: { title: 'Dein Turnier', description: 'Hier siehst du, für welches Turnier du gerade eingeteilt bist. Falls du bei mehreren Turnieren aktiv bist, kannst du hier wechseln.', side: 'bottom' } },
+      { element: '#tour-filter', popover: { title: 'Schichten filtern', description: 'Finde schneller die passende Schicht, indem du nach einem bestimmten Tag filterst.', side: 'bottom' } },
+      { element: '#tour-tabs', popover: { title: 'Aufgaben-Bereiche', description: 'Wechsle hier zwischen Helfer-Schichten und Verpflegungs-Spenden (z.B. Kuchen oder Salate).', side: 'top' } },
+      { element: '#tour-myshifts', popover: { title: 'Deine Zusagen', description: 'Hier findest du immer deine bereits zugesagten Schichten und Spenden im Überblick.', side: 'top' } }
+    );
     const driverObj = driver({
       showProgress: true,
       nextBtnText: 'Weiter',
       prevBtnText: 'Zurück',
       doneBtnText: 'Fertig',
-      steps: [
-        { element: '#tour-header', popover: { title: 'Dein Turnier', description: 'Hier siehst du, für welches Turnier du gerade eingeteilt bist. Falls du bei mehreren Turnieren aktiv bist, kannst du hier wechseln.', side: 'bottom' } },
-        { element: '#tour-filter', popover: { title: 'Schichten filtern', description: 'Finde schneller die passende Schicht, indem du nach einem bestimmten Tag filterst.', side: 'bottom' } },
-        { element: '#tour-tabs', popover: { title: 'Aufgaben-Bereiche', description: 'Wechsle hier zwischen Helfer-Schichten und Verpflegungs-Spenden (z.B. Kuchen oder Salate).', side: 'top' } },
-        { element: '#tour-myshifts', popover: { title: 'Deine Zusagen', description: 'Hier findest du immer deine bereits zugesagten Schichten und Spenden im Überblick.', side: 'top' } },
-      ]
+      steps
     });
     driverObj.drive();
     localStorage.setItem('hasSeenTour', 'true');

@@ -58,7 +58,7 @@ export default function PwaInstallPrompt() {
   // Wenn ein aktiver Install-Prompt (Android/Desktop) da ist
   if (deferredPrompt) {
     return (
-      <div style={{ background: '#e8f5e9', padding: '12px 16px', borderRadius: 8, border: '1px solid #198754', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div id="tour-pwa-install" style={{ background: '#e8f5e9', padding: '12px 16px', borderRadius: 8, border: '1px solid #198754', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontWeight: 'bold', color: '#198754', fontSize: 14 }}>App installieren</div>
@@ -92,7 +92,7 @@ export default function PwaInstallPrompt() {
   // Fallback für iOS (da Apple kein vorinstalliertes Event auslöst)
   if (isIOS) {
     return (
-      <div style={{ background: '#e8f5e9', padding: '16px', borderRadius: 12, border: '1px solid #198754', marginBottom: 20, position: 'relative', overflow: 'hidden' }}>
+      <div id="tour-pwa-install" style={{ background: '#e8f5e9', padding: '16px', borderRadius: 12, border: '1px solid #198754', marginBottom: 20, position: 'relative', overflow: 'hidden' }}>
         <style>
           {`
             @keyframes bounceDown {
