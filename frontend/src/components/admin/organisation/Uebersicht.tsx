@@ -375,28 +375,75 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
       {foodSlots.length > 0 && (
         <div style={{ marginTop: 32 }}>
           <h4 style={{ fontSize: 16, marginBottom: 16, color: '#212529' }}>🍞 Verpflegung</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {foodSlots.map(slot => {
-              const slotDonations = foodDonations.filter(d => d.foodDonationSlotId === slot.id);
-              const isDone = slot.collected >= slot.targetQuantity;
-              return (
-                <div key={slot.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', background: isDone ? '#f0fdf4' : '#fff3cd', border: `1px solid ${isDone ? '#86efac' : '#ffeeba'}`, borderRadius: 10, flexWrap: 'wrap' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: '#212529' }}>
-                      {slot.yearGroup?.name || 'Ohne Jahrgang'} – {slot.foodItem ? `${slot.foodItem.category?.icon ?? '🍽️'} ${slot.foodItem.name}` : 'Alle Artikel'}
-                    </div>
-                    <div style={{ fontSize: 12, color: isDone ? '#155724' : '#856404' }}>
-                      {isDone ? '✅' : '⚠️'} {slot.collected}/{slot.targetQuantity} {slot.foodItem?.unit || 'Stk'}
-                      {slotDonations.length > 0 && ` · ${slotDonations.length} Spende${slotDonations.length === 1 ? '' : 'n'}`}
-                    </div>
-                  </div>
-                  <button onClick={() => setSelectedFoodSlot(slot)} style={{ minHeight: 40, padding: '8px 14px', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
-                    👥 Details
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+          {(() => {
+            // Matrix statt Liste: Zeilen = Jahrgänge, Spalten = Lebensmittel -
+            // die vorherige Liste (ein Balken pro Ziel) wurde bei vielen
+            // Jahrgängen/Artikeln schnell unübersichtlich lang und hat pro
+            // Jahrgang kaum einen Überblick erlaubt. "Ohne Jahrgang"/"Alle
+            // Artikel" (kein yearGroupId bzw. kein foodItemId) landen als
+            // eigene Zeile/Spalte am Ende, statt zu verschwinden.
+            const yearGroupKey = (yg: typeof foodSlots[number]['yearGroup']) => yg?.id ?? -1;
+            const itemKey = (item: typeof foodSlots[number]['foodItem']) => item?.id ?? -1;
+
+            const yearGroupsMap = new Map<number, { id: number; name: string }>();
+            const itemsMap = new Map<number, { id: number; name: string; icon: string; unit: string }>();
+            for (const slot of foodSlots) {
+              yearGroupsMap.set(yearGroupKey(slot.yearGroup), { id: yearGroupKey(slot.yearGroup), name: slot.yearGroup?.name || 'Ohne Jahrgang' });
+              itemsMap.set(itemKey(slot.foodItem), { id: itemKey(slot.foodItem), name: slot.foodItem?.name || 'Alle Artikel', icon: slot.foodItem?.category?.icon || '🍽️', unit: slot.foodItem?.unit || 'Stk' });
+            }
+            const rows = [...yearGroupsMap.values()].sort((a, b) => a.id === -1 ? 1 : b.id === -1 ? -1 : a.name.localeCompare(b.name));
+            const cols = [...itemsMap.values()].sort((a, b) => a.id === -1 ? 1 : b.id === -1 ? -1 : a.name.localeCompare(b.name));
+            const slotAt = (ygId: number, itId: number) => foodSlots.find(s => yearGroupKey(s.yearGroup) === ygId && itemKey(s.foodItem) === itId);
+
+            return (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ position: 'sticky', left: 0, background: '#fff', textAlign: 'left', padding: '4px 10px 8px 0', borderBottom: '2px solid #e9ecef', verticalAlign: 'bottom' }}>Jahrgang</th>
+                      {cols.map(col => (
+                        <th key={col.id} style={{ height: 120, minWidth: 34, maxWidth: 34, padding: 0, borderBottom: '2px solid #e9ecef', verticalAlign: 'bottom', overflow: 'visible' }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-end', height: '100%' }}>
+                            <div style={{ transform: 'rotate(-45deg)', transformOrigin: 'bottom left', whiteSpace: 'nowrap', fontWeight: 600, color: '#495057', paddingBottom: 4 }}>
+                              {col.icon} {col.name}
+                            </div>
+                          </div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(row => (
+                      <tr key={row.id}>
+                        <td style={{ position: 'sticky', left: 0, background: '#fff', fontWeight: 600, padding: '4px 10px 4px 0', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' }}>{row.name}</td>
+                        {cols.map(col => {
+                          const slot = slotAt(row.id, col.id);
+                          if (!slot) return <td key={col.id} style={{ textAlign: 'center', color: '#dee2e6', borderBottom: '1px solid #f0f0f0' }}>–</td>;
+                          const isDone = slot.collected >= slot.targetQuantity;
+                          const hasProgress = slot.collected > 0;
+                          return (
+                            <td key={col.id} style={{ textAlign: 'center', borderBottom: '1px solid #f0f0f0', padding: 2 }}>
+                              <button
+                                onClick={() => setSelectedFoodSlot(slot)}
+                                title={`${row.name} – ${col.icon} ${col.name}: ${slot.collected}/${slot.targetQuantity} ${col.unit}`}
+                                style={{
+                                  width: 30, height: 26, border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 11,
+                                  background: isDone ? '#d4edda' : hasProgress ? '#fff3cd' : '#f8d7da',
+                                  color: isDone ? '#155724' : hasProgress ? '#856404' : '#721c24'
+                                }}
+                              >
+                                {slot.collected}/{slot.targetQuantity}
+                              </button>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
 
           {unassignedDonations.length > 0 && (
             <div style={{ marginTop: 20 }}>
