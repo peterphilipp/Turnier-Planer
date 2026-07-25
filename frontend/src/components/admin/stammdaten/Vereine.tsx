@@ -58,6 +58,10 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
 
   const saveClub = async () => {
     if (!clubForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
+    const hexColorRegex = /^#[0-9a-fA-F]{6}$/;
+    if (!hexColorRegex.test(clubForm.primaryColor)) return await modal.alert({ title: 'Hinweis', message: 'Primärfarbe muss ein Hex-Wert wie #aabbcc sein' });
+    if (!hexColorRegex.test(clubForm.secondaryColor)) return await modal.alert({ title: 'Hinweis', message: 'Sekundärfarbe muss ein Hex-Wert wie #aabbcc sein' });
+    if (!hexColorRegex.test(clubForm.accentColor)) return await modal.alert({ title: 'Hinweis', message: 'Akzentfarbe muss ein Hex-Wert wie #aabbcc sein' });
     const data: { name: string; city?: string | null; primaryColor: string; secondaryColor: string; accentColor: string; logo?: string } = {
       name: clubForm.name, city: clubForm.city || undefined, primaryColor: clubForm.primaryColor, secondaryColor: clubForm.secondaryColor, accentColor: clubForm.accentColor
     };
@@ -84,10 +88,16 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
         const imageData = ctx.getImageData(0, 0, 100, 100).data;
         const strategies = [{ step: 32, skip: 8, minBrightness: 50 }, { step: 64, skip: 16, minBrightness: 80 }, { step: 16, skip: 4, minBrightness: 20 }, { step: 48, skip: 32, minBrightness: 100 }];
         const s = strategyIndex !== undefined ? strategies[strategyIndex % strategies.length] : strategies[0];
+        // Logos haben fast immer einen weißen/nahezu-weißen Hintergrund (transparentes
+        // PNG wird beim Zeichnen aufs Canvas oft ohnehin hell). Ohne diesen Filter
+        // gewinnt "Weiß" regelmäßig als eine der drei Vereinsfarben - die dann als
+        // Button-/Header-Hintergrund mit weißer Schrift praktisch unsichtbar ist.
+        const MAX_BRIGHTNESS = 235;
         const colorMap: Record<string, number> = {}; let totalPixels = 0;
         for (let i = 0; i < imageData.length; i += s.skip * 4) {
           const r = imageData[i], g = imageData[i + 1], b = imageData[i + 2]; totalPixels++;
           if (r < s.minBrightness && g < s.minBrightness && b < s.minBrightness) continue;
+          if (r > MAX_BRIGHTNESS && g > MAX_BRIGHTNESS && b > MAX_BRIGHTNESS) continue;
           let qr = Math.round(r / s.step) * s.step, qg = Math.round(g / s.step) * s.step, qb = Math.round(b / s.step) * s.step;
           qr = Math.min(qr, 255); qg = Math.min(qg, 255); qb = Math.min(qb, 255);
           colorMap[`${qr},${qg},${qb}`] = (colorMap[`${qr},${qg},${qb}`] || 0) + 1;

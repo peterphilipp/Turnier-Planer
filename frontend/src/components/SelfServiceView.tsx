@@ -272,11 +272,15 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   };
 
   const assign = async (shiftId: number, date: string) => {
+    // Keine Erfolgsmeldung: die Kachel wechselt selbst sichtbar von "+" auf
+    // "eingeplant", sobald loadAvailable() die aktualisierten Daten liefert -
+    // erst DANACH, also nur bei tatsächlichem Erfolg. Ein zusätzlicher
+    // "OK"-Klick bei jeder einzelnen Zuweisung wäre nur Reibung ohne
+    // zusätzliche Information.
     try {
       await apiPost('/api/self/assign', { shiftId, date });
       await loadAvailable();
       queryClient.invalidateQueries({ queryKey: ['volunteerShifts'] });
-      await modal.alert({ title: 'Erfolg', message: 'Zugewiesen!' });
     } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler bei der Zuweisung' }); }
   };
 
@@ -358,7 +362,6 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     if (!donationFoodId || !donationQuantity) return await modal.alert({ title: 'Hinweis', message: 'Artikel und Menge auswählen!' });
     try {
       await apiPost('/api/food/donations', { foodItemId: donationFoodId, quantity: parseInt(donationQuantity), note: donationNote || null });
-      await modal.alert({ title: 'Erfolg', message: 'Verpflegung eingetragen!' });
       setDonationFoodId(0);
       setDonationQuantity('');
       setDonationNote('');
@@ -378,7 +381,6 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     if (qty <= 0) return await modal.alert({ title: 'Hinweis', message: 'Bitte Menge eingeben!' });
     try {
       await apiPost('/api/food/donations', { foodItemId: Number(foodItemId), quantity: qty, slotId });
-      await modal.alert({ title: 'Erfolg', message: 'Zusage eingetragen!' });
       const newCommitments: Record<number, number> = {};
       Object.entries(slotCommitments).forEach(([k, v]) => { if (Number(k) !== slotId) newCommitments[Number(k)] = v; });
       setSlotCommitments(newCommitments);
@@ -610,6 +612,15 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               if (regPassword !== regPasswordConfirm) { await modal.alert({ title: 'Hinweis', message: 'Passwörter stimmen nicht überein' }); return; }
               if (regPassword.length < 6) { await modal.alert({ title: 'Hinweis', message: 'Passwort muss mindestens 6 Zeichen haben' }); return; }
               if (!consentGiven) { await modal.alert({ title: 'Hinweis', message: 'Bitte Datenschutzerklärung akzeptieren' }); return; }
+              if (regEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail.trim())) { await modal.alert({ title: 'Hinweis', message: 'Bitte eine gültige Email-Adresse eingeben' }); return; }
+              if (regPhone.trim() && !/^[0-9+\-\s]{5,20}$/.test(regPhone.trim())) { await modal.alert({ title: 'Hinweis', message: 'Bitte eine gültige Handynummer eingeben (nur Ziffern, Leerzeichen, + und -)' }); return; }
+              const currentYear = new Date().getFullYear();
+              for (const c of regChildren) {
+                if (c.childYear && (parseInt(c.childYear) < 2000 || parseInt(c.childYear) > currentYear)) {
+                  await modal.alert({ title: 'Hinweis', message: `Bitte ein gültiges Geburtsjahr für das Kind eingeben (2000-${currentYear})` });
+                  return;
+                }
+              }
               try {
                 const data = await apiPost('/api/auth/register', { name: regName, email: regEmail || null, phone: regPhone || null, password: regPassword, children: regChildren.filter(c => c.childName || c.childYear).map(c => ({ childName: c.childName || null, childYear: c.childYear ? parseInt(c.childYear) : null })), consentGiven: true });
                 contextLogin(data.token, data.user || data.volunteer);
@@ -671,6 +682,17 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               </div>
             )}
             <button onClick={async () => {
+              if (editEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())) { await modal.alert({ title: 'Hinweis', message: 'Bitte eine gültige Email-Adresse eingeben' }); return; }
+              if (editPhone.trim() && !/^[0-9+\-\s]{5,20}$/.test(editPhone.trim())) { await modal.alert({ title: 'Hinweis', message: 'Bitte eine gültige Handynummer eingeben (nur Ziffern, Leerzeichen, + und -)' }); return; }
+              {
+                const currentYear = new Date().getFullYear();
+                for (const c of editChildren) {
+                  if (c.childYear && (parseInt(c.childYear) < 2000 || parseInt(c.childYear) > currentYear)) {
+                    await modal.alert({ title: 'Hinweis', message: `Bitte ein gültiges Geburtsjahr für das Kind eingeben (2000-${currentYear})` });
+                    return;
+                  }
+                }
+              }
               try {
                 const data = await apiPatch('/api/auth/profile', { name: editName, email: editEmail, phone: editPhone, children: editChildren.filter(c => c.childName || c.childYear).map(c => ({ childName: c.childName || null, childYear: c.childYear ? parseInt(c.childYear) : null })) });
                 contextLogin(ctxToken, data);
@@ -769,7 +791,12 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               <button onClick={() => { setMenuOpen(false); if (onLoginAsAdmin) onLoginAsAdmin(); }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>⚙️ Admin-Bereich</button>
             ) : null}
             <button onClick={() => { setMenuOpen(false); setShowRegisterForm(false); logout(); }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#dc3545' }}>🚪 Abmelden</button>
-            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #e9ecef', textAlign: 'center', fontSize: 10, color: '#ced4da', letterSpacing: 0.5 }}>{__APP_VERSION__} · {__GIT_SHA__}</div>
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #e9ecef', textAlign: 'center', fontSize: 10, color: '#ced4da' }}>
+              <a href="?view=privacy" style={{ color: '#adb5bd' }}>Datenschutz</a>
+              {' · '}
+              <a href="?view=impressum" style={{ color: '#adb5bd' }}>Impressum</a>
+            </div>
+            <div style={{ paddingTop: 4, textAlign: 'center', fontSize: 10, color: '#ced4da', letterSpacing: 0.5 }}>{__APP_VERSION__} · {__GIT_SHA__}</div>
           </div>
         )}
 
