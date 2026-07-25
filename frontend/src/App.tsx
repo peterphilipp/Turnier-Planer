@@ -211,31 +211,29 @@ function AdminView() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           {/* Rollen-Badge */}
-          <span style={{ 
-            padding: '4px 12px', 
-            background: isAdmin ? '#dc3545' : '#198754', 
-            color: '#fff', 
-            borderRadius: 12, 
-            fontSize: 12, 
+          <span style={{
+            padding: '4px 12px',
+            background: isAdmin ? '#dc3545' : '#198754',
+            color: '#fff',
+            borderRadius: 12,
+            fontSize: 12,
             fontWeight: 'bold'
           }}>
             {isAdmin ? '👑 Admin' : '🔧 Organisator'}
           </span>
-          
-          <a href="?view=privacy" style={{ fontSize: 12, color: '#6c757d', textDecoration: 'underline' }}>
-            Datenschutzerklärung
-          </a>
+
           <button
             onClick={() => setView('selfservice')}
             style={{
-              padding: '8px 16px',
+              padding: '10px 20px',
+              minHeight: 44,
               background: '#0d6efd',
               color: '#fff',
               border: 'none',
-              borderRadius: 6,
+              borderRadius: 8,
               cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: 13
+              fontWeight: 'bold',
+              fontSize: 15
             }}
           >
             Self-Service-Bereich
@@ -246,15 +244,15 @@ function AdminView() {
       {/* LEVEL 1: HAUPT-NAVIGATION */}
       <nav style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', borderBottom: '2px solid #dee2e6', paddingBottom: 10 }}>
         <button onClick={() => setActiveMainTab('spielplan')} aria-pressed={activeMainTab === 'spielplan'}
-          style={{ padding: '10px 20px', cursor: 'pointer', background: activeMainTab === 'spielplan' ? primaryColor : 'transparent', color: activeMainTab === 'spielplan' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
+          style={{ padding: '10px 20px', minHeight: 44, cursor: 'pointer', background: activeMainTab === 'spielplan' ? primaryColor : 'transparent', color: activeMainTab === 'spielplan' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
           🏆 Spielplanmanagement
         </button>
         <button onClick={() => setActiveMainTab('organisation')} aria-pressed={activeMainTab === 'organisation'}
-          style={{ padding: '10px 20px', cursor: 'pointer', background: activeMainTab === 'organisation' ? primaryColor : 'transparent', color: activeMainTab === 'organisation' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
+          style={{ padding: '10px 20px', minHeight: 44, cursor: 'pointer', background: activeMainTab === 'organisation' ? primaryColor : 'transparent', color: activeMainTab === 'organisation' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
           📋 Organisationsmanagement
         </button>
         <button onClick={() => setActiveMainTab('stammdaten')} aria-pressed={activeMainTab === 'stammdaten'}
-          style={{ padding: '10px 20px', cursor: 'pointer', background: activeMainTab === 'stammdaten' ? primaryColor : 'transparent', color: activeMainTab === 'stammdaten' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
+          style={{ padding: '10px 20px', minHeight: 44, cursor: 'pointer', background: activeMainTab === 'stammdaten' ? primaryColor : 'transparent', color: activeMainTab === 'stammdaten' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
           ⚙️ Stammdaten
         </button>
       </nav>
@@ -367,6 +365,11 @@ function AdminView() {
         {activeMainTab === 'stammdaten' && activeStammTab === 'jahrgaenge' && <Jahrgaenge adminPrimary="#6c757d" />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'lebensmittel' && <Lebensmittel adminPrimary="#6c757d" />}
       </main>
+
+      {/* FOOTER */}
+      <footer style={{ textAlign: 'center', marginTop: 40, paddingTop: 16, borderTop: '1px solid #e9ecef', color: '#adb5bd', fontSize: 12 }}>
+        <a href="?view=privacy" style={{ color: '#6c757d', textDecoration: 'underline' }}>Datenschutzerklärung</a>
+      </footer>
     </div>
   );
 }
