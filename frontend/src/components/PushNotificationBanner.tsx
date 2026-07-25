@@ -1,17 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getVapidPublicKey, subscribeToPush } from '../api';
+import { subscribeToPushNotifications } from '../utils/push';
 import { modal } from './admin/Modal';
-
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
 
 export default function PushNotificationBanner({ primaryColor = '#198754' }: { primaryColor?: string }) {
   const [supported, setSupported] = useState(false);
@@ -25,8 +14,9 @@ export default function PushNotificationBanner({ primaryColor = '#198754' }: { p
         reg.pushManager.getSubscription().then(sub => {
           if (sub) {
             setSubscribed(true);
-            // Resync mit Server im Hintergrund
-            subscribeToPush(sub).catch(() => {});
+            // Resync mit Server im Hintergrund (erneuert das Abo automatisch,
+            // falls sich der Server-VAPID-Schlüssel seither geändert hat).
+            subscribeToPushNotifications().catch(() => {});
           }
         });
       }).catch(() => {});
@@ -44,19 +34,11 @@ export default function PushNotificationBanner({ primaryColor = '#198754' }: { p
         setLoading(false);
         return;
       }
-      const keyRes = await getVapidPublicKey() as any;
-      if (!keyRes || !keyRes.publicKey) {
-        await modal.alert({ title: 'Fehler', message: 'Web-Push ist auf dem Server noch nicht konfiguriert.' });
-        setLoading(false);
+      const ok = await subscribeToPushNotifications();
+      if (!ok) {
+        await modal.alert({ title: 'Fehler', message: 'Konnte Push-Benachrichtigungen nicht aktivieren.' });
         return;
       }
-      const reg = await navigator.serviceWorker.ready;
-      const convertedKey = urlBase64ToUint8Array(keyRes.publicKey);
-      const newSub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: convertedKey
-      });
-      await subscribeToPush(newSub);
       setSubscribed(true);
       await modal.alert({ title: 'Aktiviert 🎉', message: 'Du wirst nun bei Schicht-Änderungen sofort per Push auf diesem Gerät informiert!' });
     } catch (err: any) {

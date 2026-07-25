@@ -2,27 +2,19 @@ import express from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import webpush from 'web-push';
 import prisma from '../config/prisma.js';
 import { Resend } from 'resend';
 import { logLoginSuccess, logLoginFailed, logPasswordResetRequested, logPasswordResetCompleted, logRegistrationCreated } from '../utils/logger.js';
 import JWT_SECRET from '../config/jwt.js';
 import { authLimiter, pinResetLimiter } from '../middleware/security.js';
+import { sendPushToUser } from '../utils/push.js';
 
 function getClientIp(req: express.Request): string | undefined {
-  return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() 
+  return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
     || req.socket.remoteAddress;
 }
 
 const router = express.Router();
-
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-    'mailto:noreply@turnier-planer.mygate.dedyn.io',
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-  );
-}
 
 /**
  * Entfernt Geheimnisse aus einem User-Objekt, bevor es ausgeliefert wird.
@@ -620,54 +612,6 @@ router.post('/register', authLimiter, async (req, res, next) => {
   }
 });
 
-// GET /api/auth/vapid-public-key
-router.get('/vapid-public-key', (req, res) => {
-  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
-});
-
-// POST /api/auth/push/subscribe
-router.post('/push/subscribe', async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ error: 'Nicht authentifiziert' });
-    const token = authHeader.split(' ')[1];
-    let decoded;
-    try { decoded = jwt.verify(token, JWT_SECRET) as { userId: number }; } 
-    catch { return res.status(401).json({ error: 'Ungltiger Token' }); }
-
-    const { endpoint, keys } = req.body;
-    if (!endpoint || !keys) return res.status(400).json({ error: 'Invalid subscription object' });
-
-    const existing = await prisma.pushSubscription.findFirst({
-      where: { endpoint }
-    });
-
-    if (existing) {
-      if (existing.userId !== decoded.userId || existing.p256dh !== keys.p256dh || existing.auth !== keys.auth) {
-        await prisma.pushSubscription.update({
-          where: { id: existing.id },
-          data: { userId: decoded.userId, p256dh: keys.p256dh, auth: keys.auth }
-        });
-      }
-      console.log(`[Push-Abo] Aktualisiert: User ${decoded.userId}, Endpoint: ...${endpoint.slice(-15)}`);
-    } else {
-      await prisma.pushSubscription.create({
-        data: {
-          userId: decoded.userId,
-          endpoint,
-          p256dh: keys.p256dh,
-          auth: keys.auth
-        }
-      });
-      console.log(`[Push-Abo] NEU registriert: User ${decoded.userId}, Endpoint: ...${endpoint.slice(-15)}`);
-    }
-
-    res.status(201).json({ success: true });
-  } catch (err) {
-    next(err);
-  }
-});
-
 // POST /api/auth/reset-by-pin
 router.post('/reset-by-pin', pinResetLimiter, async (req, res, next) => {
   try {
@@ -741,24 +685,10 @@ router.post('/forgot-password-push', authLimiter, async (req, res, next) => {
     });
 
     const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
-    
-    // Push Notifications senden
-    for (const sub of user.pushSubscriptions) {
-      try {
-        await webpush.sendNotification({
-          endpoint: sub.endpoint,
-          keys: { p256dh: sub.p256dh, auth: sub.auth }
-        }, JSON.stringify({
-          title: 'Passwort zurcksetzen',
-          body: 'Tippe hier, um dein Passwort neu zu vergeben.',
-          url: resetUrl
-        }));
-      } catch (e: any) {
-        if (e.statusCode === 410 || e.statusCode === 404) {
-          await prisma.pushSubscription.delete({ where: { id: sub.id } });
-        }
-      }
-    }
+
+    // sendPushToUser laedt die Subscriptions selbst neu und raeumt tote Abos
+    // (abgelaufen ODER durch VAPID-Key-Wechsel ungueltig geworden) zentral auf.
+    await sendPushToUser(user.id, 'Passwort zurücksetzen', 'Tippe hier, um dein Passwort neu zu vergeben.', resetUrl);
 
     res.json({ message: PUSH_SENT_MESSAGE });
   } catch (err) {

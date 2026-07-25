@@ -63,15 +63,24 @@ export async function sendPushToUser(
         );
         console.log(`[Push-OK] Nachricht an Sub ID ${sub.id} (User ${userId}) erfolgreich versendet.`);
       } catch (err: any) {
-        // HTTP 404/410 bedeutet, dass das Abo abgelaufen ist oder die PWA deinstalliert wurde
-        if (err.statusCode === 404 || err.statusCode === 410) {
+        // Immer mit Statuscode loggen: 401/403 (VAPID-Schluessel passt nicht mehr
+        // zum Abo, z.B. nach einer Schluessel-Rotation) sah bisher genauso aus wie
+        // ein harmloser Netzwerkfehler im Log - schwer zu unterscheiden ohne Code.
+        console.error(`[Push-FEHLER] Sub ${sub.id} (User ${userId}): HTTP ${err.statusCode ?? '?'} ${err.body || err.message || err}`);
+
+        // 404/410: Abo abgelaufen oder PWA deinstalliert.
+        // 401/403: Push-Dienst akzeptiert den VAPID-Schluessel fuer dieses Abo
+        // nicht mehr (typischerweise nach einer Schluessel-Rotation auf dem
+        // Server) - genauso dauerhaft kaputt wie ein abgelaufenes Abo, ein Retry
+        // hilft nie. In beiden Faellen loeschen, damit sich das Geraet beim
+        // naechsten App-Start automatisch neu registriert (siehe
+        // subscribeToPushNotifications im Frontend).
+        if ([401, 403, 404, 410].includes(err.statusCode)) {
           try {
             await prisma.pushSubscription.delete({ where: { id: sub.id } });
           } catch {
             // Ignorieren, falls bereits parallel gelöscht
           }
-        } else {
-          console.error(`Fehler beim Senden von Web-Push an Sub ${sub.id}:`, err.message || err);
         }
       }
     }
