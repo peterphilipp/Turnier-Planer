@@ -20,6 +20,11 @@ import type { VolunteerShift } from '../shared';
  * Elternteil zwischengespeichert (Businesstransaktion mit Sammel-Commit) und
  * per `overrides` wieder sichtbar gemacht, bis committet oder verworfen wird.
  *
+ * Das Ziehen läuft über Pointer Events (nicht Mouse Events), damit es auf
+ * Touch-Geräten (Tablet in der Halle) genauso funktioniert wie mit der Maus –
+ * inklusive `touch-action: none` auf den ziehbaren Elementen, sonst fängt der
+ * Browser die Geste als Seiten-Scroll ab statt sie an uns weiterzugeben.
+ *
  * Balken-Beschriftung richtet sich danach, ob Besetzungsdaten übergeben werden:
  *  - mit volunteerShifts -> "x/max" plus Ampel-Rahmen (grün voll / gelb teils)
  *  - ohne                -> "min–max" (geplante Kapazität)
@@ -79,6 +84,7 @@ export default function ShiftTimeline({
   for (let h = startHour; h <= endHour; h++) hours.push(h);
 
   const [drag, setDrag] = useState<{
+    pointerId: number;
     shiftId: number;
     type: 'start' | 'end' | 'move';
     origStart: number;
@@ -95,11 +101,17 @@ export default function ShiftTimeline({
   const shiftStart = (s: TimelineShift) => s.startMin ?? s.daySlot?.startMin ?? dayStart;
   const shiftEnd = (s: TimelineShift) => s.endMin ?? s.daySlot?.endMin ?? dayEnd;
 
-  const handleMouseDown = (e: React.MouseEvent, s: TimelineShift, type: 'start' | 'end' | 'move') => {
+  // Pointer Events statt Mouse Events: ein Eventmodell fuer Maus, Touch UND
+  // Stift, statt Touch separat nachzuruesten. setPointerCapture haelt die
+  // Events am ursprünglichen Element, auch wenn der Finger/Cursor beim
+  // Ziehen abrutscht.
+  const handlePointerDown = (e: React.PointerEvent, s: TimelineShift, type: 'start' | 'end' | 'move') => {
     if (!editable || !timeEditMode) return;
     e.stopPropagation();
     e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
     setDrag({
+      pointerId: e.pointerId,
       shiftId: s.id,
       type,
       origStart: shiftStart(s),
@@ -115,7 +127,8 @@ export default function ShiftTimeline({
   useEffect(() => {
     if (!drag) return;
 
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerId !== drag.pointerId) return;
       const deltaMin = Math.round(((e.clientX - drag.startX) / drag.containerWidth) * span);
       const gridDelta = Math.round(deltaMin / GRID_MINUTES) * GRID_MINUTES;
 
@@ -135,7 +148,8 @@ export default function ShiftTimeline({
       setDrag(prev => prev ? { ...prev, curStart: nextStart, curEnd: nextEnd, moved: true } : null);
     };
 
-    const onUp = () => {
+    const onUp = (e: PointerEvent) => {
+      if (e.pointerId !== drag.pointerId) return;
       const { shiftId, type, origStart, origEnd, curStart, curEnd, moved } = drag;
       setDrag(null);
 
@@ -151,11 +165,16 @@ export default function ShiftTimeline({
       }
     };
 
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    // pointercancel: Touch-Geste wird vom Betriebssystem/Browser unterbrochen
+    // (z.B. eingehender Anruf, Scroll-Erkennung) - Drag muss dann genauso
+    // sauber beendet werden wie bei pointerup, sonst haengt der State fest.
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
     return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
     };
   }, [drag, dayStart, dayEnd, span, onStageShiftTime, onShiftClick, shifts]);
 
@@ -250,7 +269,7 @@ export default function ShiftTimeline({
                         <div
                           key={s.id}
                           title={tooltip}
-                          onMouseDown={canDrag ? e => handleMouseDown(e, s, 'move') : undefined}
+                          onPointerDown={canDrag ? e => handlePointerDown(e, s, 'move') : undefined}
                           onClick={!canDrag && onShiftClick ? () => onShiftClick(s) : undefined}
                           style={{
                             position: 'absolute', left: `${left}%`, width: `${width}%`, top: 2, bottom: 2,
@@ -264,13 +283,16 @@ export default function ShiftTimeline({
                             cursor: isDragging ? 'grabbing' : canDrag ? 'grab' : interactive ? 'pointer' : 'default',
                             opacity: isDragging ? 0.9 : 1,
                             zIndex: isDragging ? 50 : 1,
-                            transition: isDragging ? 'none' : 'left 0.15s, width 0.15s'
+                            transition: isDragging ? 'none' : 'left 0.15s, width 0.15s',
+                            // Ohne touch-action:none faengt der Browser eine Touch-Ziehgeste als
+                            // Scroll ab und feuert pointercancel, statt uns pointermove zu liefern.
+                            touchAction: canDrag ? 'none' : undefined
                           }}
                         >
                           {canDrag && (
                             <div
-                              onMouseDown={e => handleMouseDown(e, s, 'start')}
-                              style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 8, cursor: 'ew-resize', background: 'rgba(0,0,0,0.1)' }}
+                              onPointerDown={e => handlePointerDown(e, s, 'start')}
+                              style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 16, cursor: 'ew-resize', background: 'rgba(0,0,0,0.15)', touchAction: 'none' }}
                               title="Startzeit verschieben"
                             />
                           )}
@@ -279,8 +301,8 @@ export default function ShiftTimeline({
 
                           {canDrag && (
                             <div
-                              onMouseDown={e => handleMouseDown(e, s, 'end')}
-                              style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 8, cursor: 'ew-resize', background: 'rgba(0,0,0,0.1)' }}
+                              onPointerDown={e => handlePointerDown(e, s, 'end')}
+                              style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 16, cursor: 'ew-resize', background: 'rgba(0,0,0,0.15)', touchAction: 'none' }}
                               title="Endzeit verschieben"
                             />
                           )}
