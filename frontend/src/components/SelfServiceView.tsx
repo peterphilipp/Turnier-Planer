@@ -809,6 +809,15 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               const showDayHeader = !prevVs || new Date(prevVs.date).toDateString() !== d.toDateString();
               const assignedCount = volunteerShifts.filter(v => v.shiftId === s?.id).length;
               const remaining = (s?.maxVolunteers || 0) - assignedCount;
+              // Bewertung erst möglich wenn Schicht zeitlich abgeschlossen ist
+              const endMin = s?.endMin;
+              const shiftOver = (() => {
+                if (!vs.date || endMin == null) return false;
+                const end = new Date(vs.date);
+                end.setHours(Math.floor(endMin / 60), endMin % 60, 0, 0);
+                return new Date() > end;
+              })();
+              const alreadyRated = !!(vs.ratingFun || vs.ratingWorkload || vs.ratingOrganization);
               return (
                 <div key={vs.id}>
                   {showDayHeader && (
@@ -829,9 +838,30 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                       <div style={{ fontSize: 16, fontWeight: 'bold', color: remaining > 0 ? clubAccent : '#6c757d' }}>{remaining}/{s?.maxVolunteers || 0}</div>
                     </div>
                     <div style={{ flexShrink: 0, display: 'flex', gap: 6 }}>
-                      <button onClick={() => openRatingModal(vs)} title="Schicht bewerten" style={{ height: 40, padding: '0 10px', borderRadius: 10, border: 'none', background: (vs.ratingFun || vs.ratingWorkload || vs.ratingOrganization) ? '#ffc107' : clubPrimary, color: (vs.ratingFun || vs.ratingWorkload || vs.ratingOrganization) ? '#000' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 'bold', fontSize: 13 }}>
-                        <span>{(vs.ratingFun || vs.ratingWorkload || vs.ratingOrganization) ? '⭐' : '📝'}</span>
-                        <span style={{ display: 'inline-block' }}>{(vs.ratingFun || vs.ratingWorkload || vs.ratingOrganization) ? 'Bewertet' : 'Bewerten'}</span>
+                      <button
+                        onClick={() => shiftOver && openRatingModal(vs)}
+                        title={shiftOver ? (alreadyRated ? 'Bewertung bearbeiten' : 'Schicht bewerten') : 'Bewertung erst nach Schichtende möglich'}
+                        disabled={!shiftOver}
+                        style={{
+                          height: 40,
+                          padding: '0 10px',
+                          borderRadius: 10,
+                          border: 'none',
+                          background: !shiftOver ? '#e9ecef' : alreadyRated ? '#ffc107' : clubPrimary,
+                          color: !shiftOver ? '#adb5bd' : alreadyRated ? '#000' : '#fff',
+                          cursor: shiftOver ? 'pointer' : 'not-allowed',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontWeight: 'bold',
+                          fontSize: 13,
+                          opacity: shiftOver ? 1 : 0.65
+                        }}
+                      >
+                        <span>{!shiftOver ? '⏳' : alreadyRated ? '⭐' : '📝'}</span>
+                        <span style={{ display: 'inline-block' }}>
+                          {!shiftOver ? 'Nach Schicht' : alreadyRated ? 'Bewertet' : 'Bewerten'}
+                        </span>
                       </button>
                       <button onClick={() => unassign(vs.id)} title="Abmelden" style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: clubSecondary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

@@ -38,6 +38,8 @@ import workAreaCategoryRoutes from './routes/workAreaCategory.routes.js';
 // Middleware imports
 import errorHandler from './middleware/errorHandler.js';
 import { securityHeaders, corsMiddleware, globalLimiter } from './middleware/security.js';
+// Scheduler
+import { startScheduler } from './utils/scheduler.js';
 
 const app = express();
 
@@ -104,11 +106,13 @@ app.listen(PORT, async () => {
     const v = process.env.APP_VERSION || 'dev';
     const sha = process.env.GIT_SHA || 'local';
     console.log(`[OK] Backend v${v} (${sha}) läuft auf Port ${PORT} & DB verbunden`);
+    startScheduler();
   } catch (connectionError) {
     console.error('[FATAL ERROR] Datenbankverbindung fehlgeschlagen:', (connectionError as Error).message);
     process.exit(1);
   }
 });
+
 
 process.on('SIGINT', async () => {
   await prisma.$disconnect();

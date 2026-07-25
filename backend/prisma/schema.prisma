@@ -206,6 +206,8 @@ model VolunteerShift {
   ratingOrganization Int?        @map("rating_organization")
   ratingFun          Int?        @map("rating_fun")
   ratingComment      String?     @map("rating_comment")
+  reminderSentBefore Boolean     @default(false) @map("reminder_sent_before")
+  thanksSentAfter    Boolean     @default(false) @map("thanks_sent_after")
   shift        Shift?      @relation(fields: [shiftId], references: [id], onDelete: Cascade)
   user         User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   tournament   Tournament? @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
