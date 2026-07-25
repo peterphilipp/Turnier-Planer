@@ -991,8 +991,8 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               if (orderA !== orderB) return orderA - orderB;
               return (a.arbeitsbereich?.name || '').localeCompare(b.arbeitsbereich?.name || '');
             })
-            .map((slot, idx) => {
-              const prevSlot = idx > 0 ? shifts[idx - 1] : null;
+            .map((slot, idx, sortedSlots) => {
+              const prevSlot = idx > 0 ? sortedSlots[idx - 1] : null;
               const d = new Date(slot.date);
               const showDayHeader = !prevSlot || new Date(prevSlot.date).toDateString() !== d.toDateString();
               const dateStr = isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
