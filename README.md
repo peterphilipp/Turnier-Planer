@@ -526,6 +526,72 @@ Alle Funktionen sind über **eine Subdomain** erreichbar – die Ansicht wird pe
 
 ---
 
+## Umgebungsvariablen
+
+Alle Variablen liest ausschließlich das Backend (`backend/src/...`) zur Laufzeit aus
+`process.env`. Für lokale Entwicklung: `backend/.env.example` nach `backend/.env`
+kopieren und ausfüllen. Für Produktion: siehe [Deployment auf dem Server](#deployment-auf-dem-server-podmanquadlet)
+weiter unten.
+
+| Variable | Pflicht? | Default ohne Wert | Zweck |
+|---|---|---|---|
+| `JWT_SECRET` | **Ja** | – (Server startet nicht) | Signiert/verifiziert Login-Tokens. Mind. 16 Zeichen, z.B. via `openssl rand -hex 32`. |
+| `DATABASE_URL` | Nein | `file:./prisma/data/dev.db` (Dockerfile) | Pfad zur SQLite-Datenbank. Muss zum Volume-Mount passen, sonst ist die DB nach jedem Neustart leer. |
+| `FRONTEND_URL` | Empfohlen | `http://localhost:5173` | Basis-URL für Links in E-Mails/Push (z.B. Passwort-Reset). **Fehlt sie in Produktion, zeigen Reset-Links auf localhost und funktionieren nicht** – das ist kein Theoriefall, sondern bereits einmal aufgetreten. |
+| `RESEND_API_KEY` | Nein | – (E-Mail-Versand wird übersprungen, nur geloggt) | API-Key für [Resend](https://resend.com) (Passwort-Reset-E-Mails). |
+| `EMAIL_FROM` | Nein | `Macht das Turnier! <noreply@mygate.dedyn.io>` | Absenderadresse. Muss bei Resend als Absender verifiziert sein, sonst schlägt der Versand mit einem 422-Fehler fehl. Format zwingend `email@domain.tld` oder `Name <email@domain.tld>`. |
+| `ADMIN_EMAILS` | Nein | – (niemand wird automatisch Admin) | Kommagetrennte E-Mail-Adressen, die bei Login/Registrierung automatisch die Rolle `ADMIN` erhalten. |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Nein (aber als Paar) | – (Web-Push bleibt deaktiviert, nur eine Warnung im Log) | Schlüsselpaar für Web-Push-Benachrichtigungen. Gemeinsam erzeugen mit `npx web-push generate-vapid-keys`. |
+| `VAPID_MAILTO` | Nein | `mailto:noreply@mygate.dedyn.io` | Kontaktadresse, die Push-Provider bei Problemen mit einem Abo kontaktieren können. |
+| `PORT` | Nein | `5000` | Port, auf dem das Backend lauscht. |
+
+**Wichtig bei allen Werten mit Leerzeichen** (z.B. `EMAIL_FROM`, `FRONTEND_URL` falls sie
+je ein Leerzeichen enthalten sollte): In einer systemd/Quadlet `Environment=`-Zeile
+*innerhalb* einer Unit-Datei wird der Wert sonst am ersten Leerzeichen abgeschnitten
+(führte bereits zu kaputten Reset-Links in Produktion). In Docker Compose (`environment:`)
+oder einer `EnvironmentFile=` (siehe unten) tritt dieses Problem nicht auf. Siehe die
+Beispiel-Dateien unter [`deploy/`](deploy/) für die empfohlene, robuste Variante.
+
+---
+
+## Deployment auf dem Server (Podman/Quadlet)
+
+Produktiv läuft die App als von GitHub Actions gebautes und nach GHCR gepushtes
+Docker-Image (siehe oben), gestartet per Podman – entweder über Docker Compose
+oder als systemd-Service via Podman Quadlet. Beispieldateien für beide Wege
+liegen unter [`deploy/`](deploy/):
+
+| Datei | Zweck |
+|---|---|
+| [`docker-compose.yml`](docker-compose.yml) | Fertiges Compose-Setup (Repo-Root) – Variablen werden aus der Shell-Umgebung bzw. einer `.env` neben der Datei übernommen. |
+| [`deploy/turnier-planer.container`](deploy/turnier-planer.container) | Podman-Quadlet-Unit – erzeugt beim Systemstart automatisch einen systemd-Service für den Container. |
+| [`deploy/turnier-planer.env.example`](deploy/turnier-planer.env.example) | Vorlage für die tatsächlichen Umgebungswerte (Secrets). Kopieren, ausfüllen, **niemals mit echten Werten committen**. |
+
+### Variante A: Docker Compose
+```bash
+JWT_SECRET=... RESEND_API_KEY=... EMAIL_FROM="Macht das Turnier! <noreply@...>" \
+  docker compose up -d
+```
+Oder die Variablen in eine `.env`-Datei neben `docker-compose.yml` legen – Compose liest sie automatisch ein.
+
+### Variante B: Podman Quadlet (rootless, empfohlen für systemd-verwaltete Server)
+```bash
+mkdir -p ~/.config/containers/systemd
+cp deploy/turnier-planer.container ~/.config/containers/systemd/
+
+mkdir -p ~/.config/turnier-planer
+cp deploy/turnier-planer.env.example ~/.config/turnier-planer/turnier-planer.env
+# turnier-planer.env jetzt mit echten Werten füllen!
+
+systemctl --user daemon-reload
+systemctl --user start turnier-planer.service
+journalctl --user -u turnier-planer.service -f
+```
+Ein neues Image (nach einem Release-Tag) zieht `podman auto-update` automatisch, sofern
+`AutoUpdate=registry` gesetzt ist (bereits in der Beispiel-Unit enthalten).
+
+---
+
 ## Anpassung
 Pass bei Bedarf die Felder, Rollen und Zeitslots in den Komponenten an.  
 Die SQLite-Datenbank bleibt automatisch persistent über Docker Volumes.

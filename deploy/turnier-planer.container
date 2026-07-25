@@ -1,0 +1,51 @@
+# Beispiel Podman Quadlet Unit für "Macht das Turnier!" (Turnier-Planer).
+#
+# Installation auf dem Server (rootless Podman, empfohlen):
+#   mkdir -p ~/.config/containers/systemd
+#   cp deploy/turnier-planer.container ~/.config/containers/systemd/
+#   mkdir -p ~/.config/turnier-planer
+#   cp deploy/turnier-planer.env.example ~/.config/turnier-planer/turnier-planer.env
+#   # turnier-planer.env jetzt mit echten Werten füllen (siehe Kommentare darin)
+#   systemctl --user daemon-reload
+#   systemctl --user start turnier-planer.service
+#   systemctl --user status turnier-planer.service
+#   journalctl --user -u turnier-planer.service -f
+#
+# Für System-weiten (root) Betrieb stattdessen nach /etc/containers/systemd/
+# kopieren und "--user" bei den systemctl-Aufrufen weglassen; den Pfad in
+# EnvironmentFile= unten entsprechend anpassen (z.B. /etc/turnier-planer/turnier-planer.env).
+#
+# WICHTIG: Secrets gehören NICHT in diese Datei (sie kann committet/geteilt
+# werden), sondern ausschließlich in die separate turnier-planer.env
+# (EnvironmentFile=, siehe unten) - die NIE ins Git-Repo gehört.
+
+[Unit]
+Description=Macht das Turnier! (Turnier-Planer)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=ghcr.io/peterphilipp/turnier-planer:latest
+# Zieht bei "podman auto-update" automatisch das neueste :latest-Image,
+# sobald ein neuer Versions-Tag (v*) released und gepusht wurde.
+AutoUpdate=registry
+PublishPort=5000:5000
+
+# Persistente SQLite-Datenbank - muss zu DATABASE_URL in turnier-planer.env passen.
+Volume=turnier-planer-data:/app/prisma/data
+
+# Alle Umgebungsvariablen kommen aus einer separaten Datei, NICHT als einzelne
+# "Environment=..."-Zeilen hier: eine EnvironmentFile wird zeilenweise als
+# KEY=VALUE gelesen, OHNE das Leerzeichen-Word-Splitting, das eine einzelne
+# "Environment=KEY=VALUE mit Leerzeichen"-Zeile in Unit-Dateien betrifft (das
+# war die Ursache eines früheren Bugs: FRONTEND_URL/EMAIL_FROM wurden am
+# ersten Leerzeichen abgeschnitten). Pfad ggf. anpassen, siehe Installations-
+# Hinweis oben.
+EnvironmentFile=%h/.config/turnier-planer/turnier-planer.env
+
+[Service]
+Restart=always
+TimeoutStartSec=180
+
+[Install]
+WantedBy=multi-user.target default.target
