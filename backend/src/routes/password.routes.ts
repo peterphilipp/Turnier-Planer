@@ -180,14 +180,12 @@ router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), asy
     
     if (process.env.RESEND_API_KEY) {
       try {
-        const primaryAdmin = await prisma.user.findFirst({
-          where: { isPrimaryAdmin: true, email: { not: null } }
-        });
-        
-        let emailFrom = process.env.EMAIL_FROM || 'Turnier-Planer <noreply@turnier-planer.mygate.dedyn.io>';
-        if (primaryAdmin && primaryAdmin.email) {
-          emailFrom = `${primaryAdmin.name} <${primaryAdmin.email}>`;
-        }
+        // Fester Absender aus der Umgebung: die eigentliche Domain (turnier-
+        // planer.mygate.dedyn.io) ist bei Resend nicht verifiziert, Versand
+        // funktioniert nur über die verifizierte Absenderadresse. Kein
+        // Nutzer-Lookup mehr (ehem. Primary-Admin) - der Absender ist reine
+        // Infrastruktur-Konfiguration, keine Personen-Eigenschaft.
+        const emailFrom = process.env.EMAIL_FROM || 'Turnier-Planer <noreply@mygate.dedyn.io>';
 
         const resend = new Resend(process.env.RESEND_API_KEY);
         const result = await resend.emails.send({

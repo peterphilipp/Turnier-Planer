@@ -12,8 +12,12 @@ services:
       # Pflicht: JWT-Secret aus der Host-Umgebung (kein Default im Code!).
       # `docker compose up` bricht mit klarer Meldung ab, wenn nicht gesetzt.
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET muss gesetzt sein (z.B. via .env oder Shell-Env)}"
-      # Optional: E-Mail-Versand (Passwort-Reset) und Primary-Admin-Bootstrap
+      # Optional: E-Mail-Versand (Passwort-Reset). RESEND_API_KEY NIE hier als
+      # Literal eintragen - nur über eine echte Env-Var/.env-Datei am Host
+      # setzen, sonst landet der Schluessel im naechsten Commit. EMAIL_FROM
+      # muss bei Resend als Absender verifiziert sein.
       RESEND_API_KEY: "${RESEND_API_KEY:-}"
+      EMAIL_FROM: "${EMAIL_FROM:-Turnier-Planer <noreply@mygate.dedyn.io>}"
       ADMIN_EMAILS: "${ADMIN_EMAILS:-}"
     volumes:
       - db-data:/app/prisma/data

@@ -1,0 +1,5 @@
+# Git-Hooks immer mit LF auschecken, auch auf Windows - ein Shebang mit
+# CRLF-Zeilenende (#!/bin/sh\r) schlägt auf echten Linux/Mac-Systemen fehl.
+# Bewusst nur auf .githooks/ beschränkt statt pauschal *.sh, um bestehende
+# Shell-Skripte (z.B. docker-entrypoint.sh) nicht unbeabsichtigt anzufassen.
+.githooks/* text eol=lf

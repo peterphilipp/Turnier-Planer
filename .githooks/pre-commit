@@ -1,0 +1,74 @@
+#!/bin/sh
+# Blockiert Commits, die aussehen, als würden sie einen API-Key/Secret
+# enthalten - Anlass: ein Resend-API-Key wurde versehentlich in
+# docker-compose.yml committet und von GitHub automatisch revoked.
+#
+# Prüft den STAGED Inhalt (also das, was tatsächlich committet würde),
+# nicht die Arbeitsverzeichnis-Version - relevant, falls eine Datei nur
+# teilweise per `git add -p` gestaged wurde.
+#
+# Kein Ersatz für echtes Secret-Scanning (z.B. gitleaks), aber deckt die
+# konkreten, schon einmal aufgetretenen Muster ab, ohne eine zusätzliche
+# externe Abhängigkeit zu brauchen. Bypass im Notfall: git commit --no-verify.
+
+staged_files=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged_files" ] && exit 0
+
+# Format: "Beschreibung|erweiterter regex (grep -E)". Diese Muster erkennen
+# konkrete Key-Formate und laufen IMMER, auch in .example-Dateien - ein real
+# eingefügter Key darf sich dort genauso wenig verstecken koennen.
+patterns='
+Resend API-Key|re_[A-Za-z0-9_]{20,}
+AWS Access Key|AKIA[0-9A-Z]{16}
+GitHub Token|gh[pousr]_[A-Za-z0-9]{36,}
+Slack Token|xox[baprs]-[A-Za-z0-9-]+
+Private Key|-----BEGIN[A-Z ]*PRIVATE KEY-----
+'
+
+# Generische Heuristik (KEY/SECRET/TOKEN= <langer String>) separat, weil sie
+# in .env.example/.env.sample-Dateien ständig auf Platzhaltertexte anschlägt
+# ("bitte-durch-ein-langes-secret-ersetzen" erfüllt "20+ Zeichen" genauso wie
+# ein echter Key). Läuft daher nur außerhalb solcher Beispiel-Dateien.
+generic_pattern='(API|SECRET|TOKEN|PASSWORD|KEY)[A-Z_]*[[:space:]]*[:=][[:space:]]*["'"'"']?[A-Za-z0-9_\-]{20,}'
+
+found=0
+for file in $staged_files; do
+  # Binärdateien/Löschungen überspringen; nur den STAGED Blob lesen, nicht die Arbeitskopie
+  content=$(git show ":$file" 2>/dev/null) || continue
+  echo "$content" | grep -qI . || continue # Binärdatei-Heuristik
+
+  old_ifs=$IFS
+  IFS='
+'
+  for line in $patterns; do
+    [ -z "$line" ] && continue
+    label=${line%%|*}
+    pattern=${line#*|}
+    match=$(printf '%s\n' "$content" | grep -nE -- "$pattern" | head -3)
+    if [ -n "$match" ]; then
+      echo "❌ Möglicher $label in $file:"
+      echo "$match" | sed 's/^/   /'
+      found=1
+    fi
+  done
+  IFS=$old_ifs
+
+  case "$file" in
+    *.example|*.sample|*.template|*example*) continue ;;
+  esac
+  match=$(printf '%s\n' "$content" | grep -nE -- "$generic_pattern" | head -3)
+  if [ -n "$match" ]; then
+    echo "❌ Möglicher generischer Secret-Wert in $file:"
+    echo "$match" | sed 's/^/   /'
+    found=1
+  fi
+done
+
+if [ "$found" -eq 1 ]; then
+  echo ""
+  echo "Commit abgebrochen: sieht nach einem API-Key/Secret aus (siehe oben)."
+  echo "Falls das ein Fehlalarm ist: git commit --no-verify"
+  exit 1
+fi
+
+exit 0

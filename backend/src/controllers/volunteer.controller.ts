@@ -19,7 +19,6 @@ export const volunteerSchema = z.object({
   email: z.string().email('Ungültige E-Mail').optional().or(z.literal('')),
   phone: z.string().optional().or(z.literal('')),
   role: z.enum(['HELPER', 'ORGANIZER', 'ADMIN']).optional(),
-  isPrimaryAdmin: z.boolean().optional(),
   password: z.string().min(1).optional(),
   tournamentId: z.number().int().nullable().optional(),
   children: z.array(childSchema).max(20).optional()
@@ -76,10 +75,6 @@ export const createVolunteer = async (req: Request, res: Response) => {
   if (body.password) {
     body.password = await bcrypt.hash(body.password, 10);
   }
-  
-  if (body.isPrimaryAdmin) {
-    await prisma.user.updateMany({ where: { isPrimaryAdmin: true }, data: { isPrimaryAdmin: false } });
-  }
 
   const user = await prisma.user.create({ data: body });
   logVolunteerUpdated(user.id, { name: user.name }, 'created');
@@ -99,11 +94,6 @@ export const updateVolunteer = async (req: Request, res: Response) => {
   // Rolle validieren
   if (rest.role && !['HELPER', 'ORGANIZER', 'ADMIN'].includes(rest.role)) {
     return res.status(400).json({ error: 'Ungültige Rolle' });
-  }
-
-  // Einziger Primary Admin
-  if (rest.isPrimaryAdmin) {
-    await prisma.user.updateMany({ where: { isPrimaryAdmin: true }, data: { isPrimaryAdmin: false } });
   }
 
   const data: any = { ...rest };

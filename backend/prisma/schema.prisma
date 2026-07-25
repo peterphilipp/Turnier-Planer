@@ -155,7 +155,6 @@ model User {
   tournamentId      Int?                 @map("tournament_id")
   consentGiven      Boolean              @default(false) @map("consent_given")
   consentDate       DateTime?            @map("consent_date")
-  isPrimaryAdmin    Boolean              @default(false) @map("is_primary_admin")
   recoveryPin       String?              @map("recovery_pin")
   foodDonationSlots FoodDonationSlot[]
   foodDonations     FoodDonation[]

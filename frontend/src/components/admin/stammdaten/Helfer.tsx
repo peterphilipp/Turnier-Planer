@@ -27,7 +27,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
   const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers'], queryFn: () => getVolunteers() });
   const { data: yearGroups = [] } = useQuery<YearGroup[]>({ queryKey: ['yearGroups'], queryFn: getYearGroups });
 
-  const [volForm, setVolForm] = useState<{ name: string; email: string; phone: string; role: string; isPrimaryAdmin: boolean; children: { childName: string; childYear: string }[] }>({ name: '', email: '', phone: '', role: 'HELPER', isPrimaryAdmin: false, children: [] });
+  const [volForm, setVolForm] = useState<{ name: string; email: string; phone: string; role: string; children: { childName: string; childYear: string }[] }>({ name: '', email: '', phone: '', role: 'HELPER', children: [] });
   const [editingVol, setEditingVol] = useState<number | null>(null);
 
   /** Jahrgang, dem ein Geburtsjahr zugeordnet würde - rein über den Bereichs-Abgleich, es gibt kein eigenes Zuordnungsfeld. */
@@ -43,7 +43,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
   
   const { items: sortedVolunteers, requestSort, getSortIndicator } = useSortableData(filtered, { key: 'name', direction: 'asc' });
 
-  const EMPTY_FORM = { name: '', email: '', phone: '', role: 'HELPER', isPrimaryAdmin: false, children: [] as { childName: string; childYear: string }[] };
+  const EMPTY_FORM = { name: '', email: '', phone: '', role: 'HELPER', children: [] as { childName: string; childYear: string }[] };
 
   const saveVolunteer = async () => {
     if (!volForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
@@ -80,7 +80,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
   const openEdit = (v: Volunteer) => {
     setEditingVol(v.id);
     setVolForm({
-      name: v.name, email: v.email || '', phone: v.phone || '', role: v.role || 'HELPER', isPrimaryAdmin: v.isPrimaryAdmin || false,
+      name: v.name, email: v.email || '', phone: v.phone || '', role: v.role || 'HELPER',
       children: (v.children || []).map(c => ({ childName: c.childName, childYear: String(c.childYear) }))
     });
   };
@@ -138,7 +138,6 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
               <td style={{ padding: '10px 12px' }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <RoleBadge role={v.role || 'HELPER'} />
-                  {v.isPrimaryAdmin && <span style={{ fontSize: 12, background: '#ffc107', color: '#000', padding: '2px 6px', borderRadius: 4, fontWeight: 'bold' }}>Primär-Admin (Absender)</span>}
                 </div>
               </td>
               <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
@@ -174,13 +173,6 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
                 {ROLES.map(r => (<option key={r.value} value={r.value}>{r.label}</option>))}
               </select>
             </div>
-
-            {volForm.role === 'ADMIN' && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', background: '#f8f9fa', padding: '12px', borderRadius: 8, border: '1px solid #dee2e6' }}>
-                <input type="checkbox" checked={volForm.isPrimaryAdmin} onChange={e => setVolForm({ ...volForm, isPrimaryAdmin: e.target.checked })} style={{ width: 18, height: 18 }} />
-                <span style={{ fontWeight: 'bold' }}>Als Primär-Admin setzen (Wird für E-Mail-Absender genutzt)</span>
-              </label>
-            )}
 
             {/* Kinder: bei der Registrierung vom Nutzer selbst eingetragen, hier
                 korrigierbar - der Jahrgang ergibt sich rein aus dem Geburtsjahr
