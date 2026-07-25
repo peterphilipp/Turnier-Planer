@@ -23,9 +23,18 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   );
 }
 
-/** Entfernt den Passwort-Hash aus einem User-Objekt, bevor es ausgeliefert wird. */
-function sanitizeUser<T extends { password?: string | null }>(user: T): Omit<T, 'password'> {
-  const { password, ...safe } = user;
+/**
+ * Entfernt Geheimnisse aus einem User-Objekt, bevor es ausgeliefert wird.
+ *
+ * WICHTIG: `recoveryPin` ist ein vollwertiger Zweit-Credential (erlaubt via
+ * POST /reset-by-pin das Setzen eines neuen Passworts) und darf NIE in
+ * Standard-Antworten erscheinen. Einzige Ausnahme: die Registrierungs-Antwort,
+ * die den PIN dem Nutzer genau einmal anzeigt (siehe unten, explizit ergänzt).
+ */
+function sanitizeUser<T extends { password?: string | null; recoveryPin?: string | null }>(
+  user: T
+): Omit<T, 'password' | 'recoveryPin'> {
+  const { password, recoveryPin, ...safe } = user;
   return safe;
 }
 
@@ -498,7 +507,10 @@ router.post('/register', async (req, res, next) => {
       ? user.role
       : 'HELPER';
     const token = jwt.sign({ userId: user.id, role: newRole }, JWT_SECRET, { expiresIn: '30d' });
-    res.status(201).json({ token, user: sanitizeUser(user) });
+    // Einmalige Ausnahme: Der PIN wird hier bewusst mitgeliefert, damit ihn das
+    // Frontend dem Nutzer direkt nach der Registrierung anzeigen kann. Ab
+    // diesem Zeitpunkt ist er über keine andere Antwort mehr abrufbar.
+    res.status(201).json({ token, user: { ...sanitizeUser(user), recoveryPin: user.recoveryPin } });
   } catch (err) {
     next(err);
   }

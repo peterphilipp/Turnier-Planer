@@ -1,80 +1,88 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/prisma.js';
 import { z } from 'zod';
 
 export const workAreaCategorySchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
-  color: z.string().optional(),
-  order: z.number().int().optional(),
+  // Hex-Farbe, da der Wert im Frontend direkt in style/background landet
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Farbe muss ein Hex-Wert wie #aabbcc sein').optional(),
+  order: z.number().int().min(0).optional(),
   isObsolete: z.boolean().optional()
 });
 
-export const getWorkAreaCategories = async (req: Request, res: Response) => {
+export const reorderSchema = z.object({
+  order: z.array(z.number().int().positive())
+});
+
+/** Robuster ID-Parser: verhindert NaN-Durchgriff auf Prisma (500 statt 400). */
+const parseId = (raw: unknown): number | null => {
+  const id = parseInt(String(raw), 10);
+  return Number.isInteger(id) && id > 0 ? id : null;
+};
+
+export const getWorkAreaCategories = async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const categories = await prisma.workAreaCategory.findMany({
-      orderBy: { order: 'asc' }
+      // Tiebreaker: bei gleichem order sonst nicht-deterministische Reihenfolge
+      orderBy: [{ order: 'asc' }, { id: 'asc' }]
     });
     res.json(categories);
   } catch (error) {
-    res.status(500).json({ error: 'Fehler beim Laden der Kategorien.' });
+    next(error);
   }
 };
 
-export const createWorkAreaCategory = async (req: Request, res: Response) => {
+export const createWorkAreaCategory = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const data = workAreaCategorySchema.parse(req.body);
-    const count = await prisma.workAreaCategory.count();
-    const newCategory = await prisma.workAreaCategory.create({
-      data: {
-        ...data,
-        order: data.order ?? count
-      }
-    });
+    const data = req.body; // bereits von validate() geparst/bereinigt
+    let order = data.order;
+    if (order === undefined) {
+      // max(order)+1 statt count(): count kollidiert nach Löschungen mit bestehenden Werten
+      const agg = await prisma.workAreaCategory.aggregate({ _max: { order: true } });
+      order = (agg._max.order ?? -1) + 1;
+    }
+    const newCategory = await prisma.workAreaCategory.create({ data: { ...data, order } });
     res.status(201).json(newCategory);
   } catch (error) {
-    res.status(400).json({ error: 'Ungültige Daten', details: error });
+    // Zentraler errorHandler mappt ZodError->400, P2002->409 (Name @unique), P2025->404
+    next(error);
   }
 };
 
-export const updateWorkAreaCategory = async (req: Request, res: Response) => {
+export const updateWorkAreaCategory = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const id = parseInt(req.params.id as string, 10);
-    const data = workAreaCategorySchema.partial().parse(req.body);
-    const updated = await prisma.workAreaCategory.update({
-      where: { id },
-      data
-    });
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Ungültige ID' });
+    const updated = await prisma.workAreaCategory.update({ where: { id }, data: req.body });
     res.json(updated);
   } catch (error) {
-    res.status(400).json({ error: 'Ungültige Daten oder Kategorie nicht gefunden', details: error });
+    next(error);
   }
 };
 
-export const deleteWorkAreaCategory = async (req: Request, res: Response) => {
+export const deleteWorkAreaCategory = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const id = parseInt(req.params.id as string, 10);
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Ungültige ID' });
+    // Die m:n-Zuordnungen zu WorkAreas räumt Prisma über die implizite
+    // Join-Tabelle selbst ab; die Arbeitsbereiche selbst bleiben erhalten.
     await prisma.workAreaCategory.delete({ where: { id } });
-    res.json({ message: 'Kategorie gelöscht' });
+    res.status(204).send();
   } catch (error) {
-    res.status(500).json({ error: 'Fehler beim Löschen' });
+    next(error);
   }
 };
 
-export const updateWorkAreaCategoryOrder = async (req: Request, res: Response) => {
+export const updateWorkAreaCategoryOrder = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { order } = req.body;
-    if (!Array.isArray(order)) return res.status(400).json({ error: 'Array erwartet' });
-
+    const { order } = req.body as { order: number[] };
     await prisma.$transaction(
-      order.map((id: number, index: number) =>
-        prisma.workAreaCategory.update({
-          where: { id },
-          data: { order: index }
-        })
+      order.map((id, index) =>
+        prisma.workAreaCategory.update({ where: { id }, data: { order: index } })
       )
     );
     res.json({ message: 'Reihenfolge gespeichert' });
   } catch (error) {
-    res.status(500).json({ error: 'Fehler beim Speichern der Reihenfolge' });
+    next(error);
   }
 };

@@ -15,8 +15,17 @@ export const volunteerSchema = z.object({
 });
 
 /** Entfernt den Passwort-Hash aus einem User-Objekt, bevor es ausgeliefert wird. */
-const sanitizeUser = <T extends { password?: string | null }>(user: T): Omit<T, 'password'> => {
-  const { password, ...safe } = user;
+/**
+ * Entfernt Geheimnisse (Passwort-Hash UND recoveryPin) aus einem User-Objekt.
+ * Der recoveryPin erlaubt via POST /api/auth/reset-by-pin das Setzen eines neuen
+ * Passworts – er darf hier nie ausgeliefert werden. Sonst könnte ein ORGANIZER
+ * (requireAdmin lässt diese Rolle durch) den PIN des ADMIN auslesen und dessen
+ * Konto übernehmen.
+ */
+const sanitizeUser = <T extends { password?: string | null; recoveryPin?: string | null }>(
+  user: T
+): Omit<T, 'password' | 'recoveryPin'> => {
+  const { password, recoveryPin, ...safe } = user;
   return safe;
 };
 

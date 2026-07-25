@@ -17,40 +17,57 @@ export default function WorkAreaCategories({ adminPrimary = '#6c757d' }: { admin
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['work-area-categories'] });
+    // WorkAreas.tsx registriert seine Query als ['workAreas'] (camelCase),
+    // GlobalDayTemplates.tsx als ['work-areas'] – beide invalidieren.
     qc.invalidateQueries({ queryKey: ['work-areas'] });
+    qc.invalidateQueries({ queryKey: ['workAreas'] });
     qc.invalidateQueries({ queryKey: ['day-templates'] });
   };
 
-  const addCategory = async () => {
+  /** Einheitliche Fehlerbehandlung: 401/403 sichtbar machen statt still zu scheitern. */
+  const guard = async (fn: () => Promise<void>) => {
+    try { await fn(); }
+    catch (e: any) {
+      await modal.alert({
+        title: e?.status === 401 ? 'Sitzung abgelaufen' : 'Fehler',
+        message: e?.status === 401
+          ? 'Bitte melde dich neu an – dein Token ist ungültig oder abgelaufen.'
+          : (e?.message || 'Aktion fehlgeschlagen')
+      });
+    }
+  };
+
+  const addCategory = () => guard(async () => {
     if (!newName.trim()) return;
     const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
     await createWorkAreaCategory({ name: newName.trim(), color: randomColor });
     setNewName('');
     refresh();
-  };
+  });
 
-  const removeCategory = async (cat: WorkAreaCategory) => {
+  const removeCategory = (cat: WorkAreaCategory) => guard(async () => {
     if (!(await confirmWithImpact('workAreaCategory', cat.id, cat.name))) return;
     await deleteWorkAreaCategory(cat.id);
     refresh();
-  };
+  });
 
-  const toggleObsolete = async (cat: WorkAreaCategory) => {
+  const toggleObsolete = (cat: WorkAreaCategory) => guard(async () => {
     await updateWorkAreaCategory(cat.id, { isObsolete: !cat.isObsolete });
     refresh();
-  };
+  });
 
-  const updateColor = async (id: number, color: string) => {
+  const updateColor = (id: number, color: string) => guard(async () => {
     await updateWorkAreaCategory(id, { color });
     refresh();
-  };
-  
-  const updateName = async (id: number, name: string) => {
-    await updateWorkAreaCategory(id, { name });
-    refresh();
-  };
+  });
 
-  const handleSort = async () => {
+  const updateName = (id: number, name: string) => guard(async () => {
+    if (!name.trim()) return; // leerer Name wird serverseitig abgelehnt
+    await updateWorkAreaCategory(id, { name: name.trim() });
+    refresh();
+  });
+
+  const handleSort = () => guard(async () => {
     if (dragItemIndex.current === null || dragOverItemIndex.current === null) return;
     if (dragItemIndex.current === dragOverItemIndex.current) return;
 
@@ -64,7 +81,7 @@ export default function WorkAreaCategories({ adminPrimary = '#6c757d' }: { admin
 
     dragItemIndex.current = null;
     dragOverItemIndex.current = null;
-  };
+  });
 
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
@@ -104,10 +121,14 @@ export default function WorkAreaCategories({ adminPrimary = '#6c757d' }: { admin
           >
             <div style={{ cursor: 'grab', color: '#ccc', padding: '0 4px' }}>⋮⋮</div>
             
-            <input 
-              type="color" 
-              value={c.color} 
-              onChange={e => updateColor(c.id, e.target.value)}
+            {/* onBlur statt onChange: onChange feuert bei einem Color-Picker pro
+                Farbschritt und würde dutzende PATCH-Requests auslösen. Der key
+                enthält die Farbe, damit der Server-Wert nach dem Refresh greift. */}
+            <input
+              type="color"
+              key={`color-${c.id}-${c.color}`}
+              defaultValue={c.color}
+              onBlur={e => updateColor(c.id, e.target.value)}
               style={{ width: 32, height: 32, padding: 0, border: 'none', borderRadius: 4, cursor: 'pointer' }}
               title="Farbe ändern"
             />
