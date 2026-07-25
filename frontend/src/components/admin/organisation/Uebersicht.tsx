@@ -93,7 +93,7 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
       {(() => {
         let globalStartMin = 1440;
         let globalEndMin = 0;
-        jobSlots.forEach(s => {
+        jobSlots.forEach((s: any) => {
           const st = s.startMin ?? s.daySlot?.startMin ?? 480;
           const en = s.endMin ?? s.daySlot?.endMin ?? 1080;
           globalStartMin = Math.min(globalStartMin, st);
@@ -108,7 +108,7 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
           const firstSlot = slots[0];
           const firstDate = new Date(firstSlot.day?.date || firstSlot.date);
           const dayName = firstDate.toLocaleDateString('de-DE', { weekday: 'long' });
-          slots.sort((a, b) => (a.startMin ?? a.daySlot?.startMin ?? 0) - (b.startMin ?? b.daySlot?.startMin ?? 0));
+          slots.sort((a: any, b: any) => (a.startMin ?? a.daySlot?.startMin ?? 0) - (b.startMin ?? b.daySlot?.startMin ?? 0));
 
           return (
             <OverviewTimeline 
@@ -139,7 +139,7 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
             <div style={{ padding: 20, overflowY: 'auto' }}>
               <div style={{ display: 'flex', gap: 20, marginBottom: 20, color: '#666', fontSize: 14 }}>
                 <div>📅 {new Date((selectedShift as any).day?.date || selectedShift.date).toLocaleDateString('de-DE')}</div>
-                <div>⏰ {minToTime(selectedShift.startMin ?? (selectedShift as any).daySlot?.startMin ?? 0)} - {minToTime(selectedShift.endMin ?? (selectedShift as any).daySlot?.endMin ?? 0)}</div>
+                <div>⏰ {minToTime((selectedShift as any).startMin ?? (selectedShift as any).daySlot?.startMin ?? 0)} - {minToTime((selectedShift as any).endMin ?? (selectedShift as any).daySlot?.endMin ?? 0)}</div>
               </div>
 
               <h4 style={{ margin: '0 0 12px 0', color: '#212529' }}>Zugewiesene Helfer</h4>

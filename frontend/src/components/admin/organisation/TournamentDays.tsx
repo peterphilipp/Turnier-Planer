@@ -302,8 +302,8 @@ function DayTimeline({ day, shifts, globalStartMin, globalEndMin }: { day: Tourn
                   
                   <div style={{ position: 'relative', width: '100%', height: '100%', background: 'rgba(241, 243, 245, 0.4)', borderRadius: 6 }}>
                     {area.items.map(s => {
-                      const st = s.startMin ?? s.daySlot?.startMin ?? exactStartMin;
-                      const en = s.endMin ?? s.daySlot?.endMin ?? exactEndMin;
+                      const st = s.startMin ?? s.daySlot?.startMin ?? dayStart;
+                      const en = s.endMin ?? s.daySlot?.endMin ?? dayEnd;
                       const left = ((st - dayStart) / span) * 100;
                       const width = ((en - st) / span) * 100;
                       const showTime = width > 15;
