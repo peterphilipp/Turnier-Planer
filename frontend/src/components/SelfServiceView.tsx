@@ -1091,9 +1091,9 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                           {totalCollected} / {totalTarget} gesamt
                         </div>
                       </div>
-                      {/* Fortschrittsbalken */}
+                      {/* Fortschrittsbalken - gleiche Ampel-Logik wie bei den Job-Slots (rot/gelb/grün) */}
                       <div style={{ background: '#e9ecef', borderRadius: 4, height: 8, overflow: 'hidden', marginBottom: 10 }}>
-                        <div style={{ width: `${progress}%`, height: '100%', background: progress >= 100 ? '#198754' : clubAccent, borderRadius: 4 }} />
+                        <div style={{ width: `${progress}%`, height: '100%', background: progress >= 100 ? '#198754' : progress > 0 ? '#ffc107' : '#dc3545', borderRadius: 4 }} />
                       </div>
                       {/* Einzelne Artikel – erfüllte nach unten */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1113,7 +1113,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                             .reduce((sum, d) => sum + d.quantity, 0);
                           const committed = slotCommitments[slot.id] || 0;
                           return (
-                            <div key={slot.id} style={{ padding: 12, background: '#f8f9fa', borderRadius: 10 }}>
+                            <div key={slot.id} style={{ position: 'relative', padding: 12, background: '#f8f9fa', borderRadius: 10, overflow: 'hidden' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                 <span style={{ fontSize: 20 }}>{slot.foodItem?.icon || '🍽️'}</span>
                                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -1129,12 +1129,6 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                               {myCommitted > 0 && (
                                 <div style={{ fontSize: 13, color: clubSecondary, fontWeight: '600', marginTop: 4 }}>
                                   ✅ Du bringst: {myCommitted} {slot.foodItem?.unit}
-                                </div>
-                              )}
-                              {/* Fortschritt */}
-                              {slot.targetQuantity > 0 && (
-                                <div style={{ background: '#e9ecef', borderRadius: 4, height: 6, overflow: 'hidden', marginTop: 8 }}>
-                                  <div style={{ width: `${slotProgress}%`, height: '100%', background: slotProgress >= 100 ? '#198754' : clubAccent, borderRadius: 4 }} />
                                 </div>
                               )}
                               {/* Zusage-Button/Input */}
@@ -1155,6 +1149,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                                   </button>
                                 </div>
                               )}
+                              <FillBar assigned={slot.collected} max={slot.targetQuantity} />
                             </div>
                           );
                         })}
