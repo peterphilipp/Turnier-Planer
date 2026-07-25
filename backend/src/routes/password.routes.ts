@@ -442,7 +442,56 @@ router.patch('/profile', async (req, res, next) => {
     }
 
     const { name, email, phone, children, consentGiven } = req.body;
-    let updateData: any = { name, email, phone };
+
+    const current = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    if (!current) return res.status(404).json({ error: 'Nicht gefunden' });
+
+    const updateData: any = {};
+    if (phone !== undefined) updateData.phone = phone;
+
+    // --- Name: normalisieren + Eindeutigkeit erzwingen ---
+    // Ohne diese Prüfung könnte sich ein Nutzer auf den Namen eines Admins
+    // umbenennen. Da der Login per OR über name/email sucht und findFirst nur
+    // eine Zeile liefert, würde das den Admin aussperren und dessen
+    // E-Mail-Reset kapern (Account-Confusion).
+    if (name !== undefined) {
+      const cleanName = String(name).trim();
+      if (!cleanName) return res.status(400).json({ error: 'Name darf nicht leer sein' });
+      if (cleanName !== current.name) {
+        const taken = await prisma.user.findFirst({
+          where: { name: cleanName, id: { not: decoded.userId } }
+        });
+        if (taken) return res.status(409).json({ error: 'Dieser Name ist bereits vergeben' });
+      }
+      updateData.name = cleanName;
+    }
+
+    // --- E-Mail: normalisieren, Eindeutigkeit, KEINE Admin-Adressen ---
+    if (email !== undefined) {
+      const cleanEmail = email ? String(email).trim().toLowerCase() : null;
+      if (cleanEmail && cleanEmail !== (current.email || '').toLowerCase()) {
+        const taken = await prisma.user.findFirst({
+          where: { email: cleanEmail, id: { not: decoded.userId } }
+        });
+        if (taken) return res.status(409).json({ error: 'Diese E-Mail-Adresse wird bereits verwendet' });
+
+        // Rechteausweitung verhindern: Der Login promoviert Konten, deren E-Mail
+        // in ADMIN_EMAILS steht, persistent zu ADMIN. Da die E-Mail hier NICHT
+        // verifiziert wird, könnte sich sonst jeder Helfer selbst zum Admin
+        // machen, indem er die Admin-Adresse einträgt und sich neu anmeldet.
+        const adminEmails = process.env.ADMIN_EMAILS
+          ? process.env.ADMIN_EMAILS.toLowerCase().split(',').map(e => e.trim()).filter(Boolean)
+          : [];
+        if (adminEmails.includes(cleanEmail)) {
+          logLoginFailed(cleanEmail, 'Profil-Update auf Admin-Adresse abgelehnt', getClientIp(req) || '');
+          return res.status(403).json({
+            error: 'Diese E-Mail-Adresse kann nicht selbst gesetzt werden. Bitte wende dich an einen Administrator.'
+          });
+        }
+      }
+      updateData.email = cleanEmail;
+    }
+
     if (consentGiven !== undefined) {
       updateData.consentGiven = consentGiven;
       updateData.consentDate = consentGiven ? new Date() : null;
@@ -476,9 +525,17 @@ router.patch('/profile', async (req, res, next) => {
 // POST /api/auth/register
 router.post('/register', async (req, res, next) => {
   try {
-    const { name, email, phone, password, children, consentGiven } = req.body;
-    if (!name || !password) return res.status(400).json({ error: 'Fehlende Pflichtfelder (Name & Passwort)' });
+    const { name: rawName, email: rawEmail, phone, password, children, consentGiven } = req.body;
+    if (!rawName || !password) return res.status(400).json({ error: 'Fehlende Pflichtfelder (Name & Passwort)' });
     if (consentGiven !== true) return res.status(400).json({ error: 'Datenschutzerklrung muss akzeptiert werden' });
+    // Serverseitige Passwort-Policy (das Frontend prüfte bisher als Einziges)
+    if (String(password).length < 6) return res.status(400).json({ error: 'Passwort muss mindestens 6 Zeichen haben' });
+
+    // Normalisieren: ohne trim/lowercase liessen sich die Eindeutigkeitsprüfungen
+    // unten mit "Peter " oder "Peter@X.de" vs "peter@x.de" trivial umgehen.
+    const name = String(rawName).trim();
+    const email = rawEmail ? String(rawEmail).trim().toLowerCase() : null;
+    if (!name) return res.status(400).json({ error: 'Name darf nicht leer sein' });
 
     if (email) {
       const existingEmail = await prisma.user.findFirst({ where: { email } });
