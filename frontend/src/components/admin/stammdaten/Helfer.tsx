@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getVolunteers, apiPost, apiPatch, apiDelete } from '../../../api';
-import { btnStyleSecondary, Volunteer, useSortableData, confirmWithImpact } from '../shared';
+import { getVolunteers, getYearGroups, apiPost, apiPatch, apiDelete } from '../../../api';
+import { btnStyleSecondary, Volunteer, YearGroup, useSortableData, confirmWithImpact } from '../shared';
 import EditModal from '../EditModal';
 
 const ROLES = [
@@ -25,9 +25,17 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
   const [search, setSearch] = useState('');
   // Fetch ALL users unconditionally for the user management view
   const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers'], queryFn: () => getVolunteers() });
-  
-  const [volForm, setVolForm] = useState({ name: '', email: '', phone: '', role: 'HELPER', isPrimaryAdmin: false });
+  const { data: yearGroups = [] } = useQuery<YearGroup[]>({ queryKey: ['yearGroups'], queryFn: getYearGroups });
+
+  const [volForm, setVolForm] = useState<{ name: string; email: string; phone: string; role: string; isPrimaryAdmin: boolean; children: { childName: string; childYear: string }[] }>({ name: '', email: '', phone: '', role: 'HELPER', isPrimaryAdmin: false, children: [] });
   const [editingVol, setEditingVol] = useState<number | null>(null);
+
+  /** Jahrgang, dem ein Geburtsjahr zugeordnet würde - rein über den Bereichs-Abgleich, es gibt kein eigenes Zuordnungsfeld. */
+  const matchingYearGroup = (childYear: string) => {
+    const y = parseInt(childYear);
+    if (!y) return null;
+    return yearGroups.find(yg => y >= yg.birthYearStart && y <= yg.birthYearEnd) || null;
+  };
 
   const filtered = volunteers.filter(v => 
     !search || v.name.toLowerCase().includes(search.toLowerCase()) || (v.email || '').toLowerCase().includes(search.toLowerCase())
@@ -35,17 +43,31 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
   
   const { items: sortedVolunteers, requestSort, getSortIndicator } = useSortableData(filtered, { key: 'name', direction: 'asc' });
 
+  const EMPTY_FORM = { name: '', email: '', phone: '', role: 'HELPER', isPrimaryAdmin: false, children: [] as { childName: string; childYear: string }[] };
+
   const saveVolunteer = async () => {
     if (!volForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
     if (volForm.name.trim().length > 100) return await modal.alert({ title: 'Hinweis', message: 'Name darf maximal 100 Zeichen lang sein!' });
     if (volForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(volForm.email.trim())) return await modal.alert({ title: 'Hinweis', message: 'Bitte eine gültige E-Mail-Adresse eingeben!' });
+    for (const c of volForm.children) {
+      if (!c.childName.trim() && !c.childYear.trim()) continue; // komplett leere Zeile wird beim Speichern ignoriert
+      if (!c.childName.trim() || !c.childYear.trim()) return await modal.alert({ title: 'Hinweis', message: 'Bei einem Kind fehlt der Name oder das Geburtsjahr - bitte beides ausfüllen oder die Zeile entfernen.' });
+      const y = parseInt(c.childYear);
+      if (isNaN(y) || y < 1990 || y > 2030) return await modal.alert({ title: 'Hinweis', message: 'Geburtsjahr eines Kindes muss zwischen 1990 und 2030 liegen.' });
+    }
+    const payload = {
+      ...volForm,
+      children: volForm.children
+        .filter(c => c.childName.trim() && c.childYear.trim())
+        .map(c => ({ childName: c.childName.trim(), childYear: parseInt(c.childYear) }))
+    };
     if (editingVol) {
-      await apiPatch(`/api/volunteers/${editingVol}`, { ...volForm });
+      await apiPatch(`/api/volunteers/${editingVol}`, payload);
     } else {
-      await apiPost('/api/volunteers', { ...volForm });
+      await apiPost('/api/volunteers', payload);
     }
     queryClient.invalidateQueries({ queryKey: ['volunteers'] });
-    setVolForm({ name: '', email: '', phone: '', role: 'HELPER', isPrimaryAdmin: false });
+    setVolForm(EMPTY_FORM);
     setEditingVol(null);
   };
 
@@ -55,8 +77,14 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
     queryClient.invalidateQueries({ queryKey: ['volunteers'] });
   };
 
-  const openEdit = (v: Volunteer) => { setEditingVol(v.id); setVolForm({ name: v.name, email: v.email || '', phone: v.phone || '', role: v.role || 'HELPER', isPrimaryAdmin: v.isPrimaryAdmin || false }); };
-  const closeEdit = () => { setEditingVol(null); setVolForm({ name: '', email: '', phone: '', role: 'HELPER', isPrimaryAdmin: false }); };
+  const openEdit = (v: Volunteer) => {
+    setEditingVol(v.id);
+    setVolForm({
+      name: v.name, email: v.email || '', phone: v.phone || '', role: v.role || 'HELPER', isPrimaryAdmin: v.isPrimaryAdmin || false,
+      children: (v.children || []).map(c => ({ childName: c.childName, childYear: String(c.childYear) }))
+    });
+  };
+  const closeEdit = () => { setEditingVol(null); setVolForm(EMPTY_FORM); };
 
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
@@ -99,7 +127,12 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
         <tbody>
           {sortedVolunteers.map(v => (
             <tr key={v.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-              <td style={{ padding: '10px 12px', fontWeight: 500 }}>{v.name}</td>
+              <td style={{ padding: '10px 12px', fontWeight: 500 }}>
+                {v.name}
+                {(v.children || []).some(c => !matchingYearGroup(String(c.childYear))) && (
+                  <span title="Mindestens ein Kind passt zu keinem Jahrgang - bitte prüfen" style={{ marginLeft: 6, fontSize: 13 }}>⚠️</span>
+                )}
+              </td>
               <td style={{ padding: '10px 12px' }}>{v.email || '–'}</td>
               <td style={{ padding: '10px 12px' }}>{v.phone || '–'}</td>
               <td style={{ padding: '10px 12px' }}>
@@ -148,6 +181,53 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
                 <span style={{ fontWeight: 'bold' }}>Als Primär-Admin setzen (Wird für E-Mail-Absender genutzt)</span>
               </label>
             )}
+
+            {/* Kinder: bei der Registrierung vom Nutzer selbst eingetragen, hier
+                korrigierbar - der Jahrgang ergibt sich rein aus dem Geburtsjahr
+                (kein eigenes Zuordnungsfeld), ein Zahlendreher landet den
+                Helfer sonst beim falschen Jahrgang oder bei gar keinem. */}
+            <div>
+              <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Kinder</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
+                {volForm.children.map((c, idx) => {
+                  const yg = matchingYearGroup(c.childYear);
+                  return (
+                    <div key={idx}>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          value={c.childName}
+                          onChange={e => setVolForm({ ...volForm, children: volForm.children.map((x, i) => i === idx ? { ...x, childName: e.target.value } : x) })}
+                          placeholder="Name des Kindes"
+                          style={{ flex: 1, padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }}
+                        />
+                        <input
+                          value={c.childYear}
+                          onChange={e => setVolForm({ ...volForm, children: volForm.children.map((x, i) => i === idx ? { ...x, childYear: e.target.value } : x) })}
+                          placeholder="Jg."
+                          type="number"
+                          style={{ width: 90, padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setVolForm({ ...volForm, children: volForm.children.filter((_, i) => i !== idx) })}
+                          style={{ width: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', fontSize: 16 }}
+                        >×</button>
+                      </div>
+                      {c.childYear.trim() && (
+                        <div style={{ fontSize: 12, marginTop: 4, color: yg ? '#198754' : '#dc3545' }}>
+                          {yg ? `✓ Jahrgang: ${yg.name}` : '⚠️ Kein Jahrgang gefunden für dieses Geburtsjahr'}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => setVolForm({ ...volForm, children: [...volForm.children, { childName: '', childYear: '' }] })}
+                  style={{ padding: '8px 12px', background: '#f8f9fa', border: '1px dashed #adb5bd', color: '#495057', borderRadius: 8, cursor: 'pointer', fontSize: 14, alignSelf: 'flex-start' }}
+                >➕ Kind hinzufügen</button>
+              </div>
+            </div>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid #e9ecef' }}>
               <button onClick={closeEdit} style={{ ...btnStyleSecondary, border: '1px solid #dee2e6', background: '#fff' }}>Abbrechen</button>

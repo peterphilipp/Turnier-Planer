@@ -5,6 +5,15 @@ import bcrypt from 'bcrypt';
 import { logVolunteerUpdated, logClubCreated } from '../utils/logger.js';
 import { sendPushToUser } from '../utils/push.js';
 
+// Gleiche Jahrgangs-Grenzen wie bei den Turnier-Jahrgängen selbst (Jahrgaenge.tsx),
+// da genau darüber (childYear innerhalb YearGroup.birthYearStart/-End) die
+// Zuordnung eines Kindes zu einem Jahrgang implizit erfolgt - es gibt kein
+// eigenes Zuordnungsfeld, nur den Geburtsjahr-Abgleich.
+const childSchema = z.object({
+  childName: z.string().trim().max(100).nullable().optional(),
+  childYear: z.number().int().min(1990).max(2030).nullable().optional()
+});
+
 export const volunteerSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
   email: z.string().email('Ungültige E-Mail').optional().or(z.literal('')),
@@ -12,7 +21,8 @@ export const volunteerSchema = z.object({
   role: z.enum(['HELPER', 'ORGANIZER', 'ADMIN']).optional(),
   isPrimaryAdmin: z.boolean().optional(),
   password: z.string().min(1).optional(),
-  tournamentId: z.number().int().nullable().optional()
+  tournamentId: z.number().int().nullable().optional(),
+  children: z.array(childSchema).max(20).optional()
 });
 
 export const updateVolunteerPasswordSchema = z.object({
@@ -48,7 +58,8 @@ export const getVolunteers = async (req: Request, res: Response) => {
   const { tournamentId } = req.query;
   const users = await prisma.user.findMany({
     where: tournamentId ? { tournamentId: Number(tournamentId) } : undefined,
-    orderBy: { name: 'asc' }
+    orderBy: { name: 'asc' },
+    include: { children: true }
   });
   // Rolle als String zurückgeben; Passwort-Hash niemals ausliefern
   return res.json(users?.map(u => ({ ...sanitizeUser(u), role: u.role as string })) || []);
@@ -83,23 +94,41 @@ export const deleteVolunteer = async (req: Request, res: Response) => {
 };
 
 export const updateVolunteer = async (req: Request, res: Response) => {
-  const body = req.body;
-  
+  const { children, ...rest } = req.body;
+
   // Rolle validieren
-  if (body.role && !['HELPER', 'ORGANIZER', 'ADMIN'].includes(body.role)) {
+  if (rest.role && !['HELPER', 'ORGANIZER', 'ADMIN'].includes(rest.role)) {
     return res.status(400).json({ error: 'Ungültige Rolle' });
   }
-  
+
   // Einziger Primary Admin
-  if (body.isPrimaryAdmin) {
+  if (rest.isPrimaryAdmin) {
     await prisma.user.updateMany({ where: { isPrimaryAdmin: true }, data: { isPrimaryAdmin: false } });
   }
-  
+
+  const data: any = { ...rest };
+  if (children !== undefined) {
+    // Komplettersatz statt Diff: die Admin-Oberfläche schickt immer die volle,
+    // aktuelle Liste - einfacher und robuster als einzelne Kinder per ID zu
+    // matchen, und deckt sich mit dem Registrierungs-Flow (dort ebenfalls
+    // vollstaendiges create statt Einzel-Updates). childName/childYear sind
+    // in der DB Pflichtfelder (nicht nullable) - unvollstaendige Zeilen (nur
+    // Name ODER nur Jahr) werden daher verworfen statt einen DB-Fehler zu
+    // riskieren; das Frontend verhindert das ohnehin schon vor dem Absenden.
+    data.children = {
+      deleteMany: {},
+      create: (children as { childName?: string | null; childYear?: number | null }[])
+        .filter(c => c.childName && c.childYear)
+        .map(c => ({ childName: c.childName as string, childYear: c.childYear as number }))
+    };
+  }
+
   const user = await prisma.user.update({
     where: { id: parseInt(req.params.id as string) },
-    data: body
+    data,
+    include: { children: true }
   });
-  logVolunteerUpdated(user.id, Object.keys(body));
+  logVolunteerUpdated(user.id, Object.keys(rest));
   return res.json(sanitizeUser(user));
 };
 
