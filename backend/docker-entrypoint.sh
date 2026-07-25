@@ -17,4 +17,9 @@ echo "  Standarddaten importieren (Ignition Phase)..."
 npx prisma db seed
 
 echo "  Backend startet..."
-exec npx tsx src/server.ts
+# Direkt das lokale Binary starten statt "npx tsx": npx spawnt tsx als
+# Kindprozess und beendet ihn bei SIGTERM (Container-Stop/Neustart) mit einem
+# irrefuehrenden "npm error signal SIGTERM" im Log, obwohl es sich um ein
+# normales Herunterfahren handelt. Per exec direkt wird der Node-Prozess
+# selbst zu PID 1 und erhaelt/behandelt das Signal sauber.
+exec node_modules/.bin/tsx src/server.ts
