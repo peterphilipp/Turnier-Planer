@@ -5,6 +5,7 @@ import { getTournaments, setAuthToken, ApiError } from './api';
 
 import SelfServiceView from './components/SelfServiceView';
 import Privacy from './components/Privacy';
+import Impressum from './components/Impressum';
 
 import Turniere from './components/admin/stammdaten/Turniere';
 import WorkAreas from './components/admin/stammdaten/WorkAreas';
@@ -28,7 +29,7 @@ import TurnierModus from './components/admin/organisation/TurnierModus';
 import { Tournament } from './components/admin/shared';
 import { UserProvider, useUser } from './context/UserContext';
 
-type View = 'admin' | 'selfservice' | 'privacy';
+type View = 'admin' | 'selfservice' | 'privacy' | 'impressum';
 type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
 type SpielplanTab = 'turnier-tage' | 'felder' | 'teilnehmer' | 'modus' | 'spielplan-gruppenphase' | 'spielplan-ko';
 type OrgTab = 'uebersicht' | 'jobslots' | 'food-donation-slots' | 'push-broadcast';
@@ -76,6 +77,7 @@ function AdminView() {
       const params = new URLSearchParams(window.location.search);
       if (view === 'admin') params.set('view', 'admin');
       else if (view === 'privacy') params.set('view', 'privacy');
+      else if (view === 'impressum') params.set('view', 'impressum');
       else params.delete('view');
       const url = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
       window.history.replaceState({}, '', url);
@@ -105,9 +107,13 @@ function AdminView() {
 
   const primaryColor = '#0d6efd';
 
-  // View-Wechsel nach SelfService/Privacy
+  // View-Wechsel nach SelfService/Privacy/Impressum
   if (view === 'privacy') {
     return <Privacy />;
+  }
+
+  if (view === 'impressum') {
+    return <Impressum />;
   }
 
   if (view === 'selfservice') {
@@ -135,6 +141,11 @@ function AdminView() {
           <a href="?view=privacy" style={{ fontSize: 12, color: '#999', textDecoration: 'underline' }}>
             Datenschutzerklärung
           </a>
+          <span style={{ fontSize: 12, color: '#999' }}> · </span>
+          <a href="?view=impressum" style={{ fontSize: 12, color: '#999', textDecoration: 'underline' }}>
+            Impressum
+          </a>
+          <p style={{ fontSize: 11, color: '#bbb', marginTop: 8 }}>© {new Date().getFullYear()} Peter Philipp</p>
         </div>
       </>
     );
@@ -369,6 +380,9 @@ function AdminView() {
       {/* FOOTER */}
       <footer style={{ textAlign: 'center', marginTop: 40, paddingTop: 16, borderTop: '1px solid #e9ecef', color: '#adb5bd', fontSize: 12 }}>
         <a href="?view=privacy" style={{ color: '#6c757d', textDecoration: 'underline' }}>Datenschutzerklärung</a>
+        <span> · </span>
+        <a href="?view=impressum" style={{ color: '#6c757d', textDecoration: 'underline' }}>Impressum</a>
+        <p style={{ marginTop: 8 }}>© {new Date().getFullYear()} Peter Philipp</p>
       </footer>
     </div>
   );
@@ -382,6 +396,7 @@ export default function App() {
     const viewParam = params.get('view');
     if (viewParam === 'admin') return 'admin';
     if (viewParam === 'privacy') return 'privacy';
+    if (viewParam === 'impressum') return 'impressum';
     if (viewParam === 'selfservice') return 'selfservice';
     const host = window.location.hostname.toLowerCase();
     if (host.includes('admin')) return 'admin';
@@ -393,6 +408,10 @@ export default function App() {
 
   if (currentView === 'privacy') {
     return <Privacy />;
+  }
+
+  if (currentView === 'impressum') {
+    return <Impressum />;
   }
 
   return (
