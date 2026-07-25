@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../config/prisma.js';
+import { sendPushToUser } from '../utils/push.js';
 
 // Hinweis: Das Erzeugen von Shifts erfolgt künftig über die Tag-/Template-basierte
 // Generierung (Etappe 2), nicht mehr über manuelles Anlegen einzelner Slots.
@@ -41,9 +42,35 @@ export const getShifts = async (req: Request, res: Response) => {
   return res.json(shifts);
 };
 
+// Entfernt eine einzelne, bereits generierte Schicht wieder aus dem
+// Dienstplan (z.B. wenn ein Arbeitsbereich doch nicht gebraucht wird) - im
+// Unterschied zu clearShifts() betrifft das NUR diese eine Schicht, nicht
+// den ganzen Turnier-Plan. Bereits eingeplante Helfer werden vor dem
+// Löschen (die Zuweisungen kaskadieren mit) per Push benachrichtigt, statt
+// einfach kommentarlos aus ihrem Dienstplan zu verschwinden.
 export const deleteShift = async (req: Request, res: Response) => {
-  await prisma.shift.delete({ where: { id: parseInt(req.params.id as string) } });
-  return res.status(204).send();
+  const id = parseInt(req.params.id as string);
+  const shift = await prisma.shift.findUnique({
+    where: { id },
+    include: { volunteerShifts: { include: { user: true } }, workArea: true, day: true }
+  });
+  if (!shift) return res.status(404).json({ error: 'Schicht nicht gefunden' });
+
+  await prisma.shift.delete({ where: { id } });
+
+  const areaName = shift.workArea?.name || 'Job';
+  const dateStr = shift.day?.date ? new Date(shift.day.date).toLocaleDateString('de-DE') : '';
+  for (const vs of shift.volunteerShifts) {
+    if (!vs.userId) continue;
+    sendPushToUser(
+      vs.userId,
+      'Schicht entfallen ℹ️',
+      `Die Schicht ${areaName}${dateStr ? ` am ${dateStr}` : ''} wurde vom Organisator entfernt. Du bist dort nicht mehr eingeplant.`,
+      '/?view=selfservice'
+    ).catch(() => {});
+  }
+
+  return res.json({ deletedVolunteerAssignments: shift.volunteerShifts.length });
 };
 
 export const updateShift = async (req: Request, res: Response) => {

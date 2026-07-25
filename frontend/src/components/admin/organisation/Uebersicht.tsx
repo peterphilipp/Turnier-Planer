@@ -578,7 +578,32 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
               </div>
             </div>
             
-            <div style={{ padding: '16px 20px', borderTop: '1px solid #e9ecef', background: '#f8f9fa', textAlign: 'right' }}>
+            <div style={{ padding: '16px 20px', borderTop: '1px solid #e9ecef', background: '#f8f9fa', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <button
+                onClick={async () => {
+                  const assignedCount = volunteerShifts.filter(vs => vs.shiftId === selectedShift.id).length;
+                  const areaName = (selectedShift as any).workArea?.name || (selectedShift as any).arbeitsbereich?.name || 'diese Schicht';
+                  if (!(await modal.confirm({
+                    title: 'Schicht entfernen',
+                    message: assignedCount > 0
+                      ? `"${areaName}" wirklich entfernen? ${assignedCount} zugewiesene Helfer werden automatisch ausgeplant und per Web-Push informiert.`
+                      : `"${areaName}" wirklich entfernen? Nur diese eine Schicht wird gelöscht, der restliche Dienstplan bleibt unverändert.`,
+                    variant: 'danger'
+                  }))) return;
+                  try {
+                    await apiDelete(`/api/shifts/${selectedShift.id}`);
+                    queryClient.invalidateQueries({ queryKey: ['shifts', selectedTournament] });
+                    queryClient.invalidateQueries({ queryKey: ['volunteerShifts', selectedTournament] });
+                    setSelectedShift(null);
+                    await modal.alert({ title: 'Entfernt', message: 'Die Schicht wurde aus dem Dienstplan entfernt.' });
+                  } catch (err: any) {
+                    await modal.alert({ title: 'Fehler', message: err?.message || 'Schicht konnte nicht entfernt werden' });
+                  }
+                }}
+                style={{ padding: '12px 16px', minHeight: 44, background: '#ffe3e3', color: '#dc3545', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                🗑️ Schicht entfernen
+              </button>
               <button onClick={() => setSelectedShift(null)} style={{ padding: '12px 20px', minHeight: 44, minWidth: 100, background: '#6c757d', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold' }}>Schließen</button>
             </div>
           </div>

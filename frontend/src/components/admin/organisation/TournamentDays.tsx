@@ -258,7 +258,11 @@ export default function TournamentDays({ selectedTournament, adminPrimary = '#19
         </div>
         <p style={{ color: '#666', fontSize: 13, marginTop: 0, marginBottom: 16 }}>
           Vorschau zur Kontrolle – hier wird nur <strong>erzeugt</strong>. Zeiten anpassen und Helfer
-          einplanen geschieht im <strong>Dienstplan</strong>.
+          einplanen geschieht im <strong>Dienstplan</strong>. „Schichten generieren" ist auch nachträglich
+          jederzeit gefahrlos erneut klickbar: bereits erzeugte Schichten und Helferzuweisungen bleiben
+          unangetastet, es werden nur die Kombinationen aus (neuem) Arbeitsbereich und Zeit-Slot ergänzt,
+          die es noch nicht gibt. Um eine einzelne, nicht mehr benötigte Schicht wieder zu entfernen, öffne
+          sie im <strong>Dienstplan</strong> und nutze dort „Schicht entfernen".
         </p>
 
         {shifts.length === 0 && <p style={{ color: '#888' }}>Noch keine Schichten. Lege Tage + Bereiche an und klicke „Schichten generieren".</p>}
