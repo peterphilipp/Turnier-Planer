@@ -16,3 +16,10 @@ if (!JWT_SECRET || JWT_SECRET.trim().length < 16) {
 }
 
 export default JWT_SECRET as string;
+
+// Gemeinsame Token-Lebensdauer für alle Login-Wege (Passwort, Passkey).
+// 90 statt vormals 30 Tage: viele Helfer melden sich selten an und vergessen
+// ihr Passwort in der Zwischenzeit - kürzer erhöht in der Praxis vor allem
+// die Zahl der Passwort-Reset-Anfragen, ohne nennenswert Sicherheit zu
+// gewinnen (kein Server-seitiger Session-Store, der davon profitieren würde).
+export const TOKEN_LIFETIME = '90d';

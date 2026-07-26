@@ -184,6 +184,7 @@ model User {
   children              UserChild[]
   shifts                VolunteerShift[]
   pushSubscriptions     PushSubscription[]
+  webAuthnCredentials   WebAuthnCredential[]
   tournament            Tournament?            @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   tournamentMemberships TournamentMembership[]
 
@@ -203,6 +204,28 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+// Ein registrierter Passkey (Face ID/Touch ID/Android-Fingerabdruck/Security
+// Key) pro Gerät. credentialId ist der eindeutige, öffentliche Bezeichner des
+// Credentials (base64url) - publicKey/counter werden für jede Anmeldung zur
+// kryptografischen Verifikation gebraucht (siehe passkey.routes.ts). Ein User
+// kann mehrere Passkeys haben (mehrere Geräte).
+model WebAuthnCredential {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  credentialId String   @unique @map("credential_id")
+  publicKey    String   @map("public_key")
+  counter      Int      @default(0)
+  transports   String?  @map("transports")
+  deviceType   String?  @map("device_type")
+  backedUp     Boolean  @default(false) @map("backed_up")
+  label        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("webauthn_credentials")
 }
 
 model UserChild {

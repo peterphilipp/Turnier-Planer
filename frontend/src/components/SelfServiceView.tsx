@@ -10,6 +10,7 @@ import PwaInstallPrompt from './PwaInstallPrompt';
 import PushNotificationBanner from './PushNotificationBanner';
 import { formatPhoneNumber } from '../utils/phone';
 import { subscribeToPushNotifications, usePushSubscriptionStatus } from '../utils/push';
+import { isPasskeySupported, registerPasskey, loginWithPasskey } from '../utils/passkey';
 
 interface Shift {
   id: number;
@@ -81,6 +82,12 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   const [menuOpen, setMenuOpen] = useState(false);
   const { supported: pushSupported, subscribed: pushSubscribed, setSubscribed: setPushSubscribed } = usePushSubscriptionStatus();
   const [pushMenuLoading, setPushMenuLoading] = useState(false);
+  const [passkeySupported, setPasskeySupported] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+
+  useEffect(() => {
+    isPasskeySupported().then(setPasskeySupported).catch(() => setPasskeySupported(false));
+  }, []);
   const [activeSection, setActiveSection] = useState<'jobs' | 'verpflegung'>('jobs');
   const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
   const [myDonations, setMyDonations] = useState<FoodDonation[]>([]);
@@ -253,24 +260,50 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     }
   };
 
+  /** Gemeinsame Nachbereitung für jeden erfolgreichen Login (Passwort oder Passkey). */
+  const applyLoginResult = async (data: any) => {
+    contextLogin(data.token, data.user || data.volunteer);
+    const vol = data.user || data.volunteer;
+    if (vol?.tournamentId) {
+      fetchClubColors(vol.tournamentId);
+    }
+    try {
+      const data2 = await apiFetch('/api/self/available', { headers: { Authorization: 'Bearer ' + data.token } });
+      applyAvailableData(data2);
+    } catch { /* Verfügbarkeitsdaten optional – Login trotzdem erfolgreich */ }
+
+    // Trigger Web Push Erlaubnis
+    import('../utils/push').then(m => m.subscribeToPushNotifications().catch(() => {}));
+  };
+
   const login = async () => {
     try {
       const data = await apiPost('/api/auth/login', { email: loginEmail, password: loginPassword });
-      contextLogin(data.token, data.user || data.volunteer);
+      await applyLoginResult(data);
       setLoginEmail('');
       setLoginPassword('');
-      const vol = data.user || data.volunteer;
-      if (vol?.tournamentId) {
-        fetchClubColors(vol.tournamentId);
-      }
-      try {
-        const data2 = await apiFetch('/api/self/available', { headers: { Authorization: 'Bearer ' + data.token } });
-        applyAvailableData(data2);
-      } catch { /* Verfügbarkeitsdaten optional – Login trotzdem erfolgreich */ }
-      
-      // Trigger Web Push Erlaubnis
-      import('../utils/push').then(m => m.subscribeToPushNotifications().catch(() => {}));
     } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Login fehlgeschlagen' }); }
+  };
+
+  const loginPasskey = async () => {
+    if (!loginEmail.trim()) {
+      await modal.alert({ title: 'Hinweis', message: 'Bitte zuerst Name oder E-Mail eingeben.' });
+      return;
+    }
+    setPasskeyLoading(true);
+    try {
+      const data = await loginWithPasskey(loginEmail.trim());
+      await applyLoginResult(data);
+      setLoginEmail('');
+      setLoginPassword('');
+    } catch (e: any) {
+      // Abbruch durch den Nutzer (z.B. Systemdialog verlassen) ist kein Fehler.
+      if (e?.name !== 'NotAllowedError') {
+        await modal.alert({ title: 'Fehler', message: e?.message || 'Anmeldung mit Passkey fehlgeschlagen' });
+      }
+    } finally {
+      setPasskeyLoading(false);
+    }
   };
 
   const logout = useCallback(() => {
@@ -643,6 +676,15 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
             <input type="text" placeholder="Name oder Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} autoFocus />
             <input type="password" placeholder="Passwort" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') login(); }} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
             <button onClick={login} style={{ padding: '16px', background: clubPrimary, color: clubPrimaryText, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Anmelden</button>
+            {passkeySupported && (
+              <button
+                disabled={passkeyLoading}
+                onClick={loginPasskey}
+                style={{ padding: '14px', background: 'transparent', color: clubAccent, border: '2px solid ' + clubAccent, borderRadius: 10, cursor: passkeyLoading ? 'wait' : 'pointer', fontWeight: 'bold', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              >
+                🔐 {passkeyLoading ? 'Wird geprüft...' : 'Mit Face ID / Fingerabdruck anmelden'}
+              </button>
+            )}
             <button onClick={() => setShowRegisterForm(true)} style={{ padding: '14px', background: 'transparent', color: clubPrimary, border: '2px solid ' + clubPrimary, borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15 }}>Registrieren</button>
             <button onClick={() => setShowForgotPassword(true)} style={{ padding: '12px', background: 'transparent', color: clubSecondary, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: '500', fontSize: 14, textDecoration: 'underline' }}>Passwort vergessen?</button>
           </div>
@@ -885,6 +927,29 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                 await modal.alert({ title: 'Erfolg', message: 'Passwort geändert!' });
               } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Fehler bei der Passwort-Änderung' }); }
             }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>🔑 Passwort ändern</button>
+            {passkeySupported && (
+              <button
+                disabled={passkeyLoading}
+                onClick={async () => {
+                  setPasskeyLoading(true);
+                  try {
+                    await registerPasskey();
+                    setMenuOpen(false);
+                    await modal.alert({ title: 'Eingerichtet 🎉', message: 'Face ID / Fingerabdruck ist jetzt für die Anmeldung auf diesem Gerät eingerichtet.' });
+                  } catch (e: any) {
+                    // Abbruch durch den Nutzer (z.B. Systemdialog verlassen) ist kein Fehler.
+                    if (e?.name !== 'NotAllowedError') {
+                      await modal.alert({ title: 'Fehler', message: e?.message || 'Passkey konnte nicht eingerichtet werden.' });
+                    }
+                  } finally {
+                    setPasskeyLoading(false);
+                  }
+                }}
+                style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: passkeyLoading ? 'wait' : 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}
+              >
+                🔐 {passkeyLoading ? 'Wird eingerichtet...' : 'Face ID / Fingerabdruck einrichten'}
+              </button>
+            )}
             <button onClick={async () => {
               setMenuOpen(false);
               if (!(await modal.confirm({ title: 'Konto löschen', message: 'Bist du sicher, dass du dein Konto löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden. Alle personenbezogenen Daten werden entfernt.', variant: 'danger' }))) return;

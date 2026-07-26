@@ -6,12 +6,13 @@ import { z } from 'zod';
 import prisma from '../config/prisma.js';
 import { Resend } from 'resend';
 import { logLoginSuccess, logLoginFailed, logPasswordResetRequested, logPasswordResetCompleted, logRegistrationCreated } from '../utils/logger.js';
-import JWT_SECRET from '../config/jwt.js';
+import JWT_SECRET, { TOKEN_LIFETIME } from '../config/jwt.js';
 import { authLimiter, pinResetLimiter } from '../middleware/security.js';
 import { sendPushToUser } from '../utils/push.js';
 import { formatPhoneNumber } from '../utils/phone.js';
 import validate from '../middleware/validate.js';
 import { ensureTournamentMembership } from '../utils/tournamentMembership.js';
+import { resolveRoleAndForceAdmin, signSessionToken } from '../utils/authSession.js';
 
 function getClientIp(req: express.Request): string | undefined {
   return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
@@ -370,19 +371,9 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res, next)
     }
 
       logLoginSuccess(user.email || identifier, getClientIp(req));
-      
-      // Admin-Rechte dynamisch forcieren, falls die Umgebungsvariable gesetzt ist
-      const adminEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.toLowerCase().split(',').map(e => e.trim()) : [];
-      let userRole = typeof user.role === 'string' && ['HELPER', 'ORGANIZER', 'ADMIN'].includes(user.role) ? user.role : 'HELPER';
-      
-      if (user.email && adminEmails.includes(user.email.toLowerCase()) && userRole !== 'ADMIN') {
-        userRole = 'ADMIN';
-        // Optional in DB aktualisieren, damit es dauerhaft bleibt
-        await prisma.user.update({ where: { id: user.id }, data: { role: 'ADMIN' } });
-        user.role = 'ADMIN';
-      }
 
-      const token = jwt.sign({ userId: user.id, role: userRole }, JWT_SECRET, { expiresIn: '30d' });
+      const userRole = await resolveRoleAndForceAdmin(user);
+      const token = signSessionToken(user.id, userRole);
       res.json({ token, user: sanitizeUser(user) });
   } catch (err) {
     next(err);
@@ -726,7 +717,7 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res,
     const newRole = typeof user.role === 'string' && ['HELPER', 'ORGANIZER', 'ADMIN'].includes(user.role)
       ? user.role
       : 'HELPER';
-    const token = jwt.sign({ userId: user.id, role: newRole }, JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ userId: user.id, role: newRole }, JWT_SECRET, { expiresIn: TOKEN_LIFETIME });
     // Einmalige Ausnahme: der PIN im KLARTEXT (nicht der DB-Hash!), damit das
     // Frontend ihn dem Nutzer direkt nach der Registrierung anzeigen kann.
     // Danach ist er nirgends mehr abrufbar – in der DB liegt nur der Hash.

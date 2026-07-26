@@ -198,3 +198,14 @@ export const getVapidPublicKey = () => apiFetch('/api/self/vapid-public-key');
 export const subscribeToPush = (subscription: any) => apiPost('/api/self/push-subscribe', subscription);
 export const broadcastPush = (data: any) => apiPost('/api/volunteers/push-broadcast', data);
 
+// ===================== Passkeys (WebAuthn) =====================
+export const getPasskeyRegistrationOptions = () => apiPost('/api/auth/passkey/register-options', {});
+export const verifyPasskeyRegistration = (data: { response: any; challengeToken: string; label?: string }) =>
+  apiPost('/api/auth/passkey/register-verify', data);
+export const getMyPasskeys = () => apiFetch('/api/auth/passkey');
+export const deletePasskey = (id: number) => apiDelete(`/api/auth/passkey/${id}`);
+export const getPasskeyAuthenticationOptions = (identifier: string) =>
+  apiPost('/api/auth/passkey/login-options', { identifier });
+export const verifyPasskeyAuthentication = (data: { response: any; challengeToken: string }) =>
+  apiPost('/api/auth/passkey/login-verify', data);
+
