@@ -349,7 +349,13 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
         if (cancelled || !data) return;
         await applyLoginResult(data);
       })
-      .catch(() => {});
+      .catch((e: any) => {
+        // Conditional UI fehlgeschlagen — normal bei Neu-Registrierung
+        // oder wenn kein Passkey auf dem Gerät existiert. Kein Fehler.
+        if (import.meta.env.DEV && e?.name !== 'AbortError') {
+          console.debug('[ConditionalPasskey] Nicht verfügbar:', e?.name);
+        }
+      });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctxLoggedIn]);

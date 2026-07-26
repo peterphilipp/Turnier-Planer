@@ -109,6 +109,19 @@ export const authLimiter = rateLimit({
  * bcrypt-gehasht, aber dieser Endpunkt setzt ohne zweiten Faktor ein neues
  * Passwort – hier zählt jeder einzelne Versuch.
  */
+/**
+ * Limit für den Push-Broadcast-Endpunkt. Obwohl der Endpoint Admin-Auth
+ * erfordert, begrenzt dieser Limiter den Schaden bei kompromittiertem
+ * Admin-Token: maximal 10 Broadcasts pro Stunde pro IP.
+ */
+export const broadcastLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Zu viele Push-Broadcasts. Bitte warte eine Stunde.' }
+});
+
 export const pinResetLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 5,

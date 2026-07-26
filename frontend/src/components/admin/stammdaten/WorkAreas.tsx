@@ -15,7 +15,7 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
   
   const { items: sortedWorkAreas, requestSort, getSortIndicator } = useSortableData(workAreas, { key: 'order', direction: 'asc' });
 
-  const [abForm, setAbForm] = useState({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8, categoryIds: [] as number[] });
+  const [abForm, setAbForm] = useState({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8, isStandard: false, categoryIds: [] as number[] });
   const [editingAb, setEditingAb] = useState<number | null>(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
@@ -45,7 +45,7 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
     else { await apiPost('/api/work-areas', abForm); }
     queryClient.invalidateQueries({ queryKey: ['workAreas'] });
     queryClient.invalidateQueries({ queryKey: ['day-templates'] }); // in case template tags change
-    setAbForm({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8, categoryIds: [] });
+    setAbForm({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8, isStandard: false, categoryIds: [] });
     setEditingAb(null);
   };
 
@@ -55,8 +55,8 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
     queryClient.invalidateQueries({ queryKey: ['workAreas'] });
   };
 
-  const openEdit = (ab: WorkArea) => { setEditingAb(ab.id); setAbForm({ name: ab.name, icon: ab.icon, color: ab.color, minVolunteers: ab.minVolunteers, maxVolunteers: ab.maxVolunteers, categoryIds: ab.categories?.map(c => c.id) || [] }); setEmojiPickerOpen(false); };
-  const closeEdit = () => { setEditingAb(null); setAbForm({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8, categoryIds: [] }); setEmojiPickerOpen(false); };
+  const openEdit = (ab: WorkArea) => { setEditingAb(ab.id); setAbForm({ name: ab.name, icon: ab.icon, color: ab.color, minVolunteers: ab.minVolunteers, maxVolunteers: ab.maxVolunteers, isStandard: ab.isStandard || false, categoryIds: ab.categories?.map(c => c.id) || [] }); setEmojiPickerOpen(false); };
+  const closeEdit = () => { setEditingAb(null); setAbForm({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8, isStandard: false, categoryIds: [] }); setEmojiPickerOpen(false); };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -83,7 +83,7 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
       </div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ width: 30, padding: '10px 4px', textAlign: 'center' }}>⋮⋮</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Icon</th><th onClick={() => requestSort('name')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Name{getSortIndicator('name')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Kategorien</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Farbe</th><th onClick={() => requestSort('minVolunteers')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Min{getSortIndicator('minVolunteers')}</th><th onClick={() => requestSort('maxVolunteers')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Max{getSortIndicator('maxVolunteers')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
+        <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ width: 30, padding: '10px 4px', textAlign: 'center' }}>⋮⋮</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Icon</th><th onClick={() => requestSort('name')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Name{getSortIndicator('name')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'center' }}>Standard</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Kategorien</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Farbe</th><th onClick={() => requestSort('minVolunteers')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Min{getSortIndicator('minVolunteers')}</th><th onClick={() => requestSort('maxVolunteers')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Max{getSortIndicator('maxVolunteers')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
         <tbody>
           {sortedWorkAreas.map((ab, idx) => (
             <tr 
@@ -106,6 +106,9 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
                 </div>
               </td>
               <td style={{ padding: '10px 12px' }}><div style={{ background: ab.color, width: 40, height: 20, borderRadius: 4 }} /></td>
+              <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                {ab.isStandard ? '⭐ Ja' : '—'}
+              </td>
               <td style={{ padding: '10px 12px', textAlign: 'right' }}>{ab.minVolunteers}</td>
               <td style={{ padding: '10px 12px', textAlign: 'right' }}>{ab.maxVolunteers}</td>
               <td style={{ padding: '10px 12px' }}>
@@ -159,6 +162,17 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
                 {allCategories.length === 0 && <span style={{ fontSize: 13, color: '#888' }}>Keine Kategorien vorhanden. Lege weiter unten auf dieser Seite welche an.</span>}
               </div>
             </div>
+
+            {/* Standard-Checkbox */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: abForm.isStandard ? '#fff3cd' : '#f8f9fa', border: abForm.isStandard ? '1px solid #ffc107' : '1px solid #dee2e6', borderRadius: 8, cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={abForm.isStandard}
+                onChange={e => setAbForm({ ...abForm, isStandard: e.target.checked })}
+                style={{ width: 18, height: 18, cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#856404' }}>⭐ Standard-Bereich (wird automatisch bei neuen Turnieren aktiviert)</span>
+            </label>
 
             {/* Farben & Helfer */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>

@@ -1,11 +1,19 @@
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Shift, VolunteerShift, TournamentWorkArea, TournamentDay, GlobalDayTemplate, Tournament, minToTime, timeToMin } from '../shared';
+
+/** Pro Tag geladene WorkAreas: { active: [...], all: [...] } */
+type DayWorkAreasData = { active: any[]; all: any[] } | null;
+interface DayWorkAreasCache {
+  [dayId: number]: DayWorkAreasData;
+}
 import {
-  getShifts, getVolunteerShifts, getVolunteers, apiPost, apiDelete, updateShiftsBatch,
+  getShifts, getVolunteerShifts, getVolunteers, apiPost, apiDelete, updateShiftsBatch, updateShift,
   getTournamentWorkAreas, syncTournamentWorkAreas, updateTournamentWorkArea,
   getTournamentDays, createTournamentDay, deleteTournamentDay, addDaySlot,
-  getDayTemplates, generateShifts, clearShifts, exportDayToTemplate, getTournaments, createShift
+  getDayTemplates, generateShifts, clearShifts, exportDayToTemplate, getTournaments, createShift,
+  getDayWorkAreas, syncDayWorkAreas, updateDayWorkAreaTargetHelpers, removeDayWorkArea, addDayWorkArea,
+  getDaySlotsWithWorkAreas
 } from '../../../api';
 import { modal } from '../Modal';
 import { btnStyle, inputStyle, tdStyle, thStyle, getTemplateDisplayName } from '../shared';
@@ -65,6 +73,8 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
   // Shift-ID) und erst per Commit als eine Business-Transaktion übernommen.
   const [timeEditMode, setTimeEditMode] = useState(false);
   const [pendingTimeChanges, setPendingTimeChanges] = useState<Record<number, { startMin: number; endMin: number }>>({});
+  // DayWorkAreas pro Tag (Cache)
+  const [dayWorkAreasCache, setDayWorkAreasCache] = useState<DayWorkAreasCache>({});
   const [committing, setCommitting] = useState(false);
   const pendingCount = Object.keys(pendingTimeChanges).length;
 
@@ -107,7 +117,42 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
   const availableDates = useMemo(() => tournamentDateRange(tournament), [tournament]);
   const dayByDate = useMemo(() => new Map(days.map(d => [toDateOnly(new Date(d.date)), d] as const)), [days]);
 
+  // Nur Tage mit zugewiesenem Tag-Typ (für Zielhelfer-Tabelle)
+  const daysWithTypes = useMemo(() => days.filter(d => d.sourceTemplateId !== null), [days]);
+
   const setupExpanded = setupExpandedOverride ?? (jobSlots.length === 0);
+
+  // Beim Laden eines Turniers Standard-Bereiche initial belegen (nur beim ersten Mal)
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (!tid || initializedRef.current) return;
+    initializedRef.current = true;
+    guard(async () => {
+      await syncTournamentWorkAreas(tid);
+      queryClient.invalidateQueries({ queryKey: ['t-work-areas', tid] });
+    });
+  }, [tid]);
+
+  // Wenn Tage geladen sind, alle mit Typ für die Zielhelfer-Tabelle synchronisieren
+  const syncedDaysRef = useRef<Set<number>>(new Set());
+  const [dayWorkAreasSynced, setDayWorkAreasSynced] = useState(false);
+  const [activeAreasByDay, setActiveAreasByDay] = useState<Map<number, any[]>>(new Map());
+  useEffect(() => {
+    if (!daysWithTypes || daysWithTypes.length === 0) return;
+    guard(async () => {
+      for (const day of daysWithTypes) {
+        if (!syncedDaysRef.current.has(day.id)) {
+          syncedDaysRef.current.add(day.id);
+          // Synchronisiere Arbeitsbereiche für diesen Tag
+          await syncDayWorkAreas(day.id);
+          // Lade die Daten in den Cache
+          const data = await getDayWorkAreas(day.id);
+          setDayWorkAreasCache(prev => ({ ...prev, [day.id]: data }));
+        }
+      }
+      setDayWorkAreasSynced(true);
+    });
+  }, [daysWithTypes]);
 
   /** Einheitliche Fehlerbehandlung für Setup-Mutationen (401 -> klarer Hinweis, kein Uncaught). */
   const guard = async (fn: () => Promise<void>) => {
@@ -129,11 +174,51 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
     queryClient.invalidateQueries({ queryKey: ['t-work-areas', tid] });
     const added = result.length - before;
     await modal.alert({
-      title: 'Katalog übernommen',
+      title: 'Standard-Bereiche aktualisiert',
       message: added > 0
-        ? `${added} neue(r) Arbeitsbereich(e) übernommen (${result.length} insgesamt aktiv).`
-        : `Bereits alle ${result.length} Arbeitsbereiche übernommen – nichts Neues gefunden.`
+        ? `${added} neue(r) Arbeitsbereich(e) hinzugefügt (${result.length} insgesamt aktiv).`
+        : `Bereits alle ${result.length} Arbeitsbereiche vorhanden – nichts Neues gefunden.`
     });
+  });
+
+  /** Lädt WorkAreas für einen Tag (mit Cache). */
+  const loadDayWorkAreas = async (dayId: number) => {
+    if (dayWorkAreasCache[dayId]) return; // bereits geladen
+    const data = await getDayWorkAreas(dayId);
+    setDayWorkAreasCache(prev => ({ ...prev, [dayId]: data }));
+  };
+
+  /** Sync: Alle aktiven TournamentWorkAreas als Einträge für diesen Tag erstellen. */
+  const handleSyncDayWorkAreas = async (day: TournamentDay) => guard(async () => {
+    const result = await syncDayWorkAreas(day.id);
+    await loadDayWorkAreas(day.id);
+    await modal.alert({
+      title: 'Arbeitsbereiche synchronisiert',
+      message: result.created > 0
+        ? `${result.created} neue(r) Arbeitsbereich(e) für ${day.label || toDateOnly(new Date(day.date))} hinzugefügt.`
+        : `Alle Arbeitsbereiche bereits vorhanden.`
+    });
+  });
+
+  /** Zielhelfer aktualisieren (automatisch beim Blur). */
+  const handleUpdateTargetHelpers = async (dayWorkAreaId: number, targetHelpers: number | null) => {
+    try {
+      await updateDayWorkAreaTargetHelpers(dayWorkAreaId, targetHelpers);
+      // Cache aktualisieren
+      setDayWorkAreasCache(prev => {
+        const copy = { ...prev };
+        const data = copy[dayWorkAreaId]; // nicht ideal, aber reicht für Demo
+        return prev;
+      });
+    } catch (err: any) {
+      await modal.alert({ title: 'Fehler', message: err?.message || 'Zielhelfer konnte nicht gespeichert werden.' });
+    }
+  };
+
+  /** WorkArea vom Tag entfernen (inactive setzen). */
+  const handleRemoveDayWorkArea = async (dayId: number, dayWorkAreaId: number) => guard(async () => {
+    await removeDayWorkArea(dayWorkAreaId);
+    await loadDayWorkAreas(dayId); // neu laden
   });
 
   /**
@@ -154,6 +239,9 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
     }
 
     if (existingDay) {
+      // WICHTIG: Ref und Cache für diesen Tag löschen, damit er beim nächsten Render neu synchronisiert wird
+      syncedDaysRef.current.delete(existingDay.id);
+      setDayWorkAreasCache(prev => { const next = { ...prev }; delete next[existingDay.id]; return next; });
       await deleteTournamentDay(existingDay.id);
     }
     if (templateId) {
@@ -392,35 +480,82 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
 
         {setupExpanded && (
           <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Arbeitsbereiche */}
+            {/* Arbeitsbereiche — zwei Spalten: Aktiv (links) + Inaktiv (rechts) */}
             <section>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <h3 style={{ margin: 0, fontSize: 16, color: '#212557' }}>🏪 Arbeitsbereiche dieses Turniers</h3>
                 <span style={{ flex: 1 }} />
-                <button style={{ ...btnStyle, background: '#198754', color: '#fff', minHeight: 38 }} onClick={sync}>Aus Katalog übernehmen</button>
               </div>
-              {areas.length === 0 && <p style={{ color: '#888' }}>Noch keine Bereiche übernommen. Klicke „Aus Katalog übernehmen".</p>}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
-                {areas.map(a => (
-                  <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '6px 0', borderBottom: '1px solid #f1f3f5', opacity: a.active ? 1 : 0.5 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 200 }}>
-                      <input type="checkbox" checked={a.active} onChange={e => guard(async () => { await updateTournamentWorkArea(a.id, { active: e.target.checked }); queryClient.invalidateQueries({ queryKey: ['t-work-areas', tid] }); })} />
-                      <span style={{ fontWeight: 600 }}>{a.icon} {a.name}</span>
-                    </label>
-                    <span style={{ fontSize: 13, color: '#666' }}>Helfer:</span>
-                    <input type="number" min={0} defaultValue={a.minVolunteers} style={{ ...inputStyle, width: 64 }}
-                      onBlur={e => guard(async () => { await updateTournamentWorkArea(a.id, { minVolunteers: parseInt(e.target.value) || 0 }); })} />
-                    <span>–</span>
-                    <input type="number" min={0} defaultValue={a.maxVolunteers} style={{ ...inputStyle, width: 64 }}
-                      onBlur={e => guard(async () => { await updateTournamentWorkArea(a.id, { maxVolunteers: parseInt(e.target.value) || 0 }); })} />
-                    {(a.operatingStartMin != null || a.operatingEndMin != null) && (
-                      <span style={{ fontSize: 12, color: '#999' }}>
-                        Betrieb: {a.operatingStartMin != null ? minToTime(a.operatingStartMin) : '–'}…{a.operatingEndMin != null ? minToTime(a.operatingEndMin) : '–'}
-                      </span>
+              <p style={{ color: '#6c757d', fontSize: 12, marginTop: 0, marginBottom: 8 }}>
+                💡 Standard-Bereiche werden automatisch aktiviert. In den Stammdaten → Arbeitsbereiche kannst du festlegen, welche Bereiche Standard sind.
+              </p>
+
+              {(() => {
+                const activeAreas = areas.filter(a => a.active);
+                const inactiveAreas = areas.filter(a => !a.active);
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 80px 1fr', gap: 12, marginTop: 12 }}>
+                    {/* Links: Aktiv (angeboten) */}
+                    <div style={{ border: '1px solid #dee2e6', borderRadius: 8, padding: 12, background: '#f8f9fa' }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: '#212529', marginBottom: 8 }}>✅ Aktiv (angeboten)</div>
+                      {activeAreas.length === 0 ? (
+                        <p style={{ color: '#adb5bd', fontStyle: 'italic', margin: 0, fontSize: 13 }}>Noch keine Bereiche – klicke „Standard-Bereiche laden".</p>
+                      ) : (
+                        activeAreas.map(a => (
+                          <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid #e9ecef' }}>
+                            <span style={{ fontSize: 13 }}>{a.icon || '📍'} {a.name}</span>
+                            <span style={{ flex: 1 }} />
+                            <button
+                              onClick={() => guard(async () => {
+                                await updateTournamentWorkArea(a.id, { active: false });
+                                queryClient.invalidateQueries({ queryKey: ['t-work-areas', tid] });
+                              })}
+                              style={{ ...btnStyle, background: '#f8d7da', color: '#842029', fontSize: 12, minHeight: 26, padding: '2px 8px' }}
+                              title="Deaktivieren"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Mitte: Pfeil */}
+                    {!isMobile && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontSize: 20, color: '#adb5bd' }}>→</span>
+                      </div>
+                    )}
+
+                    {/* Rechts: Inaktiv (Katalog) */}
+                    {!isMobile && (
+                      <div style={{ border: '1px solid #dee2e6', borderRadius: 8, padding: 12, background: '#fff' }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: '#212529', marginBottom: 8 }}>⬜ Inaktiv (Katalog)</div>
+                        {inactiveAreas.length === 0 ? (
+                          <p style={{ color: '#adb5bd', fontStyle: 'italic', margin: 0, fontSize: 13 }}>Alle Bereiche aktiv.</p>
+                        ) : (
+                          inactiveAreas.map(a => (
+                            <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid #e9ecef' }}>
+                              <span style={{ fontSize: 13 }}>{a.icon || '📍'} {a.name}</span>
+                              <span style={{ flex: 1 }} />
+                              <button
+                                onClick={() => guard(async () => {
+                                  await updateTournamentWorkArea(a.id, { active: true });
+                                  queryClient.invalidateQueries({ queryKey: ['t-work-areas', tid] });
+                                })}
+                                style={{ ...btnStyle, background: '#d1e7dd', color: '#0f5132', fontSize: 12, minHeight: 26, padding: '2px 8px' }}
+                                title="Aktivieren"
+                              >
+                                ✓
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     )}
                   </div>
-                ))}
-              </div>
+                );
+              })()}
             </section>
 
             {/* Tage */}
@@ -435,37 +570,256 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
               {availableDates.length === 0 ? (
                 <p style={{ color: '#888' }}>Turnier hat keinen gültigen Zeitraum (Stammdaten prüfen).</p>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 12 }}>
-                  <thead>
-                    <tr>
-                      <th style={thStyle}>Turniertag</th>
-                      <th style={thStyle}>Tag-Typ</th>
-                      <th style={thStyle}>Zeit-Slots</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {availableDates.map(dateStr => {
-                      const day = dayByDate.get(dateStr);
-                      return (
-                        <tr key={dateStr}>
-                          <td style={tdStyle}>{formatDateOption(dateStr)}</td>
-                          <td style={tdStyle}>
-                            <select style={inputStyle} value={day?.sourceTemplateId ? String(day.sourceTemplateId) : ''}
-                              onChange={e => setDayTemplate(dateStr, day, e.target.value)}>
-                              <option value="">-- kein Tag-Typ --</option>
-                              {templates.filter(t => !t.isObsolete).map(t => <option key={t.id} value={t.id}>{getTemplateDisplayName(t)}</option>)}
-                            </select>
-                          </td>
-                          <td style={{ ...tdStyle, fontSize: 13, color: '#666' }}>
-                            {(day?.slots || []).map(s => `${minToTime(s.startMin)}–${minToTime(s.endMin)}`).join(', ') || '–'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <div style={{ marginTop: 12 }}>
+                  {/* Haupttabelle: pro Tag aufklappbar */}
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
+                    <thead>
+                      <tr>
+                        <th style={thStyle}>Turniertag</th>
+                        <th style={thStyle}>Tag-Typ</th>
+                        <th style={thStyle}>Zeit-Slots</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {availableDates.map((dateStr, idx) => {
+                        const day = dayByDate.get(dateStr);
+                        const isExpanded = expandedDays.has(`day-${day?.id || dateStr}`);
+                        const data = day ? dayWorkAreasCache[day.id] : null;
+
+                        return (
+                          <Fragment key={dateStr}>
+                            {/* Header-Zeile (aufklappbar) */}
+                            <tr key={`${dateStr}-header`} style={{ background: '#f8f9fa', cursor: 'pointer' }}
+                              onClick={() => {
+                                if (!day) return;
+                                const key = `day-${day.id}`;
+                                setExpandedDays(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(key)) next.delete(key);
+                                  else next.add(key);
+                                  return next;
+                                });
+                                if (!isExpanded && day) loadDayWorkAreas(day.id);
+                              }}>
+                              <td style={{ ...tdStyle, fontWeight: 600 }}>{formatDateOption(dateStr)}</td>
+                              <td style={tdStyle}>
+                                <select
+                                  onClick={e => e.stopPropagation()}
+                                  style={inputStyle}
+                                  value={day?.sourceTemplateId ? String(day.sourceTemplateId) : ''}
+                                  onChange={e => setDayTemplate(dateStr, day, e.target.value)}
+                                >
+                                  <option value="">-- kein Tag-Typ --</option>
+                                  {templates.filter(t => !t.isObsolete).map(t => <option key={t.id} value={t.id}>{getTemplateDisplayName(t)}</option>)}
+                                </select>
+                              </td>
+                              <td style={{ ...tdStyle, fontSize: 13, color: '#666' }}>
+                                {(day?.slots || []).map(s => `${minToTime(s.startMin)}–${minToTime(s.endMin)}`).join(', ') || '–'}
+                              </td>
+                            </tr>
+
+                            {/* Aufgeklappt: zwei-spaltige WorkArea-Tabelle */}
+                            {isExpanded && day && (
+                              <tr key={`${dateStr}-expanded`}>
+                                <td colSpan={3} style={{ padding: 0 }}>
+                                  <div style={{ padding: '16px 20px', background: '#fff', borderLeft: '3px solid #0d6efd' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                                      <span style={{ fontWeight: 700, fontSize: 14, color: '#212529' }}>
+                                        📍 Arbeitsbereiche für {day.label || formatDateOption(dateStr)}
+                                      </span>
+                                      <button
+                                        onClick={e => { e.stopPropagation(); handleSyncDayWorkAreas(day); }}
+                                        style={{ ...btnStyle, background: '#198754', color: '#fff', fontSize: 12, minHeight: 30, padding: '4px 10px' }}
+                                      >
+                                        Aus Katalog übernehmen
+                                      </button>
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 80px 1fr', gap: 12, alignItems: 'start' }}>
+                                      {/* Links: Aktive Arbeitsbereiche */}
+                                      <div style={{ border: '1px solid #dee2e6', borderRadius: 8, padding: 12, background: '#f8f9fa' }}>
+                                        <div style={{ fontWeight: 700, fontSize: 13, color: '#212529', marginBottom: 8 }}>✅ Aktiv (angeboten)</div>
+                                        {data?.active.length === 0 ? (
+                                          <p style={{ color: '#adb5bd', fontStyle: 'italic', margin: 0, fontSize: 13 }}>Keine Bereiche – lade Standard-Bereiche.</p>
+                                        ) : (
+                                          data!.active.map(dwa => (
+                                            <div key={dwa.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid #e9ecef' }}>
+                                              <span style={{ fontSize: 13 }}>{dwa.workArea?.icon || '📍'} {dwa.workArea?.name}</span>
+                                              <span style={{ flex: 1 }} />
+                                              <span style={{ fontSize: 12, color: '#6c757d' }}>🎯</span>
+                                              <input
+                                                type="number"
+                                                min={0}
+                                                defaultValue={dwa.targetHelpers ?? dwa.workArea?.maxVolunteers ?? ''}
+                                                placeholder="Ziel"
+                                                style={{ ...inputStyle, width: 64, textAlign: 'center', fontSize: 13 }}
+                                                onBlur={e => {
+                                                  const val = parseInt(e.target.value);
+                                                  if (!isNaN(val) && val >= 0) {
+                                                    handleUpdateTargetHelpers(dwa.id, val);
+                                                  }
+                                                }}
+                                              />
+                                              <span style={{ fontSize: 12, color: '#6c757d' }}>Helfer</span>
+                                              <button
+                                                onClick={() => handleRemoveDayWorkArea(day.id, dwa.id)}
+                                                style={{ ...btnStyle, background: '#f8d7da', color: '#842029', fontSize: 12, minHeight: 26, padding: '2px 8px' }}
+                                                title="Von diesem Tag entfernen"
+                                              >
+                                                ✕
+                                              </button>
+                                            </div>
+                                          ))
+                                        )}
+                                      </div>
+
+                                      {/* Mitte: Pfeil */}
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <span style={{ fontSize: 20, color: '#adb5bd' }}>→</span>
+                                      </div>
+
+                                      {/* Rechts: Katalog (nicht aktiv für diesen Tag) */}
+                                      <div style={{ border: '1px solid #dee2e6', borderRadius: 8, padding: 12, background: '#fff' }}>
+                                        <div style={{ fontWeight: 700, fontSize: 13, color: '#212529', marginBottom: 8 }}>⬜ Katalog</div>
+                                        {(() => {
+                                          const activeIds = new Set(data?.active.map(d => d.tournamentWorkAreaId) || []);
+                                          const catalog = data?.all.filter(a => !activeIds.has(a.id)) || [];
+                                          if (catalog.length === 0) return <p style={{ color: '#adb5bd', fontStyle: 'italic', margin: 0, fontSize: 13 }}>Alle Bereiche aktiv.</p>;
+                                          return catalog.map(area => (
+                                            <div key={area.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid #e9ecef' }}>
+                                              <span style={{ fontSize: 13 }}>{area.icon || '📍'} {area.name}</span>
+                                              <span style={{ flex: 1 }} />
+                                              <button
+                                                onClick={async () => {
+                                                  await guard(async () => {
+                                                    await addDayWorkArea(day.id, area.id, area.order);
+                                                    await loadDayWorkAreas(day.id);
+                                                  });
+                                                }}
+                                                style={{ ...btnStyle, background: '#d1e7dd', color: '#0f5132', fontSize: 12, minHeight: 26, padding: '2px 8px' }}
+                                                title="Zu diesem Tag hinzufügen"
+                                              >
+                                                ✓
+                                              </button>
+                                            </div>
+                                          ));
+                                        })()}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </section>
+
+            {/* 🎯 Zielhelfer pro Tag (nur für Tage mit zugewiesenem Tag-Typ) */}
+            {daysWithTypes.length > 0 && (
+              <section>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0, fontSize: 16, color: '#212557' }}>🎯 Zielhelfer pro Tag</h3>
+                  <span style={{ flex: 1 }} />
+                </div>
+                <p style={{ color: '#6c757d', fontSize: 12, marginTop: 0, marginBottom: 8 }}>
+                  💡 Trage hier die Zielanzahl Helfer pro aktivem Arbeitsbereich und Tag ein. Diese Werte werden bei der Schichtgenerierung berücksichtigt.
+                </p>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 600 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #e9ecef' }}>
+                        <th style={{ padding: '8px 12px', fontWeight: 600, textAlign: 'left', position: 'sticky', left: 0, background: '#f8f9fa', zIndex: 1 }}>Arbeitsbereich</th>
+                        {daysWithTypes.map(day => (
+                          <th key={day.id} style={{ padding: '8px 12px', fontWeight: 600, textAlign: 'center', minWidth: 100 }}>
+                            {formatDateOption(toDateOnly(new Date(day.date)))}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        // Prüfen ob Sync abgeschlossen
+                        if (!dayWorkAreasSynced) return <tr><td colSpan={daysWithTypes.length + 1} style={{ textAlign: 'center', padding: 20, color: '#6c757d' }}>🔄 Daten werden geladen…</td></tr>;
+
+                        // Alle aktiven Arbeitsbereiche über alle Tage sammeln
+                        const allActiveAreas = new Map<number, any>();
+                        daysWithTypes.forEach(day => {
+                          const dayData = dayWorkAreasCache[day.id];
+                          (dayData?.active || []).filter(a => a.active).forEach(dwa => {
+                            if (!allActiveAreas.has(dwa.tournamentWorkAreaId)) {
+                              allActiveAreas.set(dwa.tournamentWorkAreaId, dwa);
+                            }
+                          });
+                        });
+
+                        const uniqueAreas = Array.from(allActiveAreas.values());
+
+                        if (uniqueAreas.length === 0) return <tr><td colSpan={daysWithTypes.length + 1} style={{ textAlign: 'center', padding: 20, color: '#6c757d' }}>Keine aktiven Arbeitsbereiche für diese Tage.</td></tr>;
+
+                        return uniqueAreas.map(area => {
+                          return (
+                            <tr key={area.tournamentWorkAreaId} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                              <td style={{ padding: '8px 12px', fontWeight: 500, position: 'sticky', left: 0, background: '#fff', zIndex: 1 }}>
+                                {area.workArea?.icon || '📍'} {area.workArea?.name}
+                              </td>
+                              {daysWithTypes.map(day => {
+                                const dayData = dayWorkAreasCache[day.id];
+                                // Prüfe, ob dieser Arbeitsbereich für diesen Tag aktiv ist
+                                const dwa = (dayData?.active || []).find(d => d.tournamentWorkAreaId === area.tournamentWorkAreaId);
+
+                                return (
+                                  <td key={day.id} style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                    {dwa ? (
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        defaultValue={dwa.targetHelpers ?? area.workArea?.maxVolunteers ?? ''}
+                                        placeholder="—"
+                                        style={{ ...inputStyle, width: 64, textAlign: 'center', fontSize: 13 }}
+                                        onBlur={e => {
+                                          const val = parseInt(e.target.value);
+                                          if (!isNaN(val) && val >= 0) {
+                                            handleUpdateTargetHelpers(dwa.id, val);
+                                          }
+                                        }}
+                                      />
+                                    ) : (
+                                      <span style={{ color: '#adb5bd', fontStyle: 'italic' }}>—</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ borderTop: '2px solid #dee2e6', background: '#f8f9fa' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 700, textAlign: 'left', position: 'sticky', left: 0, background: '#f8f9fa', zIndex: 1 }}>
+                          📊 Gesamtziel
+                        </td>
+                        {daysWithTypes.map(day => {
+                          const dayData = dayWorkAreasCache[day.id];
+                          const activeAreas = (dayData?.active || []).filter(a => a.active);
+                          const sum = activeAreas.reduce((acc, dwa) => acc + (dwa.targetHelpers ?? 0), 0);
+                          return (
+                            <td key={day.id} style={{ padding: '8px 12px', fontWeight: 700, textAlign: 'center' }}>
+                              {sum > 0 ? sum : '—'}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </section>
+            )}
 
             {/* Generieren */}
             <section>
@@ -709,6 +1063,52 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
               <div style={{ display: 'flex', gap: 20, marginBottom: 20, color: '#666', fontSize: 14 }}>
                 <div>📅 {new Date((selectedShift as any).day?.date || selectedShift.date).toLocaleDateString('de-DE')}</div>
                 <div>⏰ {minToTime((selectedShift as any).startMin ?? (selectedShift as any).daySlot?.startMin ?? 0)} - {minToTime((selectedShift as any).endMin ?? (selectedShift as any).daySlot?.endMin ?? 0)}</div>
+              </div>
+
+              {/* Helfer-Anzahl bearbeiten */}
+              <div style={{ marginBottom: 24, padding: 16, background: '#f8f9fa', borderRadius: 8, border: '1px solid #e9ecef' }}>
+                <h5 style={{ margin: '0 0 12px 0', color: '#212529', fontSize: 14 }}>👥 Geplante Helfer</h5>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <label style={{ fontSize: 13, color: '#6c757d' }}>Min:</label>
+                  <input
+                    type="number"
+                    min={0}
+                    defaultValue={selectedShift.minVolunteers ?? ''}
+                    placeholder="—"
+                    style={{ ...inputStyle, width: 64, textAlign: 'center', fontSize: 13 }}
+                    onBlur={async e => {
+                      const val = parseInt(e.target.value);
+                      if (!isNaN(val) && val >= 0) {
+                        try {
+                          await updateShift(selectedShift.id, { minVolunteers: val });
+                          queryClient.invalidateQueries({ queryKey: ['shifts', selectedTournament] });
+                        } catch (err: any) {
+                          await modal.alert({ title: 'Fehler', message: err?.message || 'Speichern fehlgeschlagen' });
+                        }
+                      }
+                    }}
+                  />
+                  <label style={{ fontSize: 13, color: '#6c757d' }}>Max:</label>
+                  <input
+                    type="number"
+                    min={0}
+                    defaultValue={selectedShift.maxVolunteers ?? ''}
+                    placeholder="—"
+                    style={{ ...inputStyle, width: 64, textAlign: 'center', fontSize: 13 }}
+                    onBlur={async e => {
+                      const val = parseInt(e.target.value);
+                      if (!isNaN(val) && val >= 0) {
+                        try {
+                          await updateShift(selectedShift.id, { maxVolunteers: val });
+                          queryClient.invalidateQueries({ queryKey: ['shifts', selectedTournament] });
+                        } catch (err: any) {
+                          await modal.alert({ title: 'Fehler', message: err?.message || 'Speichern fehlgeschlagen' });
+                        }
+                      }
+                    }}
+                  />
+                  <span style={{ fontSize: 12, color: '#adb5bd' }}>Helfer</span>
+                </div>
               </div>
 
               <h4 style={{ margin: '0 0 12px 0', color: '#212529' }}>Zugewiesene Helfer</h4>

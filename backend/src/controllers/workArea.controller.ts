@@ -9,6 +9,7 @@ export const workAreaSchema = z.object({
   maxVolunteers: z.number().int().min(1).optional(),
   color: z.string().optional(),
   order: z.number().int().min(0).optional(),
+  isStandard: z.boolean().optional(),
   categoryIds: z.array(z.number()).optional(),
   isObsolete: z.boolean().optional()
 });

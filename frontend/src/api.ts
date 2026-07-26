@@ -193,6 +193,17 @@ export const generateShifts = (tid: number) => apiPost('/api/tournament-days/gen
 export const clearShifts = (tid: number) => apiPost('/api/tournament-days/clear-shifts', { tournamentId: tid });
 export const exportDayToTemplate = (dayId: number, data: { name: string; description?: string }) => apiPost(`/api/tournament-days/${dayId}/export-template`, data);
 
+// TournamentDayWorkArea — Zielhelfer pro Bereich pro Tag
+export const getDayWorkAreas = (dayId: number) => apiFetch(`/api/tournament-days/${dayId}/work-areas`);
+
+/** Lädt Slots mit ihren zugehörigen Arbeitsbereichen für einen Tag. */
+export const getDaySlotsWithWorkAreas = (dayId: number) => apiFetch(`/api/tournament-days/${dayId}/slots-with-work-areas`);
+export const syncDayWorkAreas = (dayId: number) => apiPost(`/api/tournament-days/${dayId}/sync-work-areas`, {});
+export const updateDayWorkAreaTargetHelpers = (id: number, targetHelpers: number | null) => apiPatch(`/api/tournament-days/tournament-day-work-areas/${id}`, { targetHelpers });
+export const removeDayWorkArea = (id: number) => apiDelete(`/api/tournament-days/tournament-day-work-areas/${id}`);
+export const addDayWorkArea = (dayId: number, workAreaId: number, order?: number) =>
+  apiPost('/api/tournament-days/day-work-areas', { tournamentDayId: dayId, tournamentWorkAreaId: workAreaId, order });
+
 // ===================== Web Push =====================
 export const getVapidPublicKey = () => apiFetch('/api/self/vapid-public-key');
 export const subscribeToPush = (subscription: any) => apiPost('/api/self/push-subscribe', subscription);

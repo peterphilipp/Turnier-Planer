@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import validate from '../middleware/validate.js';
 import { requireAdmin, requireAdminOnly, authenticate } from '../middleware/auth.js';
+import { broadcastLimiter } from '../middleware/security.js';
 import {
   getVolunteers,
   createVolunteer,
@@ -22,7 +23,7 @@ const router = Router();
 router.get('/', authenticate, requireAdmin, getVolunteers);
 
 // Nur Admin/Organizer: Push Broadcast (bewusst turniergebunden, siehe oben)
-router.post('/push-broadcast', authenticate, requireAdmin, validate(broadcastPushSchema), broadcastPush);
+router.post('/push-broadcast', authenticate, requireAdmin, broadcastLimiter, validate(broadcastPushSchema), broadcastPush);
 
 // Benutzerverwaltung (anlegen/bearbeiten/löschen/Passwort setzen): nur Admin -
 // betrifft immer den ganzen Account, nicht nur den Kontext eines Turniers.

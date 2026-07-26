@@ -15,5 +15,7 @@ export async function deleteUserAccount(userId: number): Promise<void> {
   await prisma.foodDonation.updateMany({ where: { userId }, data: { userId: null } });
   await prisma.userChild.deleteMany({ where: { userId } });
   await prisma.passwordResetToken.deleteMany({ where: { userId } });
+  await prisma.pushSubscription.deleteMany({ where: { userId } });
+  await prisma.webAuthnCredential.deleteMany({ where: { userId } });
   await prisma.user.delete({ where: { id: userId } });
 }

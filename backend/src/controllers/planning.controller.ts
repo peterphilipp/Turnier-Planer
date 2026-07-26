@@ -49,6 +49,16 @@ export const exportDayToTemplateSchema = z.object({
   description: z.string().max(1000, 'Beschreibung darf maximal 1000 Zeichen lang sein').optional()
 });
 
+export const dayWorkAreaTargetSchema = z.object({
+  targetHelpers: z.number().int().min(0).nullable().optional()
+});
+
+export const addDayWorkAreaSchema = z.object({
+  tournamentDayId: z.number().int().positive(),
+  tournamentWorkAreaId: z.number().int().positive(),
+  order: z.number().int().optional()
+});
+
 // ==================== TournamentWorkArea ====================
 export const listTournamentWorkAreas = async (req: Request, res: Response) => {
   const tournamentId = req.query.tournamentId ? parseInt(String(req.query.tournamentId)) : null;
@@ -62,11 +72,61 @@ export const syncTournamentWorkAreas = async (req: Request, res: Response) => {
   const { tournamentId } = req.body as { tournamentId: number }; // bereits von validate() geparst
 
   await prisma.$transaction(async (tx) => {
+    // Alle nicht-obsoleten Katalog-Bereiche laden
     const catalog = await tx.workArea.findMany({ where: { isObsolete: false } });
-    const existing = await tx.tournamentWorkArea.findMany({ where: { tournamentId }, select: { sourceWorkAreaId: true } });
-    const known = new Set(existing.map(e => e.sourceWorkAreaId));
+    
+    // Alle bestehenden Bereiche dieses Turniers laden
+    const existing = await tx.tournamentWorkArea.findMany({
+      where: { tournamentId },
+      select: { id: true, sourceWorkAreaId: true, active: true }
+    });
+    
+    // Map: sourceWorkAreaId → Eintrag (kann null sein)
+    const known = new Map<number | null, typeof existing[number]>();
+    for (const e of existing) {
+      known.set(e.sourceWorkAreaId, e);
+    }
+    
+    // Standard-Bereiche immer aktivieren
+    const standardAreas = catalog.filter(w => w.isStandard);
+    for (const stdArea of standardAreas) {
+      let existingEntry = known.get(stdArea.id);
+      
+      // Wenn nicht gefunden: nach Namen suchen (für manuell angelegte Bereiche)
+      if (!existingEntry) {
+        const manualMatch = existing.find(e => e.sourceWorkAreaId === null && e.name === stdArea.name);
+        if (manualMatch) existingEntry = { ...manualMatch, sourceWorkAreaId: null };
+      }
+      
+      if (existingEntry?.id) {
+        // Bereits vorhanden → aktivieren
+        await tx.tournamentWorkArea.update({
+          where: { id: existingEntry.id },
+          data: { active: true }
+        });
+      } else {
+        // Neu erstellen und aktivieren
+        await tx.tournamentWorkArea.create({
+          data: {
+            tournamentId,
+            sourceWorkAreaId: stdArea.id,
+            name: stdArea.name,
+            icon: stdArea.icon,
+            order: stdArea.order,
+            color: stdArea.color,
+            minVolunteers: stdArea.minVolunteers,
+            maxVolunteers: stdArea.maxVolunteers,
+            operatingStartMin: stdArea.operatingStartMin,
+            operatingEndMin: stdArea.operatingEndMin,
+            active: true
+          }
+        });
+      }
+    }
+    
+    // Alle anderen Katalog-Bereiche nur erstellen, wenn nicht vorhanden (standardmäßig inaktiv)
     const toCreate = catalog
-      .filter(w => !known.has(w.id))
+      .filter(w => !w.isStandard && !known.has(w.id))
       .map(w => ({
         tournamentId,
         sourceWorkAreaId: w.id,
@@ -78,9 +138,67 @@ export const syncTournamentWorkAreas = async (req: Request, res: Response) => {
         maxVolunteers: w.maxVolunteers,
         operatingStartMin: w.operatingStartMin,
         operatingEndMin: w.operatingEndMin,
-        active: true
+        active: false  // Nicht-Standard-Bereiche standardmäßig inaktiv
       }));
     if (toCreate.length) await tx.tournamentWorkArea.createMany({ data: toCreate });
+    
+    // WICHTIG: Alle nicht-Standard-Bereiche deaktivieren, die noch aktiv sind
+    const nonStandardAreas = catalog.filter(w => !w.isStandard);
+    for (const area of nonStandardAreas) {
+      const existingEntry = known.get(area.id);
+      if (existingEntry && existingEntry.active) {
+        await tx.tournamentWorkArea.update({
+          where: { id: existingEntry.id },
+          data: { active: false }
+        });
+      }
+    }
+    
+    // Bereinige bestehende Einträge, die auf gelöschte Katalog-Bereiche verweisen
+    const orphaned = await tx.tournamentWorkArea.findMany({
+      where: {
+        tournamentId,
+        sourceWorkAreaId: { not: null },
+        NOT: { sourceWorkAreaId: { in: catalog.map(w => w.id) } }
+      }
+    });
+    if (orphaned.length > 0) {
+      await tx.tournamentWorkArea.deleteMany({
+        where: {
+          id: { in: orphaned.map(o => o.id) }
+        }
+      });
+    }
+
+    // Bereinige Einträge mit veraltetem Namen (Katalog-Eintrag wurde umbenannt)
+    const renamedOrphaned = await tx.tournamentWorkArea.findMany({
+      where: {
+        tournamentId,
+        sourceWorkAreaId: { not: null }
+      }
+    });
+    for (const entry of renamedOrphaned) {
+      const catalogEntry = catalog.find(w => w.id === entry.sourceWorkAreaId);
+      if (catalogEntry && entry.name !== catalogEntry.name) {
+        await tx.tournamentWorkArea.delete({ where: { id: entry.id } });
+      }
+    }
+
+    // Bereinige auch manuell angelegte Bereiche ohne Katalog-Referenz, die nicht im aktuellen Katalog vorkommen
+    const manualOrphaned = await tx.tournamentWorkArea.findMany({
+      where: {
+        tournamentId,
+        sourceWorkAreaId: null,
+        NOT: { name: { in: catalog.map(w => w.name) } }
+      }
+    });
+    if (manualOrphaned.length > 0) {
+      await tx.tournamentWorkArea.deleteMany({
+        where: {
+          id: { in: manualOrphaned.map(o => o.id) }
+        }
+      });
+    }
 
     // Auch bei bestehenden Bereichen die aktuelle Reihenfolge aus dem Katalog synchronisieren
     for (const cat of catalog) {
@@ -411,4 +529,147 @@ export const clearShifts = async (req: Request, res: Response) => {
   });
 
   return res.json({ success: true, ...result });
+};
+
+// ==================== TournamentDayWorkArea ====================
+/** Liefert alle WorkAreas für einen Tag: aktive (links) + Katalog (rechts). */
+export const getDayWorkAreas = async (req: Request, res: Response) => {
+  const dayId = parseInt(req.params.dayId as string);
+  if (isNaN(dayId)) return res.status(400).json({ error: 'dayId erforderlich' });
+
+  const day = await prisma.tournamentDay.findUnique({ where: { id: dayId } });
+  if (!day) return res.status(404).json({ error: 'Turniertag nicht gefunden' });
+
+  // Aktive WorkAreas dieses Turniers (mit existing DayWorkArea-Einträgen)
+  const active = await prisma.tournamentDayWorkArea.findMany({
+    where: { tournamentDayId: dayId, active: true },
+    include: { workArea: true },
+    orderBy: [{ order: 'asc' }]
+  });
+
+  // Alle aktiven TournamentWorkAreas (Katalog für dieses Turnier)
+  const all = await prisma.tournamentWorkArea.findMany({
+    where: { tournamentId: day.tournamentId, active: true },
+    orderBy: [{ order: 'asc' }, { name: 'asc' }]
+  });
+
+  return res.json({ day, active, all });
+};
+
+/** Lädt alle aktiven TournamentDayWorkArea-Einträge für einen Tag (zeigt welche Arbeitsbereiche relevant sind). */
+export const getDaySlotsWithWorkAreas = async (req: Request, res: Response) => {
+  const dayId = parseInt(req.params.dayId as string);
+  if (isNaN(dayId)) return res.status(400).json({ error: 'dayId erforderlich' });
+
+  // Hole alle aktiven WorkArea-Einträge für diesen Tag
+  const activeAreas = await prisma.tournamentDayWorkArea.findMany({
+    where: { tournamentDayId: dayId, active: true },
+    include: {
+      workArea: true
+    }
+  });
+
+  return res.json(activeAreas);
+};
+
+/** Sync: Erstellt TournamentDayWorkArea-Einträge NUR für die im Template (Tagtyp) vorgesehenen Arbeitsbereiche.
+ * WICHTIG: Nur WorkAreas werden aktiviert, die in den Slots des zugewiesenen Templates verknüpft sind. */
+export const syncDayWorkAreas = async (req: Request, res: Response) => {
+  const dayId = parseInt(req.params.dayId as string);
+  if (isNaN(dayId)) return res.status(400).json({ error: 'dayId erforderlich' });
+
+  const day = await prisma.tournamentDay.findUnique({ where: { id: dayId } });
+  if (!day) return res.status(404).json({ error: 'Turniertag nicht gefunden' });
+
+  // Hole Template, falls vorhanden
+  let templateWorkAreaIds: number[] = [];
+  if (day.sourceTemplateId) {
+    const template = await prisma.globalDayTemplate.findUnique({
+      where: { id: day.sourceTemplateId },
+      include: { slots: { include: { workAreas: true } } }
+    });
+    if (template && template.slots) {
+      // Sammle alle workAreaIds aus allen Slots des Templates
+      const ids = new Set<number>();
+      for (const slot of template.slots) {
+        for (const wa of slot.workAreas) {
+          ids.add(wa.workAreaId);
+        }
+      }
+      templateWorkAreaIds = Array.from(ids);
+    }
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    // Hole alle aktiven TournamentWorkAreas dieses Turniers
+    const allAreas = await tx.tournamentWorkArea.findMany({
+      where: { tournamentId: day.tournamentId, active: true },
+      orderBy: [{ order: 'asc' }, { name: 'asc' }]
+    });
+
+    // Filtere auf die, die im Template vorkommen (wenn Template existiert)
+    const areas = templateWorkAreaIds.length > 0
+      ? allAreas.filter(a => templateWorkAreaIds.includes(a.sourceWorkAreaId!))
+      : allAreas;
+
+    // Lösche ALLE bestehenden Einträge für diesen Tag
+    await tx.tournamentDayWorkArea.deleteMany({
+      where: { tournamentDayId: dayId }
+    });
+
+    let created = 0;
+    for (const area of areas) {
+      await tx.tournamentDayWorkArea.create({
+        data: { tournamentId: day.tournamentId, tournamentDayId: dayId, tournamentWorkAreaId: area.id, active: true, order: area.order }
+      });
+      created++;
+    }
+
+    return { created };
+  });
+
+  return res.json(result);
+};
+
+/** Aktualisiert targetHelpers für einen DayWorkArea-Eintrag. */
+export const updateDayWorkAreaTargetHelpers = async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) return res.status(400).json({ error: 'id erforderlich' });
+
+  const { targetHelpers } = req.body as { targetHelpers?: number | null };
+  const updated = await prisma.tournamentDayWorkArea.update({
+    where: { id },
+    data: { targetHelpers: targetHelpers ?? null }
+  });
+  return res.json(updated);
+};
+
+/** Entfernt einen WorkArea-Eintrag von einem Tag (inactive setzen). */
+export const removeDayWorkArea = async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) return res.status(400).json({ error: 'id erforderlich' });
+
+  await prisma.tournamentDayWorkArea.update({
+    where: { id },
+    data: { active: false }
+  });
+  return res.status(204).send();
+};
+
+/** Fügt einen einzelnen WorkArea-Eintrag zu einem Tag hinzu. */
+export const addDayWorkArea = async (req: Request, res: Response) => {
+  const { tournamentDayId, tournamentWorkAreaId, order } = req.body as z.infer<typeof addDayWorkAreaSchema>;
+  if (!tournamentDayId || !tournamentWorkAreaId) return res.status(400).json({ error: 'tournamentDayId und tournamentWorkAreaId erforderlich' });
+
+  // tournamentId aus dem Tag holen
+  const day = await prisma.tournamentDay.findUnique({ where: { id: tournamentDayId } });
+  if (!day) return res.status(404).json({ error: 'Turniertag nicht gefunden' });
+
+  const existing = await prisma.tournamentDayWorkArea.findUnique({ where: { tournamentDayId_tournamentWorkAreaId: { tournamentDayId, tournamentWorkAreaId } } });
+  if (existing) return res.status(409).json({ error: 'Eintrag existiert bereits' });
+
+  const created = await prisma.tournamentDayWorkArea.create({
+    data: { tournamentId: day.tournamentId, tournamentDayId, tournamentWorkAreaId, active: true, order: order ?? 0 }
+  });
+  return res.status(201).json(created);
 };
