@@ -5,6 +5,7 @@ import bcrypt from 'bcrypt';
 import { logVolunteerUpdated, logClubCreated } from '../utils/logger.js';
 import { sendPushToUser } from '../utils/push.js';
 import { formatPhoneNumber } from '../utils/phone.js';
+import { ensureTournamentMembership } from '../utils/tournamentMembership.js';
 
 // Gleiche Jahrgangs-Grenzen wie bei den Turnier-Jahrgängen selbst (Jahrgaenge.tsx),
 // da genau darüber (childYear innerhalb YearGroup.birthYearStart/-End) die
@@ -56,8 +57,16 @@ const sanitizeUser = <T extends { password?: string | null; recoveryPin?: string
 
 export const getVolunteers = async (req: Request, res: Response) => {
   const { tournamentId } = req.query;
+  // ODER über TournamentMembership: User.tournamentId ist nur die aktuelle
+  // Präferenz (ein einzelner Wert) - ein Helfer kann in mehreren Turnieren
+  // aktiv sein, ohne dass genau dieses Turnier gerade sein "tournamentId" ist.
   const users = await prisma.user.findMany({
-    where: tournamentId ? { tournamentId: Number(tournamentId) } : undefined,
+    where: tournamentId ? {
+      OR: [
+        { tournamentId: Number(tournamentId) },
+        { tournamentMemberships: { some: { tournamentId: Number(tournamentId) } } }
+      ]
+    } : undefined,
     orderBy: { name: 'asc' },
     include: { children: true, pushSubscriptions: { select: { id: true } } }
   });
@@ -78,6 +87,7 @@ export const createVolunteer = async (req: Request, res: Response) => {
   }
 
   const user = await prisma.user.create({ data: body });
+  await ensureTournamentMembership(user.id, user.tournamentId);
   logVolunteerUpdated(user.id, { name: user.name }, 'created');
   return res.status(201).json(sanitizeUser(user));
 };
@@ -119,6 +129,7 @@ export const updateVolunteer = async (req: Request, res: Response) => {
     data,
     include: { children: true }
   });
+  if (data.tournamentId) await ensureTournamentMembership(user.id, data.tournamentId);
   logVolunteerUpdated(user.id, Object.keys(rest));
   return res.json(sanitizeUser(user));
 };
@@ -150,7 +161,8 @@ export const broadcastPush = async (req: Request, res: Response) => {
         where: {
           OR: [
             { tournamentId: Number(tournamentId) },
-            { shifts: { some: { tournamentId: Number(tournamentId) } } }
+            { shifts: { some: { tournamentId: Number(tournamentId) } } },
+            { tournamentMemberships: { some: { tournamentId: Number(tournamentId) } } }
           ]
         },
         select: { id: true }

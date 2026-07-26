@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { logFoodDonationCreated, logFoodDonationDeleted } from '../utils/logger.js';
 import JWT_SECRET from '../config/jwt.js';
+import { ensureTournamentMembership } from '../utils/tournamentMembership.js';
 
 // Preis liegt in der DB als String vor (Prisma-Feld price: String?), das Frontend
 // schickt ihn aber je nach Formular als Number-Input-String oder leeren String.
@@ -232,6 +233,7 @@ export const createDonation = async (req: Request, res: Response) => {
 
       return created;
     });
+    await ensureTournamentMembership(userId, tournamentId);
 
     logFoodDonationCreated(userId, user.name || '', foodItemId, donation.foodItem?.name || '', quantity);
     res.json(donation);

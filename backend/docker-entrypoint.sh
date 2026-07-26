@@ -10,6 +10,9 @@ npx prisma db push --accept-data-loss
 echo "  Slot-Herkunft nachtragen (Tage vor sourceGlobalSlotId-Einfuehrung)..."
 node scripts/backfill-slot-provenance.cjs
 
+echo "  Turnier-Mitgliedschaften aus bestehenden Schichten/Spenden ableiten..."
+node scripts/backfill-tournament-membership.cjs
+
 echo "  Recovery-PINs hashen (falls noch im Klartext gespeichert)..."
 node scripts/migrate-hash-recovery-pins.cjs
 

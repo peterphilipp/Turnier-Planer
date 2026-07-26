@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { logJobAssigned, logJobUnassigned } from '../utils/logger.js';
 import JWT_SECRET from '../config/jwt.js';
 import { getVapidPublicKey as getPubKey } from '../utils/push.js';
+import { ensureTournamentMembership } from '../utils/tournamentMembership.js';
 
 // Öffentliche Self-Service-Endpunkte: Body-Formen entsprechen exakt dem, was
 // das Frontend sendet (SelfServiceView.tsx / utils/push.ts) - hier werden nur
@@ -53,13 +54,41 @@ async function resolveTournamentForUser(
   requestedTournamentId?: number,
   userPreferredTournamentId?: number | null
 ) {
+  // Alle aktiven Turniere sind grundsätzlich browsebar/umschaltbar - "Relevanz"
+  // (Schicht/Spende/Jahrgang/Präferenz) bestimmt weiter unten NUR NOCH die
+  // Standard-Vorauswahl, nicht mehr, was überhaupt sichtbar ist. Vorher wurde
+  // ein zweites, noch "fremdes" Turnier (ohne bestehende Historie) komplett
+  // ausgeblendet, sobald irgendein anderes Turnier für den User relevant war -
+  // das war der gemeldete Bug ("neues Turnier wird gar nicht angezeigt").
   const activeTournaments = await prisma.tournament.findMany({
     where: { status: 'aktiv' },
     orderBy: { startDate: 'desc' },
     include: { yearGroups: true }
   });
 
-  if (activeTournaments.length === 0) {
+  // Abgeschlossene Turniere nur, wenn der User dort nachweislich mitgewirkt
+  // hat (TournamentMembership) - sonst sähe jeder User auf Dauer jedes
+  // jemals abgeschlossene Turnier im Umschalter.
+  const membershipRows = await prisma.tournamentMembership.findMany({
+    where: { userId },
+    select: { tournamentId: true }
+  });
+  const memberTournamentIds = membershipRows.map(m => m.tournamentId);
+
+  const pastTournaments = memberTournamentIds.length > 0
+    ? await prisma.tournament.findMany({
+        where: { id: { in: memberTournamentIds }, status: { not: 'aktiv' } },
+        orderBy: { startDate: 'desc' },
+        include: { yearGroups: true }
+      })
+    : [];
+
+  // Reihenfolge bewusst: erst alle aktiven (neueste zuerst), dann alle
+  // abgeschlossenen (neueste zuerst) - das Frontend gruppiert danach 1:1 in
+  // "Anstehend/Aktiv" und "Abgeschlossen", ohne selbst neu sortieren zu müssen.
+  const allBrowsable = [...activeTournaments, ...pastTournaments];
+
+  if (allBrowsable.length === 0) {
     return { targetTournamentId: null, availableTournaments: [] };
   }
 
@@ -78,39 +107,39 @@ async function resolveTournamentForUser(
   const userChildren = await prisma.userChild.findMany({ where: { userId } });
   const userChildYears = userChildren.map(c => c.childYear);
 
-  let relevantTournaments = activeTournaments.filter(t => {
+  const isRelevant = (t: (typeof activeTournaments)[number]) => {
     if (shiftTournamentIds.has(t.id)) return true;
     if (donationTournamentIds.has(t.id)) return true;
     if (userPreferredTournamentId === t.id) return true;
-    
+
     // Check if any year group matches any child year
-    const hasMatchingYearGroup = t.yearGroups.some(yg => 
+    const hasMatchingYearGroup = t.yearGroups.some(yg =>
       userChildYears.some(childYear => childYear >= yg.birthYearStart && childYear <= yg.birthYearEnd)
     );
     if (hasMatchingYearGroup) return true;
 
     return false;
-  });
+  };
 
-  if (relevantTournaments.length === 0) {
-    // Fallback: If no tournament is "relevant", all active tournaments are available.
-    relevantTournaments = activeTournaments;
-  }
+  const relevantActive = activeTournaments.filter(isRelevant);
+  // Vorauswahl-Pool: relevante aktive Turniere, sonst irgendein aktives -
+  // abgeschlossene Turniere werden nie automatisch vorausgewählt.
+  const defaultPool = relevantActive.length > 0 ? relevantActive : activeTournaments;
 
-  // If a specific tournament is requested via query param and it's in the relevant list
   let targetTournamentId: number | null = null;
-  if (requestedTournamentId && relevantTournaments.some(t => t.id === requestedTournamentId)) {
+  if (requestedTournamentId && allBrowsable.some(t => t.id === requestedTournamentId)) {
     targetTournamentId = requestedTournamentId;
-  } else if (userPreferredTournamentId && relevantTournaments.some(t => t.id === userPreferredTournamentId)) {
+  } else if (userPreferredTournamentId && allBrowsable.some(t => t.id === userPreferredTournamentId)) {
     targetTournamentId = userPreferredTournamentId;
+  } else if (defaultPool.length > 0) {
+    targetTournamentId = defaultPool[0].id;
   } else {
-    // Pick the most recent one
-    targetTournamentId = relevantTournaments[0].id;
+    targetTournamentId = allBrowsable[0].id;
   }
 
   return {
     targetTournamentId,
-    availableTournaments: relevantTournaments.map(t => ({ id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate }))
+    availableTournaments: allBrowsable.map(t => ({ id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, status: t.status }))
   };
 }
 
@@ -171,8 +200,14 @@ export const assignShift = async (req: Request, res: Response) => {
   const { shiftId } = req.body;
   if (!shiftId) return res.status(400).json({ error: 'shiftId erforderlich' });
 
-  const shift = await prisma.shift.findUnique({ where: { id: shiftId }, include: { day: true, daySlot: true, workArea: true } });
+  const shift = await prisma.shift.findUnique({ where: { id: shiftId }, include: { day: true, daySlot: true, workArea: true, tournament: true } });
   if (!shift) return res.status(404).json({ error: 'Shift nicht gefunden' });
+
+  // Abgeschlossene Turniere sind im Self-Service jetzt nur noch read-only
+  // einsehbar (Historie) - neue Zusagen dort wären inhaltlich sinnlos.
+  if (shift.tournament && shift.tournament.status !== 'aktiv') {
+    return res.status(400).json({ error: 'Dieses Turnier ist nicht mehr aktiv - eine Zusage ist nicht mehr möglich.' });
+  }
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return res.status(404).json({ error: 'User nicht gefunden' });
@@ -197,6 +232,7 @@ export const assignShift = async (req: Request, res: Response) => {
       areaId: String(shift.tournamentWorkAreaId)
     }
   });
+  await ensureTournamentMembership(userId, shift.tournamentId);
 
   logJobAssigned(userId, user.name || '', shiftId, shiftDate.toISOString());
   res.json(vs);

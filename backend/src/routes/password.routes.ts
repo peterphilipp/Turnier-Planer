@@ -11,6 +11,7 @@ import { authLimiter, pinResetLimiter } from '../middleware/security.js';
 import { sendPushToUser } from '../utils/push.js';
 import { formatPhoneNumber } from '../utils/phone.js';
 import validate from '../middleware/validate.js';
+import { ensureTournamentMembership } from '../utils/tournamentMembership.js';
 
 function getClientIp(req: express.Request): string | undefined {
   return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
@@ -719,6 +720,7 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res,
       data: createData,
       include: { children: true }
     });
+    await ensureTournamentMembership(user.id, activeTournament?.id);
 
     logRegistrationCreated(user.name, user.email || '', ip);
     const newRole = typeof user.role === 'string' && ['HELPER', 'ORGANIZER', 'ADMIN'].includes(user.role)

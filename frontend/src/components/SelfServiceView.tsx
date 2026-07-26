@@ -72,7 +72,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   const [clubAccent, setClubAccent] = useState('#198754');
   const [clubLogo, setClubLogo] = useState<string | null>(null);
   const [tournamentName, setTournamentName] = useState('');
-  const [availableTournaments, setAvailableTournaments] = useState<{id: number, name: string}[]>([]);
+  const [availableTournaments, setAvailableTournaments] = useState<{id: number, name: string, status?: string}[]>([]);
   const [selectedTournamentId, setSelectedTournamentId] = useState<number | null>(null);
   const [hasSponsor, setHasSponsor] = useState(false);
   const [sponsorName, setSponsorName] = useState<string | null>(null);
@@ -487,6 +487,9 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   };
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  // Abgeschlossene Turniere sind im Umschalter jetzt browsebar (Historie),
+  // aber nur zum Ansehen - neue Zusagen/Spenden dort lehnt das Backend ab.
+  const isTournamentActive = !tournament || tournament.status === 'aktiv';
 
   const shadeColor = (color: string, percent: number) => {
     let R = parseInt(color.substring(1, 3), 16);
@@ -945,14 +948,36 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
           )}
           <div>
             {availableTournaments.length > 1 ? (
-              <select 
-                value={selectedTournamentId || ''} 
+              <select
+                value={selectedTournamentId || ''}
                 onChange={e => loadAvailable(parseInt(e.target.value))}
                 style={{ margin: 0, fontSize: isMobile ? 18 : 22, fontWeight: 'bold', background: 'transparent', border: 'none', color: '#fff', outline: 'none', cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', paddingRight: 16, backgroundImage: 'url("data:image/svg+xml;utf8,<svg fill=\'white\' height=\'24\' viewBox=\'0 0 24 24\' width=\'24\' xmlns=\'http://www.w3.org/2000/svg\'><path d=\'M7 10l5 5 5-5z\'/></svg>")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right center' }}
               >
-                {availableTournaments.map(t => (
-                  <option key={t.id} value={t.id} style={{color: '#333'}}>{t.name}</option>
-                ))}
+                {/* Anstehend/Aktiv und Abgeschlossen getrennt gruppiert, statt
+                    einer flachen Liste - so bleibt auf einen Blick klar, dass
+                    ein Turnier schon vorbei ist. */}
+                {(() => {
+                  const upcoming = availableTournaments.filter(t => t.status === 'aktiv' || !t.status);
+                  const past = availableTournaments.filter(t => t.status && t.status !== 'aktiv');
+                  return (
+                    <>
+                      {upcoming.length > 0 && (
+                        <optgroup label="Anstehend/Aktiv">
+                          {upcoming.map(t => (
+                            <option key={t.id} value={t.id} style={{ color: '#333' }}>{t.name}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {past.length > 0 && (
+                        <optgroup label="Abgeschlossen">
+                          {past.map(t => (
+                            <option key={t.id} value={t.id} style={{ color: '#333' }}>{t.name}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </>
+                  );
+                })()}
               </select>
             ) : (
               <h2 style={{ margin: 0, fontSize: isMobile ? 18 : 22 }}>{tournamentName || 'Turnier'}</h2>
@@ -1150,7 +1175,13 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
             </div>
           )}
 
-          {!busy && shifts.length > 0 && (
+          {!busy && !isTournamentActive && (
+            <div style={{ padding: 20, background: '#f8f9fa', borderRadius: 16, textAlign: 'center', color: '#666', fontSize: 14 }}>
+              🏁 Dieses Turnier ist abgeschlossen - neue Zusagen sind hier nicht mehr möglich.
+            </div>
+          )}
+
+          {!busy && isTournamentActive && shifts.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <h3 style={{ margin: '0 0 6px', fontSize: 16, color: clubPrimary }}>Offene Jobs</h3>
           {shifts
@@ -1355,7 +1386,9 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
             </div>
           )}
 
-          {/* Zusätzliche Verpflegung */}
+          {/* Zusätzliche Verpflegung - nur bei aktivem Turnier eintragbar,
+              abgeschlossene Turniere sind hier reine Historie. */}
+          {isTournamentActive && (
           <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
             <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>🍞 Zusätzliche Verpflegung</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1374,6 +1407,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
               <button onClick={submitDonation} style={{ padding: '14px 0', background: clubSecondary, color: clubSecondaryText, border: 'none', borderRadius: 10, fontSize: 16, fontWeight: '600', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>📦 Verpflegung eintragen</button>
             </div>
           </div>
+          )}
         </div>
       )}
 
