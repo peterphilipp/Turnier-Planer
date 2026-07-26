@@ -77,7 +77,11 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
       name: clubForm.name, city: clubForm.city || undefined, primaryColor: clubForm.primaryColor, secondaryColor: clubForm.secondaryColor, accentColor: clubForm.accentColor
     };
     if (clubForm.logo) data.logo = clubForm.logo;
-    await apiPut(`/api/clubs/${editingClub}`, data);
+    if (editingClub) {
+      await apiPut(`/api/clubs/${editingClub}`, data);
+    } else {
+      await apiPost('/api/clubs', data);
+    }
     queryClient.invalidateQueries({ queryKey: ['clubs'] });
     resetAnalysis(); setClubForm({ name: '', city: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' });
     setClubLogo(null); setEditingClub(null);
