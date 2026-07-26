@@ -260,7 +260,7 @@ export const verifyAuthentication = async (req: AuthRequest, res: Response) => {
   });
 
   logLoginSuccess(user.email || user.name, getClientIp(req));
-  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastActivityAt: new Date() } });
 
   const userRole = await resolveRoleAndForceAdmin(user);
   const token = signSessionToken(user.id, userRole);

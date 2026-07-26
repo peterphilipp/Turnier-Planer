@@ -181,6 +181,7 @@ model User {
   recoveryPin           String?                @map("recovery_pin")
   createdAt             DateTime               @default(now()) @map("created_at")
   lastLoginAt           DateTime?              @map("last_login_at")
+  lastActivityAt        DateTime?              @map("last_activity_at")
   foodDonationSlots     FoodDonationSlot[]
   foodDonations         FoodDonation[]
   resetTokens           PasswordResetToken[]

@@ -372,7 +372,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res, next)
     }
 
       logLoginSuccess(user.email || identifier, getClientIp(req));
-      await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+      await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastActivityAt: new Date() } });
 
       const userRole = await resolveRoleAndForceAdmin(user);
       const token = signSessionToken(user.id, userRole);
@@ -680,7 +680,8 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res,
       // Registrierung zählt als erster Login - sonst sähe ein frisch
       // registrierter, noch nie "erneut" eingeloggter User in der
       // Benutzerliste sofort wie "noch nie angemeldet" aus.
-      lastLoginAt: new Date()
+      lastLoginAt: new Date(),
+      lastActivityAt: new Date()
     };
 
     // Kinder erstellen

@@ -126,7 +126,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
             <th onClick={() => requestSort('email')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>E-Mail{getSortIndicator('email')}</th>
             <th onClick={() => requestSort('phone')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Telefon{getSortIndicator('phone')}</th>
             <th onClick={() => requestSort('role')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Rolle{getSortIndicator('role')}</th>
-            <th onClick={() => requestSort('lastLoginAt')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Letzter Login{getSortIndicator('lastLoginAt')}</th>
+            <th onClick={() => requestSort('lastActivityAt')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Letzte Aktivität{getSortIndicator('lastActivityAt')}</th>
             <th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th>
           </tr>
         </thead>
@@ -159,8 +159,8 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
                   <RoleBadge role={v.role || 'HELPER'} />
                 </div>
               </td>
-              <td style={{ padding: '10px 12px', fontSize: 13, color: v.lastLoginAt ? '#495057' : '#adb5bd' }}>
-                {v.lastLoginAt ? new Date(v.lastLoginAt).toLocaleDateString('de-DE') : 'Nie'}
+              <td style={{ padding: '10px 12px', fontSize: 13, color: v.lastActivityAt ? '#495057' : '#adb5bd' }}>
+                {v.lastActivityAt ? new Date(v.lastActivityAt).toLocaleDateString('de-DE') : 'Nie'}
               </td>
               <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
                 <div style={{ display: 'flex', gap: 4 }}>

@@ -33,13 +33,17 @@ export function startScheduler(): void {
 }
 
 /**
- * Löscht Benutzerkonten, die seit über einem Jahr inaktiv sind (kein Login,
- * oder - falls nie eingeloggt - Registrierung liegt über ein Jahr zurück).
- * ADMIN-Konten sind bewusst ausgenommen: ein automatisch gelöschter letzter
- * Admin würde den Verein komplett aus der eigenen Verwaltung aussperren.
- * Löschung läuft über dieselbe deleteUserAccount()-Funktion wie die
- * Selbst-Löschung (DSGVO-konform: Schicht-/Spenden-Historie wird
- * anonymisiert statt gelöscht).
+ * Löscht Benutzerkonten, die seit über einem Jahr inaktiv sind. Maßgeblich
+ * ist lastActivityAt (jeder authentifizierte Request, Lesen wie Schreiben) -
+ * nicht lastLoginAt, da ein User dank der langen Session-Laufzeit über
+ * Monate aktiv sein kann, ohne sich neu anzumelden. lastLoginAt bleibt davon
+ * unberührt in der DB erhalten, ist für diese Prüfung aber nicht mehr
+ * maßgeblich. Falls nie eine Aktivität stattfand, zählt ersatzweise das
+ * Registrierungsdatum. ADMIN-Konten sind bewusst ausgenommen: ein
+ * automatisch gelöschter letzter Admin würde den Verein komplett aus der
+ * eigenen Verwaltung aussperren. Löschung läuft über dieselbe
+ * deleteUserAccount()-Funktion wie die Selbst-Löschung (DSGVO-konform:
+ * Schicht-/Spenden-Historie wird anonymisiert statt gelöscht).
  */
 async function checkInactiveUserCleanup(): Promise<void> {
   const todayKey = new Date().toISOString().slice(0, 10);
@@ -52,11 +56,11 @@ async function checkInactiveUserCleanup(): Promise<void> {
     where: {
       role: { not: 'ADMIN' },
       OR: [
-        { lastLoginAt: { lt: cutoff } },
-        { lastLoginAt: null, createdAt: { lt: cutoff } }
+        { lastActivityAt: { lt: cutoff } },
+        { lastActivityAt: null, createdAt: { lt: cutoff } }
       ]
     },
-    select: { id: true, name: true, email: true, lastLoginAt: true, createdAt: true }
+    select: { id: true, name: true, email: true, lastActivityAt: true, createdAt: true }
   });
 
   for (const user of candidates) {
@@ -65,7 +69,7 @@ async function checkInactiveUserCleanup(): Promise<void> {
       userId: user.id,
       name: user.name,
       email: user.email,
-      lastLoginAt: user.lastLoginAt,
+      lastActivityAt: user.lastActivityAt,
       accountCreatedAt: user.createdAt,
       timestamp: new Date().toISOString()
     }));
@@ -77,7 +81,7 @@ async function checkInactiveUserCleanup(): Promise<void> {
   }
 
   if (candidates.length > 0) {
-    console.log(`[Scheduler] ${candidates.length} inaktive(r) Nutzer (>1 Jahr ohne Login) automatisch gelöscht.`);
+    console.log(`[Scheduler] ${candidates.length} inaktive(r) Nutzer (>1 Jahr ohne Aktivität) automatisch gelöscht.`);
   }
 }
 
