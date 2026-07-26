@@ -13,19 +13,15 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
   
   const { items: sortedTournaments, requestSort, getSortIndicator } = useSortableData(tournaments, { key: 'startDate', direction: 'desc' });
 
-  const [statusDialog, setStatusDialog] = useState({ open: false, tournament: null as Tournament | null, editName: '', editClubId: '', editStart: '', editEnd: '', yearGroupIds: [] as number[], logoFile: null as File | null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '' });
+  const [statusDialog, setStatusDialog] = useState({ open: false, tournament: null as Tournament | null, editName: '', editClubId: '', editStart: '', editEnd: '', editStatus: '', yearGroupIds: [] as number[], logoFile: null as File | null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '' });
 
   const [newTourn, setNewTourn] = useState({ name: '', start: '', end: '', clubId: '' });
   const [isEndTouched, setIsEndTouched] = useState(false);
 
-  const closeStatusDialog = () => setStatusDialog({ open: false, tournament: null, editName: '', editClubId: '', editStart: '', editEnd: '', yearGroupIds: [], logoFile: null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '' });
-  
-  const updateTournamentStatus = async (status: string) => {
-    if (!statusDialog.tournament) return; 
-    await apiPatch(`/api/tournaments/${statusDialog.tournament.id}/status`, { status }); 
-    queryClient.invalidateQueries({ queryKey: ['tournaments'] }); 
-    closeStatusDialog(); 
-  };
+  // Keine Datumswerte in der Vergangenheit anbieten (Von/Bis).
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const closeStatusDialog = () => setStatusDialog({ open: false, tournament: null, editName: '', editClubId: '', editStart: '', editEnd: '', editStatus: '', yearGroupIds: [], logoFile: null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '' });
 
   const saveTournamentEdit = async () => {
     if (!statusDialog.tournament) return;
@@ -34,6 +30,7 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
     if (statusDialog.editHasSponsor && !statusDialog.editSponsorName.trim()) return await modal.alert({ title: 'Hinweis', message: 'Sponsor-Name erforderlich!' });
     const patchData: any = {
       name: statusDialog.editName, startDate: statusDialog.editStart, endDate: statusDialog.editEnd,
+      status: statusDialog.editStatus,
       clubId: statusDialog.editClubId && statusDialog.editClubId !== '' ? parseInt(statusDialog.editClubId) : null,
       yearGroupIds: statusDialog.yearGroupIds,
       hasSponsor: statusDialog.editHasSponsor,
@@ -109,8 +106,8 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
       {/* Neue Turnier Form */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <input value={newTourn.name} onChange={e => setNewTourn(prev => ({...prev, name: e.target.value}))} placeholder="Turnier-Name" style={{ flex: 1, minWidth: 200, padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-        <input type="date" value={newTourn.start} max={newTourn.end || undefined} onChange={handleNewStartChange} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-        <input type="date" value={newTourn.end} min={newTourn.start || undefined} onChange={handleNewEndChange} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
+        <input type="date" value={newTourn.start} min={todayStr} max={newTourn.end || undefined} onChange={handleNewStartChange} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
+        <input type="date" value={newTourn.end} min={newTourn.start || todayStr} onChange={handleNewEndChange} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
         <select value={newTourn.clubId} onChange={e => setNewTourn(prev => ({...prev, clubId: e.target.value}))} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }}>
           <option value="">-- Kein Verein --</option>
           {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -145,7 +142,7 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
               </td>
               <td style={{ padding: '8px 12px' }}>
                 <div style={{ display: 'flex', gap: 4 }}>
-                  <button onClick={() => setStatusDialog({ open: true, tournament: t, editName: t.name, editClubId: String(t.clubId || ''), editStart: t.startDate.split('T')[0], editEnd: t.endDate.split('T')[0], yearGroupIds: t.yearGroups?.map(yg => yg.id) || [], logoFile: null, editHasSponsor: t.hasSponsor || false, editSponsorName: t.sponsorName || '', editSponsorUrl: t.sponsorUrl || '' })} style={{ padding: '10px 16px', border: 'none', background: adminSecondary, color: '#fff', borderRadius: 8, cursor: 'pointer', minHeight: 40, minWidth: 80, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 15 }}>
+                  <button onClick={() => setStatusDialog({ open: true, tournament: t, editName: t.name, editClubId: String(t.clubId || ''), editStart: t.startDate.split('T')[0], editEnd: t.endDate.split('T')[0], editStatus: t.status, yearGroupIds: t.yearGroups?.map(yg => yg.id) || [], logoFile: null, editHasSponsor: t.hasSponsor || false, editSponsorName: t.sponsorName || '', editSponsorUrl: t.sponsorUrl || '' })} style={{ padding: '10px 16px', border: 'none', background: adminSecondary, color: '#fff', borderRadius: 8, cursor: 'pointer', minHeight: 40, minWidth: 80, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 15 }}>
                     <span>⚙️</span><span>Edit</span>
                   </button>
                   <button onClick={() => deleteTournament(t)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
@@ -162,8 +159,8 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <input value={statusDialog.editName} onChange={e => setStatusDialog({ ...statusDialog, editName: e.target.value })} placeholder="Name" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <input type="date" value={statusDialog.editStart} max={statusDialog.editEnd || undefined} onChange={e => setStatusDialog({ ...statusDialog, editStart: e.target.value })} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-              <input type="date" value={statusDialog.editEnd} min={statusDialog.editStart || undefined} onChange={e => setStatusDialog({ ...statusDialog, editEnd: e.target.value })} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
+              <input type="date" value={statusDialog.editStart} min={todayStr} max={statusDialog.editEnd || undefined} onChange={e => setStatusDialog({ ...statusDialog, editStart: e.target.value })} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
+              <input type="date" value={statusDialog.editEnd} min={statusDialog.editStart || todayStr} onChange={e => setStatusDialog({ ...statusDialog, editEnd: e.target.value })} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
             </div>
             <div><label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Verein</label>
               <select value={statusDialog.editClubId} onChange={e => setStatusDialog({ ...statusDialog, editClubId: e.target.value })} style={{ width: '100%', padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }}>
@@ -223,11 +220,36 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
                 ))}
               </div>
             </div>
-            {/* Status Buttons */}
-            <div style={{ display: 'flex', gap: 8, paddingTop: 12, borderTop: '1px solid #e9ecef' }}>
-              <button onClick={() => updateTournamentStatus('aktiv')} style={{ flex: 1, padding: '8px 16px', background: '#d1e7dd', color: '#0f5132', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>🟢 Aktiv</button>
-              <button onClick={() => updateTournamentStatus('beendet')} style={{ flex: 1, padding: '8px 16px', background: '#fff3cd', color: '#856404', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>🟡 Beenden</button>
-              <button onClick={() => updateTournamentStatus('entwurf')} style={{ flex: 1, padding: '8px 16px', background: '#e9ecef', color: '#495057', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>⚪ Entwurf</button>
+            {/* Status: nur lokale Auswahl - wird wie alle anderen Felder erst mit
+                "Speichern" persistiert, statt sofort zu speichern UND den Editor
+                zu schließen (das hätte bisher alle anderen offenen Änderungen im
+                selben Editor verworfen). */}
+            <div>
+              <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Status</label>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                {([
+                  { value: 'aktiv', label: '🟢 Aktiv', bg: '#d1e7dd', color: '#0f5132' },
+                  { value: 'beendet', label: '🟡 Beenden', bg: '#fff3cd', color: '#856404' },
+                  { value: 'entwurf', label: '⚪ Entwurf', bg: '#e9ecef', color: '#495057' }
+                ] as const).map(s => {
+                  const active = statusDialog.editStatus === s.value;
+                  return (
+                    <button
+                      key={s.value}
+                      type="button"
+                      onClick={() => setStatusDialog({ ...statusDialog, editStatus: s.value })}
+                      style={{
+                        flex: 1, padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600,
+                        background: active ? s.bg : '#fff',
+                        color: active ? s.color : '#adb5bd',
+                        border: active ? '2px solid ' + s.color : '2px solid #dee2e6'
+                      }}
+                    >
+                      {s.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
