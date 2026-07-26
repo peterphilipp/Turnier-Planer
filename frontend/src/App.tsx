@@ -14,6 +14,7 @@ import Helfer from './components/admin/stammdaten/Helfer';
 import Vereine from './components/admin/stammdaten/Vereine';
 import Lebensmittel from './components/admin/stammdaten/Lebensmittel';
 import Jahrgaenge from './components/admin/stammdaten/Jahrgaenge';
+import DbManagement from './components/admin/stammdaten/DbManagement';
 
 import Uebersicht from './components/admin/organisation/Uebersicht';
 import Spielplan from './components/admin/organisation/Spielplan';
@@ -32,7 +33,7 @@ type View = 'admin' | 'selfservice' | 'privacy' | 'impressum';
 type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
 type SpielplanTab = 'turnier-tage' | 'felder' | 'teilnehmer' | 'modus' | 'spielplan-gruppenphase' | 'spielplan-ko';
 type OrgTab = 'uebersicht' | 'food-donation-slots' | 'shopping-list' | 'push-broadcast';
-type StammTab = 'turniere' | 'vereine' | 'work-areas' | 'global-time-slots' | 'helfer' | 'jahrgaenge' | 'lebensmittel';
+type StammTab = 'turniere' | 'vereine' | 'work-areas' | 'global-time-slots' | 'helfer' | 'jahrgaenge' | 'lebensmittel' | 'db-management';
 
 // ===================== Admin UI mit Rollen-Check =====================
 function AdminView() {
@@ -352,7 +353,7 @@ function AdminView() {
           {/* "Benutzer" nur für Admins - Organisatoren sind bewusst auf ihre
               Turniere beschränkt, eine turnierübergreifende Nutzerliste geht
               sie nichts an (auch backend-seitig durchgesetzt, nicht nur hier). */}
-          {[{ key: 'vereine' as StammTab, icon: '🛡️', label: 'Vereine' }, { key: 'turniere' as StammTab, icon: '🏆', label: 'Turniere' }, { key: 'jahrgaenge' as StammTab, icon: '👶', label: 'Jahrgänge' }, { key: 'work-areas' as StammTab, icon: '📍', label: 'Arbeitsbereiche' }, { key: 'global-time-slots' as StammTab, icon: '📅', label: 'Tagesvorlagen' }, { key: 'lebensmittel' as StammTab, icon: '🍔', label: 'Verpflegung' }, { key: 'helfer' as StammTab, icon: '👤', label: 'Benutzer' }].filter(tab => tab.key !== 'helfer' || isAdmin).map(tab => (
+          {[{ key: 'vereine' as StammTab, icon: '🛡️', label: 'Vereine' }, { key: 'turniere' as StammTab, icon: '🏆', label: 'Turniere' }, { key: 'jahrgaenge' as StammTab, icon: '👶', label: 'Jahrgänge' }, { key: 'work-areas' as StammTab, icon: '📍', label: 'Arbeitsbereiche' }, { key: 'global-time-slots' as StammTab, icon: '📅', label: 'Tagesvorlagen' }, { key: 'lebensmittel' as StammTab, icon: '🍔', label: 'Verpflegung' }, { key: 'helfer' as StammTab, icon: '👤', label: 'Benutzer' }, { key: 'db-management' as StammTab, icon: '🗄️', label: 'DB-Management' }].filter(tab => tab.key !== 'helfer' || isAdmin).map(tab => (
             <button key={tab.key} onClick={() => setActiveStammTab(tab.key)} style={{ padding: '12px 16px', cursor: 'pointer', background: activeStammTab === tab.key ? '#6c757d' : '#e9ecef', color: activeStammTab === tab.key ? '#fff' : '#000', border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>{tab.icon}</span><span>{tab.label}</span>
             </button>
@@ -381,6 +382,7 @@ function AdminView() {
         {activeMainTab === 'stammdaten' && activeStammTab === 'helfer' && isAdmin && <Helfer adminPrimary="#6c757d" tournamentId={selectedTournamentId} />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'jahrgaenge' && <Jahrgaenge adminPrimary="#6c757d" />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'lebensmittel' && <Lebensmittel adminPrimary="#6c757d" />}
+        {activeMainTab === 'stammdaten' && activeStammTab === 'db-management' && isAdmin && <DbManagement />}
       </main>
 
       {/* FOOTER */}

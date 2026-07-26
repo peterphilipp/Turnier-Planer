@@ -37,6 +37,7 @@ import tournamentWorkAreaRoutes from './routes/tournamentWorkArea.routes.js';
 import tournamentDayRoutes from './routes/tournamentDay.routes.js';
 import daySlotRoutes from './routes/daySlot.routes.js';
 import workAreaCategoryRoutes from './routes/workAreaCategory.routes.js';
+import adminRoutes from './routes/admin.routes.js';
 // Middleware imports
 import errorHandler from './middleware/errorHandler.js';
 import { securityHeaders, corsMiddleware, globalLimiter } from './middleware/security.js';
@@ -85,6 +86,10 @@ app.use('/api/day-templates', dayTemplateRoutes);
 app.use('/api/tournament-work-areas', tournamentWorkAreaRoutes);
 app.use('/api/tournament-days', tournamentDayRoutes);
 app.use('/api/day-slots', daySlotRoutes);
+
+// Admin-only endpoints (DB management)
+app.use('/api/admin', adminRoutes);
+
 // ===================== Serve Frontend (SPA) =====================
 const distPath = path.resolve(__dirname, '../dist');
 app.use(express.static(distPath, {

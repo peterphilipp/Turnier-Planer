@@ -293,6 +293,28 @@ services:
 - Register endpoint setzt `role: 'HELPER'` (bzw. `ADMIN` für ersten Nutzer / `ADMIN_EMAILS`)
 - Admin/Organizer können die Rolle über Helfer.tsx ändern
 
+## Datenbank & Sync
+- **SQLite** (`file:./prisma/data/dev.db`) — KEIN PostgreSQL!
+- DATABASE_URL im `.env`: `"file:./prisma/data/dev.db"`
+- **CRITICAL**: Backend server muss vor `npx prisma generate` gestoppt werden (File-Locks)
+- **DB-Sync Prod → Test**: SQLite DB kopieren via `cp data/dev.db /path/to/test/db`
+  - Oder: `sqlite3 dev.db ".dump" | sqlite3 test-db.sqlite`
+  - Kein pg_dump/psql — das war ein falscher Assumpt!
+- **DB-Pfade prüfen** vor jeglichen DB-Operationen
+- **Admin DB-Management**: Neuer Tab "🗄️ DB-Management" im Stammdaten-Bereich (nur Admins)
+  - Backend: `GET /api/admin/db/dump` → Base64-encoded SQLite DB
+  - Backend: `POST /api/admin/db/import` → Base64-encoded DB importieren
+  - Frontend: `DbManagement.tsx` mit Download/Upload-Buttons
+  - Geschützt mit `authenticate()` + `requireAdmin()`
+  - Import erstellt automatisch Backup (`backup-{timestamp}.db`)
+
+## Shift maxVolunteers Issue
+- Anzeige "X/Y" in SelfServiceView = `remaining/maxVolunteers` (noch frei / insgesamt)
+- `maxVolunteers` kommt aus der **Shift-Tabelle**, NICHT aus dem WorkArea-Katalog
+- Katalog-Wert (`workArea.maxVolunteers`) wird beim Generieren übernommen, kann aber manuell überschrieben werden
+- Produktion hatte Shift #211 mit `maxVol=5`, lokal keine Schichten → unterschiedliche Anzeige
+- **Code ist korrekt** — Differenz kommt ausschließlich aus DB-Zuständen
+
 ---
 
 # 🔄 NEXT STEPS
