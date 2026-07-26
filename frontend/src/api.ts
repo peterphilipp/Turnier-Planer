@@ -204,8 +204,28 @@ export const verifyPasskeyRegistration = (data: { response: any; challengeToken:
   apiPost('/api/auth/passkey/register-verify', data);
 export const getMyPasskeys = () => apiFetch('/api/auth/passkey');
 export const deletePasskey = (id: number) => apiDelete(`/api/auth/passkey/${id}`);
-export const getPasskeyAuthenticationOptions = (identifier: string) =>
-  apiPost('/api/auth/passkey/login-options', { identifier });
+// identifier optional: weggelassen löst den identifier-losen ("discoverable")
+// Flow aus - der Browser bietet dann selbst alle passenden Passkeys auf dem
+// Gerät an, ohne dass Name/E-Mail vorher eingegeben werden muss.
+export const getPasskeyAuthenticationOptions = (identifier?: string) =>
+  apiPost('/api/auth/passkey/login-options', identifier ? { identifier } : {});
 export const verifyPasskeyAuthentication = (data: { response: any; challengeToken: string }) =>
   apiPost('/api/auth/passkey/login-verify', data);
+
+// ===================== Einkaufsliste =====================
+export const searchShoppingCatalog = (search?: string) =>
+  apiFetch(`/api/shopping-list/catalog${search ? '?search=' + encodeURIComponent(search) : ''}`);
+export const lookupShoppingBarcode = (barcode: string) =>
+  apiFetch(`/api/shopping-list/catalog/barcode/${encodeURIComponent(barcode)}`);
+export const createShoppingCatalogItem = (data: { name: string; category?: string | null; unit?: string; barcode?: string | null }) =>
+  apiPost('/api/shopping-list/catalog', data);
+export const getShoppingList = (tournamentId: number) =>
+  apiFetch(`/api/shopping-list?tournamentId=${tournamentId}`);
+export const addShoppingListItem = (data: { tournamentId: number; catalogItemId: number; plannedQuantity?: number; note?: string | null }) =>
+  apiPost('/api/shopping-list', data);
+export const updateShoppingListItem = (id: number, data: { plannedQuantity?: number; purchasedQuantity?: number; note?: string | null }) =>
+  apiPatch(`/api/shopping-list/${id}`, data);
+export const deleteShoppingListItem = (id: number) => apiDelete(`/api/shopping-list/${id}`);
+export const copyShoppingListFrom = (sourceTournamentId: number, targetTournamentId: number) =>
+  apiPost(`/api/shopping-list/copy-from/${sourceTournamentId}?targetTournamentId=${targetTournamentId}`, {});
 

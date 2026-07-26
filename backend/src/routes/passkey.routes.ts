@@ -23,8 +23,12 @@ const verifyRegistrationSchema = z.object({
   label: z.string().max(100).optional()
 });
 
+// identifier optional: fehlt er, läuft der identifier-lose ("discoverable")
+// Anmeldeflow (siehe getAuthenticationOptions) - der Browser bietet dann
+// selbst alle passenden Passkeys auf dem Gerät an, ohne dass Name/E-Mail
+// vorher eingegeben werden muss.
 const authOptionsSchema = z.object({
-  identifier: z.string().trim().min(1, 'Name oder E-Mail erforderlich').max(255)
+  identifier: z.string().trim().max(255).optional()
 });
 
 const verifyAuthenticationSchema = z.object({

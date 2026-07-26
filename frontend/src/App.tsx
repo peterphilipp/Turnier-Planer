@@ -20,6 +20,7 @@ import Spielplan from './components/admin/organisation/Spielplan';
 import FoodDonationSlots from './components/admin/organisation/FoodDonationSlots';
 import TurnierTage from './components/admin/organisation/TurnierTage';
 import PushBroadcast from './components/admin/organisation/PushBroadcast';
+import ShoppingList from './components/admin/organisation/ShoppingList';
 
 import Teilnehmer from './components/admin/organisation/Teilnehmer';
 import Felder from './components/admin/organisation/Felder';
@@ -30,7 +31,7 @@ import { UserProvider, useUser } from './context/UserContext';
 type View = 'admin' | 'selfservice' | 'privacy' | 'impressum';
 type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
 type SpielplanTab = 'turnier-tage' | 'felder' | 'teilnehmer' | 'modus' | 'spielplan-gruppenphase' | 'spielplan-ko';
-type OrgTab = 'uebersicht' | 'food-donation-slots' | 'push-broadcast';
+type OrgTab = 'uebersicht' | 'food-donation-slots' | 'shopping-list' | 'push-broadcast';
 type StammTab = 'turniere' | 'vereine' | 'work-areas' | 'global-time-slots' | 'helfer' | 'jahrgaenge' | 'lebensmittel';
 
 // ===================== Admin UI mit Rollen-Check =====================
@@ -335,6 +336,7 @@ function AdminView() {
           {[
             { key: 'uebersicht' as OrgTab, icon: '📋', label: 'Dienstplan' },
             { key: 'food-donation-slots' as OrgTab, icon: '🍰', label: 'Verpflegung' },
+            { key: 'shopping-list' as OrgTab, icon: '🛒', label: 'Einkaufsliste' },
             { key: 'push-broadcast' as OrgTab, icon: '🔔', label: 'Push-Nachrichten' }
           ].map(tab => (
             <button key={tab.key} onClick={() => setActiveOrgTab(tab.key)}
@@ -369,6 +371,7 @@ function AdminView() {
         
         {activeMainTab === 'organisation' && activeOrgTab === 'uebersicht' && <Uebersicht selectedTournament={selectedTournamentId} />}
         {activeMainTab === 'organisation' && activeOrgTab === 'food-donation-slots' && <FoodDonationSlots selectedTournament={selectedTournamentId} tournament={tournaments.find(t => t.id === selectedTournamentId) || null} adminPrimary="#198754" />}
+        {activeMainTab === 'organisation' && activeOrgTab === 'shopping-list' && <ShoppingList selectedTournament={selectedTournamentId} tournaments={tournaments} />}
         {activeMainTab === 'organisation' && activeOrgTab === 'push-broadcast' && <PushBroadcast selectedTournament={selectedTournamentId} />}
 
         {activeMainTab === 'stammdaten' && activeStammTab === 'turniere' && <Turniere adminPrimary="#6c757d" adminSecondary="#adb5bd" />}

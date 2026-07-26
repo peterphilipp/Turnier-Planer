@@ -29,6 +29,7 @@ model Tournament {
   teamCount              Int?                   @map("team_count")
   fields                 Field[]
   foodDonationSlots      FoodDonationSlot[]
+  shoppingListItems      ShoppingListItem[]
   donations              FoodDonation[]
   groups                 Group[]
   brackets               KnockoutBracket[]
@@ -523,6 +524,47 @@ model FoodDonationSlot {
   @@index([yearGroupId])
   @@index([foodItemId])
   @@map("food_donation_slots")
+}
+
+// Wiederverwendbarer Artikel-Katalog für Einkaufslisten (Food UND Non-Food -
+// z.B. auch Kohle, Becher, Reinigungsmittel), getrennt vom FoodItem-Katalog
+// (der ist Spenden-/Verpflegungs-spezifisch mit eigener, food-typischer
+// Einheiten-Logik). Ein Artikel wird einmal angelegt (manuell oder per
+// Barcode-Scan aus Open Food Facts übernommen) und ist danach turnier-
+// übergreifend wiederverwendbar - das ist die Grundlage fürs "aus Turnieren
+// lernen": eine Einkaufsliste eines neuen Turniers kann die Katalog-Artikel
+// eines vorherigen Turniers übernehmen (siehe copyShoppingList).
+model ShoppingCatalogItem {
+  id        Int                @id @default(autoincrement())
+  name      String
+  category  String?
+  unit      String             @default("Stk")
+  barcode   String?            @unique
+  createdAt DateTime           @default(now()) @map("created_at")
+  listItems ShoppingListItem[]
+
+  @@index([barcode])
+  @@map("shopping_catalog_items")
+}
+
+// Eine Zeile der Einkaufsliste eines konkreten Turniers: geplante Menge
+// (Soll) vs. tatsächlich besorgt (Ist) - gleiches Soll/Ist-Muster wie bei
+// FoodDonationSlot oben.
+model ShoppingListItem {
+  id                Int                 @id @default(autoincrement())
+  tournamentId      Int                 @map("tournament_id")
+  catalogItemId     Int                 @map("catalog_item_id")
+  plannedQuantity   Int                 @default(0) @map("planned_quantity")
+  purchasedQuantity Int                 @default(0) @map("purchased_quantity")
+  note              String?
+  createdAt         DateTime            @default(now()) @map("created_at")
+  tournament        Tournament          @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  catalogItem       ShoppingCatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, catalogItemId])
+  @@index([tournamentId])
+  @@index([catalogItemId])
+  @@map("shopping_list_items")
 }
 
 model TimeSlot {

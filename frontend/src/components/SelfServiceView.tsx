@@ -10,7 +10,7 @@ import PwaInstallPrompt from './PwaInstallPrompt';
 import PushNotificationBanner from './PushNotificationBanner';
 import { formatPhoneNumber } from '../utils/phone';
 import { subscribeToPushNotifications, usePushSubscriptionStatus } from '../utils/push';
-import { isPasskeySupported, registerPasskey, loginWithPasskey } from '../utils/passkey';
+import { isPasskeySupported, registerPasskey, loginWithPasskey, tryConditionalPasskeyLogin, hasRegisteredPasskey } from '../utils/passkey';
 
 interface Shift {
   id: number;
@@ -276,23 +276,54 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
     import('../utils/push').then(m => m.subscribeToPushNotifications().catch(() => {}));
   };
 
+  /**
+   * Nach einem frischen Passwort-Login/einer Registrierung aktiv anbieten,
+   * einen Passkey einzurichten - statt das nur versteckt im Menü verfügbar
+   * zu machen. Nur wenn das Gerät Passkeys unterstützt UND der User noch
+   * keinen hat (sonst würde man bei jedem Login erneut gefragt).
+   */
+  const maybeOfferPasskeySetup = async () => {
+    try {
+      if (!(await isPasskeySupported())) return;
+      if (await hasRegisteredPasskey()) return;
+      const wantsSetup = await modal.confirm({
+        title: 'Face ID / Fingerabdruck einrichten?',
+        message: 'Möchtest du dich künftig ohne Passwort anmelden - mit Face ID, Fingerabdruck oder Windows Hello auf diesem Gerät?',
+        variant: 'info'
+      });
+      if (!wantsSetup) return;
+      await registerPasskey();
+      await modal.alert({ title: 'Eingerichtet 🎉', message: 'Face ID / Fingerabdruck ist jetzt für die Anmeldung auf diesem Gerät eingerichtet.' });
+    } catch (e: any) {
+      // Abbruch durch den Nutzer (z.B. Systemdialog verlassen) ist kein Fehler,
+      // dafür keine zusätzliche Fehlermeldung nach einem gerade erst
+      // erfolgreichen Login zeigen.
+      if (e?.name !== 'NotAllowedError') {
+        await modal.alert({ title: 'Hinweis', message: e?.message || 'Passkey konnte nicht eingerichtet werden.' });
+      }
+    }
+  };
+
   const login = async () => {
     try {
       const data = await apiPost('/api/auth/login', { email: loginEmail, password: loginPassword });
       await applyLoginResult(data);
       setLoginEmail('');
       setLoginPassword('');
+      await maybeOfferPasskeySetup();
     } catch (e: any) { await modal.alert({ title: 'Fehler', message: e?.message || 'Login fehlgeschlagen' }); }
   };
 
+  /**
+   * Explizite Anmeldung per Passkey ohne Identifier-Zwang: der Browser bietet
+   * über den "discoverable" Flow selbst alle auf diesem Gerät hinterlegten
+   * Passkeys für diese Seite an (Systemdialog), unabhängig davon, ob im
+   * Namens-/E-Mail-Feld schon etwas eingetragen wurde.
+   */
   const loginPasskey = async () => {
-    if (!loginEmail.trim()) {
-      await modal.alert({ title: 'Hinweis', message: 'Bitte zuerst Name oder E-Mail eingeben.' });
-      return;
-    }
     setPasskeyLoading(true);
     try {
-      const data = await loginWithPasskey(loginEmail.trim());
+      const data = await loginWithPasskey();
       await applyLoginResult(data);
       setLoginEmail('');
       setLoginPassword('');
@@ -305,6 +336,23 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
       setPasskeyLoading(false);
     }
   };
+
+  // Conditional UI: sobald der Login-Bildschirm lädt, bietet der Browser -
+  // ganz ohne Klick - direkt im Login-Feld einen Passkey-Vorschlag an, falls
+  // Browser/Gerät das unterstützen und ein passender Passkey hinterlegt ist
+  // (siehe autoComplete="username webauthn" am Eingabefeld weiter unten).
+  useEffect(() => {
+    if (ctxLoggedIn) return;
+    let cancelled = false;
+    tryConditionalPasskeyLogin()
+      .then(async data => {
+        if (cancelled || !data) return;
+        await applyLoginResult(data);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctxLoggedIn]);
 
   const logout = useCallback(() => {
     contextLogout();
@@ -673,18 +721,29 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
             )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input type="text" placeholder="Name oder Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} autoFocus />
-            <input type="password" placeholder="Passwort" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') login(); }} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} />
-            <button onClick={login} style={{ padding: '16px', background: clubPrimary, color: clubPrimaryText, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Anmelden</button>
+            {/* Passkey als primäre, prominente Option - klar von der
+                Passwort-Eingabe abgesetzt (Divider), statt zwei optisch
+                gleichwertigen Buttons untereinander. */}
             {passkeySupported && (
-              <button
-                disabled={passkeyLoading}
-                onClick={loginPasskey}
-                style={{ padding: '14px', background: 'transparent', color: clubAccent, border: '2px solid ' + clubAccent, borderRadius: 10, cursor: passkeyLoading ? 'wait' : 'pointer', fontWeight: 'bold', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-              >
-                🔐 {passkeyLoading ? 'Wird geprüft...' : 'Mit Face ID / Fingerabdruck anmelden'}
-              </button>
+              <>
+                <button
+                  disabled={passkeyLoading}
+                  onClick={loginPasskey}
+                  style={{ padding: '16px', background: clubAccent, color: clubAccentText, border: 'none', borderRadius: 10, cursor: passkeyLoading ? 'wait' : 'pointer', fontWeight: 'bold', fontSize: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}
+                >
+                  <span style={{ fontSize: 20 }}>🔐</span>
+                  <span>{passkeyLoading ? 'Wird geprüft...' : 'Mit Face ID / Fingerabdruck anmelden'}</span>
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '2px 0' }}>
+                  <div style={{ flex: 1, height: 1, background: '#e9ecef' }} />
+                  <span style={{ fontSize: 11, color: '#999', fontWeight: 700, letterSpacing: 0.5 }}>ODER MIT PASSWORT</span>
+                  <div style={{ flex: 1, height: 1, background: '#e9ecef' }} />
+                </div>
+              </>
             )}
+            <input type="text" placeholder="Name oder Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} autoComplete="username webauthn" autoFocus />
+            <input type="password" placeholder="Passwort" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') login(); }} style={{ padding: '14px 16px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 16, outline: 'none', boxSizing: 'border-box' }} autoComplete="current-password" />
+            <button onClick={login} style={{ padding: '16px', background: clubPrimary, color: clubPrimaryText, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 17, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>Anmelden</button>
             <button onClick={() => setShowRegisterForm(true)} style={{ padding: '14px', background: 'transparent', color: clubPrimary, border: '2px solid ' + clubPrimary, borderRadius: 10, cursor: 'pointer', fontWeight: 'bold', fontSize: 15 }}>Registrieren</button>
             <button onClick={() => setShowForgotPassword(true)} style={{ padding: '12px', background: 'transparent', color: clubSecondary, border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: '500', fontSize: 14, textDecoration: 'underline' }}>Passwort vergessen?</button>
           </div>
@@ -754,9 +813,14 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                 setRegName(''); setRegEmail(''); setRegPhone(''); setRegPassword(''); setRegPasswordConfirm('');
                 
                 if (data.user?.recoveryPin) {
+                  // Kein Passkey-Angebot direkt danach: die PIN-Anzeige ist
+                  // sicherheitsrelevant (muss notiert werden) und soll nicht
+                  // mit einem weiteren Dialog überlagert werden - Passkey
+                  // lässt sich jederzeit später im Menü einrichten.
                   setShowPinModal({ name: data.user.name, pin: data.user.recoveryPin });
                 } else {
                   await modal.alert({ title: 'Erfolg', message: 'Registrierung erfolgreich!' });
+                  await maybeOfferPasskeySetup();
                 }
 
                 try {

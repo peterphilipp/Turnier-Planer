@@ -39,7 +39,10 @@ function getClientIp(req: AuthRequest): string | undefined {
  */
 interface ChallengeTokenPayload {
   purpose: 'webauthn-register' | 'webauthn-login';
-  userId: number;
+  // Beim identifier-losen ("discoverable") Login-Flow ist der User vor der
+  // Antwort noch nicht bekannt - dann null, und die Zuordnung ergibt sich
+  // erst aus der zurückgegebenen Credential selbst.
+  userId: number | null;
   challenge: string;
 }
 
@@ -85,7 +88,10 @@ export const getRegistrationOptions = async (req: AuthRequest, res: Response) =>
       transports: parseTransports(c.transports) as any
     })),
     authenticatorSelection: {
-      residentKey: 'preferred',
+      // 'required' statt 'preferred': erzwingt einen "discoverable" Credential,
+      // damit sich der Browser beim Login OHNE vorherige Identifier-Eingabe an
+      // den passenden Passkey erinnern kann (siehe getAuthenticationOptions).
+      residentKey: 'required',
       userVerification: 'preferred'
     }
   });
@@ -164,7 +170,21 @@ export const deleteCredential = async (req: AuthRequest, res: Response) => {
 
 export const getAuthenticationOptions = async (req: AuthRequest, res: Response) => {
   const { identifier } = req.body;
-  if (!identifier) return res.status(400).json({ error: 'Name oder E-Mail erforderlich' });
+
+  // Identifier-los ("discoverable"/usernameless): kein Name/E-Mail nötig, der
+  // Browser bietet selbst alle für diese Seite hinterlegten Passkeys auf dem
+  // Gerät an (z.B. per Autofill-Vorschlag im Login-Feld, ohne extra Klick).
+  // Welcher User es ist, ergibt sich erst aus der zurückgegebenen Credential
+  // in verifyAuthentication() - daher hier keine allowCredentials-
+  // Einschränkung und kein userId in der Challenge.
+  if (!identifier) {
+    const options = await generateAuthenticationOptions({
+      rpID: getRpID(),
+      userVerification: 'preferred'
+    });
+    const challengeToken = signChallengeToken({ purpose: 'webauthn-login', userId: null, challenge: options.challenge });
+    return res.json({ options, challengeToken });
+  }
 
   const user = await prisma.user.findFirst({
     where: { OR: [{ email: identifier }, { name: identifier }] },
@@ -198,8 +218,12 @@ export const verifyAuthentication = async (req: AuthRequest, res: Response) => {
   }
 
   const credentialRow = await prisma.webAuthnCredential.findUnique({ where: { credentialId: response.id } });
-  if (!credentialRow || credentialRow.userId !== payload.userId) {
-    logLoginFailed('passkey:' + payload.userId, 'Passkey nicht erkannt', getClientIp(req) || '');
+  // Nur cross-checken, wenn die Challenge einem bestimmten User zugeordnet
+  // war (identifier-basierter Flow). Beim discoverable Flow ist payload.userId
+  // bewusst null - die eigentliche Sicherheit kommt aus der kryptografischen
+  // Signaturprüfung weiter unten, nicht aus dieser Vorab-Zuordnung.
+  if (!credentialRow || (payload.userId != null && credentialRow.userId !== payload.userId)) {
+    logLoginFailed('passkey:' + (payload.userId ?? 'discoverable'), 'Passkey nicht erkannt', getClientIp(req) || '');
     return res.status(401).json({ error: 'Passkey nicht erkannt' });
   }
 
