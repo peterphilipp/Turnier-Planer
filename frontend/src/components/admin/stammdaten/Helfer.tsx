@@ -126,6 +126,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
             <th onClick={() => requestSort('email')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>E-Mail{getSortIndicator('email')}</th>
             <th onClick={() => requestSort('phone')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Telefon{getSortIndicator('phone')}</th>
             <th onClick={() => requestSort('role')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Rolle{getSortIndicator('role')}</th>
+            <th onClick={() => requestSort('lastLoginAt')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Letzter Login{getSortIndicator('lastLoginAt')}</th>
             <th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th>
           </tr>
         </thead>
@@ -158,6 +159,9 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
                   <RoleBadge role={v.role || 'HELPER'} />
                 </div>
               </td>
+              <td style={{ padding: '10px 12px', fontSize: 13, color: v.lastLoginAt ? '#495057' : '#adb5bd' }}>
+                {v.lastLoginAt ? new Date(v.lastLoginAt).toLocaleDateString('de-DE') : 'Nie'}
+              </td>
               <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button onClick={() => openEdit(v)} style={{ width: 40, height: 40, border: 'none', background: '#fff3cd', color: '#856404', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✏️</button>
@@ -173,7 +177,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
             </tr>
             {isExpanded && (
               <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td colSpan={5} style={{ padding: '4px 12px 14px 32px', background: '#f8f9fa' }}>
+                <td colSpan={6} style={{ padding: '4px 12px 14px 32px', background: '#f8f9fa' }}>
                   <div style={{ fontSize: 12, fontWeight: 'bold', color: '#666', marginBottom: 6 }}>Geräte mit aktivierten Push-Benachrichtigungen:</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {devices.map(d => (
@@ -191,8 +195,8 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
             );
           })}
           {volunteers.length === 0 ? (
-            <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#666' }}>Keine Benutzer vorhanden.</td></tr>
-          ) : (filtered.length === 0 ? <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#666' }}>Keine Treffer für "{search}"</td></tr> : null)}
+            <tr><td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: '#666' }}>Keine Benutzer vorhanden.</td></tr>
+          ) : (filtered.length === 0 ? <tr><td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: '#666' }}>Keine Treffer für "{search}"</td></tr> : null)}
         </tbody>
       </table>
 

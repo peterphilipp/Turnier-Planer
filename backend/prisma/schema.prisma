@@ -179,6 +179,8 @@ model User {
   consentGiven          Boolean                @default(false) @map("consent_given")
   consentDate           DateTime?              @map("consent_date")
   recoveryPin           String?                @map("recovery_pin")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  lastLoginAt           DateTime?              @map("last_login_at")
   foodDonationSlots     FoodDonationSlot[]
   foodDonations         FoodDonation[]
   resetTokens           PasswordResetToken[]

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { IScannerControls } from '@zxing/browser';
 import {
   getShoppingList, addShoppingListItem, updateShoppingListItem, deleteShoppingListItem,
   copyShoppingListFrom, lookupShoppingBarcode, createShoppingCatalogItem
@@ -11,62 +12,82 @@ interface CatalogItem { id: number; name: string; category: string | null; unit:
 interface ListItem { id: number; tournamentId: number; catalogItemId: number; plannedQuantity: number; purchasedQuantity: number; note: string | null; catalogItem: CatalogItem; }
 
 /**
- * Kamera-Barcode-Scan über die native BarcodeDetector-API. Nicht überall
- * unterstützt (u.a. Firefox nicht) - daher immer nur eine ZUSÄTZLICHE Option
- * neben dem manuellen Eingabefeld, nie die einzige Möglichkeit. Ein externer
- * USB-/Bluetooth-Barcode-Scanner "tippt" seine Ergebnisse ohnehin wie eine
- * Tastatur ins Textfeld - dafür braucht es gar keine Kamera.
+ * Kamera-Barcode-Scan über @zxing/browser statt der nativen BarcodeDetector-
+ * API: die läuft zwar auf Android/Chrome, aber NICHT in Safari (also nicht
+ * auf dem iPhone - dem in der Praxis wichtigsten "Handy"-Fall). zxing deckt
+ * per Video-Stream + JS-Dekodierung alle modernen Browser inkl. iOS Safari
+ * ab. Trotzdem immer nur eine ZUSÄTZLICHE Option neben dem manuellen
+ * Eingabefeld: ein externer USB-/Bluetooth-Barcode-Scanner "tippt" seine
+ * Ergebnisse ohnehin wie eine Tastatur ins Textfeld - dafür braucht es gar
+ * keine Kamera.
  */
 function useBarcodeScanner(onDetected: (code: string) => void) {
   const [scanning, setScanning] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const intervalRef = useRef<number | null>(null);
+  const controlsRef = useRef<IScannerControls | null>(null);
+  const onDetectedRef = useRef(onDetected);
+  onDetectedRef.current = onDetected;
 
-  const supported = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+  const supported = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
 
   const stop = () => {
-    if (intervalRef.current) { window.clearInterval(intervalRef.current); intervalRef.current = null; }
-    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    controlsRef.current?.stop();
+    controlsRef.current = null;
     setScanning(false);
   };
 
-  const start = async () => {
-    if (!supported) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      streamRef.current = stream;
-      setScanning(true);
-      // Video-Element wird erst nach dem State-Update gerendert - kurz warten,
-      // bis der ref gesetzt ist.
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {});
+  const start = () => setScanning(true);
+
+  // Erst NACHDEM das <video>-Element (weiter unten, an videoRef gebunden)
+  // durch den scanning=true-State gerendert wurde, kann zxing den Stream
+  // daran anhängen - deshalb hier als Effekt statt direkt in start().
+  // zxing wird dynamisch nachgeladen (nicht im Haupt-Bundle) - die
+  // Dekodier-Engine ist groß (~450 KB), aber nur relevant, wenn diese
+  // Funktion tatsächlich genutzt wird.
+  useEffect(() => {
+    if (!scanning || !videoRef.current) return;
+    let cancelled = false;
+
+    (async () => {
+      const [{ BrowserMultiFormatReader }, { DecodeHintType, BarcodeFormat }] = await Promise.all([
+        import('@zxing/browser'),
+        import('@zxing/library')
+      ]);
+      if (cancelled || !videoRef.current) return;
+
+      const hints = new Map();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+        BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
+        BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.QR_CODE
+      ]);
+      const reader = new BrowserMultiFormatReader(hints);
+
+      reader.decodeFromVideoDevice(undefined, videoRef.current, (result) => {
+        if (result && !cancelled) {
+          cancelled = true;
+          const value = result.getText();
+          stop();
+          onDetectedRef.current(value);
         }
-      }, 0);
+        // Fehlgeschlagene Einzelbilder sind normal (kein Barcode im Blickfeld) -
+        // zxing ruft den Callback dafür ohne result auf, das ignorieren wir.
+      }).then(controls => {
+        if (cancelled) { controls.stop(); return; }
+        controlsRef.current = controls;
+      }).catch(async () => {
+        if (cancelled) return;
+        setScanning(false);
+        await modal.alert({ title: 'Kamera nicht verfügbar', message: 'Auf die Kamera konnte nicht zugegriffen werden. Bitte Barcode manuell eingeben.' });
+      });
+    })();
 
-      const Detector = (window as any).BarcodeDetector;
-      const detector = new Detector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'] });
-
-      intervalRef.current = window.setInterval(async () => {
-        if (!videoRef.current) return;
-        try {
-          const codes = await detector.detect(videoRef.current);
-          if (codes.length > 0) {
-            const value = codes[0].rawValue;
-            stop();
-            onDetected(value);
-          }
-        } catch { /* einzelner Frame fehlgeschlagen - beim naechsten Intervall erneut versuchen */ }
-      }, 400);
-    } catch {
-      setScanning(false);
-      await modal.alert({ title: 'Kamera nicht verfügbar', message: 'Auf die Kamera konnte nicht zugegriffen werden. Bitte Barcode manuell eingeben.' });
-    }
-  };
-
-  useEffect(() => () => stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => {
+      cancelled = true;
+      controlsRef.current?.stop();
+      controlsRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanning]);
 
   return { supported, scanning, videoRef, start, stop };
 }

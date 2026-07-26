@@ -13,6 +13,7 @@ import { formatPhoneNumber } from '../utils/phone.js';
 import validate from '../middleware/validate.js';
 import { ensureTournamentMembership } from '../utils/tournamentMembership.js';
 import { resolveRoleAndForceAdmin, signSessionToken } from '../utils/authSession.js';
+import { deleteUserAccount } from '../utils/accountDeletion.js';
 
 function getClientIp(req: express.Request): string | undefined {
   return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
@@ -371,6 +372,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res, next)
     }
 
       logLoginSuccess(user.email || identifier, getClientIp(req));
+      await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
       const userRole = await resolveRoleAndForceAdmin(user);
       const token = signSessionToken(user.id, userRole);
@@ -517,26 +519,7 @@ router.delete('/account', async (req, res, next) => {
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
     if (!user) return res.status(404).json({ error: 'Nicht gefunden' });
 
-    // Bestehende Einsätze archivieren (nicht löschen – rechtliche Aufbewahrung)
-    await prisma.volunteerShift.updateMany({
-      where: { userId: decoded.userId },
-      data: { userId: null }
-    });
-
-    // Spenden verknüpfung lösen
-    await prisma.foodDonation.updateMany({
-      where: { userId: decoded.userId },
-      data: { userId: null }
-    });
-
-    // Kinder löschen
-    await prisma.userChild.deleteMany({ where: { userId: decoded.userId } });
-
-    // Reset-Tokens löschen
-    await prisma.passwordResetToken.deleteMany({ where: { userId: decoded.userId } });
-
-    // Konto löschen (Passwort wird bcrypt-gehashet, nicht umkehrbar)
-    await prisma.user.delete({ where: { id: decoded.userId } });
+    await deleteUserAccount(decoded.userId);
 
     res.json({ message: 'Dein Konto wurde erfolgreich gelöscht. Alle personenbezogenen Daten wurden entfernt.' });
   } catch (err) {
@@ -693,7 +676,11 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res,
       role: (isFirstAdmin || isForcedAdmin) ? 'ADMIN' : 'HELPER',
       tournamentId: activeTournament?.id || null,
       consentGiven: true,
-      consentDate: new Date()
+      consentDate: new Date(),
+      // Registrierung zählt als erster Login - sonst sähe ein frisch
+      // registrierter, noch nie "erneut" eingeloggter User in der
+      // Benutzerliste sofort wie "noch nie angemeldet" aus.
+      lastLoginAt: new Date()
     };
 
     // Kinder erstellen

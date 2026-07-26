@@ -1,5 +1,12 @@
 import prisma from '../config/prisma.js';
 import { sendPushToUser } from './push.js';
+import { deleteUserAccount } from './accountDeletion.js';
+
+const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+// Läuft im 60s-Tick mit, aber die eigentliche Prüfung nur einmal pro
+// Kalendertag - taeglich reicht fuer eine 1-Jahres-Grenze voellig, jede
+// Minute waere reine Verschwendung.
+let lastInactivityCleanupDate: string | null = null;
 
 /** Hilfsfunktion: Minuten seit Mitternacht → „HH:MM" */
 const minToTime = (m: number): string =>
@@ -18,10 +25,60 @@ export function startScheduler(): void {
     try {
       await checkRemindersBefore();
       await checkRemindersAfter();
+      await checkInactiveUserCleanup();
     } catch (err: any) {
       console.error('[Scheduler] Fehler im Scheduler-Tick:', err?.message || err);
     }
   }, 60_000);
+}
+
+/**
+ * Löscht Benutzerkonten, die seit über einem Jahr inaktiv sind (kein Login,
+ * oder - falls nie eingeloggt - Registrierung liegt über ein Jahr zurück).
+ * ADMIN-Konten sind bewusst ausgenommen: ein automatisch gelöschter letzter
+ * Admin würde den Verein komplett aus der eigenen Verwaltung aussperren.
+ * Löschung läuft über dieselbe deleteUserAccount()-Funktion wie die
+ * Selbst-Löschung (DSGVO-konform: Schicht-/Spenden-Historie wird
+ * anonymisiert statt gelöscht).
+ */
+async function checkInactiveUserCleanup(): Promise<void> {
+  const todayKey = new Date().toISOString().slice(0, 10);
+  if (lastInactivityCleanupDate === todayKey) return;
+  lastInactivityCleanupDate = todayKey;
+
+  const cutoff = new Date(Date.now() - ONE_YEAR_MS);
+
+  const candidates = await prisma.user.findMany({
+    where: {
+      role: { not: 'ADMIN' },
+      OR: [
+        { lastLoginAt: { lt: cutoff } },
+        { lastLoginAt: null, createdAt: { lt: cutoff } }
+      ]
+    },
+    select: { id: true, name: true, email: true, lastLoginAt: true, createdAt: true }
+  });
+
+  for (const user of candidates) {
+    console.log(JSON.stringify({
+      event: 'INACTIVE_USER_AUTO_DELETED',
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      lastLoginAt: user.lastLoginAt,
+      accountCreatedAt: user.createdAt,
+      timestamp: new Date().toISOString()
+    }));
+    try {
+      await deleteUserAccount(user.id);
+    } catch (err: any) {
+      console.error(`[Scheduler] Fehler beim automatischen Löschen von User ${user.id}:`, err?.message || err);
+    }
+  }
+
+  if (candidates.length > 0) {
+    console.log(`[Scheduler] ${candidates.length} inaktive(r) Nutzer (>1 Jahr ohne Login) automatisch gelöscht.`);
+  }
 }
 
 /**
