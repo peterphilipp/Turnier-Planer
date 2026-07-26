@@ -189,7 +189,7 @@ model User {
   shifts                VolunteerShift[]
   pushSubscriptions     PushSubscription[]
   webAuthnCredentials   WebAuthnCredential[]
-  tournament            Tournament?            @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournament            Tournament?            @relation(fields: [tournamentId], references: [id], onDelete: SetNull)
   tournamentMemberships TournamentMembership[]
 
   @@index([tournamentId])

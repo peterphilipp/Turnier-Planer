@@ -4,6 +4,12 @@
  *
  * Löst den DB-Pfad genauso auf wie Prisma: relative file:-URLs relativ zum
  * Schema-Verzeichnis (backend/prisma). Behält die letzten MAX_BACKUPS Sicherungen.
+ *
+ * Der Backup-Ordner liegt bewusst NEBEN der eigentlichen DB-Datei (nicht im
+ * Schema-Verzeichnis): in Produktion liegt die DB in einem persistenten
+ * Volume (z.B. /app/data), während /app/prisma bei jedem Deploy neu aus dem
+ * Image entsteht - ein Backup dort wäre beim nächsten Container-Neustart
+ * bereits wieder weg.
  */
 const fs = require('fs');
 const path = require('path');
@@ -24,7 +30,7 @@ if (!fs.existsSync(dbPath)) {
   process.exit(1);
 }
 
-const backupDir = path.resolve(schemaDir, 'backups');
+const backupDir = path.resolve(path.dirname(dbPath), 'backups');
 fs.mkdirSync(backupDir, { recursive: true });
 
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');

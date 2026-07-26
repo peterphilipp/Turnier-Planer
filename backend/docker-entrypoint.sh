@@ -4,6 +4,16 @@ set -e
 echo "  Alte Shift-Daten pruefen (Tag-/Slot-System Migration)..."
 node scripts/migrate-day-slot-system.cjs
 
+# Sicherung VOR jedem Schema-Push: "db push --accept-data-loss" kann bei
+# SQLite fuer manche Aenderungen (z.B. Foreign-Key-onDelete-Verhalten) die
+# betroffene Tabelle intern neu anlegen. Das ist im Normalfall verlustfrei,
+# aber ein Fehlschlag oder ein unerwarteter Prisma-Bug waere sonst nicht mehr
+# rueckgaengig zu machen. Best-effort: ein fehlschlagendes Backup (z.B. weil
+# es die allererste Inbetriebnahme ohne bestehende DB-Datei ist) darf den
+# Start nicht blockieren.
+echo "  Sichere DB vor Schema-Push..."
+node scripts/backup-db.cjs || echo "  (kein Backup erstellt - vermutlich Erststart ohne bestehende DB)"
+
 echo "  Prisma Schema synchronisieren..."
 npx prisma db push --accept-data-loss
 
