@@ -2,13 +2,26 @@ import { useState, useEffect } from 'react';
 import { subscribeToPushNotifications, usePushSubscriptionStatus } from '../utils/push';
 import { modal } from './admin/Modal';
 
+const PUSH_REMINDER_KEY = 'pushReminderLastShown';
+const PUSH_REMINDER_INTERVAL = 7 * 24 * 60 * 60 * 1000; // 7 Tage
+
 export default function PushNotificationBanner({ primaryColor = '#198754', textColor = '#fff' }: { primaryColor?: string; textColor?: string }) {
   const { supported, subscribed, setSubscribed } = usePushSubscriptionStatus();
   const [loading, setLoading] = useState(false);
-  // Wie bei PwaInstallPrompt: Wegklicken gilt nur fuer die aktuelle Sitzung
-  // (kein localStorage) - beim naechsten Laden erscheint der Hinweis wieder,
+  // Wegklicken gilt nur fuer die aktuelle Sitzung - erscheint beim naechsten
+  // Laden wieder. Zusätzlich: alle 7 Tage automatisch erneut anzeigen,
   // solange Push noch nicht aktiviert ist.
   const [isDismissed, setIsDismissed] = useState(false);
+  
+  useEffect(() => {
+    if (subscribed) return;
+    const lastShown = localStorage.getItem(PUSH_REMINDER_KEY);
+    if (!lastShown || Date.now() - parseInt(lastShown, 10) > PUSH_REMINDER_INTERVAL) {
+      // Banner nach Interval wieder anzeigen
+      setIsDismissed(false);
+      localStorage.setItem(PUSH_REMINDER_KEY, String(Date.now()));
+    }
+  }, [subscribed]);
 
   useEffect(() => {
     if (subscribed) {
