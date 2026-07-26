@@ -78,7 +78,7 @@ export const syncTournamentWorkAreas = async (req: Request, res: Response) => {
     // Alle bestehenden Bereiche dieses Turniers laden
     const existing = await tx.tournamentWorkArea.findMany({
       where: { tournamentId },
-      select: { id: true, sourceWorkAreaId: true, active: true }
+      select: { id: true, sourceWorkAreaId: true, active: true, name: true }
     });
     
     // Map: sourceWorkAreaId → Eintrag (kann null sein)
