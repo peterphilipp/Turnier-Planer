@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getVolunteers, getYearGroups, apiPost, apiPatch, apiDelete } from '../../../api';
@@ -30,6 +30,10 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
 
   const [volForm, setVolForm] = useState<{ name: string; email: string; phone: string; role: string; children: { childName: string; childYear: string }[] }>({ name: '', email: '', phone: '', role: 'HELPER', children: [] });
   const [editingVol, setEditingVol] = useState<number | null>(null);
+  // Aufklappbare Geräte-Detailansicht pro User (welche Geräte haben Push
+  // aktiviert) - hilft bei der Fehlersuche, wenn ein Helfer mehrere Geräte
+  // nutzt und nur auf einem Nachrichten ankommen.
+  const [expandedPushId, setExpandedPushId] = useState<number | null>(null);
 
   /** Jahrgang, dem ein Geburtsjahr zugeordnet würde - rein über den Bereichs-Abgleich, es gibt kein eigenes Zuordnungsfeld. */
   const matchingYearGroup = (childYear: string) => {
@@ -126,15 +130,25 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
           </tr>
         </thead>
         <tbody>
-          {sortedVolunteers.map(v => (
-            <tr key={v.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+          {sortedVolunteers.map(v => {
+            const devices = v.pushSubscriptions || [];
+            const isExpanded = expandedPushId === v.id;
+            return (
+            <Fragment key={v.id}>
+            <tr style={{ borderBottom: isExpanded ? 'none' : '1px solid #f0f0f0' }}>
               <td style={{ padding: '10px 12px', fontWeight: 500 }}>
                 {v.name}
                 {(v.children || []).some(c => !matchingYearGroup(String(c.childYear))) && (
                   <span title="Mindestens ein Kind passt zu keinem Jahrgang - bitte prüfen" style={{ marginLeft: 6, fontSize: 13 }}>⚠️</span>
                 )}
-                {(v.pushSubscriptions?.length ?? 0) > 0 && (
-                  <span title="Push-Benachrichtigungen aktiviert" style={{ marginLeft: 6, fontSize: 13 }}>🔔</span>
+                {devices.length > 0 && (
+                  <button
+                    onClick={() => setExpandedPushId(isExpanded ? null : v.id)}
+                    title={`Push-Benachrichtigungen aktiviert (${devices.length} Gerät${devices.length === 1 ? '' : 'e'}) - Details anzeigen`}
+                    style={{ marginLeft: 6, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 2 }}
+                  >
+                    🔔 <span style={{ fontSize: 10, color: '#666' }}>{isExpanded ? '▲' : '▼'}</span>
+                  </button>
                 )}
               </td>
               <td style={{ padding: '10px 12px' }}>{v.email || '–'}</td>
@@ -157,7 +171,25 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
                 </div>
               </td>
             </tr>
-          ))}
+            {isExpanded && (
+              <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                <td colSpan={5} style={{ padding: '4px 12px 14px 32px', background: '#f8f9fa' }}>
+                  <div style={{ fontSize: 12, fontWeight: 'bold', color: '#666', marginBottom: 6 }}>Geräte mit aktivierten Push-Benachrichtigungen:</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {devices.map(d => (
+                      <div key={d.id} style={{ fontSize: 13, color: '#333', display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span>📱</span>
+                        <span style={{ fontWeight: 600 }}>{d.deviceLabel || 'Unbekanntes Gerät'}</span>
+                        {d.createdAt && <span style={{ color: '#999' }}>· seit {new Date(d.createdAt).toLocaleDateString('de-DE')}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            )}
+            </Fragment>
+            );
+          })}
           {volunteers.length === 0 ? (
             <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#666' }}>Keine Benutzer vorhanden.</td></tr>
           ) : (filtered.length === 0 ? <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#666' }}>Keine Treffer für "{search}"</td></tr> : null)}

@@ -342,7 +342,10 @@ function AdminView() {
 
       {activeMainTab === 'stammdaten' && (
         <nav style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-          {[{ key: 'vereine' as StammTab, icon: '🛡️', label: 'Vereine' }, { key: 'turniere' as StammTab, icon: '🏆', label: 'Turniere' }, { key: 'jahrgaenge' as StammTab, icon: '👶', label: 'Jahrgänge' }, { key: 'work-areas' as StammTab, icon: '📍', label: 'Arbeitsbereiche' }, { key: 'global-time-slots' as StammTab, icon: '📅', label: 'Tagesvorlagen' }, { key: 'lebensmittel' as StammTab, icon: '🍔', label: 'Verpflegung' }, { key: 'helfer' as StammTab, icon: '👤', label: 'Benutzer' }].map(tab => (
+          {/* "Benutzer" nur für Admins - Organisatoren sind bewusst auf ihre
+              Turniere beschränkt, eine turnierübergreifende Nutzerliste geht
+              sie nichts an (auch backend-seitig durchgesetzt, nicht nur hier). */}
+          {[{ key: 'vereine' as StammTab, icon: '🛡️', label: 'Vereine' }, { key: 'turniere' as StammTab, icon: '🏆', label: 'Turniere' }, { key: 'jahrgaenge' as StammTab, icon: '👶', label: 'Jahrgänge' }, { key: 'work-areas' as StammTab, icon: '📍', label: 'Arbeitsbereiche' }, { key: 'global-time-slots' as StammTab, icon: '📅', label: 'Tagesvorlagen' }, { key: 'lebensmittel' as StammTab, icon: '🍔', label: 'Verpflegung' }, { key: 'helfer' as StammTab, icon: '👤', label: 'Benutzer' }].filter(tab => tab.key !== 'helfer' || isAdmin).map(tab => (
             <button key={tab.key} onClick={() => setActiveStammTab(tab.key)} style={{ padding: '12px 16px', cursor: 'pointer', background: activeStammTab === tab.key ? '#6c757d' : '#e9ecef', color: activeStammTab === tab.key ? '#fff' : '#000', border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>{tab.icon}</span><span>{tab.label}</span>
             </button>
@@ -367,7 +370,7 @@ function AdminView() {
         {activeMainTab === 'stammdaten' && activeStammTab === 'vereine' && <Vereine adminPrimary="#6c757d" />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'work-areas' && <WorkAreas adminPrimary="#6c757d" />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'global-time-slots' && <GlobalDayTemplates adminPrimary="#6c757d" />}
-        {activeMainTab === 'stammdaten' && activeStammTab === 'helfer' && <Helfer adminPrimary="#6c757d" tournamentId={selectedTournamentId} />}
+        {activeMainTab === 'stammdaten' && activeStammTab === 'helfer' && isAdmin && <Helfer adminPrimary="#6c757d" tournamentId={selectedTournamentId} />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'jahrgaenge' && <Jahrgaenge adminPrimary="#6c757d" />}
         {activeMainTab === 'stammdaten' && activeStammTab === 'lebensmittel' && <Lebensmittel adminPrimary="#6c757d" />}
       </main>

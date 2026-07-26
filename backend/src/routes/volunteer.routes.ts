@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import validate from '../middleware/validate.js';
-import { requireAdmin, authenticate } from '../middleware/auth.js';
+import { requireAdmin, requireAdminOnly, authenticate } from '../middleware/auth.js';
 import {
   getVolunteers,
   createVolunteer,
@@ -15,16 +15,20 @@ import {
 
 const router = Router();
 
-// Nur Admin/Organizer: Helfer-Liste (enthält personenbezogene Daten)
+// Admin/Organizer: Helfer-Liste. Organisatoren dürfen sie nur turniergebunden
+// abfragen (?tournamentId=..., z.B. für Push-Targeting im eigenen Turnier) -
+// die vollständige, turnierübergreifende Liste (kein tournamentId) prüft der
+// Controller selbst zusätzlich auf ADMIN, siehe getVolunteers().
 router.get('/', authenticate, requireAdmin, getVolunteers);
 
-// Nur Admin/Organizer: Push Broadcast
+// Nur Admin/Organizer: Push Broadcast (bewusst turniergebunden, siehe oben)
 router.post('/push-broadcast', authenticate, requireAdmin, validate(broadcastPushSchema), broadcastPush);
 
-// Nur Admin/Organizer
-router.post('/', authenticate, requireAdmin, validate(volunteerSchema), createVolunteer);
-router.patch('/:id', authenticate, requireAdmin, validate(volunteerSchema.partial()), updateVolunteer);
-router.patch('/:id/password', authenticate, requireAdmin, validate(updateVolunteerPasswordSchema), updateVolunteerPassword);
-router.delete('/:id', authenticate, requireAdmin, deleteVolunteer);
+// Benutzerverwaltung (anlegen/bearbeiten/löschen/Passwort setzen): nur Admin -
+// betrifft immer den ganzen Account, nicht nur den Kontext eines Turniers.
+router.post('/', authenticate, requireAdminOnly, validate(volunteerSchema), createVolunteer);
+router.patch('/:id', authenticate, requireAdminOnly, validate(volunteerSchema.partial()), updateVolunteer);
+router.patch('/:id/password', authenticate, requireAdminOnly, validate(updateVolunteerPasswordSchema), updateVolunteerPassword);
+router.delete('/:id', authenticate, requireAdminOnly, deleteVolunteer);
 
 export default router;

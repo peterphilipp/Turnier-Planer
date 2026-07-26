@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AuthRequest } from '../middleware/auth.js';
 import prisma from '../config/prisma.js';
 import { z } from 'zod';
 import bcrypt from 'bcrypt';
@@ -6,6 +7,7 @@ import { logVolunteerUpdated, logClubCreated } from '../utils/logger.js';
 import { sendPushToUser } from '../utils/push.js';
 import { formatPhoneNumber } from '../utils/phone.js';
 import { ensureTournamentMembership } from '../utils/tournamentMembership.js';
+import { describeUserAgent } from '../utils/userAgent.js';
 
 // Gleiche Jahrgangs-Grenzen wie bei den Turnier-Jahrgängen selbst (Jahrgaenge.tsx),
 // da genau darüber (childYear innerhalb YearGroup.birthYearStart/-End) die
@@ -55,8 +57,17 @@ const sanitizeUser = <T extends { password?: string | null; recoveryPin?: string
   return safe;
 };
 
-export const getVolunteers = async (req: Request, res: Response) => {
+export const getVolunteers = async (req: AuthRequest, res: Response) => {
   const { tournamentId } = req.query;
+
+  // Organisatoren dürfen die Helfer-Liste nur turniergebunden abfragen (z.B.
+  // für Push-Targeting im eigenen Turnier, siehe PushBroadcast.tsx) - die
+  // vollständige, turnierübergreifende Benutzerverwaltung ist Admins
+  // vorbehalten (die Route selbst lässt beide Rollen durch, requireAdmin).
+  if (req.role === 'ORGANIZER' && !tournamentId) {
+    return res.status(403).json({ error: 'Nur Administratoren können die vollständige Benutzerliste einsehen.' });
+  }
+
   // ODER über TournamentMembership: User.tournamentId ist nur die aktuelle
   // Präferenz (ein einzelner Wert) - ein Helfer kann in mehreren Turnieren
   // aktiv sein, ohne dass genau dieses Turnier gerade sein "tournamentId" ist.
@@ -68,10 +79,16 @@ export const getVolunteers = async (req: Request, res: Response) => {
       ]
     } : undefined,
     orderBy: { name: 'asc' },
-    include: { children: true, pushSubscriptions: { select: { id: true } } }
+    include: { children: true, pushSubscriptions: { select: { id: true, userAgent: true, createdAt: true } } }
   });
-  // Rolle als String zurückgeben; Passwort-Hash niemals ausliefern
-  return res.json(users?.map(u => ({ ...sanitizeUser(u), role: u.role as string })) || []);
+  // Rolle als String zurückgeben; Passwort-Hash niemals ausliefern; Geräte-
+  // Label serverseitig aus dem User-Agent ableiten (Detailansicht "auf
+  // welchen Geräten ist Push aktiviert" in der Benutzerverwaltung).
+  return res.json(users?.map(u => ({
+    ...sanitizeUser(u),
+    role: u.role as string,
+    pushSubscriptions: u.pushSubscriptions.map(ps => ({ ...ps, deviceLabel: describeUserAgent(ps.userAgent) }))
+  })) || []);
 };
 
 export const createVolunteer = async (req: Request, res: Response) => {

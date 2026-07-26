@@ -84,12 +84,16 @@ export function requireRole(requiredRoles: string[]) {
   };
 }
 
-/** Middleware: Admin/Organizer Only */
-export async function requireAdmin(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+/**
+ * Prüft Token, hängt userId/role an req an. Gibt die Rolle zurück, oder null
+ * wenn bereits eine 401-Antwort gesendet wurde (Aufrufer muss dann sofort
+ * zurückkehren, ohne weiter zu antworten).
+ */
+async function authenticateAndGetRole(req: AuthRequest, res: Response): Promise<string | null> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     res.status(401).json({ error: 'Nicht authentifiziert' });
-    return;
+    return null;
   }
 
   let decoded: { userId: number };
@@ -98,15 +102,20 @@ export async function requireAdmin(req: AuthRequest, res: Response, next: NextFu
     decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
   } catch {
     res.status(401).json({ error: 'Ungültiger Token' });
-    return;
+    return null;
   }
 
-  try {
-    req.userId = decoded.userId;
+  req.userId = decoded.userId;
+  const role = await getUserRole(decoded.userId);
+  req.role = role;
+  return role;
+}
 
-    // Rolle aus DB prüfen (Admin/Organizer haben Zugriff)
-    const role = await getUserRole(decoded.userId);
-    req.role = role;
+/** Middleware: Admin/Organizer Only */
+export async function requireAdmin(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const role = await authenticateAndGetRole(req, res);
+    if (role === null) return;
     if (role === 'ADMIN' || role === 'ORGANIZER') {
       next();
     } else {
@@ -114,6 +123,27 @@ export async function requireAdmin(req: AuthRequest, res: Response, next: NextFu
     }
   } catch (err) {
     // DB-Fehler nicht verschlucken → an zentralen Error-Handler weiterreichen
+    next(err);
+  }
+}
+
+/**
+ * Middleware: NUR Admin (kein Organizer). Für turnierübergreifende Verwaltung,
+ * die Organisatoren nichts angeht (z.B. die vollständige, nicht turnier-
+ * gebundene Benutzerverwaltung) - im Unterschied zu requireAdmin, das
+ * Organisatoren bewusst für ihre eigenen, turniergebundenen Aufgaben
+ * (z.B. Push an Helfer ihres Turniers) weiterhin durchlässt.
+ */
+export async function requireAdminOnly(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const role = await authenticateAndGetRole(req, res);
+    if (role === null) return;
+    if (role === 'ADMIN') {
+      next();
+    } else {
+      res.status(403).json({ error: 'Unzureichende Berechtigungen – nur Administratoren' });
+    }
+  } catch (err) {
     next(err);
   }
 }

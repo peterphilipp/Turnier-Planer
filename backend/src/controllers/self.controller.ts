@@ -272,18 +272,23 @@ export const subscribePush = async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Ungültige Subscription-Daten' });
   }
 
+  // Nur fuer eine lesbare Geraete-Anzeige in der Benutzerverwaltung (welches
+  // Geraet/Browser) - kein Tracking-Zweck, daher keine Zustimmung noetig.
+  const userAgent = (req.headers['user-agent'] as string | undefined) || null;
+
   const existing = await prisma.pushSubscription.findFirst({
     where: { endpoint }
   });
 
   if (existing) {
-    if (existing.userId !== userId || existing.p256dh !== keys.p256dh || existing.auth !== keys.auth) {
+    if (existing.userId !== userId || existing.p256dh !== keys.p256dh || existing.auth !== keys.auth || existing.userAgent !== userAgent) {
       await prisma.pushSubscription.update({
         where: { id: existing.id },
         data: {
           userId,
           p256dh: keys.p256dh,
-          auth: keys.auth
+          auth: keys.auth,
+          userAgent
         }
       });
     }
@@ -293,7 +298,8 @@ export const subscribePush = async (req: Request, res: Response) => {
         userId,
         endpoint,
         p256dh: keys.p256dh,
-        auth: keys.auth
+        auth: keys.auth,
+        userAgent
       }
     });
   }
