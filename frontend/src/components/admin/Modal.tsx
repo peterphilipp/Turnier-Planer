@@ -128,7 +128,7 @@ function FormDialog({ opts }: { opts: FormOpts }) {
             <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#495057', marginBottom: 4 }}>{f.label}</label>
             {f.type === 'select' && f.options ? (
               <select value={values[f.key] || ''} onChange={e => handleChange(f.key, e.target.value)} style={{ width: '100%', padding: '12px 12px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, background: '#fff', minHeight: 44 }}>
-                <option value="">Bitte w\u00E4hlen...</option>
+                <option value="">Bitte wählen...</option>
                 {f.options.map(o => <option key={String(o.value)} value={o.value}>{o.label}</option>)}
               </select>
             ) : (
