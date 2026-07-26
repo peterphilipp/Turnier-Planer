@@ -348,7 +348,7 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
         <div style={{ marginTop: 24 }}>
           <h5 style={{ fontSize: 14, color: '#212529', marginBottom: 10 }}>🎁 Zusätzliche Spenden (ohne Ziel)</h5>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {unassignedDonations.map(d => (
+            {unassignedDonations.filter(d => d.userId != null).map(d => (
               <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8f9fa', borderRadius: 8, border: '1px solid #e9ecef', fontSize: 13, flexWrap: 'wrap', gap: 8 }}>
                 <div>
                   <strong>{d.user?.name || 'Unbekannt'}</strong>: {d.foodItem?.category?.icon ?? '🍽️'} {d.foodItem?.name} × {d.quantity} {d.foodItem?.unit || 'Stk'}
@@ -392,7 +392,7 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
                             {d.user?.name?.charAt(0).toUpperCase() || '?'}
                           </div>
                           <div>
-                            <div style={{ fontWeight: '600', color: '#212529' }}>{d.user?.name || 'Unbekannt'}</div>
+                            <div style={{ fontWeight: '600', color: '#212529' }}>{d.userId != null ? (d.user?.name || 'Unbekannt') : ''}</div>
                             {d.note && <div style={{ fontSize: 12, color: '#6c757d' }}>„{d.note}"</div>}
                           </div>
                         </div>

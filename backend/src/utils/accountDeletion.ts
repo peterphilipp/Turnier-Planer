@@ -11,8 +11,15 @@ import prisma from '../config/prisma.js';
  * leicht abweichen und Daten inkonsistent hinterlassen.
  */
 export async function deleteUserAccount(userId: number): Promise<void> {
+  // Schichten anonymisieren (rechtliche Aufbewahrung)
   await prisma.volunteerShift.updateMany({ where: { userId }, data: { userId: null } });
-  await prisma.foodDonation.updateMany({ where: { userId }, data: { userId: null } });
+  
+  // Spenden des Users löschen (keine "Unbekannt"-Einträge mehr)
+  const orphanedDonations = await prisma.foodDonation.findMany({ where: { userId } });
+  if (orphanedDonations.length > 0) {
+    await prisma.foodDonation.deleteMany({ where: { userId } });
+  }
+  
   await prisma.userChild.deleteMany({ where: { userId } });
   await prisma.passwordResetToken.deleteMany({ where: { userId } });
   await prisma.pushSubscription.deleteMany({ where: { userId } });
