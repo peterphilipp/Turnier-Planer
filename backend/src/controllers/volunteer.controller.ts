@@ -68,13 +68,19 @@ export const getVolunteers = async (req: AuthRequest, res: Response) => {
     return res.status(403).json({ error: 'Nur Administratoren können die vollständige Benutzerliste einsehen.' });
   }
 
-  // ODER über TournamentMembership: User.tournamentId ist nur die aktuelle
-  // Präferenz (ein einzelner Wert) - ein Helfer kann in mehreren Turnieren
-  // aktiv sein, ohne dass genau dieses Turnier gerade sein "tournamentId" ist.
+  // ODER über TournamentMembership/Schicht-Zuweisung: User.tournamentId ist
+  // nur die aktuelle Präferenz (ein einzelner Wert) - ein Helfer kann in
+  // mehreren Turnieren aktiv sein, ohne dass genau dieses Turnier gerade
+  // sein "tournamentId" ist. Identische OR-Bedingung wie in broadcastPush()
+  // weiter unten - diese Liste wird auch als Empfänger-Vorschau vor dem
+  // Push-Versand verwendet (PushBroadcast.tsx) und muss deckungsgleich mit
+  // den tatsächlichen Empfängern sein, sonst würde die Vorschau weniger
+  // Helfer zeigen, als tatsächlich benachrichtigt werden.
   const users = await prisma.user.findMany({
     where: tournamentId ? {
       OR: [
         { tournamentId: Number(tournamentId) },
+        { shifts: { some: { tournamentId: Number(tournamentId) } } },
         { tournamentMemberships: { some: { tournamentId: Number(tournamentId) } } }
       ]
     } : undefined,

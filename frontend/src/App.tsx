@@ -294,7 +294,12 @@ function AdminView() {
           ) : null;
         })()}
 
-        {selectedTournamentId && (
+        {/* Nur im Spielplan-Bereich wirksam (Turnier-Tage/Felder/Teilnehmer/Modus/
+            Spielplan) - Dienstplan, Verpflegung und Push-Nachrichten lasen diesen
+            Wert nie aus, hatten aber trotzdem eine (wirkungslose, verwirrende)
+            zweite Jahrgang-Auswahl neben ihrem eigenen, echten Filter (z.B. bei
+            Verpflegung). */}
+        {selectedTournamentId && activeMainTab === 'spielplan' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 250px' }}>
             <label style={{ fontWeight: 'bold', fontSize: 14, color: '#495057' }}>Jahrgang:</label>
             <select

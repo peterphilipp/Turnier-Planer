@@ -97,7 +97,7 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
     }
 
     const recipientText = mode === 'all'
-      ? 'alle Helfer dieses Turniers'
+      ? `${volunteers.length} Helfer dieses Turniers`
       : mode === 'shifts'
       ? `${estimatedShiftRecipients} Helfer aus ${selectedShiftIds.length} Schichten`
       : `${selectedUserIds.length} ausgewählte Helfer`;
@@ -176,6 +176,51 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
             ))}
           </div>
         </div>
+
+        {/* Bedingte Anzeige: Alle Helfer - zeigt VOR dem Versand konkret, wer
+            gemeint ist (nur Helfer dieses Turniers, nie die ganze Datenbank),
+            statt sich auf eine vage Beschreibung verlassen zu müssen. */}
+        {mode === 'all' && (
+          <div style={{ background: '#f8f9fa', borderRadius: 12, padding: 16, border: '1px solid #dee2e6', marginBottom: 24 }}>
+            <div style={{ marginBottom: 12 }}>
+              <strong style={{ color: '#212529' }}>Diese Helfer werden informiert:</strong>
+              <span style={{ marginLeft: 10, fontSize: 13, background: '#e9ecef', padding: '2px 8px', borderRadius: 10, color: '#495057', fontWeight: 600 }}>
+                {volunteers.length} Helfer dieses Turniers
+              </span>
+            </div>
+
+            {loadingVolunteers ? (
+              <div style={{ textAlign: 'center', padding: 20 }}>⏳ Lade Helfer...</div>
+            ) : volunteers.length === 0 ? (
+              <div style={{ color: '#6c757d', fontStyle: 'italic', padding: 10 }}>Diesem Turnier sind noch keine Helfer zugeordnet.</div>
+            ) : (
+              <div style={{ maxHeight: 250, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {volunteers.map(v => (
+                  <div
+                    key={v.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: isMobile ? '12px 14px' : '8px 12px',
+                      minHeight: isMobile ? 56 : undefined,
+                      background: '#fff',
+                      border: '1px solid #dee2e6',
+                      borderRadius: 8,
+                      fontSize: 13
+                    }}
+                  >
+                    <div>
+                      <strong style={{ color: '#212529' }}>{v.name}</strong>
+                      {v.email && <span style={{ color: '#6c757d', marginLeft: 6 }}>({v.email})</span>}
+                    </div>
+                    {v.role && <span style={{ fontSize: 11, background: '#e9ecef', padding: '2px 6px', borderRadius: 6, color: '#495057', fontWeight: 600 }}>{v.role}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Bedingte Auswahl: Schichten */}
         {mode === 'shifts' && (
