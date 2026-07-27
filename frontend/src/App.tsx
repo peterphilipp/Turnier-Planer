@@ -37,7 +37,7 @@ type StammTab = 'turniere' | 'vereine' | 'work-areas' | 'global-time-slots' | 'h
 
 // ===================== Admin UI mit Rollen-Check =====================
 function AdminView() {
-  const { isAdmin, isOrganizer, token, login, logout } = useUser();
+  const { isAdmin, isOrganizer, token, isLoggedIn: ctxLoggedIn, login, logout } = useUser();
   const [view, setView] = useState<View>('admin');
 
   // Tabs aus localStorage laden oder Defaults
@@ -89,6 +89,13 @@ function AdminView() {
     if (token) setAuthToken(token);
   }, [token]);
 
+  // Bei Logout aus Admin-Bereich zurück zur SelfService-Seite
+  useEffect(() => {
+    if (!ctxLoggedIn && view === 'admin') {
+      setView('selfservice');
+    }
+  }, [ctxLoggedIn, view]);
+
   // Aktives Turnier automatisch auswählen
   useEffect(() => {
     const active = tournaments.find(t => t.status === 'aktiv');
@@ -113,7 +120,9 @@ function AdminView() {
   // 401/403 Fehlerbehandlung
   useEffect(() => {
     if (queryError instanceof ApiError) {
-      if (queryError.status === 401) {
+      if (queryError.status === 401 && queryError.message.includes('Session abgelaufen')) {
+        // Nur bei echter Session-Expiration logout – nicht bei anderen 401-Fehlern
+        // (z.B. "Nicht authentifiziert" wenn kein Token gesendet wurde)
         logout();
         setView('selfservice');
       } else {
@@ -424,21 +433,17 @@ function AdminView() {
 
 // ===================== Root App mit UserProvider =====================
 export default function App() {
+  // URL-Parameter auf der ersten Render-Phase auswerten (vor dem ersten Paint)
   const getInitialView = (): View => {
-    if (typeof window === 'undefined') return 'selfservice';
-    const params = new URLSearchParams(window.location.search);
-    const viewParam = params.get('view');
-    if (viewParam === 'admin') return 'admin';
-    if (viewParam === 'privacy') return 'privacy';
-    if (viewParam === 'impressum') return 'impressum';
-    if (viewParam === 'selfservice') return 'selfservice';
-    const host = window.location.hostname.toLowerCase();
-    if (host.includes('admin')) return 'admin';
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const viewParam = params.get('view');
+      if (viewParam === 'admin' || viewParam === 'privacy' || viewParam === 'impressum') return viewParam as View;
+    }
     return 'selfservice';
   };
 
-  // Initial view ohne Context (für SSR)
-  const [currentView, setCurrentView] = useState<View>(getInitialView());
+  const [currentView, setCurrentView] = useState<View>(getInitialView);
 
   if (currentView === 'privacy') {
     return <Privacy />;
@@ -451,7 +456,7 @@ export default function App() {
   return (
     <UserProvider>
       {currentView === 'selfservice' ? (
-        <SelfServiceView onLoginAsAdmin={() => setCurrentView('admin')} />
+        <SelfServiceView />
       ) : (
         <AdminView />
       )}

@@ -33,6 +33,7 @@ interface FoodDonation { id: number; foodItemId: number; quantity: number; note:
 interface FoodDonationSlot { id: number; tournamentId: number; yearGroupId: number | null; yearGroup?: { id: number; name: string; birthYearStart: number; birthYearEnd: number } | null; foodItemId: number | null; targetQuantity: number; collected: number; foodItem: { id: number; name: string; unit: string; icon: string } | null; }
 
 interface SelfServiceViewProps {
+  /** Nach Login: Direkt zum Admin-Bereich springen (nur für Admin/Organizer). */
   onLoginAsAdmin?: () => void;
 }
 
@@ -1291,56 +1292,74 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
         <>
           {busy && <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>Lade Jobs...</div>}
 
-          {!busy && shifts.length === 0 && (
-            <div style={{ padding: 40, background: '#fff', borderRadius: 16, textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-              {tournament ? (
-                <>
-                  <span style={{ fontSize: 40 }}>📅</span>
-                  <h3 style={{ marginTop: 16 }}>{tournament.name}</h3>
-                  <p style={{ color: '#666' }}>Für dieses Turnier sind momentan noch keine Job-Slots oder Schichten eingetragen. Sobald die Organisation Schichten freigibt, werden sie hier erscheinen.</p>
-                </>
-              ) : (
-                <>
-                  <span style={{ fontSize: 40 }}>🏝️</span>
-                  <h3 style={{ marginTop: 16 }}>Aktuell keine offenen Schichten</h3>
-                  <p style={{ color: '#666' }}>Momentan gibt es keine Turniere, für die Helfer gesucht werden.</p>
-                </>
-              )}
-            </div>
-          )}
-
-          {!busy && !isTournamentActive && (
-            <div style={{ padding: 20, background: '#f8f9fa', borderRadius: 16, textAlign: 'center', color: '#666', fontSize: 14 }}>
-              🏁 Dieses Turnier ist abgeschlossen - neue Zusagen sind hier nicht mehr möglich.
-            </div>
-          )}
-
-          {!busy && isTournamentActive && shifts.length > 0 && (
+          {!busy && isTournamentActive && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <h3 style={{ margin: '0 0 6px', fontSize: 16, color: clubPrimary }}>Offene Jobs</h3>
-          {shifts
-            .filter(s => !filterDate || new Date(s.date).toLocaleDateString('de-DE') === filterDate)
-            .filter(s => filterTimesOfDay.size === 0 || [...filterTimesOfDay].some(key => shiftOverlapsBlock(s.startMin, s.endMin, TIME_BLOCKS[key])))
-            .filter(s => !isPastShift(s.date, s.endMin))
-            .filter(s => {
-              // Verstecke den Job, wenn der aktuelle User bereits eingetragen ist
-              if (ctxToken && volunteerShifts.some(vs => vs.shiftId === s.id && vs.userId === ctxVolunteer?.id)) {
-                return false;
-              }
-              // Verstecke den Job, wenn er voll ist
-              const assignedCount = volunteerShifts.filter(vs => vs.shiftId === s.id).length;
-              return (s.maxVolunteers - assignedCount) > 0;
-            })
-            .sort((a, b) => {
-              const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
-              if (dateDiff !== 0) return dateDiff;
-              const timeDiff = (a.startMin ?? 0) - (b.startMin ?? 0);
-              if (timeDiff !== 0) return timeDiff;
-              const orderA = a.arbeitsbereich?.order ?? 9999;
-              const orderB = b.arbeitsbereich?.order ?? 9999;
-              if (orderA !== orderB) return orderA - orderB;
-              return (a.arbeitsbereich?.name || '').localeCompare(b.arbeitsbereich?.name || '');
-            })
+              <h3 style={{ margin: '0 0 6px', fontSize: 16, color: clubPrimary }}>Offene Jobs</h3>
+              {(() => {
+                // Gefilterte Liste berechnen
+                const filtered = shifts
+                  .filter(s => !filterDate || new Date(s.date).toLocaleDateString('de-DE') === filterDate)
+                  .filter(s => filterTimesOfDay.size === 0 || [...filterTimesOfDay].some(key => shiftOverlapsBlock(s.startMin, s.endMin, TIME_BLOCKS[key])))
+                  .filter(s => !isPastShift(s.date, s.endMin))
+                  .filter(s => {
+                    // Verstecke den Job, wenn der aktuelle User bereits eingetragen ist
+                    if (ctxToken && volunteerShifts.some(vs => vs.shiftId === s.id && vs.userId === ctxVolunteer?.id)) {
+                      return false;
+                    }
+                    // Verstecke den Job, wenn er voll ist
+                    const assignedCount = volunteerShifts.filter(vs => vs.shiftId === s.id).length;
+                    return (s.maxVolunteers - assignedCount) > 0;
+                  });
+                
+                // Wenn gefiltert leer → 404-Bild anzeigen
+                if (filtered.length === 0 && shifts.length > 0) {
+                  return (
+                    <div style={{ 
+                      padding: '48px 24px', 
+                      background: `linear-gradient(135deg, ${clubPrimary}08, ${clubSecondary}08)`, 
+                      borderRadius: 20, 
+                      textAlign: 'center', 
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.06)',
+                      border: `1px solid ${clubPrimary}15`,
+                      animation: 'fadeIn 0.4s ease-out'
+                    }}>
+                      <img 
+                        src="/404-dog.webp" 
+                        alt="Keine Schichten gefunden" 
+                        style={{ 
+                          maxWidth: 260, 
+                          height: 'auto', 
+                          marginBottom: 20,
+                          borderRadius: 16,
+                          filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))',
+                          transition: 'transform 0.3s ease'
+                        }} 
+                      />
+                      <p style={{ 
+                        color: '#666', 
+                        fontSize: isMobile ? 14 : 15, 
+                        lineHeight: 1.6,
+                        maxWidth: 400,
+                        margin: '0 auto'
+                      }}>
+                        Für diese Filterkombination sind keine offenen Jobs verfügbar.
+                      </p>
+                    </div>
+                  );
+                }
+                
+                // Sortierte Liste rendern
+                return filtered
+                  .sort((a, b) => {
+                    const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+                    if (dateDiff !== 0) return dateDiff;
+                    const timeDiff = (a.startMin ?? 0) - (b.startMin ?? 0);
+                    if (timeDiff !== 0) return timeDiff;
+                    const orderA = a.arbeitsbereich?.order ?? 9999;
+                    const orderB = b.arbeitsbereich?.order ?? 9999;
+                    if (orderA !== orderB) return orderA - orderB;
+                    return (a.arbeitsbereich?.name || '').localeCompare(b.arbeitsbereich?.name || '');
+                  })
             .map((slot, idx, sortedSlots) => {
               const prevSlot = idx > 0 ? sortedSlots[idx - 1] : null;
               const d = new Date(slot.date);
@@ -1384,7 +1403,8 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                   </div>
                 </div>
               );
-            })}
+            });
+            })()}
             </div>
           )}
         </>

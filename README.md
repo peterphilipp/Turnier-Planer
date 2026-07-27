@@ -6,9 +6,12 @@ Webanwendung zur Planung von Fußballturnieren, Verwaltung von Helfer-Dienstplä
 - ✅ Turniere, Gruppen & Spielplan erstellen
 - ✅ Ergebnisse live pflegen
 - 👥 Wochen-Dienstplan für Helfer mit Drag & Drop
+- 📅 Gantt-Chart-Vorlagen für Tag-Planung (TemplateWorkAreas)
 - 🍞 Lebensmittel-Spendenmanagement (Jahrgang-basiert)
 - 🏅 Vereinsbranding (2-Farben-Theming + Logo)
-- 🔐 SelfService-Portal für Helfer (Login, Buchung, Spenden)
+- 🔐 SelfService-Portal mit Passkey-Authentifizierung
+- 👤 Rolle-basierte Weiterleitung nach Login (Admin/Organisator vs. Helfer)
+- 📱 Responsive Design (Mobile/Tablet/Desktop)
 - 📧 Passwort-zurücksetzen per E-Mail (Resend)
 - 🐳 Dockerized (Backend + Frontend)
 - 🚀 GitHub Actions CI/CD Pipeline
@@ -20,18 +23,18 @@ Webanwendung zur Planung von Fußballturnieren, Verwaltung von Helfer-Dienstplä
 ```mermaid
 graph TD
     subgraph Browser ["🌐 Benutzer / Browser"]
-        URL["URL: turnier-planer.mygate.dedyn.io\n?view=admin → Admin\n(kein Parameter) → SelfService"]
+        Login["Login-Seite\n(SelfServiceView)"]
     end
 
     subgraph Frontend ["⚛️ Frontend – React + Vite"]
-        App["App.tsx\nURL-Routing\nView-Selector"]
+        App["App.tsx\nRolle-basiertes Routing\nGeräte-Typ-Erkennung"]
         SS["SelfServiceView\n📱 Helfer-Portal"]
         Admin["Admin-Bereich\n🖥️ Management"]
     end
 
     subgraph Backend ["🟢 Backend – Express + tsx"]
         API["Express API\nPort: 5000"]
-        Auth["Auth\nJWT + bcrypt"]
+        Auth["Auth\nJWT + Passkey + bcrypt"]
         Email["E-Mail\nResend API"]
     end
 
@@ -39,7 +42,7 @@ graph TD
         DB[("SQLite\ndev.db\nPrisma ORM")]
     end
 
-    URL --> App
+    Login --> App
     App --> SS
     App --> Admin
     SS --> API
@@ -56,23 +59,21 @@ graph TD
 | Frontend      | React 18 + Vite + TypeScript         |
 | Backend       | Express.js + tsx (TypeScript Runtime)|
 | Datenbank     | SQLite + Prisma ORM                  |
-| Auth          | JWT (`jsonwebtoken`) + bcrypt        |
+| Auth          | JWT (`jsonwebtoken`) + Passkey + bcrypt |
 | E-Mail        | Resend API                           |
 | Deployment    | Docker Compose + GitHub Actions      |
 | CI/CD         | GHCR (GitHub Container Registry)     |
 
-### Zwei Ansichten über URL-Routing
+### Ansicht nach Login
 
-Die Anwendung bietet zwei getrennte Oberflächen, die **über eine einzige Domain** gesteuert werden:
+**Alle Benutzer** landen nach dem Login auf der **SelfService-Seite** (`SelfServiceView`).
 
-| URL | Ansicht | Zielgruppe |
-|-----|---------|------------|
-| `https://turnier-planer.mygate.dedyn.io` | SelfServiceView | Helfer |
-| `?view=admin` Query-Parameter | Admin (App.tsx) | Administration |
+| Rolle des Benutzers | Verhalten |
+|---------------------|-----------|
+| Alle (HELPER, ORGANIZER, ADMIN) | SelfService-Portal (`SelfServiceView`) |
 
----
-
-## ER-Modell
+- **Helfer**: Nutzen das SelfService-Portal (Dienstplan, Spenden, Buchung)
+- **Admins/Organisatoren**: Können über den Button „⚙️ Admin-Bereich" in den Admin-Bereich wechseln.
 
 > ℹ️ **Verbindliche Quelle des Datenmodells ist [`backend/prisma/schema.prisma`](backend/prisma/schema.prisma).**
 > Das folgende Diagramm und das Data Dictionary sind eine vereinfachte, teils historische
@@ -90,19 +91,25 @@ erDiagram
     Tournament ||--o{ FoodDonation : "has"
     Tournament ||--o{ FoodDonationSlot : "has"
     Tournament ||--o{ MaterialItem : "has"
+    Tournament ||--o{ TournamentDay : "has"
+
+    GlobalDayTemplate ||--o{ TemplateWorkArea : "contains"
+    TemplateWorkArea }o--|| WorkArea : "references"
+    TournamentDay ||--o{ DaySlot : "has"
+    DaySlot }o--|| TemplateWorkArea : "source"
 
     Group ||--o{ Team : "contains"
     Team ||--o| Match : "teamA"
     Team ||--o| Match : "teamB"
 
-    Volunteer ||--o{ VolunteerChild : "has"
-    Volunteer ||--o{ VolunteerShift : "assigned"
-    Volunteer ||--o{ FoodDonation : "makes"
-    Volunteer ||--o{ FoodDonationSlot : "targets"
+    User ||--o{ UserChild : "has"
+    User ||--o{ VolunteerShift : "assigned"
+    User ||--o{ FoodDonation : "makes"
+    User ||--o{ FoodDonationSlot : "targets"
 
-    Shift }o--|| Zeitslot : "uses"
-    Shift }o--|| Arbeitsbereich : "at"
-    VolunteerShift }o--|| Volunteer : "by"
+    Shift }o--|| DaySlot : "uses"
+    Shift }o--|| TournamentWorkArea : "at"
+    VolunteerShift }o--|| User : "by"
     VolunteerShift }o--|| Shift : "for"
 
     FoodCategory ||--o{ FoodItem : "contains"
@@ -126,6 +133,37 @@ erDiagram
         datetime endDate
         string status
         int clubId FK
+    }
+
+    GlobalDayTemplate {
+        int id PK
+        string name
+        string description
+        int order
+    }
+
+    TemplateWorkArea {
+        int id PK
+        int templateId FK
+        int workAreaId FK
+        int startMin
+        int endMin
+    }
+
+    TournamentDay {
+        int id PK
+        int tournamentId FK
+        datetime date
+        string label
+        int sourceTemplateId FK
+    }
+
+    DaySlot {
+        int id PK
+        int tournamentDayId FK
+        int startMin
+        int endMin
+        int sourceTemplateWorkAreaId FK
     }
 
     Group {
@@ -152,39 +190,49 @@ erDiagram
         string field
     }
 
-    Volunteer {
+    User {
         int id PK
         string name
         string email
         string phone
         string password
-        string roles
+        string role
+        boolean isPrimaryAdmin
         int tournamentId FK
     }
 
-    VolunteerChild {
+    UserChild {
         int id PK
-        int volunteerId FK
+        int userId FK
         string childName
         int childYear
     }
 
     VolunteerShift {
         int id PK
-        int volunteerId FK
+        int userId FK
         int shiftId FK
         datetime date
         string slot
         string role
     }
 
-    Arbeitsbereich {
+    WorkArea {
         int id PK
         string name
         string icon
         int minVolunteers
         int maxVolunteers
         string color
+        int operatingStartMin
+        int operatingEndMin
+    }
+
+    TournamentWorkArea {
+        int id PK
+        int tournamentId FK
+        int workAreaId FK
+        int targetHelpers
     }
 
     Zeitslot {
@@ -200,8 +248,8 @@ erDiagram
         int id PK
         int tournamentId FK
         datetime date
-        int zeitslotId FK
-        int arbeitsbereichId FK
+        int daySlotId FK
+        int tournamentWorkAreaId FK
         int maxVolunteers
     }
 
@@ -240,7 +288,7 @@ erDiagram
     FoodDonation {
         int id PK
         int tournamentId FK
-        int volunteerId FK
+        int userId FK
         int slotId FK
         int foodItemId FK
         int quantity
@@ -258,7 +306,7 @@ erDiagram
 
     PasswordResetToken {
         int id PK
-        int volunteerId FK
+        int userId FK
         string token
         datetime expiresAt
         boolean used
@@ -270,13 +318,18 @@ erDiagram
 | Modell | Beschreibung |
 |--------|-------------|
 | **Club** | Verein mit Logo und 2-Farben-Theming (Primary/Secondary) |
-| **Tournament** | Turnier mit Status (aktiv/beendet/archiviert), verknüpft mit Club |
+| **Tournament** | Turnier mit Status (`aktiv` / `entwurf` / `archiviert`), verknüpft mit Club |
 | **Group / Team** | Gruppenphase: Groups enthalten Teams, Teams spielen Matches |
 | **Match** | Begegnung zwischen zwei Teams mit Ergebnis und Feld/Zeit |
-| **Arbeitsbereich** | Physischer Station (Verkaufsstand, Grillstand, etc.) mit Min/Max Helfer |
+| **WorkArea** (Arbeitsbereich) | Physische Station mit Min/Max Helfer + Betriebszeiten (`operatingStartMin`/`EndMin`) |
+| **TournamentWorkArea** | Zuordnung von WorkAreas zu einem Turnier mit Zielhelfer-Anzahl |
 | **Zeitslot** | Zeitfenster (Start/Ende) für Schichten |
-| **Shift** | Konkreter Job-Slot: Datum × Zeitslot × Arbeitsbereich |
-| **User** (Code-Name; früher „Volunteer") | Helferin/Helfer mit Login-Daten, Rolle (`role`: HELPER/ORGANIZER/ADMIN) |
+| **GlobalDayTemplate** | Tag-Vorlage mit `order`-Feld für manuelle Sortierung |
+| **TemplateWorkArea** | Vorlagen-Eintrag: WorkArea + startMin/endMin (Gantt-Chart-Daten) |
+| **TournamentDay** | Konkreter Turniertag, erstellt aus einer GlobalDayTemplate (`sourceTemplateId`) |
+| **DaySlot** | Slot eines Turniertags mit direktem Verweis auf TemplateWorkArea (`sourceTemplateWorkAreaId`) |
+| **Shift** | Konkreter Job-Slot: Datum × DaySlot × TournamentWorkArea (keine Betriebszeiten-Zuschneidung!) |
+| **User** (Code-Name; früher „Volunteer") | Helferin/Helfer mit Login-Daten, Rolle (`role`: HELPER/ORGANIZER/ADMIN) + Passkey-Support |
 | **UserChild** (früher „VolunteerChild") | Kind einer Helferin (Name + Jahrgang) für Spendenfilterung |
 | **VolunteerShift** | Zuweisung: Wer ist wann in welcher Schicht? |
 | **FoodCategory / FoodItem** | Lebensmittel-Kategorien und -Artikel mit Preisen |
@@ -539,14 +592,16 @@ Es gibt zwei Wege, um eine neue Version (Image) zu bauen:
 *(Hinweis zur Datenbank: Beim allerersten Start in Produktion sorgt die Ignition Phase (`prisma/seed.ts`) dafür, dass Standard-Lebensmittel und Arbeitsbereiche automatisch angelegt werden. Migrationen werden vor dem Seed ausgeführt – die DB ist immer auf dem neuesten Schema-Stand).*
 
 ### Zugriff über eine einzige Domain
-Alle Funktionen sind über **eine Subdomain** erreichbar – die Ansicht wird per Query-Parameter gesteuert:
+Alle Funktionen sind über **eine Subdomain** erreichbar:
 
 | URL | Ansicht |
 |-----|---------|
-| `https://turnier-planer.mygate.dedyn.io` | SelfServiceView (Helfer-Portal) |
-| `https://turnier-planer.mygate.dedyn.io?view=admin` | Admin-Bereich |
+| `https://turnier-planer.mygate.dedyn.io` | SelfServiceView (Login + Helfer-Portal) |
+| `?view=privacy` | Datenschutzerklärung |
+| `?view=impressum` | Impressum |
 
-**Vorteil:** Keine zweite Subdomain oder DNS-Einträge nötig. Admin-Zugriff direkt über URL-Parameter.
+> ℹ️ Der Admin-Bereich wird **nicht** über die URL erreicht, sondern nach dem Login
+> über den Button „⚙️ Admin-Bereich" in der SelfService-Ansicht.
 
 ---
 

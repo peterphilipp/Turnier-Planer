@@ -48,7 +48,14 @@ export const apiFetch = async (url: string, options?: RequestInit): Promise<any>
     
     // Spezielle Behandlung für 401 Unauthorized
     if (res.status === 401) {
-      throw new ApiError('Session abgelaufen – bitte neu anmelden', 401);
+      // Nur "Session abgelaufen" anzeigen wenn der User bereits eingeloggt war.
+      // Beim Login selbst ist ein 401 meist falsches Passwort – da die
+      // eigentliche Fehlermeldung des Servers durchlassen.
+      const hasActiveSession = currentToken || localStorage.getItem('token');
+      if (hasActiveSession) {
+        throw new ApiError('Session abgelaufen – bitte neu anmelden', 401);
+      }
+      // Kein Token vorhanden → Server-Fehlermeldung durchlassen
     }
 
     let errorMsg = 'Ein Fehler ist aufgetreten';

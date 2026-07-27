@@ -408,3 +408,8 @@ services:
 ## Debugging/Loop Rules
 - Bei wiederholten Loop-Warnungen des Users: Sofort die Loop unterbrechen und direkt implementieren
 - Nicht mehrere Male dieselben grep-Befehle ausführen - direkt zum Fix übergehen
+
+## Release Rules
+- **Niemals eigenmächtig Releases erstellen!**
+- Nur auf explizites User-Kommando "Release" hin ein Release durchführen (tag + push)
+- Vor einem Release immer kurz den Commit-Zusammenfassung nennen und auf Freigabe warten

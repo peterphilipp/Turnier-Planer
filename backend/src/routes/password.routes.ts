@@ -379,7 +379,8 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res, next)
 
       const userRole = await resolveRoleAndForceAdmin(user);
       const token = signSessionToken(user.id, userRole);
-      res.json({ token, user: sanitizeUser(user) });
+      // Korrigierte Rolle an Frontend übergeben (resolveRoleAndForceAdmin kann HELPER → ADMIN ändern)
+      res.json({ token, user: sanitizeUser({ ...user, role: userRole }) });
   } catch (err) {
     next(err);
   }
