@@ -28,10 +28,11 @@ RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists
 COPY backend/package.json backend/package-lock.json ./
 RUN npm ci
 
-# Prisma
+# Prisma – DATABASE_URL muss VOR db push gesetzt sein!
+ENV DATABASE_URL="file:/app/data/dev.db"
 COPY backend/prisma ./prisma/
 RUN npx prisma generate
-# Migrations anwenden (sicher: ignoriert bereits angewendete)
+# Schema im Image syncen (sicher: ignoriert bereits angewendete)
 RUN npx prisma db push --accept-data-loss
 
 # Source & Frontend dist
