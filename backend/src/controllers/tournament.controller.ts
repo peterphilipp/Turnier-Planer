@@ -10,7 +10,7 @@ const tournamentBaseSchema = z.object({
   description: z.string().max(2000).optional(),
   startDate: z.string().or(z.date()),
   endDate: z.string().or(z.date()),
-  status: z.enum(['aktiv', 'beendet', 'archiviert']).default('aktiv'),
+  status: z.enum(['aktiv', 'entwurf', 'archiviert']).default('aktiv'),
   turnierModus: z.enum(['GRUPPEN_KO', 'KO', 'LIGA']).default('GRUPPEN_KO'),
   clubId: z.number().int().positive().nullable().optional(),
   yearGroupIds: z.array(z.number().int().positive()).optional(),
@@ -42,7 +42,7 @@ export const updateTournamentSchema = tournamentBaseSchema.partial().refine(date
 });
 
 export const tournamentStatusSchema = z.object({
-  status: z.enum(['aktiv', 'beendet', 'archiviert'])
+  status: z.enum(['aktiv', 'entwurf', 'archiviert'])
 });
 
 export const tournamentModeSchema = z.object({
@@ -140,7 +140,7 @@ export const updateTournament = async (req: Request, res: Response) => {
 
 export const updateTournamentStatus = async (req: Request, res: Response) => {
   const { status } = req.body;
-  if (!['aktiv', 'beendet', 'archiviert'].includes(status)) {
+  if (!['aktiv', 'entwurf', 'archiviert'].includes(status)) {
     return res.status(400).json({ error: 'Ungültiger Status' });
   }
   const tournament = await prisma.tournament.update({

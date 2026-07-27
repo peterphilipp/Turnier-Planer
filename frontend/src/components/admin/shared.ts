@@ -84,7 +84,7 @@ export const shadeColor = (color: string, percent: number) => {
   return '#' + (R.toString(16).padStart(2, '0')) + (G.toString(16).padStart(2, '0')) + (B.toString(16).padStart(2, '0'));
 };
 
-export const statusBadge = (status: string) => status === 'aktiv' ? '🟢' : status === 'beendet' ? '🟡' : '⚪';
+export const statusBadge = (status: string) => status === 'aktiv' ? '🟢' : status === 'entwurf' ? '⚪' : '⚫';
 
 // Zeit-Helfer: Minuten seit Mitternacht <-> "HH:MM"
 export const minToTime = (min: number) => `${Math.floor(min / 60).toString().padStart(2, '0')}:${(min % 60).toString().padStart(2, '0')}`;

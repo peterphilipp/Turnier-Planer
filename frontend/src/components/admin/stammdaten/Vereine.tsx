@@ -150,11 +150,17 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
         <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>🛡️ Vereine & Clubs</h3>
         
         {/* Neue Verein Form */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-          <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="Vereinsname" style={{ flex: 1, minWidth: 200, padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
-          <input value={clubForm.city} onChange={e => setClubForm({ ...clubForm, city: e.target.value })} placeholder="Stadt" style={{ width: 150, padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 16 }}>
+          <div style={{ flex: 2, minWidth: 200 }}>
+            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
+            <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="z.B. TSV Holm" style={{ width: '100%', padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+          </div>
+          <div style={{ width: 160 }}>
+            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🏙️ Stadt</label>
+            <input value={clubForm.city} onChange={e => setClubForm({ ...clubForm, city: e.target.value })} placeholder="z.B. Holm" style={{ width: '100%', padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+          </div>
           <button onClick={saveClub} style={{ padding: '14px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, minHeight: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
-            <span>➕</span><span>Hinzufügen</span>
+            <span style={{ fontSize: 18, fontWeight: 'bold', lineHeight: 1 }} aria-hidden="true">+</span><span>Hinzufügen</span>
           </button>
         </div>
       </div>
@@ -187,18 +193,29 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
 
       {/* Edit Modal */}
       {editingClub && (
-        <EditModal title="Verein bearbeiten" onClose={closeEdit}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            
-            {/* Name & Stadt – einheitliche Inputs (40px Höhe, 14px Schrift) */}
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="Vereinsname" style={{ flex: 1, minWidth: 200, padding: '10px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 14, minHeight: 40 }} />
-              <input value={clubForm.city} onChange={e => setClubForm({ ...clubForm, city: e.target.value })} placeholder="Stadt" style={{ width: 150, padding: '10px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 14, minHeight: 40 }} />
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '28px 32px 24px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '90%', maxWidth: 560, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>✏️ Verein bearbeiten</h3>
+              <button onClick={closeEdit} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#666' }}>×</button>
             </div>
+            {/* Scrollbarer Inhalt */}
+            <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                
+                {/* Name & Stadt – mit Labels (§13.1) */}
+                <div>
+                  <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
+                  <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="Vereinsname" style={{ width: '100%', padding: '10px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 14, minHeight: 40, boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🏙️ Stadt</label>
+                  <input value={clubForm.city} onChange={e => setClubForm({ ...clubForm, city: e.target.value })} placeholder="z.B. Holm" style={{ width: '100%', padding: '10px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 14, minHeight: 40, boxSizing: 'border-box' }} />
+                </div>
 
             {/* Logo-Upload */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <label style={{ fontSize: 14, color: '#495057', minWidth: 60 }}>Logo</label>
+              <label style={{ fontSize: 14, color: '#495057', minWidth: 60 }}>🖼️ Logo</label>
               <input type="file" accept="image/*" ref={fileInputRef} onChange={handleLogoUpload} style={{ display: 'none' }} />
               {!clubLogo ? (
                 <button onClick={() => fileInputRef.current?.click()} style={{ padding: '10px 16px', border: '1px solid #dee2e6', background: '#fff', borderRadius: 8, cursor: 'pointer', fontSize: 14, minHeight: 40, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -225,7 +242,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
             {/* Vereinsfarben – nur wenn Logo vorhanden */}
             {clubLogo && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <label style={{ fontSize: 14, color: '#495057' }}>Vereinsfarben</label>
+                <label style={{ fontSize: 14, color: '#495057' }}>🎨 Vereinsfarben</label>
                 
                 {/* Detaillierte Legende – was die Farben bewirken */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 14, color: '#6c757d' }}>
@@ -247,13 +264,15 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
               </div>
             )}
 
-            {/* Buttons – einheitlich */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid #e9ecef' }}>
+            </div>
+            {/* Fixierter Footer – IMMER sichtbar (§13.2) */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid #e9ecef', marginTop: 0 }}>
               <button onClick={closeEdit} style={{ ...btnStyleSecondary, border: '1px solid #dee2e6', background: '#fff', padding: '10px 20px', fontSize: 14 }}>Abbrechen</button>
               <button onClick={saveClub} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14, minHeight: 40 }}>Speichern</button>
             </div>
           </div>
-        </EditModal>
+        </div>
+      </div>
       )}
     </>
   );

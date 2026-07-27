@@ -91,15 +91,19 @@ export default function WorkAreaCategories({ adminPrimary = '#6c757d' }: { admin
         Tagesvorlagen generieren ihren Namen vollautomatisch aus diesen Kategorien.
       </p>
 
-      <div style={{ display: 'flex', gap: 8, margin: '16px 0', flexWrap: 'wrap' }}>
-        <input 
-          style={{ ...inputStyle, flex: 1, minWidth: 200 }} 
-          placeholder="Neue Kategorie (z. B. Siegerehrung)" 
-          value={newName}
-          onChange={e => setNewName(e.target.value)} 
-          onKeyDown={e => e.key === 'Enter' && addCategory()} 
-        />
-        <button style={{ ...btnStyle, background: adminPrimary, color: '#fff' }} onClick={addCategory}>+ Kategorie</button>
+      {/* Neue Kategorie */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '16px 0' }}>
+        <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input 
+            style={{ ...inputStyle, flex: 1, minWidth: 200 }} 
+            placeholder="z. B. Siegerehrung" 
+            value={newName}
+            onChange={e => setNewName(e.target.value)} 
+            onKeyDown={e => e.key === 'Enter' && addCategory()} 
+          />
+          <button style={{ ...btnStyle, background: adminPrimary, color: '#fff', minHeight: 44 }} onClick={addCategory}><span style={{ fontSize: 18, fontWeight: 'bold', lineHeight: 1 }}>+</span> Hinzufügen</button>
+        </div>
       </div>
 
       {categories.length === 0 && <p style={{ color: '#888' }}>Keine Kategorien vorhanden.</p>}
@@ -142,10 +146,10 @@ export default function WorkAreaCategories({ adminPrimary = '#6c757d' }: { admin
                 onKeyDown={e => { if (e.key === 'Enter') { updateName(c.id, e.currentTarget.value); setEditingId(null); } }}
               />
             ) : (
-              <strong style={{ flex: 1, cursor: 'pointer', fontSize: 15 }} onClick={() => setEditingId(c.id)}>
-                {c.name}
-              </strong>
+              <strong style={{ flex: 1, fontSize: 15 }}>{c.name}</strong>
             )}
+
+            <button onClick={() => setEditingId(editingId === c.id ? null : c.id)} style={{ ...btnStyle, background: editingId === c.id ? '#d1e7dd' : '#fff3cd', color: editingId === c.id ? '#0f5132' : '#856404', padding: '4px 8px', minHeight: 32 }} title={editingId === c.id ? "Fertig" : "Bearbeiten"}>{editingId === c.id ? '✓' : '✏️'}</button>
 
             <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
               <input type="checkbox" checked={c.isObsolete} onChange={() => toggleObsolete(c)} />

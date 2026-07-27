@@ -15,7 +15,7 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
 
   const [statusDialog, setStatusDialog] = useState({ open: false, tournament: null as Tournament | null, editName: '', editClubId: '', editStart: '', editEnd: '', editStatus: '', yearGroupIds: [] as number[], logoFile: null as File | null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '' });
 
-  const [newTourn, setNewTourn] = useState({ name: '', start: '', end: '', clubId: '' });
+  const [newTourn, setNewTourn] = useState({ name: '', start: '', end: '', clubId: '', isActive: true });
   const [isEndTouched, setIsEndTouched] = useState(false);
 
   // Keine Datumswerte in der Vergangenheit anbieten (Von/Bis).
@@ -75,7 +75,7 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
       name,
       startDate: start,
       endDate: end,
-      status: 'aktiv',
+      status: newTourn.isActive ? 'aktiv' : 'entwurf',
       clubId: clubId ? parseInt(clubId) : null,
       // turnierModus bewusst nicht gesetzt (Backend-Default GRUPPEN_KO greift) -
       // der Modus wird jetzt ausschließlich über den "Modus"-Tab im
@@ -83,7 +83,7 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
       yearGroupIds: []
     });
     queryClient.invalidateQueries({ queryKey: ['tournaments'] });
-    setNewTourn({ name: '', start: '', end: '', clubId: '' });
+    setNewTourn({ name: '', start: '', end: '', clubId: '', isActive: true });
     setIsEndTouched(false);
   };
 
@@ -94,8 +94,8 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
   };
 
   const statusBadge = (status: string) => {
-    const colors: Record<string, { bg: string; color: string }> = { aktiv: { bg: '#d1e7dd', color: '#0f5132' }, beendet: { bg: '#fff3cd', color: '#856404' }, entwurf: { bg: '#e9ecef', color: '#495057' } };
-    const c = colors[status] || colors.entwurf;
+    const colors: Record<string, { bg: string; color: string }> = { aktiv: { bg: '#d1e7dd', color: '#0f5132' }, entwurf: { bg: '#e9ecef', color: '#495057' }, archiviert: { bg: '#f8f9fa', color: '#495057' } };
+    const c = colors[status] || colors.aktiv;
     return <span style={{ padding: '4px 12px', background: c.bg, color: c.color, borderRadius: 20, fontSize: 13, fontWeight: 600 }}>{status}</span>;
   };
 
@@ -104,15 +104,33 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
       <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>🏆 Turnier-Verwaltung</h3>
       
       {/* Neue Turnier Form */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input value={newTourn.name} onChange={e => setNewTourn(prev => ({...prev, name: e.target.value}))} placeholder="Turnier-Name" style={{ flex: 1, minWidth: 200, padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-        <input type="date" value={newTourn.start} min={todayStr} max={newTourn.end || undefined} onChange={handleNewStartChange} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-        <input type="date" value={newTourn.end} min={newTourn.start || todayStr} onChange={handleNewEndChange} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-        <select value={newTourn.clubId} onChange={e => setNewTourn(prev => ({...prev, clubId: e.target.value}))} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }}>
-          <option value="">-- Kein Verein --</option>
-          {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <button onClick={createTournament} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>➕ Turnier</button>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch', marginBottom: 16 }}>
+        <div style={{ flex: 2, minWidth: 250, display: 'flex', flexDirection: 'column' }}>
+          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
+          <input value={newTourn.name} onChange={e => setNewTourn(prev => ({...prev, name: e.target.value}))} placeholder="z.B. Sommerturnier" style={{ width: '100%', padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+        </div>
+        <div style={{ width: 150, display: 'flex', flexDirection: 'column' }}>
+          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📅 Von</label>
+          <input type="date" value={newTourn.start} min={todayStr} max={newTourn.end || undefined} onChange={handleNewStartChange} style={{ width: '100%', padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+        </div>
+        <div style={{ width: 150, display: 'flex', flexDirection: 'column' }}>
+          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📅 Bis</label>
+          <input type="date" value={newTourn.end} min={newTourn.start || todayStr} onChange={handleNewEndChange} style={{ width: '100%', padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+        </div>
+        <div style={{ flex: 1, minWidth: 180, display: 'flex', flexDirection: 'column' }}>
+          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🏅 Verein</label>
+          <select value={newTourn.clubId} onChange={e => setNewTourn(prev => ({...prev, clubId: e.target.value}))} style={{ width: '100%', padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }}>
+            <option value="">-- Kein Verein --</option>
+            {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div style={{ width: 70, display: 'flex', flexDirection: 'column' }}>
+          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📊 Aktiv</label>
+          <input type="checkbox" id="newTournActive" checked={newTourn.isActive} onChange={e => setNewTourn(prev => ({...prev, isActive: e.target.checked}))} style={{ width: 20, height: 20, cursor: 'pointer' }} />
+        </div>
+        <button onClick={createTournament} style={{ padding: '8px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, height: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
+          <span style={{ fontSize: 18, fontWeight: 'bold', lineHeight: 1 }} aria-hidden="true">+</span><span>Hinzufügen</span>
+        </button>
       </div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -142,9 +160,7 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
               </td>
               <td style={{ padding: '8px 12px' }}>
                 <div style={{ display: 'flex', gap: 4 }}>
-                  <button onClick={() => setStatusDialog({ open: true, tournament: t, editName: t.name, editClubId: String(t.clubId || ''), editStart: t.startDate.split('T')[0], editEnd: t.endDate.split('T')[0], editStatus: t.status, yearGroupIds: t.yearGroups?.map(yg => yg.id) || [], logoFile: null, editHasSponsor: t.hasSponsor || false, editSponsorName: t.sponsorName || '', editSponsorUrl: t.sponsorUrl || '' })} style={{ padding: '10px 16px', border: 'none', background: adminSecondary, color: '#fff', borderRadius: 8, cursor: 'pointer', minHeight: 40, minWidth: 80, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 15 }}>
-                    <span>⚙️</span><span>Edit</span>
-                  </button>
+                  <button onClick={() => setStatusDialog({ open: true, tournament: t, editName: t.name, editClubId: String(t.clubId || ''), editStart: t.startDate.split('T')[0], editEnd: t.endDate.split('T')[0], editStatus: (t.status || 'aktiv').toLowerCase(), yearGroupIds: t.yearGroups?.map(yg => yg.id) || [], logoFile: null, editHasSponsor: t.hasSponsor || false, editSponsorName: t.sponsorName || '', editSponsorUrl: t.sponsorUrl || '' })} style={{ width: 40, height: 40, border: 'none', background: '#fff3cd', color: '#856404', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✏️</button>
                   <button onClick={() => deleteTournament(t)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
                 </div>
               </td>
@@ -155,14 +171,27 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
 
       {/* Edit Modal */}
       {statusDialog.open && statusDialog.tournament && (
-        <EditModal title={`Turnier bearbeiten: ${statusDialog.tournament.name}`} onClose={closeStatusDialog}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <input value={statusDialog.editName} onChange={e => setStatusDialog({ ...statusDialog, editName: e.target.value })} placeholder="Name" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <input type="date" value={statusDialog.editStart} min={todayStr} max={statusDialog.editEnd || undefined} onChange={e => setStatusDialog({ ...statusDialog, editStart: e.target.value })} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-              <input type="date" value={statusDialog.editEnd} min={statusDialog.editStart || todayStr} onChange={e => setStatusDialog({ ...statusDialog, editEnd: e.target.value })} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '28px 32px 24px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '90%', maxWidth: 640, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>✏️ Turnier bearbeiten</h3>
+              <button onClick={closeStatusDialog} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#666' }}>×</button>
             </div>
-            <div><label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Verein</label>
+            {/* Scrollbarer Inhalt */}
+            <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
+              <input value={statusDialog.editName} onChange={e => setStatusDialog({ ...statusDialog, editName: e.target.value })} placeholder="z.B. Sommerturnier 2025" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8, width: '100%', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📅 Zeitraum</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <input type="date" value={statusDialog.editStart} min={todayStr} max={statusDialog.editEnd || undefined} onChange={e => setStatusDialog({ ...statusDialog, editStart: e.target.value })} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
+                <input type="date" value={statusDialog.editEnd} min={statusDialog.editStart || todayStr} onChange={e => setStatusDialog({ ...statusDialog, editEnd: e.target.value })} style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
+              </div>
+            </div>
+            <div><label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🏅 Verein</label>
               <select value={statusDialog.editClubId} onChange={e => setStatusDialog({ ...statusDialog, editClubId: e.target.value })} style={{ width: '100%', padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }}>
                 <option value="">-- Kein Verein --</option>
                 {clubs.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
@@ -173,16 +202,16 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
               <div style={{ marginTop: 8, padding: 12, border: '1px solid #dee2e6', borderRadius: 8, background: '#f8f9fa' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 'bold', fontSize: 13, cursor: 'pointer', marginBottom: statusDialog.editHasSponsor ? 12 : 0 }}>
                   <input type="checkbox" checked={statusDialog.editHasSponsor} onChange={e => setStatusDialog({ ...statusDialog, editHasSponsor: e.target.checked })} style={{ width: 16, height: 16 }} />
-                  Hat Sponsor?
+                  🤝 Hat Sponsor?
                 </label>
                 {statusDialog.editHasSponsor && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div>
-                      <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Sponsor Name</label>
+                      <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🤝 Sponsor Name</label>
                       <input value={statusDialog.editSponsorName} onChange={e => setStatusDialog({ ...statusDialog, editSponsorName: e.target.value })} placeholder="Name des Sponsors" style={{ width: '100%', padding: '8px 10px', border: '1px solid #dee2e6', borderRadius: 6, boxSizing: 'border-box' }} />
                     </div>
                     <div>
-                      <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Sponsor URL (Link)</label>
+                      <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🔗 Sponsor URL</label>
                       <input value={statusDialog.editSponsorUrl} onChange={e => setStatusDialog({ ...statusDialog, editSponsorUrl: e.target.value })} placeholder="https://www.sponsor.de" style={{ width: '100%', padding: '8px 10px', border: '1px solid #dee2e6', borderRadius: 6, boxSizing: 'border-box' }} />
                     </div>
                     <div>
@@ -225,12 +254,12 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
                 zu schließen (das hätte bisher alle anderen offenen Änderungen im
                 selben Editor verworfen). */}
             <div>
-              <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Status</label>
+              <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📊 Status</label>
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 {([
                   { value: 'aktiv', label: '🟢 Aktiv', bg: '#d1e7dd', color: '#0f5132' },
-                  { value: 'beendet', label: '🟡 Beenden', bg: '#fff3cd', color: '#856404' },
-                  { value: 'entwurf', label: '⚪ Entwurf', bg: '#e9ecef', color: '#495057' }
+                  { value: 'entwurf', label: '⚪ Entwurf', bg: '#e9ecef', color: '#495057' },
+                  { value: 'archiviert', label: '⚫ Archiviert', bg: '#f8f9fa', color: '#495057' }
                 ] as const).map(s => {
                   const active = statusDialog.editStatus === s.value;
                   return (
@@ -252,12 +281,15 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            </div>
+            {/* Fixierter Footer – IMMER sichtbar (§13.2) */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid #e9ecef', marginTop: 0, position: 'sticky', bottom: 0, background: '#fff' }}>
               <button onClick={closeStatusDialog} style={{ ...btnStyleSecondary, border: '1px solid #dee2e6', background: '#fff' }}>Abbrechen</button>
               <button onClick={saveTournamentEdit} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>💾 Speichern</button>
             </div>
           </div>
-        </EditModal>
+        </div>
+      </div>
       )}
     </div>
   );

@@ -107,15 +107,29 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
       </div>
 
       {/* Neue Helfer Form */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input value={volForm.name} onChange={e => setVolForm({ ...volForm, name: e.target.value })} placeholder="Name" style={{ flex: 1, minWidth: 200, padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
-        <input value={volForm.email} onChange={e => setVolForm({ ...volForm, email: e.target.value })} placeholder="E-Mail" style={{ flex: 1, minWidth: 200, padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
-        <input value={volForm.phone} onChange={e => setVolForm({ ...volForm, phone: e.target.value })} onBlur={() => setVolForm({ ...volForm, phone: formatPhoneNumber(volForm.phone) || volForm.phone })} placeholder="Telefon" style={{ width: 160, padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
-        <select value={volForm.role} onChange={e => setVolForm({ ...volForm, role: e.target.value })} style={{ width: 160, padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }}>
-          {ROLES.map(r => (<option key={r.value} value={r.value}>{r.label}</option>))}
-        </select>
-        <button onClick={saveVolunteer} style={{ padding: '14px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, minHeight: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
-          <span>➕</span><span>Hinzufügen</span>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch', marginBottom: 16 }}>
+        <div style={{ flex: 2, minWidth: 250, display: 'flex', flexDirection: 'column' }}>
+          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
+          <input value={volForm.name} onChange={e => setVolForm({ ...volForm, name: e.target.value })} placeholder="Vor- und Nachname" style={{ width: '100%', padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+        </div>
+        <div style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column' }}>
+          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📧 E-Mail</label>
+          <input value={volForm.email} onChange={e => setVolForm({ ...volForm, email: e.target.value })} placeholder="email@beispiel.de" style={{ width: '100%', padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch', marginBottom: 16 }}>
+        <div style={{ width: 180, display: 'flex', flexDirection: 'column' }}>
+          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📞 Telefon</label>
+          <input value={volForm.phone} onChange={e => setVolForm({ ...volForm, phone: e.target.value })} onBlur={() => setVolForm({ ...volForm, phone: formatPhoneNumber(volForm.phone) || volForm.phone })} placeholder="+49 123 456789" style={{ width: '100%', padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+        </div>
+        <div style={{ width: 180, display: 'flex', flexDirection: 'column' }}>
+          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎭 Rolle</label>
+          <select value={volForm.role} onChange={e => setVolForm({ ...volForm, role: e.target.value })} style={{ width: '100%', padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }}>
+            {ROLES.map(r => (<option key={r.value} value={r.value}>{r.label}</option>))}
+          </select>
+        </div>
+        <button onClick={saveVolunteer} style={{ padding: '8px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, height: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15, marginLeft: 'auto' }}>
+          <span style={{ fontSize: 18, fontWeight: 'bold', lineHeight: 1 }} aria-hidden="true">+</span><span>Hinzufügen</span>
         </button>
       </div>
 
@@ -202,13 +216,29 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
 
       {/* Edit Modal */}
       {editingVol && (
-        <EditModal title="Helfer bearbeiten" onClose={closeEdit}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <input value={volForm.name} onChange={e => setVolForm({ ...volForm, name: e.target.value })} placeholder="Name" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-            <input value={volForm.email} onChange={e => setVolForm({ ...volForm, email: e.target.value })} placeholder="E-Mail" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
-            <input value={volForm.phone} onChange={e => setVolForm({ ...volForm, phone: e.target.value })} onBlur={() => setVolForm({ ...volForm, phone: formatPhoneNumber(volForm.phone) || volForm.phone })} placeholder="Telefon" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }} />
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '28px 32px 24px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '90%', maxWidth: 560, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>✏️ Helfer bearbeiten</h3>
+              <button onClick={closeEdit} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#666' }}>×</button>
+            </div>
+            {/* Scrollbarer Inhalt */}
+            <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
+                  <input value={volForm.name} onChange={e => setVolForm({ ...volForm, name: e.target.value })} placeholder="Vor- und Nachname" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8, width: '100%', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📧 E-Mail</label>
+                  <input value={volForm.email} onChange={e => setVolForm({ ...volForm, email: e.target.value })} placeholder="email@beispiel.de" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8, width: '100%', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📞 Telefon</label>
+                  <input value={volForm.phone} onChange={e => setVolForm({ ...volForm, phone: e.target.value })} onBlur={() => setVolForm({ ...volForm, phone: formatPhoneNumber(volForm.phone) || volForm.phone })} placeholder="+49 123 456789" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8, width: '100%', boxSizing: 'border-box' }} />
+                </div>
             
-            <div><label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Rolle</label>
+            <div><label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎭 Rolle</label>
               <select value={volForm.role} onChange={e => setVolForm({ ...volForm, role: e.target.value })} style={{ width: '100%', padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8 }}>
                 {ROLES.map(r => (<option key={r.value} value={r.value}>{r.label}</option>))}
               </select>
@@ -219,7 +249,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
                 (kein eigenes Zuordnungsfeld), ein Zahlendreher landet den
                 Helfer sonst beim falschen Jahrgang oder bei gar keinem. */}
             <div>
-              <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Kinder</label>
+              <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>👶 Kinder</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
                 {volForm.children.map((c, idx) => {
                   const yg = matchingYearGroup(c.childYear);
@@ -261,12 +291,15 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid #e9ecef' }}>
+            </div>
+            {/* Fixierter Footer – IMMER sichtbar (§13.2) */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid #e9ecef', marginTop: 0, position: 'sticky', bottom: 0, background: '#fff' }}>
               <button onClick={closeEdit} style={{ ...btnStyleSecondary, border: '1px solid #dee2e6', background: '#fff' }}>Abbrechen</button>
               <button onClick={saveVolunteer} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>💾 Speichern</button>
             </div>
           </div>
-        </EditModal>
+        </div>
+      </div>
       )}
     </div>
   );

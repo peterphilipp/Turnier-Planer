@@ -107,10 +107,14 @@ export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { admin
         Vorlagen für Tag-Typen (z. B. Aufbautag, Turniertag). Jede Vorlage besteht aus Zeit-Slots, denen Arbeitsbereiche zugeordnet werden.
       </p>
 
-      <div style={{ display: 'flex', gap: 8, margin: '16px 0', flexWrap: 'wrap' }}>
-        <input style={{ ...inputStyle, flex: 1, minWidth: 200 }} placeholder="Neue Vorlage (z. B. Turniertag)" value={newName}
-          onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addTemplate()} />
-        <button style={{ ...btnStyle, background: adminPrimary, color: '#fff' }} onClick={addTemplate}>+ Vorlage</button>
+      {/* Neue Vorlage */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '16px 0' }}>
+        <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input style={{ ...inputStyle, flex: 1, minWidth: 200 }} placeholder="z. B. Turniertag" value={newName}
+            onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addTemplate()} />
+          <button style={{ ...btnStyle, background: adminPrimary, color: '#fff', minHeight: 44 }} onClick={addTemplate}><span style={{ fontSize: 18, fontWeight: 'bold', lineHeight: 1 }}>+</span> Hinzufügen</button>
+        </div>
       </div>
 
       {templates.length === 0 && <p style={{ color: '#888' }}>Noch keine Vorlagen angelegt.</p>}

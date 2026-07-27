@@ -276,6 +276,13 @@ export const subscribePush = async (req: Request, res: Response) => {
   // Geraet/Browser) - kein Tracking-Zweck, daher keine Zustimmung noetig.
   const userAgent = (req.headers['user-agent'] as string | undefined) || null;
 
+  // Sicherstellen, dass der User noch existiert (Token könnte nach Account-Löschung
+  // noch gültig sein → würde sonst P2003 Foreign Key Fehler werfen).
+  const userExists = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!userExists) {
+    return res.status(401).json({ error: 'Benutzer nicht gefunden – bitte neu anmelden' });
+  }
+
   const existing = await prisma.pushSubscription.findFirst({
     where: { endpoint }
   });

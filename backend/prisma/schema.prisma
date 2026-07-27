@@ -29,42 +29,35 @@ model Tournament {
   teamCount              Int?                   @map("team_count")
   fields                 Field[]
   foodDonationSlots      FoodDonationSlot[]
-  shoppingListItems      ShoppingListItem[]
   donations              FoodDonation[]
   groups                 Group[]
   brackets               KnockoutBracket[]
   matches                Match[]
   materials              MaterialItem[]
   shifts                 Shift[]
-  tournamentDays         TournamentDay[]
-  tournamentWorkAreas    TournamentWorkArea[]
+  shoppingListItems      ShoppingListItem[]
   standings              StandingsEntry[]
+  teams                  Team[]
   timeSlots              TimeSlot[]
   tournamentClubs        TournamentClub[]
-  users                  User[]
+  tournamentDays         TournamentDay[]
+  memberships            TournamentMembership[]
+  tournamentWorkAreas    TournamentWorkArea[]
   club                   Club?                  @relation(fields: [clubId], references: [id])
+  users                  User[]
   volunteerShifts        VolunteerShift[]
   yearGroups             YearGroup[]            @relation("TournamentYearGroups")
-  teams                  Team[]
-  memberships            TournamentMembership[]
 
   @@map("tournaments")
 }
 
-// Explizite "dieser Helfer ist für dieses Turnier relevant/aktiv"-Relation -
-// getrennt von User.tournamentId (das ist nur "zuletzt angesehen/Präferenz",
-// ein einzelner Wert) und von VolunteerShift (das ist die tatsächliche
-// Schicht-Zuweisung, kein genereller Turnier-Bezug). Wird automatisch beim
-// Registrieren, Schicht-Zusagen, Verpflegungs-Spenden erzeugt (kein manuelles
-// Pflegen nötig) und ist die Quelle für: (a) welche abgeschlossenen Turniere
-// ein Helfer im Self-Service sehen darf, (b) Push-Zielgruppen pro Turnier.
 model TournamentMembership {
   id           Int        @id @default(autoincrement())
   userId       Int        @map("user_id")
   tournamentId Int        @map("tournament_id")
   createdAt    DateTime   @default(now()) @map("created_at")
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tournamentId])
   @@index([userId])
@@ -92,8 +85,8 @@ model Group {
   order        Int        @default(0)
   tournamentId Int        @map("tournament_id")
   yearGroupId  Int?       @map("year_group_id")
-  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id], onDelete: Cascade)
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id], onDelete: Cascade)
   teams        Team[]
 
   @@index([tournamentId])
@@ -111,13 +104,13 @@ model Team {
   goalsFor       Int             @default(0) @map("goals_for")
   goalsAgainst   Int             @default(0) @map("goals_against")
   bracketTyp     String?         @map("bracket_typ")
-  matchesAsB     Match[]         @relation("teamBMatches")
   matchesAsA     Match[]         @relation("teamAMatches")
+  matchesAsB     Match[]         @relation("teamBMatches")
   standingsEntry StandingsEntry? @relation("teamStandings")
-  yearGroup      YearGroup?      @relation(fields: [yearGroupId], references: [id], onDelete: Cascade)
-  group          Group?          @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  tournament     Tournament?     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   club           Club?           @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  tournament     Tournament?     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  group          Group?          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  yearGroup      YearGroup?      @relation(fields: [yearGroupId], references: [id], onDelete: Cascade)
 
   @@index([tournamentId])
   @@index([groupId])
@@ -149,13 +142,13 @@ model Match {
   lowerBound   Int?             @map("lower_bound")
   stage        Int?             @map("stage")
   upperBound   Int?             @map("upper_bound")
-  yearGroup    YearGroup?       @relation(fields: [yearGroupId], references: [id], onDelete: Cascade)
-  teamB        Team?            @relation("teamBMatches", fields: [teamBId], references: [id], onDelete: Cascade)
-  teamA        Team?            @relation("teamAMatches", fields: [teamAId], references: [id], onDelete: Cascade)
-  field        Field?           @relation(fields: [fieldId], references: [id], onDelete: Cascade)
-  timeSlot     TimeSlot?        @relation(fields: [timeSlotId], references: [id], onDelete: Cascade)
-  tournament   Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   bracket      KnockoutBracket? @relation("KnockoutMatches", fields: [bracketId], references: [id])
+  tournament   Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  timeSlot     TimeSlot?        @relation(fields: [timeSlotId], references: [id], onDelete: Cascade)
+  field        Field?           @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  teamA        Team?            @relation("teamAMatches", fields: [teamAId], references: [id], onDelete: Cascade)
+  teamB        Team?            @relation("teamBMatches", fields: [teamBId], references: [id], onDelete: Cascade)
+  yearGroup    YearGroup?       @relation(fields: [yearGroupId], references: [id], onDelete: Cascade)
 
   @@index([tournamentId])
   @@index([yearGroupId])
@@ -184,12 +177,12 @@ model User {
   foodDonationSlots     FoodDonationSlot[]
   foodDonations         FoodDonation[]
   resetTokens           PasswordResetToken[]
+  pushSubscriptions     PushSubscription[]
+  tournamentMemberships TournamentMembership[]
+  tournament            Tournament?            @relation(fields: [tournamentId], references: [id])
   children              UserChild[]
   shifts                VolunteerShift[]
-  pushSubscriptions     PushSubscription[]
   webAuthnCredentials   WebAuthnCredential[]
-  tournament            Tournament?            @relation(fields: [tournamentId], references: [id], onDelete: SetNull)
-  tournamentMemberships TournamentMembership[]
 
   @@index([tournamentId])
   @@map("users")
@@ -209,11 +202,6 @@ model PushSubscription {
   @@map("push_subscriptions")
 }
 
-// Ein registrierter Passkey (Face ID/Touch ID/Android-Fingerabdruck/Security
-// Key) pro Gerät. credentialId ist der eindeutige, öffentliche Bezeichner des
-// Credentials (base64url) - publicKey/counter werden für jede Anmeldung zur
-// kryptografischen Verifikation gebraucht (siehe passkey.routes.ts). Ein User
-// kann mehrere Passkeys haben (mehrere Geräte).
 model WebAuthnCredential {
   id           Int      @id @default(autoincrement())
   userId       Int      @map("user_id")
@@ -257,9 +245,9 @@ model VolunteerShift {
   ratingComment      String?     @map("rating_comment")
   reminderSentBefore Boolean     @default(false) @map("reminder_sent_before")
   thanksSentAfter    Boolean     @default(false) @map("thanks_sent_after")
-  shift              Shift?      @relation(fields: [shiftId], references: [id], onDelete: Cascade)
-  user               User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   tournament         Tournament? @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user               User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shift              Shift?      @relation(fields: [shiftId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([tournamentId])
@@ -277,7 +265,7 @@ model WorkArea {
   color             String                  @default("#3b98f8")
   operatingStartMin Int?                    @map("operating_start_min")
   operatingEndMin   Int?                    @map("operating_end_min")
-  isStandard        Boolean                 @default(false) @map("is_standard") // Standard-Bereich für neue Turniere
+  isStandard        Boolean                 @default(false) @map("is_standard")
   isObsolete        Boolean                 @default(false) @map("is_obsolete")
   catalogSlots      GlobalDaySlotWorkArea[]
   categories        WorkAreaCategory[]      @relation("WorkAreaToCategories")
@@ -285,7 +273,6 @@ model WorkArea {
   @@map("arbeitsbereiche")
 }
 
-// ---------- Tag-Vorlagen-Katalog (global, Stammdaten) ----------
 model GlobalDayTemplate {
   id         Int             @id @default(autoincrement())
   name       String
@@ -316,8 +303,8 @@ model GlobalDaySlot {
   label      String?
   color      String                  @default("#3b98f8")
   order      Int                     @default(0)
-  template   GlobalDayTemplate       @relation(fields: [templateId], references: [id], onDelete: Cascade)
   workAreas  GlobalDaySlotWorkArea[]
+  template   GlobalDayTemplate       @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@index([templateId])
   @@map("global_day_slots")
@@ -328,65 +315,62 @@ model GlobalDaySlotWorkArea {
   globalSlotId Int           @map("global_slot_id")
   workAreaId   Int           @map("work_area_id")
   order        Int           @default(0)
-  slot         GlobalDaySlot @relation(fields: [globalSlotId], references: [id], onDelete: Cascade)
   workArea     WorkArea      @relation(fields: [workAreaId], references: [id], onDelete: Cascade)
+  slot         GlobalDaySlot @relation(fields: [globalSlotId], references: [id], onDelete: Cascade)
 
   @@unique([globalSlotId, workAreaId])
   @@index([workAreaId])
   @@map("global_day_slot_work_areas")
 }
 
-// ---------- Turnier-Instanzen (Snapshot pro Turnier) ----------
 model TournamentWorkArea {
-  id                Int                      @id @default(autoincrement())
-  tournamentId      Int                      @map("tournament_id")
-  sourceWorkAreaId  Int?                     @map("source_work_area_id")
+  id                Int                     @id @default(autoincrement())
+  tournamentId      Int                     @map("tournament_id")
+  sourceWorkAreaId  Int?                    @map("source_work_area_id")
   name              String
-  icon              String                   @default("📍")
-  order             Int                      @default(0)
-  color             String                   @default("#3b98f8")
-  minVolunteers     Int                      @default(2) @map("min_volunteers")
-  maxVolunteers     Int                      @default(8) @map("max_volunteers")
-  operatingStartMin Int?                     @map("operating_start_min")
-  operatingEndMin   Int?                     @map("operating_end_min")
-  active            Boolean                  @default(true)
-  tournament        Tournament               @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  icon              String                  @default("📍")
+  order             Int                     @default(0)
+  color             String                  @default("#3b98f8")
+  minVolunteers     Int                     @default(2) @map("min_volunteers")
+  maxVolunteers     Int                     @default(8) @map("max_volunteers")
+  operatingStartMin Int?                    @map("operating_start_min")
+  operatingEndMin   Int?                    @map("operating_end_min")
+  active            Boolean                 @default(true)
   shifts            Shift[]
-  dayWorkAreas      TournamentDayWorkArea[]  // pro Tag referenziert
+  dayWorkAreas      TournamentDayWorkArea[]
+  tournament        Tournament              @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@index([tournamentId])
   @@map("tournament_work_areas")
 }
 
 model TournamentDay {
-  id                    Int                      @id @default(autoincrement())
-  tournamentId          Int                      @map("tournament_id")
-  date                  DateTime
-  order                 Int                      @default(0)
-  label                 String?
-  sourceTemplateId      Int?                     @map("source_template_id")
-  tournament            Tournament               @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  slots                 DaySlot[]
-  shifts                Shift[]
-  dayWorkAreas          TournamentDayWorkArea[]  // pro Tag: welche Arbeitsbereiche aktiv + Zielhelfer
+  id               Int                     @id @default(autoincrement())
+  tournamentId     Int                     @map("tournament_id")
+  date             DateTime
+  order            Int                     @default(0)
+  label            String?
+  sourceTemplateId Int?                    @map("source_template_id")
+  slots            DaySlot[]
+  shifts           Shift[]
+  dayWorkAreas     TournamentDayWorkArea[]
+  tournament       Tournament              @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, date])
   @@index([tournamentId])
   @@map("tournament_days")
 }
 
-// Junction-Table: pro Turniertag × Arbeitsbereich → Zielhelfer-Zahl
 model TournamentDayWorkArea {
-  id                     Int                @id @default(autoincrement())
-  tournamentId           Int                @map("tournament_id")
-  tournamentDayId        Int                @map("tournament_day_id")
-  tournamentWorkAreaId   Int                @map("tournament_work_area_id")
-  active                 Boolean            @default(true)
-  targetHelpers          Int?               @map("target_helpers") // Zielhelfer pro Bereich an diesem Tag
-  order                  Int                @default(0)
-
-  day                    TournamentDay      @relation(fields: [tournamentDayId], references: [id], onDelete: Cascade)
-  workArea               TournamentWorkArea @relation(fields: [tournamentWorkAreaId], references: [id], onDelete: Cascade)
+  id                   Int                @id @default(autoincrement())
+  tournamentId         Int                @map("tournament_id")
+  tournamentDayId      Int                @map("tournament_day_id")
+  tournamentWorkAreaId Int                @map("tournament_work_area_id")
+  active               Boolean            @default(true)
+  targetHelpers        Int?               @map("target_helpers")
+  order                Int                @default(0)
+  workArea             TournamentWorkArea @relation(fields: [tournamentWorkAreaId], references: [id], onDelete: Cascade)
+  day                  TournamentDay      @relation(fields: [tournamentDayId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentDayId, tournamentWorkAreaId])
   @@index([tournamentId])
@@ -420,10 +404,10 @@ model Shift {
   minVolunteers        Int                @default(2) @map("min_volunteers")
   maxVolunteers        Int                @default(8) @map("max_volunteers")
   description          String?            @map("description")
-  tournament           Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  day                  TournamentDay      @relation(fields: [tournamentDayId], references: [id], onDelete: Cascade)
-  daySlot              DaySlot            @relation(fields: [daySlotId], references: [id], onDelete: Cascade)
   workArea             TournamentWorkArea @relation(fields: [tournamentWorkAreaId], references: [id], onDelete: Cascade)
+  daySlot              DaySlot            @relation(fields: [daySlotId], references: [id], onDelete: Cascade)
+  day                  TournamentDay      @relation(fields: [tournamentDayId], references: [id], onDelete: Cascade)
+  tournament           Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   volunteerShifts      VolunteerShift[]
 
   @@index([tournamentId])
@@ -461,12 +445,12 @@ model PasswordResetToken {
 }
 
 model FoodCategory {
-  id                Int                @id @default(autoincrement())
-  name              String
-  icon              String             @default("🍽️")
-  order             Int                @default(0)
-  createdAt         DateTime           @default(now())
-  items             FoodItem[]
+  id                   Int                   @id @default(autoincrement())
+  name                 String
+  icon                 String                @default("🍽️")
+  order                Int                   @default(0)
+  createdAt            DateTime              @default(now())
+  items                FoodItem[]
   shoppingCatalogItems ShoppingCatalogItem[]
 
   @@map("food_categories")
@@ -496,10 +480,10 @@ model FoodDonation {
   quantity           Int
   note               String?
   createdAt          DateTime          @default(now())
-  foodDonationSlot   FoodDonationSlot? @relation(fields: [foodDonationSlotId], references: [id], onDelete: Cascade)
-  foodItem           FoodItem          @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
-  user               User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
   tournament         Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user               User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  foodItem           FoodItem          @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
+  foodDonationSlot   FoodDonationSlot? @relation(fields: [foodDonationSlotId], references: [id], onDelete: Cascade)
 
   @@index([tournamentId])
   @@index([userId])
@@ -537,10 +521,10 @@ model FoodDonationSlot {
   description    String?        @map("description")
   createdAt      DateTime       @default(now()) @map("created_at")
   userId         Int?           @map("user_id")
-  user           User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  foodItem       FoodItem?      @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
-  tournament     Tournament     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   yearGroup      YearGroup?     @relation(fields: [yearGroupId], references: [id], onDelete: Cascade)
+  tournament     Tournament     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  foodItem       FoodItem?      @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
+  user           User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
   donations      FoodDonation[]
 
   @@unique([tournamentId, yearGroupId, foodItemId])
@@ -550,33 +534,22 @@ model FoodDonationSlot {
   @@map("food_donation_slots")
 }
 
-// Wiederverwendbarer Artikel-Katalog für Einkaufslisten (Food UND Non-Food -
-// z.B. auch Kohle, Becher, Reinigungsmittel), getrennt vom FoodItem-Katalog
-// (der ist Spenden-/Verpflegungs-spezifisch mit eigener, food-typischer
-// Einheiten-Logik). Ein Artikel wird einmal angelegt (manuell oder per
-// Barcode-Scan aus Open Food Facts übernommen) und ist danach turnier-
-// übergreifend wiederverwendbar - das ist die Grundlage fürs "aus Turnieren
-// lernen": eine Einkaufsliste eines neuen Turniers kann die Katalog-Artikel
-// eines vorherigen Turniers übernehmen (siehe copyShoppingList).
 model ShoppingCatalogItem {
   id             Int                @id @default(autoincrement())
   name           String
-  category       String?            // Fallback: freie Kategorie (z.B. von OFF oder manuell)
+  category       String?
   unit           String             @default("Stk")
   barcode        String?            @unique
   foodCategoryId Int?               @map("food_category_id")
   createdAt      DateTime           @default(now()) @map("created_at")
+  foodCategory   FoodCategory?      @relation(fields: [foodCategoryId], references: [id])
   listItems      ShoppingListItem[]
-  foodCategory   FoodCategory?      @relation(fields: [foodCategoryId], references: [id], onDelete: SetNull)
 
   @@index([barcode])
   @@index([foodCategoryId])
   @@map("shopping_catalog_items")
 }
 
-// Eine Zeile der Einkaufsliste eines konkreten Turniers: geplante Menge
-// (Soll) vs. tatsächlich besorgt (Ist) - gleiches Soll/Ist-Muster wie bei
-// FoodDonationSlot oben.
 model ShoppingListItem {
   id                Int                 @id @default(autoincrement())
   tournamentId      Int                 @map("tournament_id")
@@ -585,8 +558,8 @@ model ShoppingListItem {
   purchasedQuantity Int                 @default(0) @map("purchased_quantity")
   note              String?
   createdAt         DateTime            @default(now()) @map("created_at")
-  tournament        Tournament          @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   catalogItem       ShoppingCatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  tournament        Tournament          @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, catalogItemId])
   @@index([tournamentId])
@@ -604,8 +577,8 @@ model TimeSlot {
   label        String?    @map("label")
   order        Int        @default(0)
   matches      Match[]
-  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id], onDelete: Cascade)
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id], onDelete: Cascade)
 
   @@index([tournamentId])
   @@index([yearGroupId])
@@ -618,8 +591,8 @@ model Field {
   yearGroupId  Int?       @map("year_group_id")
   name         String     @default("Feld 1")
   status       String     @default("verfügbar") @map("status")
-  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id], onDelete: Cascade)
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id], onDelete: Cascade)
   matches      Match[]
 
   @@index([tournamentId])
@@ -634,8 +607,8 @@ model KnockoutBracket {
   name         String
   runde        String
   order        Int        @default(0)
-  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id], onDelete: Cascade)
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  yearGroup    YearGroup? @relation(fields: [yearGroupId], references: [id], onDelete: Cascade)
   matches      Match[]    @relation("KnockoutMatches")
 
   @@index([tournamentId])
@@ -655,8 +628,8 @@ model StandingsEntry {
   goalsAgainst Int        @default(0) @map("goals_against")
   points       Int        @default(0) @map("points")
   position     Int        @default(0) @map("position")
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   team         Team       @relation("teamStandings", fields: [teamId], references: [id], onDelete: Cascade)
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, tournamentId])
   @@index([tournamentId])
@@ -667,8 +640,8 @@ model TournamentClub {
   id           Int        @id @default(autoincrement())
   tournamentId Int        @map("tournament_id")
   clubId       Int        @map("club_id")
-  club         Club       @relation(fields: [clubId], references: [id], onDelete: Cascade)
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  club         Club       @relation(fields: [clubId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, clubId])
   @@index([clubId])
