@@ -39,11 +39,37 @@ type StammTab = 'turniere' | 'vereine' | 'work-areas' | 'global-time-slots' | 'h
 function AdminView() {
   const { isAdmin, isOrganizer, token, login, logout } = useUser();
   const [view, setView] = useState<View>('admin');
-  const [activeMainTab, setActiveMainTab] = useState<MainTab>('spielplan');
+
+  // Tabs aus localStorage laden oder Defaults
+  const getStoredTab = <T extends string>(key: string, fallback: T): T => {
+    try { return (localStorage.getItem('lastActiveTab_' + key) as T) || fallback; } catch { return fallback; }
+  };
+
+  // Persistente Tab-Setter mit localStorage
+  const setMainTab = useCallback((tab: MainTab) => {
+    setActiveMainTab(tab);
+    try { localStorage.setItem('lastActiveTab_main', tab); } catch {}
+  }, []);
   
-  const [activeSpielplanTab, setActiveSpielplanTab] = useState<SpielplanTab>('turnier-tage');
-  const [activeOrgTab, setActiveOrgTab] = useState<OrgTab>('uebersicht');
-  const [activeStammTab, setActiveStammTab] = useState<StammTab>('turniere');
+  const setSpielplanTab = useCallback((tab: SpielplanTab) => {
+    setActiveSpielplanTab(tab);
+    try { localStorage.setItem('lastActiveTab_spielplan', tab); } catch {}
+  }, []);
+  
+  const setOrgTab = useCallback((tab: OrgTab) => {
+    setActiveOrgTab(tab);
+    try { localStorage.setItem('lastActiveTab_organisation', tab); } catch {}
+  }, []);
+  
+  const setStammTab = useCallback((tab: StammTab) => {
+    setActiveStammTab(tab);
+    try { localStorage.setItem('lastActiveTab_stammdaten', tab); } catch {}
+  }, []);
+
+  const [activeMainTab, setActiveMainTab] = useState<MainTab>(() => getStoredTab('main', 'spielplan'));
+  const [activeSpielplanTab, setActiveSpielplanTab] = useState<SpielplanTab>(() => getStoredTab('spielplan', 'turnier-tage'));
+  const [activeOrgTab, setActiveOrgTab] = useState<OrgTab>(() => getStoredTab('organisation', 'uebersicht'));
+  const [activeStammTab, setActiveStammTab] = useState<StammTab>(() => getStoredTab('stammdaten', 'turniere'));
   
   const [selectedTournamentId, setSelectedTournamentId] = useState<number | null>(null);
   const [selectedYearGroupId, setSelectedYearGroupId] = useState<number | null>(null);
@@ -254,15 +280,15 @@ function AdminView() {
 
       {/* LEVEL 1: HAUPT-NAVIGATION */}
       <nav style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', borderBottom: '2px solid #dee2e6', paddingBottom: 10 }}>
-        <button onClick={() => setActiveMainTab('spielplan')} aria-pressed={activeMainTab === 'spielplan'}
+        <button onClick={() => setMainTab('spielplan')} aria-pressed={activeMainTab === 'spielplan'}
           style={{ padding: '10px 20px', minHeight: 44, cursor: 'pointer', background: activeMainTab === 'spielplan' ? primaryColor : 'transparent', color: activeMainTab === 'spielplan' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
           🏆 Spielplanmanagement
         </button>
-        <button onClick={() => setActiveMainTab('organisation')} aria-pressed={activeMainTab === 'organisation'}
+        <button onClick={() => setMainTab('organisation')} aria-pressed={activeMainTab === 'organisation'}
           style={{ padding: '10px 20px', minHeight: 44, cursor: 'pointer', background: activeMainTab === 'organisation' ? primaryColor : 'transparent', color: activeMainTab === 'organisation' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
           📋 Organisationsmanagement
         </button>
-        <button onClick={() => setActiveMainTab('stammdaten')} aria-pressed={activeMainTab === 'stammdaten'}
+        <button onClick={() => setMainTab('stammdaten')} aria-pressed={activeMainTab === 'stammdaten'}
           style={{ padding: '10px 20px', minHeight: 44, cursor: 'pointer', background: activeMainTab === 'stammdaten' ? primaryColor : 'transparent', color: activeMainTab === 'stammdaten' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
           ⚙️ Stammdaten
         </button>
@@ -323,7 +349,7 @@ function AdminView() {
       {activeMainTab === 'spielplan' && (
         <nav style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
           {[{ key: 'turnier-tage' as SpielplanTab, icon: '📅', label: 'Turnier-Tage' }, { key: 'felder' as SpielplanTab, icon: '⚽', label: 'Spielfelder' }, { key: 'teilnehmer' as SpielplanTab, icon: '📋', label: 'Teilnehmer' }, { key: 'modus' as SpielplanTab, icon: '⚙️', label: 'Modus' }, { key: 'spielplan-gruppenphase' as SpielplanTab, icon: '📊', label: 'Gruppenphase' }, { key: 'spielplan-ko' as SpielplanTab, icon: '🏆', label: 'KO-Phase' }].map(tab => (
-            <button key={tab.key} onClick={() => setActiveSpielplanTab(tab.key)}
+            <button key={tab.key} onClick={() => setSpielplanTab(tab.key)}
               style={{ padding: '12px 16px', cursor: 'pointer', background: activeSpielplanTab === tab.key ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === tab.key ? '#fff' : '#000', border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>{tab.icon}</span><span>{tab.label}</span>
             </button>
@@ -340,7 +366,7 @@ function AdminView() {
             { key: 'shopping-list' as OrgTab, icon: '🛒', label: 'Einkaufsliste' },
             { key: 'push-broadcast' as OrgTab, icon: '🔔', label: 'Push-Nachrichten' }
           ].map(tab => (
-            <button key={tab.key} onClick={() => setActiveOrgTab(tab.key)}
+            <button key={tab.key} onClick={() => setOrgTab(tab.key)}
               style={{ padding: '12px 16px', cursor: 'pointer', background: activeOrgTab === tab.key ? '#198754' : '#e9ecef', color: activeOrgTab === tab.key ? '#fff' : '#000', border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>{tab.icon}</span><span>{tab.label}</span>
             </button>
@@ -354,7 +380,7 @@ function AdminView() {
               Turniere beschränkt, eine turnierübergreifende Nutzerliste geht
               sie nichts an (auch backend-seitig durchgesetzt, nicht nur hier). */}
           {[{ key: 'vereine' as StammTab, icon: '🛡️', label: 'Vereine' }, { key: 'turniere' as StammTab, icon: '🏆', label: 'Turniere' }, { key: 'jahrgaenge' as StammTab, icon: '👶', label: 'Jahrgänge' }, { key: 'work-areas' as StammTab, icon: '📍', label: 'Arbeitsbereiche' }, { key: 'global-time-slots' as StammTab, icon: '📅', label: 'Tagesvorlagen' }, { key: 'lebensmittel' as StammTab, icon: '🍔', label: 'Verpflegung' }, { key: 'helfer' as StammTab, icon: '👤', label: 'Benutzer' }, { key: 'db-management' as StammTab, icon: '🗄️', label: 'DB-Management' }].filter(tab => tab.key !== 'helfer' || isAdmin).map(tab => (
-            <button key={tab.key} onClick={() => setActiveStammTab(tab.key)} style={{ padding: '12px 16px', cursor: 'pointer', background: activeStammTab === tab.key ? '#6c757d' : '#e9ecef', color: activeStammTab === tab.key ? '#fff' : '#000', border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button key={tab.key} onClick={() => setStammTab(tab.key)} style={{ padding: '12px 16px', cursor: 'pointer', background: activeStammTab === tab.key ? '#6c757d' : '#e9ecef', color: activeStammTab === tab.key ? '#fff' : '#000', border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>{tab.icon}</span><span>{tab.label}</span>
             </button>
           ))}

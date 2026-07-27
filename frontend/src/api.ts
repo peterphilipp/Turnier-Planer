@@ -102,8 +102,8 @@ export const updateShiftsBatch = (changes: { id: number; startMin: number; endMi
 export const getVolunteerShifts = (tournamentId?: string | number | null) => 
   tournamentId ? apiFetch(`/api/volunteer-shifts?tournamentId=${tournamentId}`) : Promise.resolve([]);
 
-// ===================== Food =====================
-export const getFoodCategories = () => apiFetch('/api/food/categories');
+// ===================== Food (Verpflegung-Stammdaten) =====================
+export const getFoodCategoriesForDonations = () => apiFetch('/api/food/categories');
 export const getFoodItems = () => apiFetch('/api/food/items');
 export const getFoodDonations = () => apiFetch('/api/food/donations');
 export const getAllFoodDonations = (tournamentId: number | null) =>
@@ -239,4 +239,10 @@ export const updateShoppingListItem = (id: number, data: { plannedQuantity?: num
 export const deleteShoppingListItem = (id: number) => apiDelete(`/api/shopping-list/${id}`);
 export const copyShoppingListFrom = (sourceTournamentId: number, targetTournamentId: number) =>
   apiPost(`/api/shopping-list/copy-from/${sourceTournamentId}?targetTournamentId=${targetTournamentId}`, {});
+
+// FoodCategory Mapping (Verpflegung-Stammdaten)
+export const getFoodCategories = () =>
+  apiFetch('/api/shopping-list/food-categories');
+export const linkFoodCategoryToCatalogItem = (catalogItemId: number, foodCategoryId: number) =>
+  apiPatch(`/api/shopping-list/catalog/${catalogItemId}/link-food-category`, { foodCategoryId });
 

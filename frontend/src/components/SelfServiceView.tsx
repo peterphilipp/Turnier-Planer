@@ -26,7 +26,8 @@ interface Shift {
 interface VolunteerShift { id: number; userId: number; date: string; slot: string; role: string; areaId: string | null; shiftId: number | null; shift: Shift | null; ratingWorkload?: number | null; ratingOrganization?: number | null; ratingFun?: number | null; ratingComment?: string | null; }
 interface VolunteerChild { id: number; childName: string; childYear: number; }
 interface Volunteer { id: number; name: string; email: string | null; phone: string | null; tournamentId: number | null; role?: string; consentGiven?: boolean; consentDate?: string; children?: VolunteerChild[]; }
-interface Club { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; accentColor: string; }
+// Nur noch 2 Vereinsfarben (primary + secondary)
+interface Club { id: number; name: string; logo: string | null; primaryColor: string; secondaryColor: string; }
 interface FoodCategory { id: number; name: string; icon: string; items: { id: number; name: string; price: string | null; unit: string }[]; }
 interface FoodDonation { id: number; foodItemId: number; quantity: number; note: string | null; createdAt: string; foodDonationSlotId: number | null; foodItem: { id: number; name: string; unit: string; category: { id: number; name: string; icon: string } } | null; }
 interface FoodDonationSlot { id: number; tournamentId: number; yearGroupId: number | null; yearGroup?: { id: number; name: string; birthYearStart: number; birthYearEnd: number } | null; foodItemId: number | null; targetQuantity: number; collected: number; foodItem: { id: number; name: string; unit: string; icon: string } | null; }
@@ -160,7 +161,6 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
       if (t?.club) {
         setClubPrimary(t.club.primaryColor || '#0d6efd');
         setClubSecondary(t.club.secondaryColor || '#6c757d');
-        setClubAccent(t.club.accentColor || '#198754');
         setClubLogo(t.club.logo || null);
       }
       if (t?.name) setTournamentName(t.name);
@@ -254,7 +254,6 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
       if (d.tournament.club) {
         setClubPrimary(d.tournament.club.primaryColor || '#0d6efd');
         setClubSecondary(d.tournament.club.secondaryColor || '#6c757d');
-        setClubAccent(d.tournament.club.accentColor || '#198754');
         setClubLogo(d.tournament.club.logo || null);
       }
     }
@@ -589,7 +588,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
   };
 
   /**
-   * Vereine legen ihre Marken-Farben (primaryColor/secondaryColor/accentColor)
+   * Vereine legen ihre Marken-Farben fest: primaryColor = Vereinsfarbe, secondaryColor = Aktionsfarbe
    * frei in den Stammdaten fest. Buttons/Header hier gingen bisher immer von
    * weißer Schrift darauf aus - bei einer hellen Vereinsfarbe (z.B. Weiß/Gelb)
    * unlesbar (weiß auf weiß). Kontrast per grober Luminanz statt hartkodiertem

@@ -6,4 +6,6 @@ RUN corepack enable && corepack prepare pnpm@latest --activate && pnpm install -
 FROM base AS build
 COPY . .
 RUN npx prisma generate
+# Migrations im Image vorab anwenden (dev/test environments)
+RUN npx prisma migrate deploy || true
 CMD ["node", "src/server.js"]

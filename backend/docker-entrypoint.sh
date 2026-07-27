@@ -14,8 +14,8 @@ node scripts/migrate-day-slot-system.cjs
 echo "  Sichere DB vor Schema-Push..."
 node scripts/backup-db.cjs || echo "  (kein Backup erstellt - vermutlich Erststart ohne bestehende DB)"
 
-echo "  Prisma Schema synchronisieren..."
-npx prisma db push --accept-data-loss
+echo "  Migrations anwenden (prisma migrate deploy)..."
+npx prisma migrate deploy
 
 echo "  Slot-Herkunft nachtragen (Tage vor sourceGlobalSlotId-Einfuehrung)..."
 node scripts/backfill-slot-provenance.cjs

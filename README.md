@@ -7,7 +7,7 @@ Webanwendung zur Planung von Fußballturnieren, Verwaltung von Helfer-Dienstplä
 - ✅ Ergebnisse live pflegen
 - 👥 Wochen-Dienstplan für Helfer mit Drag & Drop
 - 🍞 Lebensmittel-Spendenmanagement (Jahrgang-basiert)
-- 🏅 Vereinsbranding (3-Farben-Theming + Logo)
+- 🏅 Vereinsbranding (2-Farben-Theming + Logo)
 - 🔐 SelfService-Portal für Helfer (Login, Buchung, Spenden)
 - 📧 Passwort-zurücksetzen per E-Mail (Resend)
 - 🐳 Dockerized (Backend + Frontend)
@@ -117,7 +117,6 @@ erDiagram
         string logo
         string primaryColor
         string secondaryColor
-        string accentColor
     }
 
     Tournament {
@@ -270,7 +269,7 @@ erDiagram
 
 | Modell | Beschreibung |
 |--------|-------------|
-| **Club** | Verein mit Logo und 3-Farben-Theming (Primary/Secondary/Accent) |
+| **Club** | Verein mit Logo und 2-Farben-Theming (Primary/Secondary) |
 | **Tournament** | Turnier mit Status (aktiv/beendet/archiviert), verknüpft mit Club |
 | **Group / Team** | Gruppenphase: Groups enthalten Teams, Teams spielen Matches |
 | **Match** | Begegnung zwischen zwei Teams mit Ergebnis und Feld/Zeit |
@@ -299,7 +298,6 @@ erDiagram
 | `logo` | String | ✅ | Logo als Base64-DataURI |
 | `primaryColor` | String | ❌ | Hauptfarbe (#hex), Header/Gradients |
 | `secondaryColor` | String | ❌ | Sekundärfarbe (#hex), Buttons/Akzente |
-| `accentColor` | String | ❌ | Akzentfarbe (#hex), Status/Highlights |
 
 ### 🏟️ Tournament (Turnier)
 | Feld | Typ | Nullable | Beschreibung |
@@ -472,6 +470,32 @@ erDiagram
 
 ---
 
+## Datenbank-Migrationen
+
+Die Anwendung verwendet **Prisma Migrations** für alle Schema-Änderungen. Migrationen sind versionierte SQL-Skripte in `backend/prisma/migrations/` und werden automatisch angewendet:
+
+| Ort | Befehl |
+|-----|--------|
+| **CI/CD** (deploy.yml) | `prisma migrate deploy` im Test-Job |
+| **Docker Build** (Dockerfile) | `RUN npx prisma migrate deploy \|\| true` |
+| **Container-Start** (docker-entrypoint.sh) | `npx prisma migrate deploy` vor Server-Start |
+
+### Migration erstellen
+```bash
+cd backend
+# Interaktiv (lokal):
+npx prisma migrate dev --name <name>
+
+# Oder manuell:
+mkdir -p prisma/migrations/<timestamp>_<name>
+# migration.sql schreiben → npx prisma migrate deploy
+```
+
+### SQLite-Hinweis
+SQLite unterstützt `DROP COLUMN` erst ab 3.35.0 (2021). Für ältere Versionen wird Table Recreation mit INSERT INTO ... SELECT verwendet.
+
+---
+
 ## Lokaler Start
 
 ```bash
@@ -479,8 +503,8 @@ erDiagram
 cd backend && npm install && cd ..
 cd frontend && npm install && cd ..
 
-# Datenbank initialisieren
-cd backend && npx prisma db push && cd ..
+# Datenbank initialisieren (MIGRATIONEN)
+cd backend && npx prisma migrate deploy && cd ..
 
 # Server starten
 docker compose up --build
@@ -512,7 +536,7 @@ Es gibt zwei Wege, um eine neue Version (Image) zu bauen:
 2. **Manuell anstoßen:**
    Gehe auf GitHub unter **Actions** -> **Build & Push Docker Image** und klicke rechts auf **Run workflow**.
 
-*(Hinweis zur Datenbank: Beim allerersten Start in Produktion sorgt die Ignition Phase (`prisma/seed.ts`) dafür, dass Standard-Lebensmittel und Arbeitsbereiche automatisch angelegt werden. Die Test-Datenbank `dev.db` wird dabei niemals mit deployed).*
+*(Hinweis zur Datenbank: Beim allerersten Start in Produktion sorgt die Ignition Phase (`prisma/seed.ts`) dafür, dass Standard-Lebensmittel und Arbeitsbereiche automatisch angelegt werden. Migrationen werden vor dem Seed ausgeführt – die DB ist immer auf dem neuesten Schema-Stand).*
 
 ### Zugriff über eine einzige Domain
 Alle Funktionen sind über **eine Subdomain** erreichbar – die Ansicht wird per Query-Parameter gesteuert:

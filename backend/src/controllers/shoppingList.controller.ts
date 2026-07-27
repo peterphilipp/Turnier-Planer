@@ -38,65 +38,263 @@ export const searchCatalog = async (req: Request, res: Response) => {
 };
 
 /**
- * Barcode nachschlagen: erst im eigenen Katalog (schon einmal manuell
- * gepflegt oder aus einem früheren Scan übernommen), sonst bei Open Food
- * Facts (kostenlos, kein API-Key). Wird dort ein Produkt gefunden, legen wir
- * es direkt im eigenen Katalog an - damit lernt der Katalog mit jedem Scan
- * dazu und der nächste Scan desselben Produkts braucht keinen Netzwerk-Call
- * mehr. Wird nichts gefunden (Food-Datenbank kennt z.B. viele Non-Food-
- * Artikel wie Kohle/Servietten nicht), liefert die Route explizit 404 mit
- * einer klaren Meldung - das Frontend bietet dann manuelle Eingabe an.
+ * Barcode nachschlagen:
+ *   1. Erst im eigenen Katalog (bereits verknüpft oder manuell gepflegt)
+ *   2. Dann Open Food Facts → Produktnamen gegen FoodItems matchen
+ *      (z.B. "Duplo Schokoriegel" → FoodItem "Schokoriegel" in Kategorie "Süßes")
+ *   3. Wenn kein FoodItem passt: neuen Katalog-Eintrag mit OFF-Daten anlegen,
+ *      aber mit Vorschlag für foodCategoryId (basierend auf OFF-Kategorie)
+ *
+ * Das Frontend kann dann den passenden FoodItem/FoodCategory auswählen und
+ * verknüpfen - damit harmonisiert der Einkaufsliste-Katalog mit den
+ * Verpflegung-Stammdaten.
  */
 export const lookupBarcode = async (req: Request, res: Response) => {
   const barcode = String(req.params.barcode || '').trim();
   if (!barcode) return res.status(400).json({ error: 'Barcode erforderlich' });
 
+  // 1. Bereits im eigenen Katalog?
   const existing = await prisma.shoppingCatalogItem.findUnique({ where: { barcode } });
-  if (existing) return res.json(existing);
+  if (existing) {
+    // Wenn bereits verknüpft → trotzdem OFF-Hierarchie nachreichen
+    const foodCat = await prisma.foodCategory.findUnique({ where: { id: existing.foodCategoryId! } });
+    let offProduct = null;
 
+    // Immer OFF abfragen für Hierarchie-Anzeige (auch bei bestehenden Einträgen)
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const offResponse = await fetch(
+        `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`,
+        { signal: controller.signal }
+      );
+      clearTimeout(timeout);
+
+      if (offResponse.ok) {
+        const offData = await offResponse.json();
+        const productName = offData?.product?.product_name || offData?.product?.product_name_de;
+        if (offData?.status === 1 && productName) {
+          // categories_hierarchy aus OFF nutzen
+          const hierarchy = Array.isArray(offData.product.categories_hierarchy)
+            ? offData.product.categories_hierarchy.map((tag: string) => tag.replace(/^en:/, '')).filter(Boolean)
+            : [];
+          const displayHierarchy = hierarchy.slice(0, 5);
+
+          // Deutsche Labels
+          const hierarchyLabelsDe: Record<string, string> = {
+            'snacks': 'Snacks', 'sweet-snacks': 'Süßigkeiten',
+            'cocoa-and-its-products': 'Schokoladenprodukte', 'chocolates': 'Schokolade',
+            'milk-chocolates': 'Milchschokolade', 'dark-chocolates': 'Dunkle Schokolade',
+            'chocolates-with-hazelnuts': 'Schokolade mit Haselnüssen',
+            'chocolates-with-nuts': 'Schokolade mit Nüssen',
+            'milk-chocolate-bar': 'Milchschokoladentafel', 'cacao-et-dérivés': 'Kakao & Derivate',
+            'snacks-sucrés': 'Süße Snacks', 'breads': 'Brote',
+            'bakery-products': 'Backwaren', 'cakes': 'Kuchen', 'pastries': 'Gebäck',
+            'beverages': 'Getränke', 'drinks': 'Trinken',
+            'soft-drinks': 'Erfrischungsgetränke', 'juices': 'Säfte',
+            'teas': 'Tees', 'coffee': 'Kaffee',
+            'dairy-products': 'Milchprodukte', 'milk': 'Milch',
+            'fruits-and-vegetables-foods': 'Obst & Gemüse',
+          };
+          const hierarchyLabels = displayHierarchy.map((tag: string) => hierarchyLabelsDe[tag] || tag);
+
+          offProduct = {
+            name: String(productName).trim().slice(0, 150),
+            category: typeof offData.product.categories === 'string'
+              ? offData.product.categories.split(',')[0]?.trim().slice(0, 100) || null
+              : null,
+            hierarchy: displayHierarchy,
+            hierarchyLabelsDe: hierarchyLabels
+          };
+        }
+      }
+    } catch {
+      // OFF-Fehler ignorieren — bestehender Eintrag wird trotzdem zurückgegeben
+    }
+
+    return res.json({ ...existing, matchedFoodItem: null, matchedFoodCategory: foodCat, offProduct });
+  }
+
+  // 2. Open Food Facts abfragen (neuer Barcode)
+  let offData: any;
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    let offResponse: globalThis.Response;
-    try {
-      offResponse = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`, {
-        signal: controller.signal
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
+    const offResponse = await fetch(
+      `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timeout);
 
     if (!offResponse.ok) {
       return res.status(404).json({ error: 'Kein Produkt gefunden' });
     }
 
-    const data: any = await offResponse.json();
-    const productName = data?.product?.product_name || data?.product?.product_name_de;
-    if (data?.status !== 1 || !productName) {
+    offData = await offResponse.json();
+    const productName = offData?.product?.product_name || offData?.product?.product_name_de;
+    if (offData?.status !== 1 || !productName) {
       return res.status(404).json({ error: 'Kein Produkt gefunden' });
     }
-
-    // Erste, gröbste Kategorie aus Open Food Facts als Vorschlag übernehmen
-    // (freier Text bei uns, keine Übernahme der kompletten, oft sehr
-    // verschachtelten OFF-Kategorienliste nötig).
-    const category = typeof data.product.categories === 'string'
-      ? data.product.categories.split(',')[0]?.trim()
-      : null;
-
-    const created = await prisma.shoppingCatalogItem.create({
-      data: {
-        name: String(productName).trim().slice(0, 150),
-        category: category ? category.slice(0, 100) : null,
-        barcode,
-        unit: 'Stk'
-      }
-    });
-    return res.status(201).json(created);
-  } catch (e) {
-    // Netzwerkfehler/Timeout bei Open Food Facts ist kein Serverfehler unsererseits -
-    // aus Nutzersicht identisch zu "nicht gefunden", manuelle Eingabe bleibt möglich.
+  } catch {
+    // Netzwerkfehler/Timeout → aus Nutzersicht wie "nicht gefunden"
     return res.status(404).json({ error: 'Kein Produkt gefunden' });
   }
+
+  const productName = String(offData.product.product_name || offData.product.product_name_de || '').trim().slice(0, 150);
+
+  // OFF-Kategorie extrahieren (für Anzeige als Fallback)
+  let offCategory: string | null = null;
+  if (typeof offData.product.categories === 'string') {
+    offCategory = offData.product.categories.split(',')[0]?.trim().slice(0, 100) || null;
+  }
+
+  // categories_hierarchy aus OFF nutzen für generalisierte Kategorie:
+  // Hierarchie-Tiefe 3-4 ist meist die richtige Abstraktionsebene.
+  // Beispiel: [snacks, sweet-snacks, cocoa-and-its-products, chocolates, milk-chocolates]
+  // → Index 3 "chocolates" = "Schokolade" (nicht "Milchschokolade mit Haselnüssen")
+  const hierarchy = Array.isArray(offData.product.categories_hierarchy)
+    ? offData.product.categories_hierarchy
+        .map((tag: string) => tag.replace(/^en:/, ''))
+        .filter(Boolean)
+    : [];
+
+  // Deutsche Anzeige-Namen für die Hierarchie (OFF-Tags sind englisch/französisch)
+  const hierarchyLabelsDe: Record<string, string> = {
+    'snacks':                              'Snacks',
+    'sweet-snacks':                        'Süßigkeiten',
+    'cocoa-and-its-products':              'Schokoladenprodukte',
+    'chocolates':                          'Schokolade',
+    'milk-chocolates':                     'Milchschokolade',
+    'dark-chocolates':                     'Dunkle Schokolade',
+    'chocolates-with-hazelnuts':           'Schokolade mit Haselnüssen',
+    'chocolates-with-nuts':                'Schokolade mit Nüssen',
+    'milk-chocolate-bar':                  'Milchschokoladentafel',
+    'cacao-et-dérivés':                    'Kakao & Derivate',
+    'snacks-sucrés':                       'Süße Snacks',
+    'breads':                              'Brote',
+    'bakery-products':                     'Backwaren',
+    'cakes':                               'Kuchen',
+    'pastries':                            'Gebäck',
+    'beverages':                           'Getränke',
+    'drinks':                              'Trinken',
+    'soft-drinks':                         'Erfrischungsgetränke',
+    'juices':                              'Säfte',
+    'teas':                                'Tees',
+    'coffee':                              'Kaffee',
+    'dairy-products':                      'Milchprodukte',
+    'milk':                                'Milch',
+    'fruits-and-vegetables-foods':         'Obst & Gemüse',
+  };
+
+  // Deutsche Labels für die Hierarchie berechnen (max 5 Stufen — tiefere sind zu spezifisch)
+  const displayHierarchy = hierarchy.slice(0, 5);
+  const hierarchyLabels = displayHierarchy.map((tag: string) => hierarchyLabelsDe[tag] || tag);
+
+  // OFF-Tags → unsere FoodCategory-Namen (manuell gepflegt, da keine 1:1-Übersetzung)
+  const offToFoodCat: Record<string, { name: string; icon: string }> = {
+    'chocolates':           { name: 'Süßes',         icon: '🍪' },
+    'cocoa-and-its-products': { name: 'Süßes',       icon: '🍪' },
+    'milk-chocolates':      { name: 'Süßes',         icon: '🍪' },
+    'dark-chocolates':      { name: 'Süßes',         icon: '🍪' },
+    'chocolates-with-hazelnuts': { name: 'Süßes',   icon: '🍪' },
+    'chocolates-with-nuts':     { name: 'Süßes',   icon: '🍪' },
+    'sweet-snacks':         { name: 'Süßes',         icon: '🍪' },
+    'snacks':               { name: 'Süßes',         icon: '🍪' },
+    'breads':               { name: 'Gebäck',        icon: '🥐' },
+    'bakery-products':      { name: 'Gebäck',        icon: '🥐' },
+    'cakes':                { name: 'Kuchen',        icon: '🍰' },
+    'pastries':             { name: 'Gebäck',        icon: '🥐' },
+    'beverages':            { name: 'Getränke',      icon: '🥤' },
+    'drinks':               { name: 'Getränke',      icon: '🥤' },
+    'soft-drinks':          { name: 'Getränke',      icon: '🥤' },
+    'juices':               { name: 'Getränke',      icon: '🥤' },
+    'teas':                 { name: 'Kaffee & Tee',  icon: '☕' },
+    'coffee':               { name: 'Kaffee & Tee',  icon: '☕' },
+    'dairy-products':       { name: 'Süßes',         icon: '🍪' },
+    'milk':                 { name: 'Getränke',      icon: '🥤' },
+    'fruits-and-vegetables-foods': { name: 'Süßes', icon: '🍪' },
+  };
+
+  // Beste passende Kategorie aus der Hierarchie finden:
+  // Von hinten nach vorne durchlaufen (spezifischste Ebene zuerst).
+  // Beispiel: [..., chocolates, milk-chocolates, chocolates-with-hazelnuts]
+  // → Zuerst 'chocolates-with-hazelnuts' prüfen, dann 'milk-chocolates', dann 'chocolates'
+  let matchedFoodCategoryId: number | null = null;
+  for (let i = hierarchy.length - 1; i >= 0; i--) {
+    const tag = hierarchy[i];
+    const mapping = offToFoodCat[tag];
+    if (mapping) {
+      // Suche FoodCategory mit diesem Namen
+      const foodCat = await prisma.foodCategory.findFirst({ where: { name: mapping.name } });
+      if (foodCat) {
+        matchedFoodCategoryId = foodCat.id;
+        break; // Spezifischste passende Ebene gefunden
+      }
+    }
+  }
+
+  // 3. Produktnamen gegen FoodItems matchen (Fallback, wenn Hierarchie nicht passt):
+  const foodItems = await prisma.foodItem.findMany({
+    include: { category: true },
+    where: {
+      OR: [
+        { name: { contains: productName } },
+        ...(productName.length > 3 ? [{ name: { contains: productName.slice(0, 50) } }] : [])
+      ]
+    }
+  });
+
+  // Bester Match: längster gemeinsamer Teil
+  let bestMatch: typeof foodItems[number] | null = foodItems[0] || null;
+  let bestOverlap = 0;
+  if (foodItems.length > 1 && productName) {
+    for (const item of foodItems) {
+      const overlap = Math.max(
+        productName.includes(item.name) ? item.name.length : 0,
+        item.name.includes(productName.slice(0, 20)) ? productName.slice(0, 20).length : 0
+      );
+      if (overlap > bestOverlap && overlap >= 4) {
+        bestMatch = item;
+        bestOverlap = overlap;
+      }
+    }
+  }
+
+  // 4. Katalog-Eintrag anlegen oder updaten (mit Mapping-Vorschlag)
+  const foodCategoryId = matchedFoodCategoryId ?? (bestMatch ? bestMatch.categoryId : null);
+  let created;
+  if (existing) {
+    // Bestehenden Eintrag mit neuem Mapping updaten
+    created = await prisma.shoppingCatalogItem.update({
+      where: { id: existing.id },
+      data: { foodCategoryId, category: offCategory || existing.category },
+      include: { foodCategory: true }
+    });
+  } else {
+    // Neuen Eintrag anlegen
+    created = await prisma.shoppingCatalogItem.create({
+      data: {
+        name: productName,
+        category: offCategory,
+        barcode,
+        unit: 'Stk',
+        foodCategoryId
+      },
+      include: { foodCategory: true }
+    });
+  }
+
+  return res.status(existing ? 200 : 201).json({
+    ...created,
+    matchedFoodItem: bestMatch || null,
+    matchedFoodCategory: created.foodCategory || null,
+    offProduct: {
+      name: productName,
+      category: offCategory,
+      hierarchy: displayHierarchy,  // Begrenzt auf max 5 Stufen
+      hierarchyLabelsDe: hierarchyLabels
+    }
+  });
 };
 
 export const createCatalogItem = async (req: Request, res: Response) => {
@@ -177,6 +375,41 @@ export const deleteShoppingListItem = async (req: Request, res: Response) => {
  * bereits vorhandene Artikel auf der Ziel-Liste werden nicht dupliziert,
  * sondern übersprungen (die Zielliste könnte schon eigene Einträge haben).
  */
+// ===================== FoodCategory Mapping =====================
+
+/** Alle Verpflegung-Kategorien mit Items - für das Mapping im Frontend. */
+export const getFoodCategories = async (_req: Request, res: Response) => {
+  const categories = await prisma.foodCategory.findMany({
+    orderBy: { order: 'asc' },
+    include: { items: { orderBy: { name: 'asc' } } }
+  });
+  res.json(categories);
+};
+
+/** ShoppingCatalogItem mit einer FoodCategory verknüpfen. */
+export const linkFoodCategory = async (req: Request, res: Response) => {
+  const catalogItemId = parseInt(req.params.catalogItemId as string, 10);
+  const { foodCategoryId } = req.body;
+
+  if (!foodCategoryId || typeof foodCategoryId !== 'number') {
+    return res.status(400).json({ error: 'foodCategoryId erforderlich' });
+  }
+
+  try {
+    const updated = await prisma.shoppingCatalogItem.update({
+      where: { id: catalogItemId },
+      data: { foodCategoryId },
+      include: { foodCategory: true }
+    });
+    res.json(updated);
+  } catch (e: any) {
+    if (e.code === 'P2025') {
+      return res.status(404).json({ error: 'Artikel nicht gefunden' });
+    }
+    res.status(500).json({ error: e.message });
+  }
+};
+
 export const copyShoppingList = async (req: Request, res: Response) => {
   const sourceTournamentId = parseInt(req.params.sourceTournamentId as string, 10);
   const targetTournamentId = req.query.targetTournamentId ? Number(req.query.targetTournamentId) : undefined;

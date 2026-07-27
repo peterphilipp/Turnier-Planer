@@ -12,6 +12,10 @@ router.get('/catalog', authenticate, requireAdmin, ctrl.searchCatalog);
 router.get('/catalog/barcode/:barcode', authenticate, requireAdmin, ctrl.lookupBarcode);
 router.post('/catalog', authenticate, requireAdmin, validate(createCatalogItemSchema), ctrl.createCatalogItem);
 
+// FoodCategory Mapping (Verpflegung-Stammdaten)
+router.get('/food-categories', authenticate, requireAdmin, ctrl.getFoodCategories);
+router.patch('/catalog/:catalogItemId/link-food-category', authenticate, requireAdmin, ctrl.linkFoodCategory);
+
 // Einkaufsliste pro Turnier
 router.get('/', authenticate, requireAdmin, ctrl.getShoppingList);
 router.post('/', authenticate, requireAdmin, validate(createListItemSchema), ctrl.addShoppingListItem);

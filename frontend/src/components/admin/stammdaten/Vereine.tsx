@@ -27,30 +27,28 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
       });
   })();
 
-  // Form state
-  const [clubForm, setClubForm] = useState({ name: '', city: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' });
+  // Form state – nur noch 2 Farben: Vereinsfarbe + Aktionsfarbe
+  const [clubForm, setClubForm] = useState({ name: '', city: '', primaryColor: '#0d6efd', secondaryColor: '#198754', logo: '' });
   const [editingClub, setEditingClub] = useState<number | null>(null);
   const [clubLogo, setClubLogo] = useState<string | null>(null);
-  const [extractedColors, setExtractedColors] = useState<{ primary: string; secondary: string; accent: string } | null>(null);
+  const [extractedColors, setExtractedColors] = useState<{ primary: string; secondary: string } | null>(null);
   const [colorStrategyIndex, setColorStrategyIndex] = useState(0);
   const [analysisCount, setAnalysisCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync extractedColors → clubForm
+  // Sync extrahierte Farben → clubForm
   useEffect(() => {
     if (extractedColors) {
-      setClubForm(prev => ({ ...prev, primaryColor: extractedColors.primary, secondaryColor: extractedColors.secondary, accentColor: extractedColors.accent }));
+      setClubForm(prev => ({ ...prev, primaryColor: extractedColors.primary, secondaryColor: extractedColors.secondary }));
     }
   }, [extractedColors]);
 
-  const handleSwap = (keyA: 'primary' | 'secondary' | 'accent', keyB: 'primary' | 'secondary' | 'accent') => {
+  // Tauscht Vereinsfarbe und Aktionsfarbe
+  const handleSwap = () => {
     if (extractedColors) {
-      setExtractedColors(prev => prev ? ({ ...prev, [keyA]: prev[keyB], [keyB]: prev[keyA] }) : null);
+      setExtractedColors(prev => prev ? ({ primary: prev.secondary, secondary: prev.primary }) : null);
     } else {
-      setClubForm(prev => {
-        const map = { primary: 'primaryColor', secondary: 'secondaryColor', accent: 'accentColor' } as const;
-        return { ...prev, [map[keyA]]: prev[map[keyB]], [map[keyB]]: prev[map[keyA]] };
-      });
+      setClubForm(prev => ({ ...prev, primaryColor: prev.secondaryColor, secondaryColor: prev.primaryColor }));
     }
   };
 
@@ -59,22 +57,17 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
   const saveClub = async () => {
     if (!clubForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
     const hexColorRegex = /^#[0-9a-fA-F]{6}$/;
-    if (!hexColorRegex.test(clubForm.primaryColor)) return await modal.alert({ title: 'Hinweis', message: 'Primärfarbe muss ein Hex-Wert wie #aabbcc sein' });
-    if (!hexColorRegex.test(clubForm.secondaryColor)) return await modal.alert({ title: 'Hinweis', message: 'Sekundärfarbe muss ein Hex-Wert wie #aabbcc sein' });
-    if (!hexColorRegex.test(clubForm.accentColor)) return await modal.alert({ title: 'Hinweis', message: 'Akzentfarbe muss ein Hex-Wert wie #aabbcc sein' });
-    // Gleiche Grenze wie beim Ausschluss zu heller Pixel in der Logo-Farbextraktion
-    // (extractColors, MAX_BRIGHTNESS): verhindert nahezu-weiße Farben auch bei
-    // manueller Eingabe über den Farbwähler - sonst blieb genau die Lücke offen,
-    // die der Screenshot-Bug (weißer Button auf weißem Grund) gezeigt hat.
+    if (!hexColorRegex.test(clubForm.primaryColor)) return await modal.alert({ title: 'Hinweis', message: 'Vereinsfarbe muss ein Hex-Wert wie #aabbcc sein' });
+    if (!hexColorRegex.test(clubForm.secondaryColor)) return await modal.alert({ title: 'Hinweis', message: 'Aktionsfarbe muss ein Hex-Wert wie #aabbcc sein' });
+    // Verhindert nahezu-weiße Farben (wie beim Logo-Farbfilter)
     const tooLight = (hex: string) => {
       const r = parseInt(hex.substring(1, 3), 16), g = parseInt(hex.substring(3, 5), 16), b = parseInt(hex.substring(5, 7), 16);
       return r > 235 && g > 235 && b > 235;
     };
-    if (tooLight(clubForm.primaryColor)) return await modal.alert({ title: 'Hinweis', message: 'Primärfarbe ist zu hell (nahezu weiß) und würde Buttons/Verläufe unleserlich machen. Bitte eine kräftigere Farbe wählen.' });
-    if (tooLight(clubForm.secondaryColor)) return await modal.alert({ title: 'Hinweis', message: 'Sekundärfarbe ist zu hell (nahezu weiß) und würde Buttons/Verläufe unleserlich machen. Bitte eine kräftigere Farbe wählen.' });
-    if (tooLight(clubForm.accentColor)) return await modal.alert({ title: 'Hinweis', message: 'Akzentfarbe ist zu hell (nahezu weiß) und würde Buttons/Verläufe unleserlich machen. Bitte eine kräftigere Farbe wählen.' });
-    const data: { name: string; city?: string | null; primaryColor: string; secondaryColor: string; accentColor: string; logo?: string } = {
-      name: clubForm.name, city: clubForm.city || undefined, primaryColor: clubForm.primaryColor, secondaryColor: clubForm.secondaryColor, accentColor: clubForm.accentColor
+    if (tooLight(clubForm.primaryColor)) return await modal.alert({ title: 'Hinweis', message: 'Vereinsfarbe ist zu hell (nahezu weiß). Sie wird für Tabs/Buttons verwendet – bitte eine kräftigere Farbe wählen.' });
+    if (tooLight(clubForm.secondaryColor)) return await modal.alert({ title: 'Hinweis', message: 'Aktionsfarbe ist zu hell (nahezu weiß). Sie wird für wichtige Buttons verwendet – bitte eine kräftigere Farbe wählen.' });
+    const data: { name: string; city?: string | null; primaryColor: string; secondaryColor: string; logo?: string } = {
+      name: clubForm.name, city: clubForm.city || undefined, primaryColor: clubForm.primaryColor, secondaryColor: clubForm.secondaryColor
     };
     if (clubForm.logo) data.logo = clubForm.logo;
     if (editingClub) {
@@ -83,7 +76,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
       await apiPost('/api/clubs', data);
     }
     queryClient.invalidateQueries({ queryKey: ['clubs'] });
-    resetAnalysis(); setClubForm({ name: '', city: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' });
+    resetAnalysis(); setClubForm({ name: '', city: '', primaryColor: '#0d6efd', secondaryColor: '#198754', logo: '' });
     setClubLogo(null); setEditingClub(null);
   };
 
@@ -117,10 +110,11 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
           qr = Math.min(qr, 255); qg = Math.min(qg, 255); qb = Math.min(qb, 255);
           colorMap[`${qr},${qg},${qb}`] = (colorMap[`${qr},${qg},${qb}`] || 0) + 1;
         }
-        const sorted = Object.entries(colorMap).sort((a, b) => b[1] - a[1]).slice(0, 3);
-        if (sorted.length >= 3) {
+        // Die 2 dominantesten Farben extrahieren
+        const sorted = Object.entries(colorMap).sort((a, b) => b[1] - a[1]).slice(0, 2);
+        if (sorted.length >= 2) {
           const toHex = (rgb: string) => '#' + rgb.split(',').map(c => parseInt(c).toString(16).padStart(2, '0')).join('');
-          setExtractedColors({ primary: toHex(sorted[0][0]), secondary: toHex(sorted[1][0]), accent: toHex(sorted[2][0]) });
+          setExtractedColors({ primary: toHex(sorted[0][0]), secondary: toHex(sorted[1][0]) });
           setAnalysisCount(prev => prev + 1);
         } else { modal.alert({ title: 'Hinweis', message: 'Das Logo hat nicht genug verschiedene Farben.' }).catch(() => {}); }
       };
@@ -137,11 +131,11 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
 
   const openEdit = (club: Club) => {
     resetAnalysis(); setEditingClub(club.id);
-    setClubForm({ name: club.name, city: club.city || '', primaryColor: club.primaryColor, secondaryColor: club.secondaryColor, accentColor: club.accentColor, logo: club.logo || '' });
+    setClubForm({ name: club.name, city: club.city || '', primaryColor: club.primaryColor, secondaryColor: club.secondaryColor, logo: club.logo || '' });
     setClubLogo(club.logo); setColorStrategyIndex(0); setAnalysisCount(0);
   };
 
-  const closeEdit = () => { resetAnalysis(); setEditingClub(null); setClubForm({ name: '', city: '', primaryColor: '#0d6efd', secondaryColor: '#6c757d', accentColor: '#198754', logo: '' }); setClubLogo(null); };
+  const closeEdit = () => { resetAnalysis(); setEditingClub(null); setClubForm({ name: '', city: '', primaryColor: '#0d6efd', secondaryColor: '#198754', logo: '' }); setClubLogo(null); };
 
   const ColorPicker = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
     <div style={{ textAlign: 'center' }}>
@@ -178,9 +172,8 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
                     <h4 style={{ margin: 0, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{club.name}</h4>
                     {club.city && <div style={{ fontSize: 12, color: '#6c757d' }}>📍 {club.city}</div>}
                     <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: club.primaryColor }} />
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: club.secondaryColor }} />
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: club.accentColor }} />
+                      <span title="Vereinsfarbe" style={{ width: 10, height: 10, borderRadius: '50%', background: club.primaryColor }} />
+                      <span title="Aktionsfarbe" style={{ width: 10, height: 10, borderRadius: '50%', background: club.secondaryColor }} />
                     </div>
                   </div>
                   <button onClick={() => openEdit(club)} style={{ width: 40, height: 40, border: 'none', background: '#fff3cd', color: '#856404', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✏️</button>
@@ -196,49 +189,68 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
       {editingClub && (
         <EditModal title="Verein bearbeiten" onClose={closeEdit}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="Vereinsname" style={{ padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
-            <input value={clubForm.city} onChange={e => setClubForm({ ...clubForm, city: e.target.value })} placeholder="Stadt" style={{ padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
             
-            {/* Farben */}
-            <div>
-              <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎨 Farben</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
-                <ColorPicker label="Pos. 1" value={extractedColors ? extractedColors.primary : clubForm.primaryColor} onChange={v => { if (extractedColors) setExtractedColors({ ...extractedColors, primary: v }); else setClubForm({ ...clubForm, primaryColor: v }); }} />
-                <button onClick={() => handleSwap('primary', 'secondary')} title="Tauschen" style={{ width: 32, height: 32, border: '1px solid #dee2e6', background: '#f8f9fa', borderRadius: '50%', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⇄</button>
-                <ColorPicker label="Pos. 2" value={extractedColors ? extractedColors.secondary : clubForm.secondaryColor} onChange={v => { if (extractedColors) setExtractedColors({ ...extractedColors, secondary: v }); else setClubForm({ ...clubForm, secondaryColor: v }); }} />
-                <button onClick={() => handleSwap('secondary', 'accent')} title="Tauschen" style={{ width: 32, height: 32, border: '1px solid #dee2e6', background: '#f8f9fa', borderRadius: '50%', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⇄</button>
-                <ColorPicker label="Pos. 3" value={extractedColors ? extractedColors.accent : clubForm.accentColor} onChange={v => { if (extractedColors) setExtractedColors({ ...extractedColors, accent: v }); else setClubForm({ ...clubForm, accentColor: v }); }} />
-              </div>
+            {/* Name & Stadt – einheitliche Inputs (40px Höhe, 14px Schrift) */}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="Vereinsname" style={{ flex: 1, minWidth: 200, padding: '10px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 14, minHeight: 40 }} />
+              <input value={clubForm.city} onChange={e => setClubForm({ ...clubForm, city: e.target.value })} placeholder="Stadt" style={{ width: 150, padding: '10px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 14, minHeight: 40 }} />
             </div>
 
-            {/* Logo */}
-            <div>
-              <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>Logo</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                {clubLogo ? <img src={clubLogo} alt="Preview" style={{ width: 48, height: 48, borderRadius: 8 }} /> : <div style={{ width: 48, height: 48, background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🛡️</div>}
-                <input type="file" accept="image/*" ref={fileInputRef} onChange={handleLogoUpload} style={{ display: 'none' }} />
-                <button onClick={() => fileInputRef.current?.click()} style={{ padding: '12px 16px', border: '1px solid #dee2e6', background: '#fff', borderRadius: 8, cursor: 'pointer', minHeight: 40, minWidth: 100, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 15 }}>
-                  <span>📷</span><span>Bild wählen</span>
+            {/* Logo-Upload */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <label style={{ fontSize: 14, color: '#495057', minWidth: 60 }}>Logo</label>
+              <input type="file" accept="image/*" ref={fileInputRef} onChange={handleLogoUpload} style={{ display: 'none' }} />
+              {!clubLogo ? (
+                <button onClick={() => fileInputRef.current?.click()} style={{ padding: '10px 16px', border: '1px solid #dee2e6', background: '#fff', borderRadius: 8, cursor: 'pointer', fontSize: 14, minHeight: 40, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  Bild auswählen
                 </button>
-                {clubLogo && <button onClick={() => { setClubLogo(null); setExtractedColors(null); }} style={{ padding: '12px 16px', border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', minHeight: 40, minWidth: 60, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 15 }}>✕</button>}
-              </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <img src={clubLogo} alt="Vereinslogo" style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: 6, border: '1px solid #dee2e6', background: '#f8f9fa', padding: 3 }} />
+                  {extractedColors && (
+                    <button onClick={() => setClubForm({ ...clubForm, primaryColor: extractedColors.primary, secondaryColor: extractedColors.secondary })} style={{ padding: '10px 16px', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, minHeight: 40, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#e7f3ff', color: '#0d6efd' }}>
+                      Farben übernehmen
+                    </button>
+                  )}
+                  <button onClick={() => { setColorStrategyIndex(prev => prev + 1); extractColors(clubLogo, analysisCount); }} style={{ padding: '10px 16px', border: '1px solid #dee2e6', background: '#fff', borderRadius: 8, cursor: 'pointer', fontSize: 14, minHeight: 40, minWidth: 100, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    Neu analysieren
+                  </button>
+                  <button onClick={() => { setClubLogo(null); setExtractedColors(null); }} style={{ padding: '10px 16px', border: '1px solid #dee2e6', background: '#fff', borderRadius: 8, cursor: 'pointer', fontSize: 14, minHeight: 40, minWidth: 80, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    Ändern
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Analyse */}
+            {/* Vereinsfarben – nur wenn Logo vorhanden */}
             {clubLogo && (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                {extractedColors && <button onClick={() => setClubForm({ ...clubForm, primaryColor: extractedColors.primary, secondaryColor: extractedColors.secondary, accentColor: extractedColors.accent })} style={{ padding: '12px 16px', background: '#e7f3ff', color: '#0d6efd', border: 'none', borderRadius: 8, cursor: 'pointer', minHeight: 40, minWidth: 100, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 15 }}>
-                  <span>✓</span><span>Übernehmen</span>
-                </button>}
-                <button onClick={() => { setColorStrategyIndex(prev => prev + 1); extractColors(clubLogo, analysisCount); }} style={{ padding: '12px 16px', background: '#fff3cd', color: '#856404', border: 'none', borderRadius: 8, cursor: 'pointer', minHeight: 40, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 15 }}>
-                  <span>🔄</span><span>Neu analysieren</span>
-                </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label style={{ fontSize: 14, color: '#495057' }}>Vereinsfarben</label>
+                
+                {/* Detaillierte Legende – was die Farben bewirken */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 14, color: '#6c757d' }}>
+                  <span>🔵 <strong>Vereinsfarbe</strong>: Aktive Tabs, Header-Hintergrund, Club-Avatar. Wähle die dominante Farbe deines Logos/Vereinsbrandings.</span>
+                  <span>🟢 <strong>Aktionsfarbe</strong>: Push-Banner-Button, wichtige CTAs. Sollte auf weißem Grund gut lesbar sein!</span>
+                </div>
+                
+                {/* Pipette-Hinweis */}
+                <div style={{ fontSize: 14, color: '#856404', background: '#fff3cd', padding: '8px 12px', borderRadius: 6 }}>
+                  💡 Tipp: Klicke auf einen Farbwähler → Pipette aktivieren → Farbe vom Logo oben auswählen
+                </div>
+                
+                {/* ColorPicker mit Tausch-Button */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <ColorPicker label="Vereinsfarbe" value={extractedColors ? extractedColors.primary : clubForm.primaryColor} onChange={v => { if (extractedColors) setExtractedColors({ ...extractedColors, primary: v }); else setClubForm({ ...clubForm, primaryColor: v }); }} />
+                  <button onClick={() => handleSwap()} title="Farben tauschen" style={{ width: 28, height: 28, border: '1px solid #dee2e6', background: '#f8f9fa', borderRadius: 4, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⇄</button>
+                  <ColorPicker label="Aktionsfarbe" value={extractedColors ? extractedColors.secondary : clubForm.secondaryColor} onChange={v => { if (extractedColors) setExtractedColors({ ...extractedColors, secondary: v }); else setClubForm({ ...clubForm, secondaryColor: v }); }} />
+                </div>
               </div>
             )}
 
+            {/* Buttons – einheitlich */}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid #e9ecef' }}>
-              <button onClick={closeEdit} style={{ ...btnStyleSecondary, border: '1px solid #dee2e6', background: '#fff' }}>Abbrechen</button>
-              <button onClick={saveClub} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>💾 Speichern</button>
+              <button onClick={closeEdit} style={{ ...btnStyleSecondary, border: '1px solid #dee2e6', background: '#fff', padding: '10px 20px', fontSize: 14 }}>Abbrechen</button>
+              <button onClick={saveClub} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14, minHeight: 40 }}>Speichern</button>
             </div>
           </div>
         </EditModal>

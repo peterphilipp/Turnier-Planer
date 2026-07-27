@@ -1,0 +1,1 @@
+-- Add food_category_id to shopping_catalog_items\nALTER TABLE shopping_catalog_items ADD COLUMN food_category_id INTEGER REFERENCES food_categories(id) ON DELETE SET NULL;\n-- Add shopping_catalog_items back-reference to food_categories\nALTER TABLE food_categories ADD COLUMN shopping_catalog_items_count INTEGER DEFAULT 0;

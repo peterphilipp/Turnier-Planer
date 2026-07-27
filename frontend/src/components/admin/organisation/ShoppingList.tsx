@@ -3,13 +3,46 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { IScannerControls } from '@zxing/browser';
 import {
   getShoppingList, addShoppingListItem, updateShoppingListItem, deleteShoppingListItem,
-  copyShoppingListFrom, lookupShoppingBarcode, createShoppingCatalogItem
+  copyShoppingListFrom, lookupShoppingBarcode, createShoppingCatalogItem,
+  getFoodCategories, linkFoodCategoryToCatalogItem
 } from '../../../api';
 import { Tournament } from '../shared';
 import { modal } from '../Modal';
 
-interface CatalogItem { id: number; name: string; category: string | null; unit: string; barcode: string | null; }
-interface ListItem { id: number; tournamentId: number; catalogItemId: number; plannedQuantity: number; purchasedQuantity: number; note: string | null; catalogItem: CatalogItem; }
+interface FoodCategory {
+  id: number;
+  name: string;
+  icon: string;
+  order: number;
+  items: { id: number; name: string; unit: string }[];
+}
+
+interface CatalogItem {
+  id: number;
+  name: string;
+  category: string | null;
+  unit: string;
+  barcode: string | null;
+  foodCategoryId?: number | null;
+  foodCategory?: FoodCategory | null;
+  matchedFoodItem?: { id: number; name: string } | null;
+  matchedFoodCategory?: FoodCategory | null;
+  offProduct?: {
+    name: string;
+    category: string | null;
+    hierarchy: string[];
+    hierarchyLabelsDe: string[];
+  } | null;
+}
+interface ListItem {
+  id: number;
+  tournamentId: number;
+  catalogItemId: number;
+  plannedQuantity: number;
+  purchasedQuantity: number;
+  note: string | null;
+  catalogItem: CatalogItem;
+}
 
 /**
  * Kamera-Barcode-Scan über @zxing/browser statt der nativen BarcodeDetector-
@@ -62,16 +95,19 @@ function useBarcodeScanner(onDetected: (code: string) => void) {
       ]);
       const reader = new BrowserMultiFormatReader(hints);
 
-      reader.decodeFromVideoDevice(undefined, videoRef.current, (result) => {
-        if (result && !cancelled) {
-          cancelled = true;
-          const value = result.getText();
-          stop();
-          onDetectedRef.current(value);
+      reader.decodeFromVideoDevice(
+        undefined,
+        videoRef.current,
+        (result) => {
+          if (result && !cancelled) {
+            cancelled = true;
+            const value = result.getText();
+            stop();
+            onDetectedRef.current(value);
+          }
+          // Error callback wird im .catch() behandelt — NotFoundException ignorieren
         }
-        // Fehlgeschlagene Einzelbilder sind normal (kein Barcode im Blickfeld) -
-        // zxing ruft den Callback dafür ohne result auf, das ignorieren wir.
-      }).then(controls => {
+      ).then(controls => {
         if (cancelled) { controls.stop(); return; }
         controlsRef.current = controls;
       }).catch(async () => {
@@ -98,6 +134,23 @@ export default function ShoppingList({ selectedTournament, tournaments }: { sele
   const [lookingUp, setLookingUp] = useState(false);
   const [manualForm, setManualForm] = useState<{ name: string; category: string; unit: string; barcode: string } | null>(null);
   const [copySourceId, setCopySourceId] = useState('');
+
+  // Verpflegung-Kategorien für das Mapping laden
+  const { data: foodCategories = [] } = useQuery<FoodCategory[]>({
+    queryKey: ['foodCategories'],
+    queryFn: getFoodCategories,
+    staleTime: 5 * 60 * 1000 // 5 Min gültig - ändert sich selten
+  });
+
+  // Pending mapping: Barcode-Ergebnis das noch einer Kategorie zugeordnet werden muss
+  const [pendingMapping, setPendingMapping] = useState<{
+    catalogItemId: number;
+    matchedFoodItem?: { id: number; name: string } | null;
+    matchedFoodCategory?: FoodCategory | null;
+    selectedCategoryId?: number | null;
+    offHierarchy?: string[]; // OFF-Kategorien-Hierarchie zur Transparenz
+    hierarchyLabelsDe?: string[]; // Deutsche Anzeige-Namen
+  } | null>(null);
 
   const { data: items = [] } = useQuery<ListItem[]>({
     queryKey: ['shoppingList', selectedTournament],
@@ -127,8 +180,22 @@ export default function ShoppingList({ selectedTournament, tournaments }: { sele
     setManualForm(null);
     try {
       const found: CatalogItem = await lookupShoppingBarcode(code);
-      await addShoppingListItem({ tournamentId: selectedTournament, catalogItemId: found.id, plannedQuantity: 1 });
-      queryClient.invalidateQueries({ queryKey: ['shoppingList', selectedTournament] });
+
+      // Wenn Backend einen FoodCategory-Match gefunden hat → Mapping-UI anzeigen
+      if (found.matchedFoodCategory || found.matchedFoodItem) {
+        setPendingMapping({
+          catalogItemId: found.id,
+          matchedFoodItem: found.matchedFoodItem,
+          matchedFoodCategory: found.matchedFoodCategory,
+          selectedCategoryId: found.foodCategoryId ?? null,
+          offHierarchy: found.offProduct?.hierarchy,
+          hierarchyLabelsDe: found.offProduct?.hierarchyLabelsDe
+        });
+      } else {
+        // Kein Match → direkt hinzufügen
+        await addShoppingListItem({ tournamentId: selectedTournament, catalogItemId: found.id, plannedQuantity: 1 });
+        queryClient.invalidateQueries({ queryKey: ['shoppingList', selectedTournament] });
+      }
       setBarcodeInput('');
     } catch (e: any) {
       if (e?.status === 404) {
@@ -139,6 +206,23 @@ export default function ShoppingList({ selectedTournament, tournaments }: { sele
       }
     } finally {
       setLookingUp(false);
+    }
+  };
+
+  // Mapping bestätigen: FoodCategory zuordnen und Artikel hinzufügen
+  const confirmMapping = async () => {
+    if (!pendingMapping) return;
+    try {
+      // Kategorie verknüpfen (falls noch nicht geschehen)
+      if (pendingMapping.selectedCategoryId && pendingMapping.selectedCategoryId !== pendingMapping.matchedFoodCategory?.id) {
+        await linkFoodCategoryToCatalogItem(pendingMapping.catalogItemId, pendingMapping.selectedCategoryId);
+      }
+      // Artikel zur Liste hinzufügen
+      await addShoppingListItem({ tournamentId: selectedTournament, catalogItemId: pendingMapping.catalogItemId, plannedQuantity: 1 });
+      queryClient.invalidateQueries({ queryKey: ['shoppingList', selectedTournament] });
+      setPendingMapping(null);
+    } catch (e: any) {
+      await modal.alert({ title: 'Fehler', message: e?.message || 'Kategorie konnte nicht verknüpft werden' });
     }
   };
 
@@ -249,6 +333,78 @@ export default function ShoppingList({ selectedTournament, tournaments }: { sele
             </div>
           )}
 
+          {/* Mapping-UI: Barcode-Ergebnis mit Verpflegung-Kategorie verknüpfen */}
+          {pendingMapping && (
+            <div style={{ marginTop: 14, padding: 14, background: '#e7f5ff', border: '1px solid #b3d9ff', borderRadius: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#0c5460', marginBottom: 10 }}>
+                ℹ️ Barcode erkannt → Verpflegung-Kategorie zuordnen:
+              </div>
+
+              {/* OFF-Hierarchie anzeigen (mit deutschen Labels) */}
+              {pendingMapping.offHierarchy && pendingMapping.offHierarchy.length > 0 && (
+                <div style={{ fontSize: 12, color: '#084298', marginBottom: 10 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>OFF-Hierarchie (gewählt: <strong>{pendingMapping.hierarchyLabelsDe?.[pendingMapping.hierarchyLabelsDe!.length - 1] || pendingMapping.offHierarchy[pendingMapping.offHierarchy.length - 1]}</strong>):</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+                    {pendingMapping.offHierarchy.map((tag, idx) => (
+                      <span key={idx} style={{
+                        padding: '2px 6px',
+                        background: idx === pendingMapping.offHierarchy!.length - 1 ? '#b3d9ff' : '#fff',
+                        border: '1px solid #b3d9ff',
+                        borderRadius: 4,
+                        fontSize: 10,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {pendingMapping.hierarchyLabelsDe?.[idx] || tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Fallback wenn keine Hierarchie */}
+              {!pendingMapping.offHierarchy || pendingMapping.offHierarchy.length === 0 ? (
+                <div style={{ fontSize: 12, color: '#6c757d', marginBottom: 8 }}>
+                  ℹ️ Keine OFF-Hierarchie verfügbar — bitte Kategorie manuell wählen.
+                </div>
+              ) : null}
+
+              {pendingMapping.matchedFoodItem && (
+                <div style={{ fontSize: 12, color: '#084298', marginBottom: 8 }}>
+                  Gefunden: <strong>{pendingMapping.matchedFoodCategory?.icon} {pendingMapping.matchedFoodCategory?.name}</strong> → "{pendingMapping.matchedFoodItem.name}"
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: '#495057' }}>Kategorie:</span>
+                {foodCategories.length === 0 ? (
+                  <span style={{ fontSize: 12, color: '#6c757d', fontStyle: 'italic' }}>Lade Kategorien...</span>
+                ) : (
+                  <select
+                    value={pendingMapping.selectedCategoryId || ''}
+                    onChange={e => setPendingMapping({ ...pendingMapping, selectedCategoryId: e.target.value ? Number(e.target.value) : null })}
+                    style={{ padding: '8px 10px', border: '1px solid #ced4da', borderRadius: 6, fontSize: 13, flex: 1, minWidth: 200 }}
+                  >
+                    <option value="">-- Kategorie wählen --</option>
+                    {foodCategories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
+                    ))}
+                  </select>
+                )}
+                {/* Vorschlag anzeigen */}
+                {pendingMapping.matchedFoodCategory && pendingMapping.selectedCategoryId !== pendingMapping.matchedFoodCategory.id && (
+                  <span style={{ fontSize: 11, color: '#084298' }}>
+                    💡 Vorgeschlagen: {pendingMapping.matchedFoodCategory.icon} {pendingMapping.matchedFoodCategory.name}
+                  </span>
+                )}
+                <button onClick={confirmMapping} style={{ padding: '8px 14px', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+                  ✅ Bestätigen &amp; hinzufügen
+                </button>
+                <button onClick={() => setPendingMapping(null)} style={{ padding: '8px 14px', background: '#fff', color: '#6c757d', border: '1px solid #ced4da', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
+                  Ohne Kategorie
+                </button>
+              </div>
+            </div>
+          )}
+
           {manualForm && (
             <div style={{ marginTop: 14, padding: 14, background: '#fff3cd', border: '1px solid #ffe69c', borderRadius: 8 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#856404', marginBottom: 10 }}>
@@ -272,6 +428,8 @@ export default function ShoppingList({ selectedTournament, tournaments }: { sele
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {items.map(item => {
               const done = item.purchasedQuantity >= item.plannedQuantity && item.plannedQuantity > 0;
+              const catIcon = item.catalogItem.foodCategory?.icon || '📦';
+              const catName = item.catalogItem.foodCategory?.name || item.catalogItem.category;
               return (
                 <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: done ? '#f0f9f4' : '#fff', border: `1px solid ${done ? '#b7e4c7' : '#e9ecef'}`, borderRadius: 8 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -279,7 +437,7 @@ export default function ShoppingList({ selectedTournament, tournaments }: { sele
                       {item.catalogItem.name}
                       {done && <span style={{ marginLeft: 6 }}>✓</span>}
                     </div>
-                    {item.catalogItem.category && <div style={{ fontSize: 11, color: '#999' }}>{item.catalogItem.category}</div>}
+                    {catName && <div style={{ fontSize: 11, color: '#999' }}>{catIcon} {catName}</div>}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6c757d' }}>
                     <span>Soll:</span>

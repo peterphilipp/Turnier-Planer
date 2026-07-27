@@ -78,7 +78,6 @@ model Club {
   logo            String?          @map("logo")
   primaryColor    String           @default("#0d6efd") @map("primary_color")
   secondaryColor  String           @default("#6c757d") @map("secondary_color")
-  accentColor     String           @default("#198754") @map("accent_color")
   city            String?          @map("city")
   teams           Team[]
   tournamentClubs TournamentClub[]
@@ -462,12 +461,13 @@ model PasswordResetToken {
 }
 
 model FoodCategory {
-  id        Int        @id @default(autoincrement())
-  name      String
-  icon      String     @default("🍽️")
-  order     Int        @default(0)
-  createdAt DateTime   @default(now())
-  items     FoodItem[]
+  id                Int                @id @default(autoincrement())
+  name              String
+  icon              String             @default("🍽️")
+  order             Int                @default(0)
+  createdAt         DateTime           @default(now())
+  items             FoodItem[]
+  shoppingCatalogItems ShoppingCatalogItem[]
 
   @@map("food_categories")
 }
@@ -559,15 +559,18 @@ model FoodDonationSlot {
 // lernen": eine Einkaufsliste eines neuen Turniers kann die Katalog-Artikel
 // eines vorherigen Turniers übernehmen (siehe copyShoppingList).
 model ShoppingCatalogItem {
-  id        Int                @id @default(autoincrement())
-  name      String
-  category  String?
-  unit      String             @default("Stk")
-  barcode   String?            @unique
-  createdAt DateTime           @default(now()) @map("created_at")
-  listItems ShoppingListItem[]
+  id             Int                @id @default(autoincrement())
+  name           String
+  category       String?            // Fallback: freie Kategorie (z.B. von OFF oder manuell)
+  unit           String             @default("Stk")
+  barcode        String?            @unique
+  foodCategoryId Int?               @map("food_category_id")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  listItems      ShoppingListItem[]
+  foodCategory   FoodCategory?      @relation(fields: [foodCategoryId], references: [id], onDelete: SetNull)
 
   @@index([barcode])
+  @@index([foodCategoryId])
   @@map("shopping_catalog_items")
 }
 

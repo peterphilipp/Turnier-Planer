@@ -22,8 +22,7 @@ export const clubSchema = z.object({
   // Base64-Logo; Deckelung deutlich unter dem express.json-Limit von 10mb
   logo: z.string().max(8_000_000).optional().or(z.literal('')),
   primaryColor: hexColor.optional(),
-  secondaryColor: hexColor.optional(),
-  accentColor: hexColor.optional()
+  secondaryColor: hexColor.optional()
 });
 
 export const getClubs = async (req: Request, res: Response) => {
@@ -32,9 +31,9 @@ export const getClubs = async (req: Request, res: Response) => {
 };
 
 export const createClub = async (req: Request, res: Response) => {
-  const { name, city, logo, primaryColor, secondaryColor, accentColor } = req.body;
+  const { name, city, logo, primaryColor, secondaryColor } = req.body;
   const club = await prisma.club.create({
-    data: { name, city: city || null, logo, primaryColor, secondaryColor, accentColor }
+    data: { name, city: city || null, logo, primaryColor, secondaryColor }
   });
   logClubCreated(club.id, club.name);
   res.json(club);
@@ -42,10 +41,10 @@ export const createClub = async (req: Request, res: Response) => {
 
 export const updateClub = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { name, city, logo, primaryColor, secondaryColor, accentColor } = req.body;
+  const { name, city, logo, primaryColor, secondaryColor } = req.body;
   const club = await prisma.club.update({
     where: { id: parseInt(id as string) },
-    data: { name, city: city || null, logo, primaryColor, secondaryColor, accentColor }
+    data: { name, city: city || null, logo, primaryColor, secondaryColor }
   });
   res.json(club);
 };

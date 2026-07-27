@@ -15,7 +15,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@prisma/client": "^5.10.0",
+    "@prisma/client": "^5.22.0",
     "@simplewebauthn/server": "^13.3.2",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",

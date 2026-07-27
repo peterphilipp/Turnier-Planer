@@ -31,6 +31,8 @@ RUN npm ci
 # Prisma
 COPY backend/prisma ./prisma/
 RUN npx prisma generate
+# Migrations anwenden (sicher: ignoriert bereits angewendete)
+RUN npx prisma migrate deploy || true
 
 # Source & Frontend dist
 COPY backend/src ./src/

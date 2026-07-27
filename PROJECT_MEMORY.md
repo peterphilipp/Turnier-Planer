@@ -50,12 +50,12 @@ docker-compose.yml              # Docker Compose Config
 
 ## Backend Runtime Rules
 - **CMD**: `npx tsx src/server.ts` (NICHT compiled JS!)
-- **Migrations**: Immer `prisma db push` (kein `prisma migrate dev`)
+- **Migrations**: Siehe Abschnitt "🗄️ DATABASE MIGRATION STRATEGY" unten – immer `prisma migrate deploy`, NIE `prisma db push`
 - **Prisma DLL Locks**: Zuerst Node via Port/PID killen, dann `prisma generate`
 - **Resend API**: Lazy-instantiate (`new Resend()`) nur wenn `RESEND_API_KEY` gesetzt
 
 ## Docker Rules
-- Backend: Node 22, tsx Runtime, entrypoint mit `prisma db push`
+- Backend: Node 22, tsx Runtime, entrypoint mit `prisma migrate deploy`
 - Frontend: Node 22, npm build → nginx
 - Image Name: `turnier-planer` (lowercase für GHCR)
 - SQLite Volume persistent über Docker
@@ -76,7 +76,7 @@ Bei HMR-Fehlern: `rm -rf node_modules/.vite` + Node-Prozess killen.
 ## Core Entities
 | Model | Beschreibung | Wichtige Felder |
 |-------|-------------|-----------------|
-| **Club** | Verein mit Branding | `name`, `logo` (Base64), `primaryColor`, `secondaryColor`, `accentColor` |
+| **Club** | Verein mit Branding | `name`, `logo` (Base64), `primaryColor`, `secondaryColor` |
 | **Tournament** | Turnier | `name`, `startDate`, `endDate`, `status` (aktiv/beendet/archiviert), `clubId` FK |
 | **Group** | Gruppe | `name`, `tournamentId` FK |
 | **Team** | Mannschaft | `name`, `groupId` FK, `goalsFor`, `goalsAgainst` |
@@ -193,6 +193,76 @@ Stammdaten:
 
 ---
 
+# 🗄️ DATABASE MIGRATION STRATEGY
+
+## Prinzipien
+1. **Prisma Migrations** (nicht `prisma db push`) für alle Schema-Änderungen
+2. **Versionierte SQL-Migrationen** in `backend/prisma/migrations/<timestamp>_<name>/migration.sql`
+3. **Automatische Anwendung** via `prisma migrate deploy` in CI/CD und Docker-Entrypoint
+4. **Multi-Release-Gap**: `migrate deploy` wendet ALLE ausstehenden Migrationen sequenziell an
+5. **Keine ad-hoc SQL-Dateien** mehr im Repo-Root – alle Migrations gehören nach `prisma/migrations/`
+
+## Workflow: Schema-Änderung → Deployment
+```
+1. schema.prisma ändern (z.B. neue Spalte, neues Model)
+2. Migration erstellen:
+   a. Lokal: npx prisma migrate dev --name <name>
+   b. Oder manuell: Ordner + migration.sql erstellen
+3. Migration testen: npx prisma migrate deploy (lokal)
+4. Commit + Push → CI/CD Pipeline
+5. Bei Tag-Push: CI läuft `prisma migrate deploy` im Test-Job
+6. Container-Start: docker-entrypoint.sh läuft `prisma migrate deploy`
+```
+
+## Migration erstellen (manuell, non-interaktiv)
+```bash
+# 1. Ordner erstellen
+mkdir -p backend/prisma/migrations/<timestamp>_<name>
+
+# 2. migration.sql schreiben (SQLite: table recreation für column drops/changes)
+# Siehe: 20250101_remove_accent_color als Referenz
+
+# 3. Als applied markieren (wenn DB bereits im Zielzustand ist)
+npx prisma migrate resolve --applied <name>
+
+# ODER anwenden:
+npx prisma migrate deploy
+```
+
+## SQLite column drop Hinweis
+SQLite unterstützt `ALTER TABLE ... DROP COLUMN` erst ab 3.35.0 (2021).
+Für ältere Versionen: Table recreation mit INSERT INTO ... SELECT.
+Siehe `migration.sql` in `20250101_remove_accent_color/` als Vorlage.
+
+## Bestehende Migrationen (Stand nach Init)
+| Migration | Status | Beschreibung |
+|-----------|--------|-------------|
+| `20260722103316_init` | ✓ angewendet | Initial schema |
+| `20260722104806_add_slot_types_and_tournament_status` | ✓ angewendet | Slot types + tournament status |
+| `20260723_add_volunteer_contact` | ✓ angewendet | volunteer contact fields |
+| `20260101_add_tournament_logo` | ✓ angewendet | tournament logo field |
+| `add_shopping_food_category_link` | ✓ angewendet | shopping catalog food category |
+| `20250101_remove_accent_color` | ✓ angewendet | accentColor aus clubs entfernt |
+
+## CI/CD Integration
+- **deploy.yml**: `prisma migrate deploy` nach `prisma generate` im Test-Job
+- **Dockerfile/Dockerfile.backend**: `RUN npx prisma migrate deploy || true` im Build
+- **docker-entrypoint.sh**: `npx prisma migrate deploy` vor Server-Start
+- Alle drei Stellen sind redundant – garantiert dass DB immer sync ist
+
+## Daten-Migrationen (ad-hoc scripts)
+Einige Migrationen betreffen NUR Daten, nicht das Schema. Diese bleiben als
+eigene Scripts in `backend/scripts/`:  
+- `migrate-day-slot-system.cjs` – Tag-/Slot-System Migration
+- `backfill-slot-provenance.cjs` – Slot-Herkunft nachtragen
+- `backfill-tournament-membership.cjs` – Turnier-Mitgliedschaften ableiten
+- `migrate-hash-recovery-pins.cjs` – Recovery-PINs hashen
+- `migrate-food-unit-liter.cjs` – Einheit 'L' → 'Liter'
+
+Diese werden weiterhin im docker-entrypoint.sh ausgeführt.
+
+---
+
 # 🚀 DEPLOYMENT
 
 ## GitHub Secrets Required
@@ -233,7 +303,7 @@ services:
 
 ## Docker SQLite Initialization
 - Problem: Volume ist beim ersten Start leer
-- Fix: Entrypoint Script mit `prisma db push` vor Server-Start
+- Fix: Entrypoint Script läuft `prisma migrate deploy` (oder `|| true` wenn keine DB existiert)
 
 ## Resend API Crash on Startup
 - Problem: `new Resend()` bei fehlendem Key crasht
@@ -319,10 +389,11 @@ services:
 
 # 🔄 NEXT STEPS
 
-1. **Vereine.tsx Layout**: Logo-Upload und Farbanalyse eine Zeile nach unten verschieben (Editzeile zu voll)
-2. **Docker Rebuild**: `docker compose up -d --build` um alle Änderungen zu deployen
-3. **Testing**: RBAC mit verschiedenen User-Rollen testen
-4. **Admin-User erstellen**: curl POST /api/auth/register mit manuellem roles-Feld (oder über Helfer.tsx nachträglich)
+1. **[DONE]** Migration Strategy dokumentiert + accentColor entfernt + deploy.yml/Docker/entrypoint aktualisiert
+2. **Backend restart** um neuen Prisma Client zu laden (accentColor entfernt)
+3. **Docker Rebuild**: `docker compose up -d --build` für Production-Deploy
+4. **Testing**: Barcode-Scan mit OFF hierarchy mapping testen
+5. **Monitoring**: v1.10.22 push reminder behavior beobachten
 
 ---
 
