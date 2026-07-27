@@ -235,7 +235,7 @@ export const listTournamentDays = async (req: Request, res: Response) => {
   return res.json(days);
 };
 
-/** Legt einen Turniertag an; mit templateId werden die Katalog-Slots als Snapshot kopiert. */
+/** Legt einen Turniertag an; mit templateId wird pro TemplateWorkArea ein DaySlot angelegt (1:1). */
 export const createTournamentDay = async (req: Request, res: Response) => {
   const { tournamentId, date, label, order, templateId } = req.body;
   const day = await prisma.$transaction(async (tx) => {
@@ -243,14 +243,15 @@ export const createTournamentDay = async (req: Request, res: Response) => {
       data: { tournamentId, date: new Date(date), label: label ?? null, order: order ?? 0, sourceTemplateId: templateId ?? null }
     });
     if (templateId) {
-      const slots = await tx.globalDaySlot.findMany({ where: { templateId }, orderBy: [{ startMin: 'asc' }] });
-      if (slots.length) {
+      // Jeder TemplateWorkArea → eigener DaySlot mit direkter Referenz
+      const twas = await tx.templateWorkArea.findMany({ where: { templateId }, orderBy: [{ startMin: 'asc' }] });
+      if (twas.length) {
+        // Der Tag wurde eine Anweisung zuvor erst angelegt, es kann hier also
+        // noch keine bestehenden Slots geben - createMany genuegt.
         await tx.daySlot.createMany({
-          data: slots.map(s => ({
-            tournamentDayId: d.id, startMin: s.startMin, endMin: s.endMin, label: s.label, color: s.color, order: s.order,
-            // Herkunft merken: generateShifts nutzt dies, um nur Areas zu erzeugen,
-            // die im Katalog-Slot der Vorlage tatsächlich vorgesehen sind.
-            sourceGlobalSlotId: s.id
+          data: twas.map((twa, i) => ({
+            tournamentDayId: d.id, startMin: twa.startMin, endMin: twa.endMin,
+            label: null, color: '#3b98f8', order: i, sourceTemplateWorkAreaId: twa.id
           }))
         });
       }
@@ -315,19 +316,10 @@ export const exportDayToTemplate = async (req: Request, res: Response) => {
       }
     });
 
-    let order = 0;
+    // TemplateWorkAreas direkt erstellen (keine GlobalDaySlot-Zwischentabelle mehr)
     const sortedIntervals = Array.from(intervalsMap.values()).sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
 
     for (const interval of sortedIntervals) {
-      const gSlot = await tx.globalDaySlot.create({
-        data: {
-          templateId: tmpl.id,
-          startMin: interval.startMin,
-          endMin: interval.endMin,
-          order: order++
-        }
-      });
-
       const workAreaIds = new Set<number>();
       for (const s of interval.shifts) {
         if (s.workArea?.sourceWorkAreaId) {
@@ -339,10 +331,12 @@ export const exportDayToTemplate = async (req: Request, res: Response) => {
       }
 
       for (const waId of workAreaIds) {
-        await tx.globalDaySlotWorkArea.create({
+        await tx.templateWorkArea.create({
           data: {
-            globalSlotId: gSlot.id,
-            workAreaId: waId
+            templateId: tmpl.id,
+            workAreaId: waId,
+            startMin: interval.startMin,
+            endMin: interval.endMin
           }
         });
       }
@@ -350,7 +344,7 @@ export const exportDayToTemplate = async (req: Request, res: Response) => {
 
     return tx.globalDayTemplate.findUnique({
       where: { id: tmpl.id },
-      include: { slots: { include: { workAreas: true } } }
+      include: { workAreas: true }
     });
   });
 
@@ -381,15 +375,16 @@ export const deleteDaySlot = async (req: Request, res: Response) => {
 /**
  * Erzeugt Shifts aus (Tag × Slot × Area), aber NUR fuer Kombinationen, die die
  * zugrundeliegende Tag-Vorlage fuer diesen Slot auch tatsaechlich vorsieht
- * (GlobalDaySlotWorkArea). Ein aktiver Turnier-Arbeitsbereich, der in KEINER
+ * (TemplateWorkArea). Ein aktiver Turnier-Arbeitsbereich, der in KEINER
  * Vorlage einem Slot zugeordnet ist, wird NICHT automatisch irgendwo
  * eingefuegt - er erscheint stattdessen in `orphanedActiveAreas`, damit der
  * Admin bewusst entscheidet (Vorlage ergaenzen oder Bereich fuers Turnier
  * deaktivieren).
  *
- * Fuer manuell angelegte Slots ohne Vorlagen-Herkunft (sourceGlobalSlotId
- * null) gibt es keine Katalog-Einschraenkung - dort zaehlt weiterhin nur der
- * Betriebszeiten-Filter.
+ * Fuer manuell angelegte Slots ohne Vorlagen-Herkunft
+ * (sourceTemplateWorkAreaId null) gibt es keine Katalog-Einschraenkung - dort
+ * zaehlt weiterhin nur der Betriebszeiten-Filter. Solche Slots werden von der
+ * Vorlagen-Synchronisation auch nie geloescht.
  *
  * Idempotent (ueberspringt bereits existierende Kombinationen) und
  * transaktional; bestehende Shifts inkl. Helfer-Zuweisungen bleiben
@@ -402,89 +397,105 @@ export const generateShifts = async (req: Request, res: Response) => {
   const result = await prisma.$transaction(async (tx) => {
     const days = await tx.tournamentDay.findMany({ where: { tournamentId }, include: { slots: true } });
 
-    // Sync DaySlots with their source templates
+    // Sync DaySlots with their source templates via TemplateWorkArea
     for (const day of days) {
-      if (day.sourceTemplateId) {
-        const templateSlots = await tx.globalDaySlot.findMany({ where: { templateId: day.sourceTemplateId } });
-        const existingDaySlots = day.slots;
-        const existingSlotIds = new Set(existingDaySlots.map(s => s.sourceGlobalSlotId).filter(id => id != null));
-        const templateSlotIds = new Set(templateSlots.map(s => s.id));
+      if (!day.sourceTemplateId) continue;
 
-        for (const ts of templateSlots) {
-          if (existingSlotIds.has(ts.id)) {
-            const es = existingDaySlots.find(s => s.sourceGlobalSlotId === ts.id)!;
-            if (es.startMin !== ts.startMin || es.endMin !== ts.endMin || es.label !== ts.label || es.color !== ts.color || es.order !== ts.order) {
-              await tx.daySlot.update({
-                where: { id: es.id },
-                data: { startMin: ts.startMin, endMin: ts.endMin, label: ts.label, color: ts.color, order: ts.order }
-              });
-              es.startMin = ts.startMin;
-              es.endMin = ts.endMin;
-              es.label = ts.label;
-              es.color = ts.color;
-              es.order = ts.order;
-            }
-          } else {
-            const newSlot = await tx.daySlot.create({
-              data: { tournamentDayId: day.id, startMin: ts.startMin, endMin: ts.endMin, label: ts.label, color: ts.color, order: ts.order, sourceGlobalSlotId: ts.id }
-            });
-            day.slots.push(newSlot);
-          }
+      const templateTWAs = await tx.templateWorkArea.findMany({ where: { templateId: day.sourceTemplateId } });
+
+      const existingDaySlots = day.slots;
+      // Markiere bereits verarbeitete Slots (via sourceTemplateWorkAreaId)
+      const usedSlotIds = new Set<number>();
+
+      // Für jeden TemplateWorkArea: bestehenden Slot mit dieser Referenz finden oder neuen erstellen
+      for (const twa of templateTWAs) {
+        let matchedSlot = existingDaySlots.find(s => s.sourceTemplateWorkAreaId === twa.id);
+
+        if (matchedSlot) {
+          // Bestehenden Slot aktualisieren mit aktuellen Zeiten
+          await tx.daySlot.update({
+            where: { id: matchedSlot.id },
+            data: { startMin: twa.startMin, endMin: twa.endMin }
+          });
+          usedSlotIds.add(matchedSlot.id);
+        } else {
+          // Neuer Slot
+          const newSlot = await tx.daySlot.create({
+            data: { tournamentDayId: day.id, startMin: twa.startMin, endMin: twa.endMin, label: null, color: '#3b98f8', order: 0, sourceTemplateWorkAreaId: twa.id }
+          });
+          usedSlotIds.add(newSlot.id);
         }
+      }
 
-        for (const es of existingDaySlots) {
-          if (es.sourceGlobalSlotId != null && !templateSlotIds.has(es.sourceGlobalSlotId)) {
-            await tx.daySlot.delete({ where: { id: es.id } });
-            day.slots = day.slots.filter(s => s.id !== es.id);
-          }
+      // Verwaiste Slots entfernen: NUR solche, die aus der Vorlage stammen und
+      // deren TemplateWorkArea es dort nicht mehr gibt. Manuell angelegte Slots
+      // (sourceTemplateWorkAreaId == null) bleiben unangetastet - an ihnen
+      // haengen ueber die Kaskade DaySlot -> Shift -> VolunteerShift auch die
+      // Helfer-Zusagen, die ein blosses "Dienstplan generieren" niemals
+      // loeschen darf.
+      for (const es of existingDaySlots) {
+        if (es.sourceTemplateWorkAreaId != null && !usedSlotIds.has(es.id)) {
+          await tx.daySlot.delete({ where: { id: es.id } });
         }
       }
     }
 
+    // Reload days after sync
+    const daysSynced = await tx.tournamentDay.findMany({ where: { tournamentId }, include: { slots: true } });
+
     const areas = await tx.tournamentWorkArea.findMany({ where: { tournamentId, active: true }, orderBy: [{ order: 'asc' }, { name: 'asc' }, { id: 'asc' }] });
+
     const existing = await tx.shift.findMany({
       where: { tournamentId },
       select: { tournamentDayId: true, daySlotId: true, tournamentWorkAreaId: true }
     });
     const seen = new Set(existing.map(e => `${e.tournamentDayId}-${e.daySlotId}-${e.tournamentWorkAreaId}`));
 
-    // Katalog-Zuordnungen (welche WorkArea gehört laut Vorlage zu welchem Slot?) vorladen.
-    const catalogSlotIds = [...new Set(days.flatMap(d => d.slots.map(s => s.sourceGlobalSlotId).filter((id): id is number => id != null)))];
-    const catalogLinks = catalogSlotIds.length
-      ? await tx.globalDaySlotWorkArea.findMany({ where: { globalSlotId: { in: catalogSlotIds } } })
+    // Hole alle TemplateWorkAreas für Templates die von Turnier-Tagen verwendet werden
+    const templateIds = daysSynced.map(d => d.sourceTemplateId).filter((id): id is number => id != null);
+    const allTemplateTWAs = templateIds.length
+      ? await tx.templateWorkArea.findMany({ where: { templateId: { in: templateIds } } })
       : [];
-    const allowedByCatalogSlot = new Map<number, Set<number>>();
-    for (const link of catalogLinks) {
-      if (!allowedByCatalogSlot.has(link.globalSlotId)) allowedByCatalogSlot.set(link.globalSlotId, new Set());
-      allowedByCatalogSlot.get(link.globalSlotId)!.add(link.workAreaId);
+
+    // Map: templateWorkAreaId → workAreaId (1:1)
+    const twaToWorkArea = new Map<number, number>();
+    for (const twa of allTemplateTWAs) {
+      twaToWorkArea.set(twa.id, twa.workAreaId);
     }
 
-    // Nur relevant, wenn JEDER Slot des Turniers eine Vorlagen-Herkunft hat – bei
-    // manuell angelegten Slots (kein Katalog) ist "orphan" nicht aussagekräftig.
-    const allSlotsHaveTemplate = days.every(d => d.slots.every(s => s.sourceGlobalSlotId != null));
+    // Nur relevant, wenn JEDER Slot des Turniers eine Vorlagen-Herkunft hat
+    const allSlotsHaveTemplate = daysSynced.every(d => d.slots.every(s => s.sourceTemplateWorkAreaId != null));
     const usedCatalogWorkAreaIds = new Set<number>();
 
     const toCreate: { tournamentId: number; tournamentDayId: number; daySlotId: number; tournamentWorkAreaId: number; startMin: number | null; endMin: number | null; minVolunteers: number; maxVolunteers: number }[] = [];
-    for (const day of days) {
+    for (const day of daysSynced) {
       for (const slot of day.slots) {
-        const allowedCatalogAreaIds = slot.sourceGlobalSlotId != null ? allowedByCatalogSlot.get(slot.sourceGlobalSlotId) : null;
+        // Hole die WorkAreaId aus der TemplateWorkArea-Referenz
+        const sourceWaIds = new Set<number>();
+        if (slot.sourceTemplateWorkAreaId != null) {
+          const waId = twaToWorkArea.get(slot.sourceTemplateWorkAreaId);
+          if (waId != null) sourceWaIds.add(waId);
+        }
 
         for (const area of areas) {
           // Vorlagen-Filter: Bei Slots mit Katalog-Herkunft nur Areas erzeugen,
           // die dort auch zugeordnet sind. Slots ohne Herkunft sind uneingeschränkt.
-          if (allowedCatalogAreaIds) {
-            if (!area.sourceWorkAreaId || !allowedCatalogAreaIds.has(area.sourceWorkAreaId)) continue;
-            usedCatalogWorkAreaIds.add(area.sourceWorkAreaId);
+          if (sourceWaIds.size > 0) {
+            const sourceWaId = area.sourceWorkAreaId;
+            if (!sourceWaId || !sourceWaIds.has(sourceWaId)) continue;
+            usedCatalogWorkAreaIds.add(sourceWaId);
           }
 
+          // Betriebszeiten: Zeitfenster zuschneiden statt den Slot pauschal zu
+          // uebernehmen. Liegt der Slot komplett ausserhalb, entsteht gar keine
+          // Schicht. Bei Teilueberlappung wird die Schicht auf das Betriebs-
+          // fenster begrenzt - sonst waere operatingStartMin/EndMin eine
+          // Einstellung ohne jede Wirkung.
           let shiftStart = slot.startMin;
           let shiftEnd = slot.endMin;
-
-          // Betriebszeiten-Filter: Zeitfenster zuschneiden, statt den ganzen Slot zu überspringen
           if (area.operatingStartMin != null && area.operatingStartMin > shiftStart) shiftStart = area.operatingStartMin;
           if (area.operatingEndMin != null && area.operatingEndMin < shiftEnd) shiftEnd = area.operatingEndMin;
-
-          if (shiftStart >= shiftEnd) continue; // Außerhalb der Betriebszeiten
+          if (shiftStart >= shiftEnd) continue;
 
           const key = `${day.id}-${slot.id}-${area.id}`;
           if (seen.has(key)) continue;
@@ -493,6 +504,8 @@ export const generateShifts = async (req: Request, res: Response) => {
             tournamentDayId: day.id,
             daySlotId: slot.id,
             tournamentWorkAreaId: area.id,
+            // Nur setzen, wenn tatsaechlich zugeschnitten wurde - sonst null,
+            // damit die Schicht den Slot-Zeiten weiter automatisch folgt.
             startMin: shiftStart > slot.startMin ? shiftStart : null,
             endMin: shiftEnd < slot.endMin ? shiftEnd : null,
             minVolunteers: area.minVolunteers,
@@ -586,15 +599,13 @@ export const syncDayWorkAreas = async (req: Request, res: Response) => {
   if (day.sourceTemplateId) {
     const template = await prisma.globalDayTemplate.findUnique({
       where: { id: day.sourceTemplateId },
-      include: { slots: { include: { workAreas: true } } }
+      include: { workAreas: true }
     });
-    if (template && template.slots) {
-      // Sammle alle workAreaIds aus allen Slots des Templates
+    if (template && template.workAreas) {
+      // Sammle alle workAreaIds aus dem Template
       const ids = new Set<number>();
-      for (const slot of template.slots) {
-        for (const wa of slot.workAreas) {
-          ids.add(wa.workAreaId);
-        }
+      for (const twa of template.workAreas) {
+        ids.add(twa.workAreaId);
       }
       templateWorkAreaIds = Array.from(ids);
     }

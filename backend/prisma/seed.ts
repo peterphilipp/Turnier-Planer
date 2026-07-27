@@ -155,21 +155,22 @@ async function main() {
     console.log('🌱 Seeding Day Templates...');
     const areas = await prisma.workArea.findMany();
     const areaByName = new Map(areas.map(a => [a.name, a.id] as const));
+    let templateOrder = 0;
     for (const tmpl of dayTemplates) {
-      const createdTemplate = await prisma.globalDayTemplate.create({ data: { name: tmpl.name } });
-      let slotOrder = 0;
+      const createdTemplate = await prisma.globalDayTemplate.create({
+        data: { name: tmpl.name, order: templateOrder++ }
+      });
+      // Die Vorlagen-Daten oben sind slot-zentriert (ein Zeitfenster, mehrere
+      // Bereiche). Das Modell kennt nur noch TemplateWorkArea: pro Bereich und
+      // Zeitfenster ein Eintrag - hier also flachgeklopft.
+      let order = 0;
       for (const slot of tmpl.slots) {
-        const createdSlot = await prisma.globalDaySlot.create({
-          data: { templateId: createdTemplate.id, startMin: slot.startMin, endMin: slot.endMin, label: slot.label, order: slotOrder++ }
-        });
-        let areaOrder = 0;
         for (const areaName of slot.areas) {
           const workAreaId = areaByName.get(areaName);
-          if (workAreaId) {
-            await prisma.globalDaySlotWorkArea.create({
-              data: { globalSlotId: createdSlot.id, workAreaId, order: areaOrder++ }
-            });
-          }
+          if (!workAreaId) continue;
+          await prisma.templateWorkArea.create({
+            data: { templateId: createdTemplate.id, workAreaId, startMin: slot.startMin, endMin: slot.endMin, order: order++ }
+          });
         }
       }
     }

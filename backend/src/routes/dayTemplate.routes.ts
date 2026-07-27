@@ -3,8 +3,8 @@ import validate from '../middleware/validate.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import {
   listDayTemplates, createDayTemplate, updateDayTemplate, deleteDayTemplate,
-  addTemplateSlot, updateTemplateSlot, deleteTemplateSlot, setSlotWorkAreas,
-  dayTemplateSchema, catalogSlotSchema, setSlotWorkAreasSchema
+  addTemplateWorkArea, updateTemplateWorkArea, deleteTemplateWorkArea,
+  dayTemplateSchema, templateWorkAreaSchema
 } from '../controllers/dayTemplate.controller.js';
 
 const router = Router();
@@ -14,10 +14,9 @@ router.post('/', authenticate, requireAdmin, validate(dayTemplateSchema), create
 router.patch('/:id', authenticate, requireAdmin, validate(dayTemplateSchema.partial()), updateDayTemplate);
 router.delete('/:id', authenticate, requireAdmin, deleteDayTemplate);
 
-// Katalog-Slots
-router.post('/slots', authenticate, requireAdmin, validate(catalogSlotSchema), addTemplateSlot);
-router.patch('/slots/:id', authenticate, requireAdmin, validate(catalogSlotSchema.partial()), updateTemplateSlot);
-router.delete('/slots/:id', authenticate, requireAdmin, deleteTemplateSlot);
-router.put('/slots/:id/work-areas', authenticate, requireAdmin, validate(setSlotWorkAreasSchema), setSlotWorkAreas);
+// Template-Arbeitsbereiche
+router.post('/work-areas', authenticate, requireAdmin, validate(templateWorkAreaSchema), addTemplateWorkArea);
+router.patch('/work-areas/:id', authenticate, requireAdmin, validate(templateWorkAreaSchema.partial()), updateTemplateWorkArea);
+router.delete('/work-areas/:id', authenticate, requireAdmin, deleteTemplateWorkArea);
 
 export default router;

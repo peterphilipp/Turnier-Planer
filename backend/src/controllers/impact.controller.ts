@@ -62,9 +62,9 @@ export const getDeleteImpact = async (req: Request, res: Response) => {
       }
 
       case 'workArea': {
-        const catalogUses = await prisma.globalDaySlotWorkArea.count({ where: { workAreaId: numId } });
+        const catalogUses = await prisma.templateWorkArea.count({ where: { workAreaId: numId } });
         const snapshots = await prisma.tournamentWorkArea.count({ where: { sourceWorkAreaId: numId } });
-        if (catalogUses > 0) impact.push(`${catalogUses} Tag-Vorlagen-Zuordnung(en)`);
+        if (catalogUses > 0) impact.push(`${catalogUses} Template-Zuordnung(en)`);
         if (snapshots > 0) impact.push(`in ${snapshots} Turnier(en) übernommen`);
         break;
       }

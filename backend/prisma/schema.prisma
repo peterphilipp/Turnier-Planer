@@ -267,7 +267,7 @@ model WorkArea {
   operatingEndMin   Int?                    @map("operating_end_min")
   isStandard        Boolean                 @default(false) @map("is_standard")
   isObsolete        Boolean                 @default(false) @map("is_obsolete")
-  catalogSlots      GlobalDaySlotWorkArea[]
+  templateWorkAreas    TemplateWorkArea[]
   categories        WorkAreaCategory[]      @relation("WorkAreaToCategories")
 
   @@map("arbeitsbereiche")
@@ -276,9 +276,10 @@ model WorkArea {
 model GlobalDayTemplate {
   id         Int             @id @default(autoincrement())
   name       String
+  order      Int             @default(0)
   isObsolete Boolean         @default(false) @map("is_obsolete")
   createdAt  DateTime        @default(now()) @map("created_at")
-  slots      GlobalDaySlot[]
+  workAreas            TemplateWorkArea[]
 
   @@map("global_day_templates")
 }
@@ -295,32 +296,19 @@ model WorkAreaCategory {
   @@map("work_area_categories")
 }
 
-model GlobalDaySlot {
-  id         Int                     @id @default(autoincrement())
-  templateId Int                     @map("template_id")
-  startMin   Int                     @map("start_min")
-  endMin     Int                     @map("end_min")
-  label      String?
-  color      String                  @default("#3b98f8")
-  order      Int                     @default(0)
-  workAreas  GlobalDaySlotWorkArea[]
-  template   GlobalDayTemplate       @relation(fields: [templateId], references: [id], onDelete: Cascade)
-
-  @@index([templateId])
-  @@map("global_day_slots")
-}
-
-model GlobalDaySlotWorkArea {
+model TemplateWorkArea {
   id           Int           @id @default(autoincrement())
-  globalSlotId Int           @map("global_slot_id")
+  templateId   Int           @map("template_id")
   workAreaId   Int           @map("work_area_id")
-  order        Int           @default(0)
+  startMin     Int           @map("start_min")
+  endMin       Int           @map("end_min")
+  order        Int                     @default(0)
+  template     GlobalDayTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   workArea     WorkArea      @relation(fields: [workAreaId], references: [id], onDelete: Cascade)
-  slot         GlobalDaySlot @relation(fields: [globalSlotId], references: [id], onDelete: Cascade)
 
-  @@unique([globalSlotId, workAreaId])
-  @@index([workAreaId])
-  @@map("global_day_slot_work_areas")
+  @@unique([templateId, workAreaId, startMin])
+  @@index([templateId])
+  @@map("template_work_areas")
 }
 
 model TournamentWorkArea {
@@ -378,16 +366,16 @@ model TournamentDayWorkArea {
 }
 
 model DaySlot {
-  id                 Int           @id @default(autoincrement())
-  tournamentDayId    Int           @map("tournament_day_id")
-  startMin           Int           @map("start_min")
-  endMin             Int           @map("end_min")
-  label              String?
-  color              String        @default("#3b98f8")
-  order              Int           @default(0)
-  sourceGlobalSlotId Int?          @map("source_global_slot_id")
-  day                TournamentDay @relation(fields: [tournamentDayId], references: [id], onDelete: Cascade)
-  shifts             Shift[]
+  id                       Int           @id @default(autoincrement())
+  tournamentDayId          Int           @map("tournament_day_id")
+  startMin                 Int           @map("start_min")
+  endMin                   Int           @map("end_min")
+  label                    String?
+  color                    String        @default("#3b98f8")
+  order                    Int           @default(0)
+  sourceTemplateWorkAreaId Int?          @map("source_template_work_area_id")
+  day                      TournamentDay @relation(fields: [tournamentDayId], references: [id], onDelete: Cascade)
+  shifts                   Shift[]
 
   @@index([tournamentDayId])
   @@map("day_slots")

@@ -17,9 +17,6 @@ node scripts/backup-db.cjs || echo "  (kein Backup erstellt - vermutlich Erststa
 echo "  Schema synchronisieren (prisma db push)..."
 npx prisma db push --accept-data-loss
 
-echo "  Slot-Herkunft nachtragen (Tage vor sourceGlobalSlotId-Einfuehrung)..."
-node scripts/backfill-slot-provenance.cjs
-
 echo "  Turnier-Mitgliedschaften aus bestehenden Schichten/Spenden ableiten..."
 node scripts/backfill-tournament-membership.cjs
 

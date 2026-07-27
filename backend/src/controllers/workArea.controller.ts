@@ -80,11 +80,11 @@ export const deleteWorkArea = async (req: Request, res: Response) => {
 
   // Turnier-Snapshots (TournamentWorkArea) sind eigenständige Kopien und bleiben
   // beim Löschen des Katalog-Eintrags unberührt. Blockiert wird nur, wenn der
-  // Bereich noch in Tag-Vorlagen referenziert wird.
-  const catalogUses = await prisma.globalDaySlotWorkArea.count({ where: { workAreaId: areaId } });
+  // Bereich noch in Template-Vorlagen referenziert wird.
+  const catalogUses = await prisma.templateWorkArea.count({ where: { workAreaId: areaId } });
   if (catalogUses > 0) {
     return res.status(409).json({
-      error: catalogUses + ' Tag-Vorlage(n) verwenden diesen Arbeitsbereich. Bitte dort entfernen oder den Bereich als obsolet markieren.'
+      error: catalogUses + ' Template-Vorlage(n) verwenden diesen Arbeitsbereich. Bitte dort entfernen oder den Bereich als obsolet markieren.'
     });
   }
 

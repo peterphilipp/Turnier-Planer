@@ -62,8 +62,15 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
     <WorkAreaCategories adminPrimary={adminPrimary} />
 
-    <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef', position: 'relative' }}>
+    <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>📍 Arbeitsbereiche</h3>
+
+      {/* Emoji Picker */}
+      {emojiPickerOpen && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: 8, background: '#f8f9fa', borderRadius: 8, marginBottom: 12 }}>
+          {emojiList.map(e => (<button key={e} onClick={() => { setAbForm({ ...abForm, icon: e }); setEmojiPickerOpen(false); }} style={{ fontSize: 20, padding: '4px 6px', border: abForm.icon === e ? '2px solid #0d6efd' : '1px solid #dee2e6', background: abForm.icon === e ? '#e8f4fd' : '#fff', borderRadius: 6, cursor: 'pointer' }}>{e}</button>))}
+        </div>
+      )}
 
       {/* Neue ARB Form */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch', marginBottom: 16 }}>
@@ -74,11 +81,6 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
         <div style={{ width: 70, display: 'flex', flexDirection: 'column' }}>
           <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>😀 Icon</label>
           <button onClick={() => setEmojiPickerOpen(!emojiPickerOpen)} style={{ fontSize: 20, padding: '6px 12px', border: '1px solid #dee2e6', background: '#f8f9fa', borderRadius: 8, cursor: 'pointer', height: 44 }}>{abForm.icon}</button>
-          {emojiPickerOpen && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: 8, background: '#f8f9fa', borderRadius: 8, marginTop: 6 }}>
-              {emojiList.map(e => (<button key={e} onClick={() => { setAbForm({ ...abForm, icon: e }); setEmojiPickerOpen(false); }} style={{ fontSize: 20, padding: '4px 6px', border: abForm.icon === e ? '2px solid #0d6efd' : '1px solid #dee2e6', background: abForm.icon === e ? '#e8f4fd' : '#fff', borderRadius: 6, cursor: 'pointer' }}>{e}</button>))}
-            </div>
-          )}
         </div>
         <div style={{ width: 100, display: 'flex', flexDirection: 'column' }}>
           <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎨 Farbe</label>

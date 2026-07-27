@@ -4,44 +4,51 @@ import { z } from 'zod';
 
 export const dayTemplateSchema = z.object({
   name: z.string(),
+  order: z.number().int().optional(),
   isObsolete: z.boolean().optional()
 });
 
-export const catalogSlotSchema = z.object({
+export const templateWorkAreaSchema = z.object({
   templateId: z.number().int().positive(),
+  workAreaId: z.number().int().positive(),
   startMin: z.number().int().min(0).max(1439),
   endMin: z.number().int().min(1).max(1440),
-  label: z.string().nullable().optional(),
-  color: z.string().optional(),
-  order: z.number().int().optional()
+  order: z.number().int().optional(),
+  // Muss deklariert sein: validate() ersetzt req.body durch das Zod-Ergebnis,
+  // undeklarierte Felder werden verworfen. Ohne diese Zeile kaeme das Flag nie
+  // im Controller an und das Duplizieren einer Vorlage mit ueberlappenden
+  // Balken wuerde immer an der Konfliktpruefung scheitern.
+  skipConflictCheck: z.boolean().optional()
 });
 
-export const setSlotWorkAreasSchema = z.object({
-  workAreaIds: z.array(z.number().int().positive()).max(200)
-});
+/**
+ * Sucht Zeitueberschneidungen desselben Arbeitsbereichs innerhalb einer
+ * Vorlage. `exceptId` blendet den gerade bearbeiteten Eintrag aus, damit er
+ * sich beim Verschieben nicht mit sich selbst kollidiert.
+ */
+async function findOverlap(templateId: number, workAreaId: number, startMin: number, endMin: number, exceptId?: number) {
+  return prisma.templateWorkArea.findFirst({
+    where: {
+      templateId,
+      workAreaId,
+      startMin: { lt: endMin },
+      endMin: { gt: startMin },
+      ...(exceptId != null && { id: { not: exceptId } })
+    }
+  });
+}
 
 // ---------- Vorlagen ----------
 export const listDayTemplates = async (_req: Request, res: Response) => {
   const templates = await prisma.globalDayTemplate.findMany({
-    orderBy: { name: 'asc' },
+    orderBy: { order: 'asc' },
     include: {
-      // Immer chronologisch sortiert – ein neu in der Mitte eingefügter Slot
-      // erscheint an der richtigen zeitlichen Position, nicht am Ende.
-      slots: {
-        orderBy: [{ startMin: 'asc' }, { endMin: 'asc' }, { id: 'asc' }],
-        include: { 
-          workAreas: { 
-            orderBy: { order: 'asc' }, 
-            include: { 
-              workArea: {
-                include: {
-                  categories: {
-                    orderBy: { order: 'asc' }
-                  }
-                }
-              } 
-            } 
-          } 
+      workAreas: {
+        orderBy: [{ order: 'asc' }],
+        include: {
+          // Kategorien mitladen: getTemplateDisplayName() baut daraus die
+          // [Kategorie]-Tags im Vorlagennamen - ohne sie bleiben die Tags leer.
+          workArea: { include: { categories: { orderBy: { order: 'asc' } } } }
         }
       }
     }
@@ -51,8 +58,12 @@ export const listDayTemplates = async (_req: Request, res: Response) => {
 
 export const createDayTemplate = async (req: Request, res: Response) => {
   const { name } = req.body;
+  // Neueste Vorlage ans Ende setzen
+  const maxOrder = await prisma.globalDayTemplate.aggregate({
+    _max: { order: true }
+  });
   const t = await prisma.globalDayTemplate.create({ 
-    data: { name } 
+    data: { name, order: (maxOrder._max.order ?? -1) + 1 }
   });
   return res.status(201).json(t);
 };
@@ -75,44 +86,55 @@ export const deleteDayTemplate = async (req: Request, res: Response) => {
   return res.status(204).send();
 };
 
-// ---------- Katalog-Slots ----------
-export const addTemplateSlot = async (req: Request, res: Response) => {
-  const { templateId, startMin, endMin, label, color, order } = req.body;
+// ---------- Template-Arbeitsbereiche ----------
+export const addTemplateWorkArea = async (req: Request, res: Response) => {
+  const { templateId, workAreaId, startMin, endMin, order, skipConflictCheck } = req.body;
   if (endMin <= startMin) return res.status(400).json({ error: 'endMin muss größer als startMin sein' });
-  const slot = await prisma.globalDaySlot.create({
-    data: { templateId, startMin, endMin, label: label ?? null, color: color || '#3b98f8', order: order ?? 0 }
+
+  // Prüfen auf Zeitkonflikte mit bestehenden Slots (nur für dieselbe WorkArea)
+  if (!skipConflictCheck) {
+    const conflict = await findOverlap(templateId, workAreaId, startMin, endMin);
+    if (conflict) return res.status(409).json({ error: 'Zeitraum überschneidet sich mit bestehendem Slot' });
+  }
+
+  const twa = await prisma.templateWorkArea.create({
+    data: { templateId, workAreaId, startMin, endMin, order: order ?? 0 },
+    include: { workArea: true }
   });
-  return res.status(201).json(slot);
+  return res.status(201).json(twa);
 };
 
-export const updateTemplateSlot = async (req: Request, res: Response) => {
-  const slot = await prisma.globalDaySlot.update({
-    where: { id: parseInt(req.params.id as string) },
-    data: req.body
+export const updateTemplateWorkArea = async (req: Request, res: Response) => {
+  const twaId = parseInt(req.params.id as string);
+  const { startMin, endMin, order, skipConflictCheck } = req.body;
+
+  const current = await prisma.templateWorkArea.findUnique({ where: { id: twaId } });
+  if (!current) return res.status(404).json({ error: 'Eintrag nicht gefunden' });
+
+  const nextStart = startMin ?? current.startMin;
+  const nextEnd = endMin ?? current.endMin;
+  if (nextEnd <= nextStart) {
+    return res.status(400).json({ error: 'endMin muss größer als startMin sein' });
+  }
+
+  // Dieselbe Prüfung wie beim Anlegen: sonst liesse sich per Verschieben im
+  // Gantt eine Überschneidung erzeugen, die das Formular verbietet - und ein
+  // Treffer genau auf dem startMin eines anderen Balkens würde am Unique-Index
+  // mit der nichtssagenden Meldung "Eintrag existiert bereits" scheitern.
+  if (!skipConflictCheck) {
+    const conflict = await findOverlap(current.templateId, current.workAreaId, nextStart, nextEnd, twaId);
+    if (conflict) return res.status(409).json({ error: 'Zeitraum überschneidet sich mit bestehendem Slot' });
+  }
+
+  const twa = await prisma.templateWorkArea.update({
+    where: { id: twaId },
+    data: { startMin: nextStart, endMin: nextEnd, ...(order !== undefined && { order }) },
+    include: { workArea: true }
   });
-  return res.json(slot);
+  return res.json(twa);
 };
 
-export const deleteTemplateSlot = async (req: Request, res: Response) => {
-  await prisma.globalDaySlot.delete({ where: { id: parseInt(req.params.id as string) } });
+export const deleteTemplateWorkArea = async (req: Request, res: Response) => {
+  await prisma.templateWorkArea.delete({ where: { id: parseInt(req.params.id as string) } });
   return res.status(204).send();
-};
-
-/** Ersetzt die WorkArea-Zuordnungen eines Katalog-Slots atomar. Body: { workAreaIds: number[] } */
-export const setSlotWorkAreas = async (req: Request, res: Response) => {
-  const slotId = parseInt(req.params.id as string);
-  const ids: number[] = req.body.workAreaIds;
-  await prisma.$transaction(async (tx) => {
-    await tx.globalDaySlotWorkArea.deleteMany({ where: { globalSlotId: slotId } });
-    if (ids.length) {
-      await tx.globalDaySlotWorkArea.createMany({
-        data: ids.map((workAreaId, i) => ({ globalSlotId: slotId, workAreaId, order: i }))
-      });
-    }
-  });
-  const updated = await prisma.globalDaySlot.findUnique({
-    where: { id: slotId },
-    include: { workAreas: { orderBy: { order: 'asc' }, include: { workArea: true } } }
-  });
-  return res.json(updated);
 };

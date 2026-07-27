@@ -577,7 +577,7 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
                       <tr>
                         <th style={thStyle}>Turniertag</th>
                         <th style={thStyle}>Tag-Typ</th>
-                        <th style={thStyle}>Zeit-Slots</th>
+                        <th style={{ ...thStyle, textAlign: 'center', width: 80 }}>📊</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -613,8 +613,13 @@ export default function Uebersicht({ selectedTournament }: { selectedTournament:
                                   {templates.filter(t => !t.isObsolete).map(t => <option key={t.id} value={t.id}>{getTemplateDisplayName(t)}</option>)}
                                 </select>
                               </td>
-                              <td style={{ ...tdStyle, fontSize: 13, color: '#666' }}>
-                                {(day?.slots || []).map(s => `${minToTime(s.startMin)}–${minToTime(s.endMin)}`).join(', ') || '–'}
+                              <td style={{ ...tdStyle, fontSize: 13, color: '#666', textAlign: 'center' }}>
+                                {(() => {
+                                  const slots = day?.slots || [];
+                                  if (slots.length === 0) return '–';
+                                  // Jeder Slot entspricht einem TemplateWorkArea (neues Schema)
+                                  return `${slots.length} Bereiche`;
+                                })()}
                               </td>
                             </tr>
 

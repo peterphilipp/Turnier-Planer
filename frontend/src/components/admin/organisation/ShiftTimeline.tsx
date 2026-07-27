@@ -241,7 +241,12 @@ export default function ShiftTimeline({
                       const left = ((st - dayStart) / span) * 100;
                       const width = ((en - st) / span) * 100;
                       const showTime = width > 15;
-                      const hasCustomTime = s.startMin != null || s.endMin != null;
+                      const slotStart = s.daySlot?.startMin;
+                      const slotEnd = s.daySlot?.endMin;
+                      // Nur true wenn explizit überschrieben (nicht null) UND verschieden von daySlot
+                      const hasCustomTime = (s.startMin != null || s.endMin != null)
+                        && (slotStart != null || slotEnd != null)
+                        && (s.startMin !== slotStart || s.endMin !== slotEnd);
                       const canDrag = editable && timeEditMode;
 
                       // Besetzung nur anzeigen, wenn Zuweisungen übergeben wurden
@@ -313,6 +318,19 @@ export default function ShiftTimeline({
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Legende */}
+          <div style={{ display: 'flex', gap: 20, marginTop: 12, flexWrap: 'wrap', fontSize: 12, color: '#6c757d' }}>
+            <span>🟦 = Standard-Zeiten (aus Vorlage)</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ display: 'inline-block', width: 20, height: 12, border: '2px dashed rgba(255,255,255,0.9)', borderRadius: 3, background: '#3b98f8' }} />
+              = Angepasste Zeiten
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ display: 'inline-block', width: 20, height: 12, border: '3px dashed #fd7e14', borderRadius: 3, background: '#3b98f8' }} />
+              = Nicht gespeicherte Änderung
+            </span>
           </div>
         </div>
       </div>

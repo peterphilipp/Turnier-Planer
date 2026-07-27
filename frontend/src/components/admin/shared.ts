@@ -91,19 +91,15 @@ export const minToTime = (min: number) => `${Math.floor(min / 60).toString().pad
 export const timeToMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 
 export function getTemplateDisplayName(t: GlobalDayTemplate): string {
-  // 1. Sammle alle Kategorien aus allen WorkAreas in allen Slots
+  // 1. Sammle alle Kategorien aus allen WorkAreas
   const categoryMap = new Map<number, WorkAreaCategory>();
   
-  if (t.slots) {
-    t.slots.forEach(slot => {
-      if (slot.workAreas) {
-        slot.workAreas.forEach(wa => {
-          if (wa.workArea?.categories) {
-            wa.workArea.categories.forEach(cat => {
-              if (!categoryMap.has(cat.id)) {
-                categoryMap.set(cat.id, cat);
-              }
-            });
+  if (t.workAreas) {
+    t.workAreas.forEach(twa => {
+      if (twa.workArea?.categories) {
+        twa.workArea.categories.forEach(cat => {
+          if (!categoryMap.has(cat.id)) {
+            categoryMap.set(cat.id, cat);
           }
         });
       }
@@ -115,9 +111,9 @@ export function getTemplateDisplayName(t: GlobalDayTemplate): string {
   const tagsStr = sortedCategories.length > 0 ? `[${sortedCategories.map(c => c.name).join(', ')}]` : '';
   
   let timeStr = '';
-  if (t.slots && t.slots.length > 0) {
-    const minStart = Math.min(...t.slots.map(s => s.startMin));
-    const maxEnd = Math.max(...t.slots.map(s => s.endMin));
+  if (t.workAreas && t.workAreas.length > 0) {
+    const minStart = Math.min(...t.workAreas.map(wa => wa.startMin));
+    const maxEnd = Math.max(...t.workAreas.map(wa => wa.endMin));
     timeStr = `(${minToTime(minStart)}–${minToTime(maxEnd)})`;
   }
   
@@ -126,9 +122,23 @@ export function getTemplateDisplayName(t: GlobalDayTemplate): string {
 
 // ---- Tag-/Slot-System (Etappe 3) ----
 export interface WorkAreaCategory { id: number; name: string; order: number; color: string; isObsolete: boolean; }
-export interface GlobalDaySlotWorkArea { id: number; workAreaId: number; order: number; workArea?: WorkArea; }
-export interface GlobalDaySlot { id: number; templateId: number; startMin: number; endMin: number; label: string | null; color: string; order: number; workAreas?: GlobalDaySlotWorkArea[]; }
-export interface GlobalDayTemplate { id: number; name: string; isObsolete: boolean; slots?: GlobalDaySlot[]; }
+export interface TemplateWorkArea {
+  id: number;
+  templateId: number;
+  workAreaId: number;
+  startMin: number;
+  endMin: number;
+  order: number;
+  workArea?: WorkArea;
+}
+
+export interface GlobalDayTemplate {
+  id: number;
+  name: string;
+  order: number;
+  isObsolete: boolean;
+  workAreas?: TemplateWorkArea[];
+}
 export interface TournamentWorkArea { id: number; tournamentId: number; sourceWorkAreaId: number | null; name: string; icon: string; order?: number; color: string; minVolunteers: number; maxVolunteers: number; operatingStartMin: number | null; operatingEndMin: number | null; active: boolean; }
 export interface DaySlot { id: number; tournamentDayId: number; startMin: number; endMin: number; label: string | null; color: string; order: number; }
 export interface TournamentDay { id: number; tournamentId: number; date: string; order: number; label: string | null; sourceTemplateId: number | null; slots?: DaySlot[]; }
