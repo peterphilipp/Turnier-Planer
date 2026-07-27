@@ -1062,9 +1062,15 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                 </button>
               )
             )}
-            {isAdmin || isOrganizer ? (
-              <button onClick={() => { setMenuOpen(false); if (onLoginAsAdmin) onLoginAsAdmin(); }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>⚙️ Admin-Bereich</button>
-            ) : null}
+            {(() => {
+              let hasAccess = isAdmin || isOrganizer;
+              if (!hasAccess) {
+                try { const vol = JSON.parse(localStorage.getItem('volunteer') || '{}'); hasAccess = vol.role === 'ADMIN' || vol.role === 'ORGANIZER'; } catch {}
+              }
+              return hasAccess ? (
+                <button onClick={() => { setMenuOpen(false); if (onLoginAsAdmin) onLoginAsAdmin(); }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>⚙️ Admin-Bereich</button>
+              ) : null;
+            })()}
             <button onClick={() => { setMenuOpen(false); setShowRegisterForm(false); logout(); }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#dc3545' }}>🚪 Abmelden</button>
             <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #e9ecef', textAlign: 'center', fontSize: 10, color: '#ced4da' }}>
               <a href="?view=privacy" style={{ color: '#adb5bd' }}>Datenschutz</a>

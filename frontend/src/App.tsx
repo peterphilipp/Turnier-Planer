@@ -132,8 +132,15 @@ function AdminView() {
   }, [queryError, logout]);
 
   const handleAdminClick = () => {
-    // Prüfen ob User Admin/Organizer ist
-    if (!isAdmin && !isOrganizer) {
+    // Prüfen ob User Admin/Organizer ist (Context + localStorage fallback)
+    let hasAccess = isAdmin || isOrganizer;
+    if (!hasAccess) {
+      try {
+        const vol = JSON.parse(localStorage.getItem('volunteer') || '{}');
+        hasAccess = vol.role === 'ADMIN' || vol.role === 'ORGANIZER';
+      } catch {}
+    }
+    if (!hasAccess) {
       void modal.alert({ title: 'Keine Berechtigung', message: 'Du hast keine Berechtigung für den Admin-Bereich. Bitte kontaktiere einen Administrator.' });
       return;
     }
@@ -186,8 +193,12 @@ function AdminView() {
     );
   }
 
-  // Admin-Bereich – nur für Admin/Organizer sichtbar
-  if (!isAdmin && !isOrganizer) {
+  // Admin-Bereich – nur für Admin/Organizer sichtbar (Context + localStorage fallback)
+  let adminAccess = isAdmin || isOrganizer;
+  if (!adminAccess) {
+    try { const vol = JSON.parse(localStorage.getItem('volunteer') || '{}'); adminAccess = vol.role === 'ADMIN' || vol.role === 'ORGANIZER'; } catch {}
+  }
+  if (!adminAccess) {
     return (
       <div style={{ maxWidth: 480, margin: '10vh auto', padding: 40, textAlign: 'center' }}>
         <div style={{ fontSize: 64, marginBottom: 16 }}>🔒</div>
