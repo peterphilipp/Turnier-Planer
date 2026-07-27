@@ -11,15 +11,6 @@ import { GanttTimeline, GanttRow } from '../ganttTimeline';
 
 const GRID_MINUTES = 15;
 
-/** Berechne dynamische Zeitachse: frühester Slot − 60min → spätester Slot + 60min */
-const computeTimeRange = (workAreas: TemplateWorkArea[]) => {
-  if (!workAreas || workAreas.length === 0) return { startMin: 480, endMin: 1200 }; // Default 08:00–20:00
-  const allMins = workAreas.flatMap(wa => [wa.startMin, wa.endMin]);
-  const min = Math.min(...allMins);
-  const max = Math.max(...allMins);
-  return { startMin: Math.floor((min - 60) / GRID_MINUTES) * GRID_MINUTES, endMin: Math.ceil((max + 60) / GRID_MINUTES) * GRID_MINUTES };
-};
-
 export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { adminPrimary?: string }) {
   const qc = useQueryClient();
   const { data: templates = [] } = useQuery<GlobalDayTemplate[]>({ queryKey: ['day-templates'], queryFn: getDayTemplates });
@@ -60,6 +51,23 @@ export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { admin
     
     return true;
   });
+
+  // Globale Zeitachse aus ALLEN sichtbaren Templates berechnen
+  const globalTimeRange = (() => {
+    let minStart = Infinity;
+    let maxEnd = -Infinity;
+    for (const t of filteredTemplates) {
+      for (const twa of t.workAreas || []) {
+        if (twa.startMin < minStart) minStart = twa.startMin;
+        if (twa.endMin > maxEnd) maxEnd = twa.endMin;
+      }
+    }
+    // Fallback wenn keine Slots
+    if (!isFinite(minStart) || !isFinite(maxEnd)) return { startMin: 360, endMin: 1440 };
+    const startMin = Math.floor((minStart - 60) / GRID_MINUTES) * GRID_MINUTES;
+    const endMin = Math.ceil((maxEnd + 60) / GRID_MINUTES) * GRID_MINUTES;
+    return { startMin: Math.max(0, startMin), endMin: Math.min(1440, endMin) };
+  })();
 
   const toggleEdit = async (id: number) => {
     setEditingTemplateIds(prev => {
@@ -216,7 +224,6 @@ export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { admin
 
       {filteredTemplates.map(t => {
         const isEditing = editingTemplateIds.has(t.id);
-        const timeRange = computeTimeRange(t.workAreas || []);
         const rows = buildGanttRows(t);
 
         return (
@@ -329,8 +336,8 @@ export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { admin
             {/* Gantt-Ansicht oder Fallback wenn leer */}
             {rows.length > 0 ? (
               <GanttTimeline
-                globalStartMin={timeRange.startMin}
-                globalEndMin={timeRange.endMin}
+                globalStartMin={globalTimeRange.startMin}
+                globalEndMin={globalTimeRange.endMin}
                 rows={rows}
                 editable={isEditing}
                 timeEditMode={isEditing}
