@@ -1,1 +1,0 @@
--- Add logo column to tournaments table\nALTER TABLE tournaments ADD COLUMN logo TEXT;

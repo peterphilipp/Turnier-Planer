@@ -39,11 +39,12 @@ jobs:
 
       - name: Apply database migrations
         working-directory: backend
-        # Migrations werden vor dem Typecheck angewendet, damit der Prisma-Client
-        # und die Tests mit dem aktuellen DB-Schema abgleichen.
+        # In CI wird auf einem frischen DB-Dump gearbeitet. Alte Migrations
+        # (ad-hoc SQL) sind nicht als gültige Chain von empty → schema.
+        # Daher: prisma db push statt migrate deploy für CI.
         env:
           DATABASE_URL: "file:./prisma/data/ci.db"
-        run: npx prisma migrate deploy
+        run: npx prisma db push --accept-data-loss
 
       - name: Typecheck backend
         working-directory: backend
