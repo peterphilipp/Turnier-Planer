@@ -1068,7 +1068,7 @@ export default function SelfServiceView({ onLoginAsAdmin }: SelfServiceViewProps
                 try { const vol = JSON.parse(localStorage.getItem('volunteer') || '{}'); hasAccess = vol.role === 'ADMIN' || vol.role === 'ORGANIZER'; } catch {}
               }
               return hasAccess ? (
-                <button onClick={() => { setMenuOpen(false); window.location.href = '?view=admin'; }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>⚙️ Admin-Bereich</button>
+                <button onClick={() => { setMenuOpen(false); if (onLoginAsAdmin) onLoginAsAdmin(); else window.location.href = '?view=admin'; }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#333' }}>⚙️ Admin-Bereich</button>
               ) : null;
             })()}
             <button onClick={() => { setMenuOpen(false); setShowRegisterForm(false); logout(); }} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontSize: 14, color: '#dc3545' }}>🚪 Abmelden</button>

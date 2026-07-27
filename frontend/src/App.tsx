@@ -456,6 +456,14 @@ export default function App() {
 
   const [currentView, setCurrentView] = useState<View>(getInitialView);
 
+  // Callback für den Wechsel in den Admin-Bereich aus SelfServiceView heraus.
+  // Setzt den React-State (kein Hard-Reload), aktualisiert die URL damit
+  // Reload und Back-Button korrekt funktionieren.
+  const handleNavigateToAdmin = () => {
+    window.history.replaceState(null, '', '?view=admin');
+    setCurrentView('admin');
+  };
+
   if (currentView === 'privacy') {
     return <Privacy />;
   }
@@ -467,7 +475,7 @@ export default function App() {
   return (
     <UserProvider>
       {currentView === 'selfservice' ? (
-        <SelfServiceView />
+        <SelfServiceView onLoginAsAdmin={handleNavigateToAdmin} />
       ) : (
         <AdminView />
       )}
