@@ -1,6 +1,7 @@
 export default function Impressum() {
   return (
     <div style={{ maxWidth: 800, margin: '40px auto', padding: 20 }}>
+      <a href="?view=selfservice" style={{ display: 'inline-block', marginBottom: 16, fontSize: 14, color: '#0d6efd', textDecoration: 'underline' }}>← Zurück</a>
       <h1 style={{ color: '#333', borderBottom: '2px solid #0d6efd', paddingBottom: 12 }}>Impressum</h1>
 
       <p style={{ color: '#666', fontSize: 14, marginBottom: 24 }}>

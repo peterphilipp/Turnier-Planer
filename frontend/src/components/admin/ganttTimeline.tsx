@@ -53,11 +53,9 @@ export function GanttTimeline({
   onDelete?: (itemId: number) => void;
   onAddSlot?: (rowId: number) => void;
 }) {
-  // Sicherstellen dass start < end
-  const rawStart = Math.floor(globalStartMin / 60) * 60;
-  const rawEnd = Math.ceil(globalEndMin / 60) * 60;
-  const dayStart = rawStart < rawEnd ? rawStart : rawEnd;
-  const dayEnd = rawStart < rawEnd ? rawEnd : rawStart + 60;
+  // Globale Zeitachse verwenden (nicht lokal berechnen!)
+  const dayStart = globalStartMin;
+  const dayEnd = globalEndMin;
   const span = Math.max(1, dayEnd - dayStart);
 
   // Sicherstellen dass hours-Array nicht explodiert (max 48 Stunden)
@@ -75,26 +73,11 @@ export function GanttTimeline({
   const [, forceUpdate] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Reset display range when rows change (add/delete slots)
+  // Display range IMMER auf globale Zeitachse setzen (bei Props-Änderung)
   useEffect(() => {
-    let minTime = Infinity;
-    let maxTime = -Infinity;
-    for (const row of rows) {
-      for (const item of row.items) {
-        minTime = Math.min(minTime, item.startMin);
-        maxTime = Math.max(maxTime, item.endMin);
-      }
-    }
-    if (minTime === Infinity) { minTime = dayStart; maxTime = dayEnd; }
-    // Sicherheit: Werte auf sinnvollen Bereich clampen
-    const safeMin = Math.max(0, Math.min(minTime, 1440));
-    const safeMax = Math.max(safeMin + 60, Math.min(maxTime, 1440));
-    displayRange.current = {
-      start: Math.floor((safeMin - 60) / 60) * 60,
-      end: Math.ceil((safeMax + 60) / 60) * 60
-    };
+    displayRange.current = { start: dayStart, end: dayEnd };
     forceUpdate(n => n + 1);
-  }, [rows, dayStart, dayEnd]);
+  }, [globalStartMin, globalEndMin]);
 
   const handlePointerDown = (e: React.PointerEvent, item: GanttItem, type: 'start' | 'end' | 'move') => {
     if (!editable || !timeEditMode) return;
@@ -186,28 +169,7 @@ export function GanttTimeline({
       if (e.pointerId !== drag.pointerId) return;
       const { itemId, origStart, origEnd, curStart, curEnd } = drag;
       
-      // Grenzen automatisch auf Balken anpassen
-      let minTime = Infinity;
-      let maxTime = -Infinity;
-      for (const row of rows) {
-        for (const item of row.items) {
-          const st = isDragging(item.id) ? curStart : item.startMin;
-          const en = isDragging(item.id) ? curEnd : item.endMin;
-          minTime = Math.min(minTime, st);
-          maxTime = Math.max(maxTime, en);
-        }
-      }
-      
-      // Padding von 1 Stunde links und rechts
-      if (minTime !== Infinity && maxTime !== -Infinity) {
-        const safeMin = Math.max(0, Math.min(minTime, 1440));
-        const safeMax = Math.max(safeMin + 60, Math.min(maxTime, 1440));
-        displayRange.current = {
-          start: Math.floor((safeMin - 60) / 60) * 60,
-          end: Math.ceil((safeMax + 60) / 60) * 60
-        };
-      }
-      
+      // Zeitachse NICHT neu berechnen – globale Achse (globalStartMin/globalEndMin) hat Vorrang!
       setDrag(null);
       // Validierung: nur aufrufen wenn Werte gültig sind
       if ((curStart !== origStart || curEnd !== origEnd) 
@@ -217,6 +179,8 @@ export function GanttTimeline({
         onTimeChange?.(itemId, curStart, curEnd);
       }
     };
+
+    window.addEventListener('pointermove', onMove);
 
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);

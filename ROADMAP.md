@@ -1,4 +1,4 @@
-# Turnier-Planer – Strategische Roadmap
+# machdasturnier – Strategische Roadmap
 
 ## 🟢 Phase 1 – Kern-Turnierworkflow (fehlendes Herzstück)
 

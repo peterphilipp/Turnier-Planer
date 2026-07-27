@@ -114,7 +114,7 @@ export function getTemplateDisplayName(t: GlobalDayTemplate): string {
   if (t.workAreas && t.workAreas.length > 0) {
     const minStart = Math.min(...t.workAreas.map(wa => wa.startMin));
     const maxEnd = Math.max(...t.workAreas.map(wa => wa.endMin));
-    timeStr = `(${minToTime(minStart)}–${minToTime(maxEnd)})`;
+    timeStr = `${minToTime(minStart)}–${minToTime(maxEnd)}`;
   }
   
   return [timeStr, tagsStr, t.name].filter(Boolean).join(' ').trim();

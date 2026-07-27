@@ -643,8 +643,8 @@ liegen unter [`deploy/`](deploy/):
 | Datei | Zweck |
 |---|---|
 | [`docker-compose.yml`](docker-compose.yml) | Fertiges Compose-Setup (Repo-Root) – Variablen werden aus der Shell-Umgebung bzw. einer `.env` neben der Datei übernommen. |
-| [`deploy/turnier-planer.container`](deploy/turnier-planer.container) | Podman-Quadlet-Unit – erzeugt beim Systemstart automatisch einen systemd-Service für den Container. |
-| [`deploy/turnier-planer.env.example`](deploy/turnier-planer.env.example) | Vorlage für die tatsächlichen Umgebungswerte (Secrets). Kopieren, ausfüllen, **niemals mit echten Werten committen**. |
+| [`deploy/machdasturnier.container`](deploy/machdasturnier.container) | Podman-Quadlet-Unit – erzeugt beim Systemstart automatisch einen systemd-Service für den Container. |
+| [`deploy/machdasturnier.env.example`](deploy/machdasturnier.env.example) | Vorlage für die tatsächlichen Umgebungswerte (Secrets). Kopieren, ausfüllen, **niemals mit echten Werten committen**. |
 
 ### Variante A: Docker Compose
 ```bash
@@ -656,15 +656,15 @@ Oder die Variablen in eine `.env`-Datei neben `docker-compose.yml` legen – Com
 ### Variante B: Podman Quadlet (rootless, empfohlen für systemd-verwaltete Server)
 ```bash
 mkdir -p ~/.config/containers/systemd
-cp deploy/turnier-planer.container ~/.config/containers/systemd/
+cp deploy/machdasturnier.container ~/.config/containers/systemd/
 
-mkdir -p ~/.config/turnier-planer
-cp deploy/turnier-planer.env.example ~/.config/turnier-planer/turnier-planer.env
-# turnier-planer.env jetzt mit echten Werten füllen!
+mkdir -p ~/.config/machdasturnier
+cp deploy/machdasturnier.env.example ~/.config/machdasturnier/machdasturnier.env
+# machdasturnier.env jetzt mit echten Werten füllen!
 
 systemctl --user daemon-reload
-systemctl --user start turnier-planer.service
-journalctl --user -u turnier-planer.service -f
+systemctl --user start machdasturnier.service
+journalctl --user -u machdasturnier.service -f
 ```
 Ein neues Image (nach einem Release-Tag) zieht `podman auto-update` automatisch, sofern
 `AutoUpdate=registry` gesetzt ist (bereits in der Beispiel-Unit enthalten).

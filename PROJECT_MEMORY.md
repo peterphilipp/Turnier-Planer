@@ -1,10 +1,10 @@
-# 📋 PROJECT MEMORY - Turnier-Planer
+# 📋 PROJECT MEMORY - Macht das Turnier!
 
 ## Projektübersicht
-- **Name**: Turnier-Planer (ehemals "TSV Holm Planungs Tool")
-- **Repo**: https://github.com/peterphilipp/Turnier-Planer.git
-- **Docker Image**: `turnier-planer` (GHCR)
-- **Domain**: turnier-planer.mygate.dedyn.io
+- **Name**: machdasturnier (ehemals "Turnier-Planer", vormals "TSV Holm Planungs Tool")
+- **Repo**: https://github.com/peterphilipp/machdasturnier.git
+- **Docker Image**: `machdasturnier` (GHCR)
+- **Domain**: machdasturnier.mygate.dedyn.io
 
 ## Tech Stack
 | Schicht | Technologie |
@@ -57,7 +57,7 @@ docker-compose.yml              # Docker Compose Config
 ## Docker Rules
 - Backend: Node 22, tsx Runtime, entrypoint mit `prisma migrate deploy`
 - Frontend: Node 22, npm build → nginx
-- Image Name: `turnier-planer` (lowercase für GHCR)
+- Image Name: `machdasturnier` (lowercase für GHCR)
 - SQLite Volume persistent über Docker
 
 ## Server Restart Rule (Windows)
@@ -287,7 +287,7 @@ services:
 
 ## CI/CD (GitHub Actions)
 - Push nach `master` → baut Images → push zu GHCR → deploy auf Server
-- Image Name: `turnier-planer` (lowercase!)
+- Image Name: `machdasturnier` (lowercase!)
 
 ---
 

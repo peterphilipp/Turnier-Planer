@@ -1,6 +1,6 @@
 # 📐 Marktraumdokument – Design-Richtlinien
 
-**Turnier-Planer** · v1.10.23  
+**machdasturnier** · v1.12.0  
 *Letzte Aktualisierung: 2025-01-01*
 
 ---

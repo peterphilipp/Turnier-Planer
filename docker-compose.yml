@@ -1,13 +1,13 @@
 version: '3.8'
 services:
   app:
-    image: ghcr.io/peterphilipp/turnier-planer:latest
+    image: ghcr.io/peterphilipp/machdasturnier:latest
     ports:
       - "5000:5000"
     environment:
       DATABASE_URL: "file:./prisma/data/dev.db"
 
-      FRONTEND_URL: "https://turnier-planer.mygate.dedyn.io"
+      FRONTEND_URL: "https://machdasturnier.mygate.dedyn.io"
 
       # Pflicht: JWT-Secret aus der Host-Umgebung (kein Default im Code!).
       # `docker compose up` bricht mit klarer Meldung ab, wenn nicht gesetzt.

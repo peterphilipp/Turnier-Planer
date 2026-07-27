@@ -1,6 +1,6 @@
 # 🧩 Komponenten-Palette – Bausteine mit Props & Styles
 
-**Turnier-Planer** · v1.10.26  
+**machdasturnier** · v1.12.0  
 *Jede Komponente als wiederverwendbarer Baustein mit explizitem Interface.*
 
 ---

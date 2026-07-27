@@ -397,50 +397,11 @@ export const generateShifts = async (req: Request, res: Response) => {
   const result = await prisma.$transaction(async (tx) => {
     const days = await tx.tournamentDay.findMany({ where: { tournamentId }, include: { slots: true } });
 
-    // Sync DaySlots with their source templates via TemplateWorkArea
-    for (const day of days) {
-      if (!day.sourceTemplateId) continue;
+    // Slots NICHT mit Vorlage synchronisieren – nur Shifts aus bestehenden Slots erstellen.
+    // Slot-Zeiten werden NUR bei "Tag neu importieren" (createTournamentDay) gesetzt.
+    // generateShifts darf bestehende Slot-Zeiten niemals ändern!
 
-      const templateTWAs = await tx.templateWorkArea.findMany({ where: { templateId: day.sourceTemplateId } });
-
-      const existingDaySlots = day.slots;
-      // Markiere bereits verarbeitete Slots (via sourceTemplateWorkAreaId)
-      const usedSlotIds = new Set<number>();
-
-      // Für jeden TemplateWorkArea: bestehenden Slot mit dieser Referenz finden oder neuen erstellen
-      for (const twa of templateTWAs) {
-        let matchedSlot = existingDaySlots.find(s => s.sourceTemplateWorkAreaId === twa.id);
-
-        if (matchedSlot) {
-          // Bestehenden Slot aktualisieren mit aktuellen Zeiten
-          await tx.daySlot.update({
-            where: { id: matchedSlot.id },
-            data: { startMin: twa.startMin, endMin: twa.endMin }
-          });
-          usedSlotIds.add(matchedSlot.id);
-        } else {
-          // Neuer Slot
-          const newSlot = await tx.daySlot.create({
-            data: { tournamentDayId: day.id, startMin: twa.startMin, endMin: twa.endMin, label: null, color: '#3b98f8', order: 0, sourceTemplateWorkAreaId: twa.id }
-          });
-          usedSlotIds.add(newSlot.id);
-        }
-      }
-
-      // Verwaiste Slots entfernen: NUR solche, die aus der Vorlage stammen und
-      // deren TemplateWorkArea es dort nicht mehr gibt. Manuell angelegte Slots
-      // (sourceTemplateWorkAreaId == null) bleiben unangetastet - an ihnen
-      // haengen ueber die Kaskade DaySlot -> Shift -> VolunteerShift auch die
-      // Helfer-Zusagen, die ein blosses "Dienstplan generieren" niemals
-      // loeschen darf.
-      for (const es of existingDaySlots) {
-        if (es.sourceTemplateWorkAreaId != null && !usedSlotIds.has(es.id)) {
-          await tx.daySlot.delete({ where: { id: es.id } });
-        }
-      }
-    }
-
-    // Reload days after sync
+    // Reload days
     const daysSynced = await tx.tournamentDay.findMany({ where: { tournamentId }, include: { slots: true } });
 
     const areas = await tx.tournamentWorkArea.findMany({ where: { tournamentId, active: true }, orderBy: [{ order: 'asc' }, { name: 'asc' }, { id: 'asc' }] });
@@ -467,8 +428,26 @@ export const generateShifts = async (req: Request, res: Response) => {
     const allSlotsHaveTemplate = daysSynced.every(d => d.slots.every(s => s.sourceTemplateWorkAreaId != null));
     const usedCatalogWorkAreaIds = new Set<number>();
 
+    // Zielhelfer pro Tag laden (targetHelpers aus DayWorkArea)
+    const dayWorkAreasMap = new Map<number, Map<number, number>>();
+    for (const day of daysSynced) {
+      const dwaList = await tx.tournamentDayWorkArea.findMany({
+        where: { tournamentDayId: day.id, active: true },
+        select: { id: true, targetHelpers: true, tournamentWorkAreaId: true }
+      });
+      const map = new Map<number, number>();
+      for (const dwa of dwaList) {
+        if (dwa.targetHelpers != null && dwa.targetHelpers > 0) {
+          map.set(dwa.tournamentWorkAreaId, dwa.targetHelpers);
+        }
+      }
+      dayWorkAreasMap.set(day.id, map);
+    }
+
     const toCreate: { tournamentId: number; tournamentDayId: number; daySlotId: number; tournamentWorkAreaId: number; startMin: number | null; endMin: number | null; minVolunteers: number; maxVolunteers: number }[] = [];
     for (const day of daysSynced) {
+      const targetHelpersMap = dayWorkAreasMap.get(day.id);
+      
       for (const slot of day.slots) {
         // Hole die WorkAreaId aus der TemplateWorkArea-Referenz
         const sourceWaIds = new Set<number>();
@@ -486,30 +465,24 @@ export const generateShifts = async (req: Request, res: Response) => {
             usedCatalogWorkAreaIds.add(sourceWaId);
           }
 
-          // Betriebszeiten: Zeitfenster zuschneiden statt den Slot pauschal zu
-          // uebernehmen. Liegt der Slot komplett ausserhalb, entsteht gar keine
-          // Schicht. Bei Teilueberlappung wird die Schicht auf das Betriebs-
-          // fenster begrenzt - sonst waere operatingStartMin/EndMin eine
-          // Einstellung ohne jede Wirkung.
-          let shiftStart = slot.startMin;
-          let shiftEnd = slot.endMin;
-          if (area.operatingStartMin != null && area.operatingStartMin > shiftStart) shiftStart = area.operatingStartMin;
-          if (area.operatingEndMin != null && area.operatingEndMin < shiftEnd) shiftEnd = area.operatingEndMin;
-          if (shiftStart >= shiftEnd) continue;
-
+          // Slot-Zeiten unveraendert uebernehmen - keine Zuschneidung durch
+          // Betriebszeiten. Template-Slot-Zeiten sind explizit gesetzt und
+          // duerfen nicht durch operatingStartMin/EndMin ueberschrieben werden.
           const key = `${day.id}-${slot.id}-${area.id}`;
           if (seen.has(key)) continue;
+          
+          // Zielhelfer aus DayWorkArea verwenden, wenn gesetzt
+          const targetHelpers = targetHelpersMap?.get(area.id);
           toCreate.push({
             tournamentId,
             tournamentDayId: day.id,
             daySlotId: slot.id,
             tournamentWorkAreaId: area.id,
-            // Nur setzen, wenn tatsaechlich zugeschnitten wurde - sonst null,
-            // damit die Schicht den Slot-Zeiten weiter automatisch folgt.
-            startMin: shiftStart > slot.startMin ? shiftStart : null,
-            endMin: shiftEnd < slot.endMin ? shiftEnd : null,
+            // Immer null - Schicht folgt immer den Slot-Zeiten.
+            startMin: null,
+            endMin: null,
             minVolunteers: area.minVolunteers,
-            maxVolunteers: area.maxVolunteers
+            maxVolunteers: targetHelpers ?? area.maxVolunteers
           });
         }
       }
