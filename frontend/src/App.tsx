@@ -132,18 +132,18 @@ function AdminView() {
   }, [queryError, logout]);
 
   const handleAdminClick = () => {
-    // Prüfen ob User Admin/Organizer ist (Context + localStorage fallback)
-    let hasAccess = isAdmin || isOrganizer;
-    if (!hasAccess) {
-      try {
-        const vol = JSON.parse(localStorage.getItem('volunteer') || '{}');
-        hasAccess = vol.role === 'ADMIN' || vol.role === 'ORGANIZER';
-      } catch {}
-    }
+    // Prüfen ob User Admin/Organizer ist (localStorage als Quelle der Wahrheit)
+    let hasAccess = false;
+    try {
+      const vol = JSON.parse(localStorage.getItem('volunteer') || '{}');
+      hasAccess = vol.role === 'ADMIN' || vol.role === 'ORGANIZER';
+    } catch {}
     if (!hasAccess) {
       void modal.alert({ title: 'Keine Berechtigung', message: 'Du hast keine Berechtigung für den Admin-Bereich. Bitte kontaktiere einen Administrator.' });
       return;
     }
+    // URL-Parameter + State setzen für zuverlässige Navigation
+    window.history.replaceState(null, '', '?view=admin');
     setView('admin');
   };
 
