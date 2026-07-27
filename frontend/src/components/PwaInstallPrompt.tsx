@@ -62,7 +62,7 @@ export default function PwaInstallPrompt() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontWeight: 'bold', color: '#198754', fontSize: 14 }}>App installieren</div>
-            <div style={{ fontSize: 12, color: '#2e7d32' }}>Installiere "Macht das Turnier!" für Push-Benachrichtigungen und schnellen Zugriff.</div>
+            <div style={{ fontSize: 12, color: '#2e7d32' }}>Installiere "Mach das Turnier!" für Push-Benachrichtigungen und schnellen Zugriff.</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>

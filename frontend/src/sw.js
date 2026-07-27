@@ -20,7 +20,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : {};
-  const title = data.title || 'Macht das Turnier!';
+  const title = data.title || 'Mach das Turnier!';
   const options = {
     body: data.body || 'Neue Benachrichtigung',
     icon: '/pwa-192x192.png',

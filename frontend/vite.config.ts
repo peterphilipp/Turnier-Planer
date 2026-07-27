@@ -44,8 +44,8 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
-        name: 'Macht das Turnier!',
-        short_name: 'Macht das Turnier!',
+        name: 'Mach das Turnier!',
+        short_name: 'Mach das Turnier!',
         description: 'Die Helfer- und Planungs-App für das TSV Holm Turnier.',
         theme_color: '#198754',
         background_color: '#ffffff',
