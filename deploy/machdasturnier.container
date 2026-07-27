@@ -1,4 +1,4 @@
-# Beispiel Podman Quadlet Unit für "Macht das Turnier!" (machdasturnier).
+# Beispiel Podman Quadlet Unit für "Mach das Turnier!" (machdasturnier).
 #
 # Installation auf dem Server (rootless Podman, empfohlen):
 #   mkdir -p ~/.config/containers/systemd
@@ -20,7 +20,7 @@
 # (EnvironmentFile=, siehe unten) - die NIE ins Git-Repo gehört.
 
 [Unit]
-Description=Macht das Turnier! (machdasturnier)
+Description=Mach das Turnier! (machdasturnier)
 After=network-online.target
 Wants=network-online.target
 

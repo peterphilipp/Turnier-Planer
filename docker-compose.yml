@@ -17,7 +17,7 @@ services:
       # setzen, sonst landet der Schluessel im naechsten Commit. EMAIL_FROM
       # muss bei Resend als Absender verifiziert sein.
       RESEND_API_KEY: "${RESEND_API_KEY:-}"
-      EMAIL_FROM: "${EMAIL_FROM:-Macht das Turnier! <noreply@mygate.dedyn.io>}"
+      EMAIL_FROM: "${EMAIL_FROM:-Mach das Turnier! <noreply@mygate.dedyn.io>}"
       ADMIN_EMAILS: "${ADMIN_EMAILS:-}"
       # Optional: Web-Push (VAPID). Ohne beide Schlüssel bleibt Push deaktiviert
       # (kein Fehler, nur eine Log-Warnung). Erzeugen mit:
