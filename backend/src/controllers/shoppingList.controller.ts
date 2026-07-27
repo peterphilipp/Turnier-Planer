@@ -54,7 +54,7 @@ export const lookupBarcode = async (req: Request, res: Response) => {
   if (!barcode) return res.status(400).json({ error: 'Barcode erforderlich' });
 
   // 1. Bereits im eigenen Katalog?
-  const existing = await prisma.shoppingCatalogItem.findUnique({ where: { barcode } });
+  const existing = await prisma.shoppingCatalogItem.findUnique({ where: { barcode } }) as any;
   if (existing) {
     // Wenn bereits verknüpft → trotzdem OFF-Hierarchie nachreichen
     const foodCat = await prisma.foodCategory.findUnique({ where: { id: existing.foodCategoryId! } });
@@ -140,7 +140,7 @@ export const lookupBarcode = async (req: Request, res: Response) => {
     return res.status(404).json({ error: 'Kein Produkt gefunden' });
   }
 
-  const productName = String(offData.product.product_name || offData.product.product_name_de || '').trim().slice(0, 150);
+  const productName = String(offData?.product?.product_name || offData?.product?.product_name_de || '').trim().slice(0, 150);
 
   // OFF-Kategorie extrahieren (für Anzeige als Fallback)
   let offCategory: string | null = null;
@@ -262,7 +262,7 @@ export const lookupBarcode = async (req: Request, res: Response) => {
 
   // 4. Katalog-Eintrag anlegen oder updaten (mit Mapping-Vorschlag)
   const foodCategoryId = matchedFoodCategoryId ?? (bestMatch ? bestMatch.categoryId : null);
-  let created;
+  let created: any;
   if (existing) {
     // Bestehenden Eintrag mit neuem Mapping updaten
     created = await prisma.shoppingCatalogItem.update({
@@ -284,10 +284,13 @@ export const lookupBarcode = async (req: Request, res: Response) => {
     });
   }
 
+  // Typ-Safe: created.foodCategory kann null sein (SetNull relation)
+  const foodCategory = (created as any).foodCategory || null;
+
   return res.status(existing ? 200 : 201).json({
     ...created,
     matchedFoodItem: bestMatch || null,
-    matchedFoodCategory: created.foodCategory || null,
+    matchedFoodCategory: foodCategory,
     offProduct: {
       name: productName,
       category: offCategory,
