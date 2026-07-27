@@ -326,98 +326,79 @@ export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { admin
               )}
             </div>
 
-            {/* Gantt-Ansicht – gemeinsame Komponente */}
-            <GanttTimeline
-              globalStartMin={timeRange.startMin}
-              globalEndMin={timeRange.endMin}
-              rows={rows}
-              editable={isEditing}
-              timeEditMode={isEditing}
-              onTimeChange={async (twaId: number, startMin: number, endMin: number) => {
-                // Optimistisch im Cache verschieben, damit der Balken nicht
-                // zurueckspringt, waehrend der Request laeuft.
-                qc.setQueryData(['day-templates'], (old: GlobalDayTemplate[] | undefined) => {
-                  if (!old) return old;
-                  return old.map(tmpl => ({
-                    ...tmpl,
-                    workAreas: (tmpl.workAreas || []).map((twa: TemplateWorkArea) =>
-                      twa.id === twaId ? { ...twa, startMin, endMin } : twa
-                    )
-                  }));
-                });
-                try {
-                  await updateTemplateWorkArea(twaId, { startMin, endMin });
-                } catch (err: any) {
-                  // Ohne dieses Zurueckrollen bliebe der Balken an der neuen
-                  // Position stehen, obwohl der Server sie abgelehnt hat (z.B.
-                  // Ueberschneidung) - die Ansicht wuerde die DB belügen.
-                  refresh();
-                  await modal.alert({
-                    title: 'Verschieben nicht möglich',
-                    message: err?.message || 'Der Zeitraum konnte nicht gespeichert werden.'
+            {/* Gantt-Ansicht oder Fallback wenn leer */}
+            {rows.length > 0 ? (
+              <GanttTimeline
+                globalStartMin={timeRange.startMin}
+                globalEndMin={timeRange.endMin}
+                rows={rows}
+                editable={isEditing}
+                timeEditMode={isEditing}
+                onTimeChange={async (twaId: number, startMin: number, endMin: number) => {
+                  qc.setQueryData(['day-templates'], (old: GlobalDayTemplate[] | undefined) => {
+                    if (!old) return old;
+                    return old.map(tmpl => ({
+                      ...tmpl,
+                      workAreas: (tmpl.workAreas || []).map((twa: TemplateWorkArea) =>
+                        twa.id === twaId ? { ...twa, startMin, endMin } : twa
+                      )
+                    }));
                   });
-                }
-              }}
-              onDelete={async (twaId: number) => {
-                await removeWorkAreaFromTemplate(twaId);
-              }}
-              onAddSlot={async (rowId: number) => {
-                // Finde die WorkArea für diese Row
-                const wa = workAreas.find(w => w.id === rowId);
-                if (!wa) return;
-                
-                // Versuche nicht-kollidierende Zeiten zu finden
-                const existingSlots = t.workAreas?.filter(s => s.workAreaId === rowId) || [];
-                let startMin = timeToMin('13:00');
-                let endMin = timeToMin('17:00');
-                
-                // Default-Zeiten die wahrscheinlich keinen Konflikt haben
-                const candidates = [
-                  { start: timeToMin('06:00'), end: timeToMin('10:00') },
-                  { start: timeToMin('18:00'), end: timeToMin('22:00') },
-                  { start: timeToMin('22:00'), end: timeToMin('02:00') }, // über Mitternacht
-                ];
-                
-                for (const cand of candidates) {
-                  let s = cand.start;
-                  let e = cand.end;
-                  if (e <= s) { e += 1440; } // über Mitternacht
+                  try {
+                    await updateTemplateWorkArea(twaId, { startMin, endMin });
+                  } catch (err: any) {
+                    refresh();
+                    await modal.alert({ title: 'Verschieben nicht möglich', message: err?.message || 'Der Zeitraum konnte nicht gespeichert werden.' });
+                  }
+                }}
+                onDelete={async (twaId: number) => {
+                  await removeWorkAreaFromTemplate(twaId);
+                }}
+                onAddSlot={async (rowId: number) => {
+                  const wa = workAreas.find(w => w.id === rowId);
+                  if (!wa) return;
                   
-                  // Prüfe ob dieser Kandidat mit bestehenden Slots kollidiert
-                  const hasConflict = existingSlots.some(slot => {
-                    return slot.startMin < e && slot.endMin > s;
-                  });
-                  if (!hasConflict) {
-                    startMin = s;
-                    endMin = e;
-                    break;
+                  const existingSlots = t.workAreas?.filter(s => s.workAreaId === rowId) || [];
+                  let startMin = timeToMin('13:00');
+                  let endMin = timeToMin('17:00');
+                  
+                  const candidates = [
+                    { start: timeToMin('06:00'), end: timeToMin('10:00') },
+                    { start: timeToMin('18:00'), end: timeToMin('22:00') },
+                    { start: timeToMin('22:00'), end: timeToMin('02:00') },
+                  ];
+                  
+                  for (const cand of candidates) {
+                    let s = cand.start;
+                    let e = cand.end;
+                    if (e <= s) { e += 1440; }
+                    
+                    const hasConflict = existingSlots.some(slot => slot.startMin < e && slot.endMin > s);
+                    if (!hasConflict) { startMin = s; endMin = e; break; }
                   }
-                }
-                
-                // Fallback: nach dem letzten Slot appenden
-                if (existingSlots.length > 0) {
-                  const lastEnd = Math.max(...existingSlots.map(s => s.endMin));
-                  startMin = lastEnd;
-                  endMin = lastEnd + 240;
-                  if (endMin > 1440) { endMin -= 1440; }
-                }
-                
-                try {
-                  await addTemplateWorkArea({
-                    templateId: t.id,
-                    workAreaId: wa.id,
-                    startMin,
-                    endMin,
-                    order: (t.workAreas || []).length
-                  });
-                  refresh();
-                } catch (err: any) {
-                  if (err.message?.includes('überschneidet')) {
-                    modal.alert({ title: 'Fehler', message: 'Alle Zeiten kollidieren mit bestehenden Slots. Bitte ziehe einen Balken manuell.' });
+                  
+                  if (existingSlots.length > 0) {
+                    const lastEnd = Math.max(...existingSlots.map(s => s.endMin));
+                    startMin = lastEnd;
+                    endMin = lastEnd + 240;
+                    if (endMin > 1440) { endMin -= 1440; }
                   }
-                }
-              }}
-            />
+                  
+                  try {
+                    await addTemplateWorkArea({ templateId: t.id, workAreaId: wa.id, startMin, endMin, order: (t.workAreas || []).length });
+                    refresh();
+                  } catch (err: any) {
+                    if (err.message?.includes('überschneidet')) {
+                      modal.alert({ title: 'Fehler', message: 'Alle Zeiten kollidieren mit bestehenden Slots. Bitte ziehe einen Balken manuell.' });
+                    }
+                  }
+                }}
+              />
+            ) : (
+              <div style={{ textAlign: 'center', padding: 24, color: '#888' }}>
+                {isEditing ? <p>➡️ Klicke unten „Arbeitsbereich hinzufügen"</p> : null}
+              </div>
+            )}
 
             {/* Arbeitsbereich hinzufügen – immer sichtbar im Bearbeitungsmodus */}
             {isEditing && (
@@ -441,52 +422,23 @@ export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { admin
                       return (
                         <>
                           {available.map(wa => (
-                            <label
-                              key={wa.id}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: 8,
-                                padding: '8px 16px', cursor: 'pointer', fontSize: 13, color: '#212557',
-                                borderBottom: '1px solid #f0f0f0'
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selected.includes(wa.id)}
-                                onChange={() => {
-                                  setSelectedWorkAreas(prev => ({
-                                    ...prev,
-                                    [t.id]: prev[t.id]?.includes(wa.id)
-                                      ? prev[t.id].filter(id => id !== wa.id)
-                                      : [...(prev[t.id] || []), wa.id]
-                                  }));
-                                }}
-                              />
+                            <label key={wa.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', cursor: 'pointer', fontSize: 13, color: '#212557', borderBottom: '1px solid #f0f0f0' }}>
+                              <input type="checkbox" checked={selected.includes(wa.id)} onChange={() => setSelectedWorkAreas(prev => ({ ...prev, [t.id]: prev[t.id]?.includes(wa.id) ? prev[t.id].filter(id => id !== wa.id) : [...(prev[t.id] || []), wa.id] }))} />
                               <span style={{ fontSize: 16 }}>{wa.icon}</span>
                               <span>{wa.name}</span>
                             </label>
                           ))}
                           {selected.length > 0 && (
                             <div style={{ padding: '8px 16px', borderTop: '2px solid #dee2e6' }}>
-                              <button
-                                style={{ ...btnStyle, background: '#d1e7dd', color: '#0f5132', width: '100%', minHeight: 36 }}
-                                onClick={async () => {
-                                  const selected = selectedWorkAreas[t.id] || [];
-                                  for (const waId of selected) {
-                                    await addTemplateWorkArea({
-                                      templateId: t.id,
-                                      workAreaId: waId,
-                                      startMin: timeToMin('09:00'),
-                                      endMin: timeToMin('13:00'),
-                                      order: (t.workAreas || []).length
-                                    });
-                                  }
-                                  setSelectedWorkAreas(prev => ({ ...prev, [t.id]: [] }));
-                                  setShowAddDropdown(prev => ({ ...prev, [t.id]: false }));
-                                  refresh();
-                                }}
-                              >
-                                ➕ {selected.length} Arbeitsbereich{selected.length > 1 ? 'e' : ''} hinzufügen
-                              </button>
+                              <button style={{ ...btnStyle, background: '#d1e7dd', color: '#0f5132', width: '100%', minHeight: 36 }} onClick={async () => {
+                                const selected = selectedWorkAreas[t.id] || [];
+                                for (const waId of selected) {
+                                  await addTemplateWorkArea({ templateId: t.id, workAreaId: waId, startMin: timeToMin('09:00'), endMin: timeToMin('13:00'), order: (t.workAreas || []).length });
+                                }
+                                setSelectedWorkAreas(prev => ({ ...prev, [t.id]: [] }));
+                                setShowAddDropdown(prev => ({ ...prev, [t.id]: false }));
+                                refresh();
+                              }}>➕ {selected.length} Arbeitsbereich{selected.length > 1 ? 'e' : ''} hinzufügen</button>
                             </div>
                           )}
                         </>
