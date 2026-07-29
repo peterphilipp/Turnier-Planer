@@ -1,11 +1,13 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function Privacy() {
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState<string | null>(null);
 
   return (
     <div style={{ maxWidth: 800, margin: '40px auto', padding: 20, }}>
-      <a href="?view=selfservice" style={{ display: 'inline-block', marginBottom: 16, fontSize: 14, color: '#0d6efd', textDecoration: 'underline' }}>← Zurück</a>
+      <button onClick={() => navigate(-1)} style={{ display: 'inline-block', marginBottom: 16, fontSize: 14, color: '#0d6efd', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>← Zurück</button>
       <h1 style={{ color: '#333', borderBottom: '2px solid #0d6efd', paddingBottom: 12 }}>Datenschutzerklärung</h1>
 
       <p style={{ color: '#666', fontSize: 14, marginBottom: 24 }}>

@@ -50,6 +50,7 @@ export default defineConfig({
         theme_color: '#198754',
         background_color: '#ffffff',
         display: 'standalone',
+        version: resolveVersion(),
         icons: [
           {
             src: 'pwa-512x512.png',

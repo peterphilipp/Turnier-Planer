@@ -53,9 +53,41 @@ export default function SelfServiceLayout() {
   const [passkeyLoading, setPasskeyLoading] = useState(false);
 
   const [exportLoading, setExportLoading] = useState(false);
+  
+  // PWA Update-Erkennung für iOS (manuell)
+  const [pwaUpdateAvailable, setPwaUpdateAvailable] = useState(false);
+  const [dismissedUpdate, setDismissedUpdate] = useState(false);
 
   useEffect(() => {
     isPasskeySupported().then(setPasskeySupported);
+  }, []);
+
+  // PWA Update-Erkennung: Prüft ob eine neue Version verfügbar ist (iOS)
+  useEffect(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches 
+      || (window.navigator as any).standalone === true;
+    if (!isStandalone) return; // Nur in installierter PWA prüfen
+    
+    const checkForUpdate = async () => {
+      try {
+        const storedVersion = localStorage.getItem('pwa-version');
+        const response = await fetch('/manifest.json', { cache: 'no-store' });
+        const manifest = await response.json();
+        const currentVersion = manifest.version || '1.0.0';
+        
+        if (storedVersion && storedVersion !== currentVersion) {
+          setPwaUpdateAvailable(true);
+        }
+        localStorage.setItem('pwa-version', currentVersion);
+      } catch {
+        // Ignorieren
+      }
+    };
+    
+    checkForUpdate();
+    // Alle 5 Minuten prüfen
+    const interval = setInterval(checkForUpdate, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleExportData = async () => {
@@ -100,11 +132,13 @@ export default function SelfServiceLayout() {
     }
   };
 
+  // Farben laden wenn volunteer.tournamentId ODER selectedTournamentId sich ändert
   useEffect(() => {
-    if (volunteer?.tournamentId) {
-      fetchClubColors(volunteer.tournamentId);
+    const tid = selectedTournamentId || volunteer?.tournamentId;
+    if (tid) {
+      fetchClubColors(tid);
     }
-  }, [volunteer?.tournamentId]);
+  }, [selectedTournamentId, volunteer?.tournamentId]);
 
   // Handle protected routes – NICHT während der Initialisierung (localStorage-Lesevorgang)
   useEffect(() => {
@@ -156,53 +190,7 @@ export default function SelfServiceLayout() {
               </div>
             )}
             <div className="selfservice-header-text">
-              {availableTournaments.length > 1 ? (
-                <select
-                  value={selectedTournamentId || ''}
-                  onChange={e => setSelectedTournamentId(parseInt(e.target.value))}
-                  style={{
-                    margin: 0,
-                    fontSize: isMobile ? 18 : 22,
-                    fontWeight: 'bold',
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#fff',
-                    outline: 'none',
-                    cursor: 'pointer',
-                    appearance: 'none',
-                    WebkitAppearance: 'none',
-                    paddingRight: 16,
-                    backgroundImage: 'url("data:image/svg+xml;utf8,<svg fill=\'white\' height=\'24\' viewBox=\'0 0 24 24\' width=\'24\' xmlns=\'http://www.w3.org/2000/svg\'><path d=\'M7 10l5 5 5-5z\'/></svg>")',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right center'
-                  }}
-                >
-                  {(() => {
-                    const upcoming = availableTournaments.filter(t => t.status === 'aktiv' || !t.status);
-                    const past = availableTournaments.filter(t => t.status && t.status !== 'aktiv');
-                    return (
-                      <>
-                        {upcoming.length > 0 && (
-                          <optgroup label="Anstehend/Aktiv">
-                            {upcoming.map(t => (
-                              <option key={t.id} value={t.id} style={{ color: '#333' }}>{t.name}</option>
-                            ))}
-                          </optgroup>
-                        )}
-                        {past.length > 0 && (
-                          <optgroup label="Abgeschlossen">
-                            {past.map(t => (
-                              <option key={t.id} value={t.id} style={{ color: '#333' }}>{t.name}</option>
-                            ))}
-                          </optgroup>
-                        )}
-                      </>
-                    );
-                  })()}
-                </select>
-              ) : (
-                <h1 className="selfservice-header-title">{tournamentName || 'Mach das Turnier!'}</h1>
-              )}
+              <h1 className="selfservice-header-title">{tournamentName || 'Mach das Turnier!'}</h1>
               {isLoggedIn && volunteer && <div className="selfservice-header-greeting">Hallo, {volunteer.name}!</div>}
             </div>
           </div>
@@ -283,16 +271,33 @@ export default function SelfServiceLayout() {
               
               <button onClick={() => { setMenuOpen(false); navigate('/'); }} className="admin-core-style-20">📅 Mein Dienstplan</button>
 
-              {(isAdmin || isOrganizer) && (
-                <button
-                  onClick={() => { setMenuOpen(false); navigate('/admin'); }}
-                  className="admin-core-style-21"
-                >
-                  ⚙️ Admin-Bereich
-                </button>
-              )}
-
-              <hr className="admin-core-style-22" />
+              {/* Turnier-Auswahl */}
+              <div style={{ paddingLeft: 16, paddingBottom: 8 }}>
+                <label style={{ fontSize: 12, color: '#6c757d', marginBottom: 4, display: 'block' }}>🏆 Turnier</label>
+                {availableTournaments.length > 0 ? (
+                  <select
+                    value={selectedTournamentId || ''}
+                    onChange={e => setSelectedTournamentId(parseInt(e.target.value))}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      fontSize: 14,
+                      border: '1px solid #dee2e6',
+                      borderRadius: 8,
+                      background: '#fff',
+                      color: '#333',
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {availableTournaments.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div style={{ fontSize: 13, color: '#6c757d', padding: '8px 0' }}>Keine Turniere verfügbar</div>
+                )}
+              </div>
 
               {passkeySupportedState && (
                 <button
@@ -350,15 +355,51 @@ export default function SelfServiceLayout() {
                  {exportLoading ? '⏳ Exportiere...' : '📥 Meine Daten exportieren (DSGVO)'}
                </button>
 
+              {pwaUpdateAvailable && !dismissedUpdate && (
+                <div style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 8, padding: '12px 16px', marginBottom: 12 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#856404', marginBottom: 4 }}>🔄 Update verfügbar</div>
+                  <div style={{ fontSize: 12, color: '#856404', marginBottom: 8 }}>Eine neue Version ist installiert. Bitte neu laden.</div>
+                  <button
+                    onClick={() => {
+                      setDismissedUpdate(true);
+                      window.location.reload();
+                    }}
+                    style={{ width: '100%', padding: '8px 16px', background: '#ffc107', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+                  >
+                    Jetzt neu laden
+                  </button>
+                </div>
+              )}
+
+              {(isAdmin || isOrganizer) && (
+                <button
+                  onClick={() => { setMenuOpen(false); navigate('/admin'); }}
+                  className="admin-core-style-21"
+                  style={{ marginTop: 8, marginBottom: 8 }}
+                >
+                  ⚙️ Admin-Bereich
+                </button>
+              )}
+
+              <hr className="admin-core-style-22" />
+
               <button onClick={handleLogout} className="admin-core-style-25">
                 🚪 Abmelden
               </button>
             </div>
             
-            <div className="admin-core-style-26">
-              <Link to="/privacy" onClick={() => setMenuOpen(false)} className="admin-core-style-27">Datenschutz</Link>
-              <span className="admin-core-style-28">·</span>
-              <Link to="/impressum" onClick={() => setMenuOpen(false)} className="admin-core-style-29">Impressum</Link>
+            <div style={{ padding: '16px 20px', borderTop: '1px solid #e9ecef', fontSize: 12, color: '#6c757d', textAlign: 'center' }}>
+              <button
+                onClick={() => { setMenuOpen(false); navigate('/privacy'); }}
+                style={{ background: 'none', border: 'none', color: '#6c757d', textDecoration: 'underline', cursor: 'pointer', fontSize: 12, padding: 0 }}
+              >Datenschutz</button>
+              {' · '}
+              <button
+                onClick={() => { setMenuOpen(false); navigate('/impressum'); }}
+                style={{ background: 'none', border: 'none', color: '#6c757d', textDecoration: 'underline', cursor: 'pointer', fontSize: 12, padding: 0 }}
+              >Impressum</button>
+              <div style={{ marginTop: 4, fontSize: 11 }}>
+v1.{(__APP_VERSION__ || '1.14.0').replace(/^v/, '')} · {(__GIT_SHA__?.slice(0, 7)) || '—'}</div>
             </div>
           </div>
         </>

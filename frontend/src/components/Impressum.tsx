@@ -1,7 +1,10 @@
+import { useNavigate } from 'react-router-dom';
+
 export default function Impressum() {
+  const navigate = useNavigate();
   return (
     <div style={{ maxWidth: 800, margin: '40px auto', padding: 20 }}>
-      <a href="?view=selfservice" style={{ display: 'inline-block', marginBottom: 16, fontSize: 14, color: '#0d6efd', textDecoration: 'underline' }}>← Zurück</a>
+      <button onClick={() => navigate(-1)} style={{ display: 'inline-block', marginBottom: 16, fontSize: 14, color: '#0d6efd', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>← Zurück</button>
       <h1 style={{ color: '#333', borderBottom: '2px solid #0d6efd', paddingBottom: 12 }}>Impressum</h1>
 
       <p style={{ color: '#666', fontSize: 14, marginBottom: 24 }}>
@@ -47,7 +50,7 @@ export default function Impressum() {
       </div>
 
       <p style={{ marginTop: 32, padding: 16, background: '#f8f9fa', borderRadius: 8, fontSize: 13, color: '#666' }}>
-        Siehe auch: <a href="?view=privacy" style={{ color: '#0d6efd' }}>Datenschutzerklärung</a>
+        Siehe auch: <button onClick={() => navigate('/privacy')} style={{ background: 'none', border: 'none', color: '#0d6efd', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: 14 }}>Datenschutzerklärung</button>
       </p>
     </div>
   );
