@@ -32,7 +32,10 @@
 }
 
 .dashboard-content {
-  padding: var(--spacing-5);
+  padding-top: 0;
+  padding-right: var(--spacing-5);
+  padding-bottom: var(--spacing-5);
+  padding-left: var(--spacing-5);
 }
 @media (max-width: 767px) {
   .dashboard-content {
@@ -660,13 +663,13 @@
 .dashboard-tabs-wrapper {
   display: flex;
   gap: var(--spacing-2);
-  margin-bottom: var(--spacing-5);
+  margin-bottom: 2px;
 }
 .dashboard-pill-tab {
   flex: 1;
   padding: var(--spacing-3) 0;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 12px;
   cursor: pointer;
   font-size: 15px;
   font-weight: var(--font-weight-medium);
