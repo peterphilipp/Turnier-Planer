@@ -284,13 +284,13 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
       gap: 12
     }}>
       {/* Links: Nummer + Uhrzeit/Feld */}
-      <div style={{ minWidth: 130, flexShrink: 0 }}>
+      <div className="admin-core-style-50">
         <span style={{ 
           fontWeight: 'bold',
           color: isCompleted ? '#adb5bd' : '#059669',
           fontSize: 14
         }}>#{index + 1}</span>
-        <div style={{ fontSize: 11, color: '#6c757d', marginTop: 2 }}>
+        <div className="admin-core-style-51">
           🕒 {startTime} – {endTime}
           {' · '}
           📍 {getFieldLabel(match.fieldId)}
@@ -310,14 +310,14 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
       </span>
 
       {/* Team A + Score + Team B – zentrierter Block */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 1 }}>
+      <div className="admin-core-style-52">
         {/* Team A – links im zentrierten Block */}
-        <div style={{ fontSize: 13, fontWeight: '500', textAlign: 'left', marginRight: 'auto' }}>
+        <div className="admin-core-style-53">
           {getTeamName(match.teamAId, match.placeholderA)}
         </div>
 
         {/* Score – immer mittig */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+        <div className="admin-core-style-54">
           <input
             type="text"
             inputMode="numeric"
@@ -330,17 +330,9 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
             }}
             onBlur={() => { if (editingScore?.matchId === match.id && editingScore.side === 'A') handleScoreChange(match.id, 'A', editingScore.value); }}
             onFocus={() => setEditingScore({ matchId: match.id, side: 'A', value: String(match.scoreA ?? '') })}
-            style={{ 
-              width: 36, 
-              padding: '4px 2px', 
-              textAlign: 'center', 
-              border: '1px solid #dee2e6', 
-              borderRadius: 4, 
-              fontSize: 15, 
-              fontWeight: 'bold'
-            }}
+            className="admin-core-style-55"
           />
-          <span style={{ color: '#adb5bd' }}>:</span>
+          <span className="admin-core-style-56">:</span>
           <input
             type="text"
             inputMode="numeric"
@@ -353,40 +345,23 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
             }}
             onBlur={() => { if (editingScore?.matchId === match.id && editingScore.side === 'B') handleScoreChange(match.id, 'B', editingScore.value); }}
             onFocus={() => setEditingScore({ matchId: match.id, side: 'B', value: String(match.scoreB ?? '') })}
-            style={{ 
-              width: 36, 
-              padding: '4px 2px', 
-              textAlign: 'center', 
-              border: '1px solid #dee2e6', 
-              borderRadius: 4, 
-              fontSize: 15, 
-              fontWeight: 'bold'
-            }}
+            className="admin-core-style-57"
           />
         </div>
 
         {/* Team B – rechts im zentrierten Block */}
-        <div style={{ fontSize: 13, fontWeight: '500', textAlign: 'right', marginLeft: 'auto' }}>
+        <div className="admin-core-style-58">
           {getTeamName(match.teamBId, match.placeholderB)}
         </div>
       </div>
 
       {/* Reset & Abschließen – ganz rechts */}
-      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+      <div className="admin-core-style-59">
         {match.scoreA !== null && match.scoreB !== null && match.status !== 'abgeschlossen' && (
           <button
             onClick={() => handleResetMatch(match.id, match.phase)}
             title="Spiel-Ergebnis zurücksetzen"
-            style={{
-              padding: '3px 8px',
-              background: '#fff3cd',
-              border: '1px solid #ffc107',
-              borderRadius: 4,
-              cursor: 'pointer',
-              fontSize: 11,
-              fontWeight: '500',
-              color: '#664d03',
-            }}
+            className="admin-core-style-60"
           >
             ↺ Reset
           </button>
@@ -437,13 +412,13 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
   if (phase === 'gruppenphase') {
     return (
       <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-        <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: '600', color: '#212557' }}>📊 Gruppenphase</h3>
+        <h3 className="admin-core-style-61">📊 Gruppenphase</h3>
         
         {gruppenMatches.length === 0 ? (
-          <div style={{ padding: 32, textAlign: 'center', color: '#666' }}>
-            <p style={{ fontSize: 48, margin: '0 0 16px 0' }}>📋</p>
+          <div className="admin-core-style-62">
+            <p className="admin-core-style-63">📋</p>
             <p>Noch keine Gruppenspiele geplant.</p>
-            <p style={{ fontSize: 13 }}>Gehe zu "Modus" und generiere den Spielplan.</p>
+            <p className="admin-core-style-64">Gehe zu "Modus" und generiere den Spielplan.</p>
           </div>
         ) : (
           <>
@@ -458,22 +433,22 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
               });
               
               return (
-                <div key={group.name} style={{ marginBottom: 24 }}>
-                  <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: '600', color: '#212557' }}>
+                <div key={group.name} className="admin-core-style-65">
+                  <h4 className="admin-core-style-66">
                     📋 {group.name}
                   </h4>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 500 }}>
+                  <div className="admin-core-style-67">
+                    <table className="admin-core-style-68">
                       <thead>
-                        <tr style={{ background: '#f8f9fa' }}>
-                          <th style={{ padding: '8px 12px', textAlign: 'center', borderBottom: '2px solid #dee2e6', minWidth: 40 }}>Pl.</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Team</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'center', borderBottom: '2px solid #dee2e6', minWidth: 35 }}>Sp.</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'center', borderBottom: '2px solid #dee2e6', minWidth: 30 }}>S</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'center', borderBottom: '2px solid #dee2e6', minWidth: 30 }}>U</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'center', borderBottom: '2px solid #dee2e6', minWidth: 30 }}>N</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'center', borderBottom: '2px solid #dee2e6', minWidth: 55 }}>Tore</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'center', borderBottom: '2px solid #dee2e6', minWidth: 40, fontWeight: 'bold' }}>Pkt.</th>
+                        <tr className="admin-core-style-69">
+                          <th className="admin-core-style-70">Pl.</th>
+                          <th className="admin-core-style-71">Team</th>
+                          <th className="admin-core-style-72">Sp.</th>
+                          <th className="admin-core-style-73">S</th>
+                          <th className="admin-core-style-74">U</th>
+                          <th className="admin-core-style-75">N</th>
+                          <th className="admin-core-style-76">Tore</th>
+                          <th className="admin-core-style-77">Pkt.</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -491,17 +466,17 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
                               <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 'bold', color: idx < advancingPerGroup ? '#198754' : (idx < 3 ? '#0d6efd' : '#495057') }}>
                                 {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : (idx + 1)}
                               </td>
-                              <td style={{ padding: '8px 12px', fontWeight: '500' }}>
+                              <td className="admin-core-style-78">
                                 {entry.teamName}
                               </td>
-                              <td style={{ padding: '8px 12px', textAlign: 'center', color: '#666' }}>{entry.played}</td>
-                              <td style={{ padding: '8px 12px', textAlign: 'center', color: '#198754' }}>{entry.won}</td>
-                              <td style={{ padding: '8px 12px', textAlign: 'center', color: '#ffc107' }}>{entry.drawn}</td>
-                              <td style={{ padding: '8px 12px', textAlign: 'center', color: '#dc3545' }}>{entry.lost}</td>
+                              <td className="admin-core-style-79">{entry.played}</td>
+                              <td className="admin-core-style-80">{entry.won}</td>
+                              <td className="admin-core-style-81">{entry.drawn}</td>
+                              <td className="admin-core-style-82">{entry.lost}</td>
                               <td style={{ padding: '8px 12px', textAlign: 'center', color: goalDiff > 0 ? '#198754' : goalDiff < 0 ? '#dc3545' : '#666' }}>
                                 {entry.goalsFor}:{entry.goalsAgainst} ({goalDiff > 0 ? '+' : ''}{goalDiff})
                               </td>
-                              <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 'bold', fontSize: 15, color: '#212557' }}>{entry.points}</td>
+                              <td className="admin-core-style-83">{entry.points}</td>
                             </tr>
                           );
                         })}
@@ -513,23 +488,23 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
             })}
 
             {/* Legende */}
-            <div style={{ marginTop: 16, padding: '8px 12px', background: '#f8f9fa', borderRadius: 8, fontSize: 12, color: '#666' }}>
+            <div className="admin-core-style-84">
               🟩 = Aufsteiger in die KO-Phase (Top {advancingPerGroup})
             </div>
 
             {/* Offene/laufende Spiele */}
-            <div style={{ marginTop: 24 }}>
-              <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: '600', color: '#212557' }}>📅 Offene & laufende Spiele</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="admin-core-style-85">
+              <h4 className="admin-core-style-86">📅 Offene & laufende Spiele</h4>
+              <div className="admin-core-style-87">
                 {openGruppenMatches.map((match, i) => renderMatchCard(match, i))}
               </div>
             </div>
 
             {/* Abgeschlossene Spiele */}
             {completedGruppenMatches.length > 0 && (
-              <div style={{ marginTop: 24 }}>
-                <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: '600', color: '#6c757d' }}>🔘 Abgeschlossene Spiele</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="admin-core-style-88">
+                <h4 className="admin-core-style-89">🔘 Abgeschlossene Spiele</h4>
+                <div className="admin-core-style-90">
                   {completedGruppenMatches.map((match, i) => renderMatchCard(match, i))}
                 </div>
               </div>
@@ -561,23 +536,14 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
 
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-      <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: '600', color: '#212557' }}>🏆 KO-Phase</h3>
+      <h3 className="admin-core-style-91">🏆 KO-Phase</h3>
       
       {/* Teams aus Gruppenphase übernehmen – nur bei GRUPPEN_KO */}
       {isGruppenKo && hasPlayedGroupMatches && (
-        <div style={{ marginBottom: 16 }}>
+        <div className="admin-core-style-92">
         <button
           onClick={advanceMatch}
-          style={{
-            padding: '8px 20px',
-            background: '#198754',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: 14,
-            fontWeight: '600'
-          }}
+          className="admin-core-style-93"
         >
           📋 Teams aus Gruppenphase übernehmen
         </button>
@@ -585,8 +551,8 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
       )}
       
       {koMatches.length === 0 ? (
-        <div style={{ padding: 32, textAlign: 'center', color: '#666' }}>
-          <p style={{ fontSize: 48, margin: '0 0 16px 0' }}>🏆</p>
+        <div className="admin-core-style-94">
+          <p className="admin-core-style-95">🏆</p>
           <p>Noch keine KO-Spiele geplant.</p>
           {isGruppenKo && hasPlayedGroupMatches ? (
             <button
@@ -605,21 +571,12 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
                   await modal.alert({ title: 'Fehler', message: 'KO-Phase konnte nicht generiert werden: ' + (e as Error).message });
                 }
               }}
-              style={{
-                padding: '10px 24px',
-                background: '#198754',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: '600'
-              }}
+              className="admin-core-style-96"
             >
               🎯 KO-Phase generieren
             </button>
           ) : isGruppenKo ? (
-            <p style={{ fontSize: 13 }}>Trage zuerst Ergebnisse in die Gruppenspiele ein.</p>
+            <p className="admin-core-style-97">Trage zuerst Ergebnisse in die Gruppenspiele ein.</p>
           ) : (
             <button
               onClick={async () => {
@@ -637,16 +594,7 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
                   await modal.alert({ title: 'Fehler', message: 'Spielplan konnte nicht generiert werden: ' + (e as Error).message });
                 }
               }}
-              style={{
-                padding: '10px 24px',
-                background: '#198754',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: '600'
-              }}
+              className="admin-core-style-98"
             >
               🎯 Spielplan generieren
             </button>
@@ -656,9 +604,9 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
         <>
           {/* Offene/laufende KO-Spiele */}
           {openKOMatches.length > 0 && (
-            <div style={{ marginTop: 16 }}>
-              <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: '600', color: '#212557' }}>📅 Offene & laufende KO-Spiele</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="admin-core-style-99">
+              <h4 className="admin-core-style-100">📅 Offene & laufende KO-Spiele</h4>
+              <div className="admin-core-style-101">
                 {openKOMatches.map((match, i) => renderMatchCard(match, i))}
               </div>
             </div>
@@ -666,16 +614,16 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
 
           {/* Abgeschlossene KO-Spiele */}
           {completedKOMatches.length > 0 && (
-            <div style={{ marginTop: 24 }}>
-              <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: '600', color: '#6c757d' }}>🔘 Abgeschlossene KO-Spiele</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="admin-core-style-102">
+              <h4 className="admin-core-style-103">🔘 Abgeschlossene KO-Spiele</h4>
+              <div className="admin-core-style-104">
                 {completedKOMatches.map((match, i) => renderMatchCard(match, i))}
               </div>
             </div>
           )}
 
           {/* Neu generieren Button */}
-          <div style={{ marginTop: 24, textAlign: 'center' }}>
+          <div className="admin-core-style-105">
             <button
               onClick={async () => {
                 if (!tournamentId || !yearGroupId) return;
@@ -698,16 +646,7 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
                   await modal.alert({ title: 'Fehler', message: 'KO-Phase konnte nicht generiert werden: ' + (e as Error).message });
                 }
               }}
-              style={{
-                padding: '10px 24px',
-                background: '#ffc107',
-                color: '#000',
-                border: 'none',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: '600'
-              }}
+              className="admin-core-style-106"
             >
               🔄 KO-Phase neu generieren
             </button>

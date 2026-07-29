@@ -18,32 +18,17 @@ interface AdminButtonProps {
   disabled?: boolean;
   icon?: string;                  // Emoji vor Text, z.B. "➕"
 }
+```
 
-// Style-Quellcode (btnStyle):
-{
-  padding: '12px 20px',
-  cursor: 'pointer',
-  border: 'none',
-  borderRadius: 8,
-  background: '#f8f9fa',          // neutral grau
-  fontSize: 14,
-  fontWeight: 600,                // IMMER 600 für Primär!
-  minHeight: 44,                  // Touch-Target ≥ 40px
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 6                          // Abstand Icon ↔ Text
-}
+Diese Komponente verwendet nun saubere CSS-Klassen (`btn btn-primary` oder `btn btn-outline`) aus `shared.css`.
 
 // danger variant: background: '#fde8e8', color: '#dc3545'
-```
 
 #### `AdminButtonSecondary` (Sekundär)
 ```typescript
 interface AdminButtonSecondaryProps extends Omit<AdminButtonProps, 'variant'> {}
 
-// Style-Quellcode (btnStyleSecondary):
-{ ...btnStyle, fontWeight: 500 }  // IMMER 500 für Sekundär!
+Diese Komponente verwendet nun CSS-Klassen aus dem Design System.  // IMMER 500 für Sekundär!
 ```
 
 **Verwendungsregeln:**
@@ -752,74 +737,58 @@ interface VerpflegungMatrixProps {
 
 ---
 
-## 6. Design-Token als TypeScript-Konstanten
+## 6. Design-Token als CSS-Variablen
 
-**Empfehlung:** Alle Magic Numbers/Colors in `shared.ts` als exportierte Konstanten, nicht inline:
+**Pflicht:** Alle Magic Numbers/Colors liegen zentral in rontend/src/styles/design-tokens.css und werden nicht inline oder als TypeScript-Konstanten definiert.
 
-```typescript
-// === DESIGN TOKENS (Quelle der Wahrheit) ===
-export const COLORS = {
-  // Status-Farben
-  success: '#198754',
-  warning: '#ffc107',
-  danger: '#dc3545',
-  info: '#0d6efd',
+`css
+/* frontend/src/styles/design-tokens.css */
+:root {
+  /* Status-Farben */
+  --color-success: #198754;
+  --color-warning: #ffc107;
+  --color-danger: #dc3545;
+  --color-info: #0d6efd;
+
+  /* Neutrale Farben */
+  --bg-main: #f0f2f5;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #f8f9fa;
+  --border-color: #e9ecef;
+  --border-color-focus: #dee2e6;
+  --text-main: #212529;
+  --text-muted: #6c757d;
+
+  /* Spacing */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-6: 24px;
+  --spacing-10: 40px;
+
+  /* Border Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 9999px;
+
+  /* Typografie */
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 24px;
   
-  // Neutrale Farben
-  bgSelfService: '#f0f2f5',
-  bgAdmin: '#fff',
-  bgAdminAlt: '#f8f9fa',
-  border: '#e9ecef',
-  borderLight: '#dee2e6',
-  textPrimary: '#212529',
-  textSecondary: '#495057',
-  textTertiary: '#adb5bd'
-} as const;
-
-export const SPACING = {
-  xs: '4px',
-  sm: '8px',
-  md: '16px',
-  lg: '24px',
-  xl: '40px'
-} as const;
-
-export const RADIUS = {
-  small: 8,
-  medium: 12,
-  large: 16,
-  pill: 12
-} as const;
-
-export const SHADOWS = {
-  cardSelfService: '0 20px 60px rgba(0,0,0,0.3)',
-  cardAdmin: '0 4px 12px rgba(0,0,0,0.05)',
-  modal: '0 20px 60px rgba(0,0,0,0.3)',
-  dropdown: '0 8px 30px rgba(0,0,0,0.2)'
-} as const;
-
-export const FONT_WEIGHTS = {
-  normal: 400,
-  medium: 500,    // Sekundär-Buttons, Labels
-  semibold: 600,  // Primär-Buttons, Tabellen-Header
-  bold: 700       // Überschriften
-} as const;
-
-export const BREAKPOINTS = {
-  mobile: 768,
-  tablet: 1024,
-  desktop: 1200
-} as const;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+}
 ```
 
 **Verwendung:**
-```tsx
-// Statt inline-Styles:
-<div style={{ padding: SPACING.md, borderRadius: RADIUS.large }}>
-
-// Statt Magic Numbers:
-fontWeight: FONT_WEIGHTS.semibold
-```
+Statt Inline-Styles wie `style={{ padding: '16px' }}` verwende Klassen (`className="btn btn-primary"`) oder in seltenen Fällen CSS-Variablen in Inline-Styles (`style={{ border: '1px solid var(--border-color)' }}`).
 
 ---
 
@@ -832,9 +801,9 @@ Bei jeder neuen Komponente prüfen:
 | **Welt-Zuordnung** | Gehört sie zur SelfService- oder Admin-Welt? |
 | **Kontext-Farbe** | Welche Farbe aktiviert sie? (Blau/Grün/Grau) |
 | **Button-Typ** | Primär (`fontWeight: 600`) oder Sekundär (`fontWeight: 500`)? |
-| **Touch-Targets** | Sind alle interaktiven Elemente ≥ 40×40px? (SelfService!) |
+| **Touch-Targets** | Sind alle interaktiven Elemente >= 40x40px? (SelfService!) |
 | **Modal-System** | Wird `modal.confirm/alert/form` statt browser-native Dialoge verwendet? |
-| **Design-Token** | Werden `COLORS`, `SPACING`, `RADIUS` statt Magic Numbers verwendet? |
+| **Design-Token** | Werden CSS-Variablen (`var(--spacing-4)`) statt Magic Numbers verwendet? |
 | **Vereinsfarben** | Werden sie dynamisch angewendet (SelfService) oder statisch (Admin)? |
 
 ---

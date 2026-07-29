@@ -1,485 +1,153 @@
-import { useState, useEffect, useCallback } from 'react';
-import { ModalRoot, modal } from './components/admin/Modal';
-import { useQuery } from '@tanstack/react-query';
-import { getTournaments, setAuthToken, ApiError } from './api';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ModalRoot } from './components/admin/Modal';
+import { UserProvider } from './context/UserContext';
 
-import SelfServiceView from './components/SelfServiceView';
+// --- SelfService & Public ---
 import Privacy from './components/Privacy';
 import Impressum from './components/Impressum';
+import SelfServiceLayout from './components/selfservice/SelfServiceLayout';
+import LoginView from './components/selfservice/LoginView';
+import RegisterView from './components/selfservice/RegisterView';
+import PasswordResetView from './components/selfservice/PasswordResetView';
+import ProfileView from './components/selfservice/ProfileView';
+import DashboardView from './components/selfservice/DashboardView';
 
+// --- Admin Layouts ---
+import AdminLayout from './components/layouts/AdminLayout';
+import { SpielplanLayout, OrganisationLayout, StammdatenLayout } from './components/layouts/AdminSubLayouts';
+
+// --- Admin Pages: Spielplan ---
+import TurnierTage from './components/admin/organisation/TurnierTage';
+import Felder from './components/admin/organisation/Felder';
+import Teilnehmer from './components/admin/organisation/Teilnehmer';
+import TurnierModus from './components/admin/organisation/TurnierModus';
+import Spielplan from './components/admin/organisation/Spielplan';
+
+// --- Admin Pages: Organisation ---
+import Uebersicht from './components/admin/organisation/Uebersicht';
+import FoodDonationSlots from './components/admin/organisation/FoodDonationSlots';
+import ShoppingList from './components/admin/organisation/ShoppingList';
+import PushBroadcast from './components/admin/organisation/PushBroadcast';
+
+// --- Admin Pages: Stammdaten ---
 import Turniere from './components/admin/stammdaten/Turniere';
+import Vereine from './components/admin/stammdaten/Vereine';
 import WorkAreas from './components/admin/stammdaten/WorkAreas';
 import GlobalDayTemplates from './components/admin/stammdaten/GlobalDayTemplates';
-import Helfer from './components/admin/stammdaten/Helfer';
-import Vereine from './components/admin/stammdaten/Vereine';
 import Lebensmittel from './components/admin/stammdaten/Lebensmittel';
+import Helfer from './components/admin/stammdaten/Helfer';
 import Jahrgaenge from './components/admin/stammdaten/Jahrgaenge';
 import DbManagement from './components/admin/stammdaten/DbManagement';
 
-import Uebersicht from './components/admin/organisation/Uebersicht';
-import Spielplan from './components/admin/organisation/Spielplan';
-import FoodDonationSlots from './components/admin/organisation/FoodDonationSlots';
-import TurnierTage from './components/admin/organisation/TurnierTage';
-import PushBroadcast from './components/admin/organisation/PushBroadcast';
-import ShoppingList from './components/admin/organisation/ShoppingList';
-
-import Teilnehmer from './components/admin/organisation/Teilnehmer';
-import Felder from './components/admin/organisation/Felder';
-import TurnierModus from './components/admin/organisation/TurnierModus';
-import { Tournament } from './components/admin/shared';
-import { UserProvider, useUser } from './context/UserContext';
-
-type View = 'admin' | 'selfservice' | 'privacy' | 'impressum';
-type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
-type SpielplanTab = 'turnier-tage' | 'felder' | 'teilnehmer' | 'modus' | 'spielplan-gruppenphase' | 'spielplan-ko';
-type OrgTab = 'uebersicht' | 'food-donation-slots' | 'shopping-list' | 'push-broadcast';
-type StammTab = 'turniere' | 'vereine' | 'work-areas' | 'global-time-slots' | 'helfer' | 'jahrgaenge' | 'lebensmittel' | 'db-management';
-
-// ===================== Admin UI mit Rollen-Check =====================
-function AdminView() {
-  const { isAdmin, isOrganizer, token, isLoggedIn: ctxLoggedIn, login, logout } = useUser();
-  const [view, setView] = useState<View>('admin');
-
-  // Tabs aus localStorage laden oder Defaults
-  const getStoredTab = <T extends string>(key: string, fallback: T): T => {
-    try { return (localStorage.getItem('lastActiveTab_' + key) as T) || fallback; } catch { return fallback; }
-  };
-
-  // Persistente Tab-Setter mit localStorage
-  const setMainTab = useCallback((tab: MainTab) => {
-    setActiveMainTab(tab);
-    try { localStorage.setItem('lastActiveTab_main', tab); } catch {}
-  }, []);
-  
-  const setSpielplanTab = useCallback((tab: SpielplanTab) => {
-    setActiveSpielplanTab(tab);
-    try { localStorage.setItem('lastActiveTab_spielplan', tab); } catch {}
-  }, []);
-  
-  const setOrgTab = useCallback((tab: OrgTab) => {
-    setActiveOrgTab(tab);
-    try { localStorage.setItem('lastActiveTab_organisation', tab); } catch {}
-  }, []);
-  
-  const setStammTab = useCallback((tab: StammTab) => {
-    setActiveStammTab(tab);
-    try { localStorage.setItem('lastActiveTab_stammdaten', tab); } catch {}
-  }, []);
-
-  const [activeMainTab, setActiveMainTab] = useState<MainTab>(() => getStoredTab('main', 'spielplan'));
-  const [activeSpielplanTab, setActiveSpielplanTab] = useState<SpielplanTab>(() => getStoredTab('spielplan', 'turnier-tage'));
-  const [activeOrgTab, setActiveOrgTab] = useState<OrgTab>(() => getStoredTab('organisation', 'uebersicht'));
-  const [activeStammTab, setActiveStammTab] = useState<StammTab>(() => getStoredTab('stammdaten', 'turniere'));
-  
-  const [selectedTournamentId, setSelectedTournamentId] = useState<number | null>(null);
-  const [selectedYearGroupId, setSelectedYearGroupId] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  
-  const { data: tournaments = [], isLoading, error: queryError } = useQuery<Tournament[]>({ 
-    queryKey: ['tournaments'], 
-    queryFn: getTournaments,
-    retry: (failureCount, err) => {
-      if (err instanceof ApiError && err.status === 401) return false;
-      return failureCount < 2;
-    }
-  });
-
-  // Token synchronisieren
-  useEffect(() => {
-    if (token) setAuthToken(token);
-  }, [token]);
-
-  // Bei Logout aus Admin-Bereich zurück zur SelfService-Seite
-  useEffect(() => {
-    if (!ctxLoggedIn && view === 'admin') {
-      setView('selfservice');
-    }
-  }, [ctxLoggedIn, view]);
-
-  // Aktives Turnier automatisch auswählen
-  useEffect(() => {
-    const active = tournaments.find(t => t.status === 'aktiv');
-    if (active && !selectedTournamentId) {
-      setSelectedTournamentId(active.id);
-    }
-  }, [tournaments, selectedTournamentId]);
-
-  // URL beim View-Wechsel aktualisieren
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (view === 'admin') params.set('view', 'admin');
-      else if (view === 'privacy') params.set('view', 'privacy');
-      else if (view === 'impressum') params.set('view', 'impressum');
-      else params.delete('view');
-      const url = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
-      window.history.replaceState({}, '', url);
-    }
-  }, [view]);
-
-  // 401/403 Fehlerbehandlung
-  useEffect(() => {
-    if (queryError instanceof ApiError) {
-      if (queryError.status === 401 && queryError.message.includes('Session abgelaufen')) {
-        // Nur bei echter Session-Expiration logout – nicht bei anderen 401-Fehlern
-        // (z.B. "Nicht authentifiziert" wenn kein Token gesendet wurde)
-        logout();
-        setView('selfservice');
-      } else {
-        setError(queryError.message);
-      }
-    }
-  }, [queryError, logout]);
-
-  const handleAdminClick = () => {
-    // Prüfen ob User Admin/Organizer ist (localStorage als Quelle der Wahrheit)
-    let hasAccess = false;
-    try {
-      const vol = JSON.parse(localStorage.getItem('volunteer') || '{}');
-      hasAccess = vol.role === 'ADMIN' || vol.role === 'ORGANIZER';
-    } catch {}
-    if (!hasAccess) {
-      void modal.alert({ title: 'Keine Berechtigung', message: 'Du hast keine Berechtigung für den Admin-Bereich. Bitte kontaktiere einen Administrator.' });
-      return;
-    }
-    // URL-Parameter + State setzen für zuverlässige Navigation
-    window.history.replaceState(null, '', '?view=admin');
-    setView('admin');
-  };
-
-  const primaryColor = '#0d6efd';
-
-  // View-Wechsel nach SelfService/Privacy/Impressum
-  if (view === 'privacy') {
-    return <Privacy />;
-  }
-
-  if (view === 'impressum') {
-    return <Impressum />;
-  }
-
-  if (view === 'selfservice') {
-    return (
-      <>
-        <SelfServiceView onLoginAsAdmin={handleAdminClick} />
-        <ModalRoot />
-        <div style={{ textAlign: 'center', padding: 20 }}>
-          <button
-            onClick={handleAdminClick}
-            style={{
-              padding: '8px 16px',
-              background: '#e9ecef',
-              border: 'none',
-              borderRadius: 6,
-              cursor: isAdmin || isOrganizer ? 'pointer' : 'not-allowed',
-              fontSize: 13,
-              color: (isAdmin || isOrganizer) ? '#666' : '#aaa',
-              opacity: (isAdmin || isOrganizer) ? 1 : 0.5
-            }}
-          >
-            ⚙️ Admin-Bereich {!(isAdmin || isOrganizer) && '🔒'}
-          </button>
-          <br />
-          <a href="?view=privacy" style={{ fontSize: 12, color: '#999', textDecoration: 'underline' }}>
-            Datenschutzerklärung
-          </a>
-          <span style={{ fontSize: 12, color: '#999' }}> · </span>
-          <a href="?view=impressum" style={{ fontSize: 12, color: '#999', textDecoration: 'underline' }}>
-            Impressum
-          </a>
-          <p style={{ fontSize: 11, color: '#bbb', marginTop: 8 }}>© {new Date().getFullYear()} Peter Philipp</p>
-        </div>
-      </>
-    );
-  }
-
-  // Admin-Bereich – nur für Admin/Organizer sichtbar (Context + localStorage fallback)
-  let adminAccess = isAdmin || isOrganizer;
-  if (!adminAccess) {
-    try { const vol = JSON.parse(localStorage.getItem('volunteer') || '{}'); adminAccess = vol.role === 'ADMIN' || vol.role === 'ORGANIZER'; } catch {}
-  }
-  if (!adminAccess) {
-    return (
-      <div style={{ maxWidth: 480, margin: '10vh auto', padding: 40, textAlign: 'center' }}>
-        <div style={{ fontSize: 64, marginBottom: 16 }}>🔒</div>
-        <h2 style={{ color: '#333' }}>Zugriff verweigert</h2>
-        <p style={{ color: '#666', fontSize: 15 }}>
-          Du hast keine Berechtigung für den Admin-Bereich.
-          <br />Bitte kontaktiere einen Administrator oder Organisator.
-        </p>
-        <button
-          onClick={() => setView('selfservice')}
-          style={{
-            padding: '10px 20px',
-            background: '#0d6efd',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 8,
-            cursor: 'pointer',
-            fontWeight: 600,
-            fontSize: 15,
-            marginTop: 16
-          }}
-        >
-          Zurück zum Self-Service-Bereich
-        </button>
-      </div>
-    );
-  }
-
-  // Fehleranzeige
-  if (error) {
-    return (
-      <div style={{ maxWidth: 480, margin: '10vh auto', padding: 40, textAlign: 'center' }}>
-        <div style={{ fontSize: 64, marginBottom: 16 }}>⚠️</div>
-        <h2 style={{ color: '#dc3545' }}>Fehler</h2>
-        <p style={{ color: '#666', fontSize: 15 }}>{error}</p>
-        <button
-          onClick={() => { setError(null); window.location.reload(); }}
-          style={{
-            padding: '10px 20px',
-            background: '#dc3545',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: 14,
-            marginTop: 12
-          }}
-        >
-          Erneut versuchen
-        </button>
-      </div>
-    );
-  }
-
-  // Ladezustand
-  if (isLoading) {
-    return <div style={{ textAlign: 'center', padding: 60, color: '#666' }}>Lade Admin-Bereich...</div>;
-  }
-
-  return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: 20 }}>
-      {/* HEADER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <img src="/logo.webp" alt="Logo" style={{ height: 40, width: 40, objectFit: 'cover', borderRadius: '22%', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
-          <h1 style={{ margin: 0 }}>Turnierplaner – Admin</h1>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          {/* Rollen-Badge */}
-          <span style={{
-            padding: '4px 12px',
-            background: isAdmin ? '#dc3545' : '#198754',
-            color: '#fff',
-            borderRadius: 12,
-            fontSize: 12,
-            fontWeight: 'bold'
-          }}>
-            {isAdmin ? '👑 Admin' : '🔧 Organisator'}
-          </span>
-
-          <button
-            onClick={() => setView('selfservice')}
-            style={{
-              padding: '10px 20px',
-              minHeight: 44,
-              background: '#0d6efd',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 8,
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              fontSize: 15
-            }}
-          >
-            Self-Service-Bereich
-          </button>
-        </div>
-      </div>
-
-      {/* LEVEL 1: HAUPT-NAVIGATION */}
-      <nav style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', borderBottom: '2px solid #dee2e6', paddingBottom: 10 }}>
-        <button onClick={() => setMainTab('spielplan')} aria-pressed={activeMainTab === 'spielplan'}
-          style={{ padding: '10px 20px', minHeight: 44, cursor: 'pointer', background: activeMainTab === 'spielplan' ? primaryColor : 'transparent', color: activeMainTab === 'spielplan' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
-          🏆 Spielplanmanagement
-        </button>
-        <button onClick={() => setMainTab('organisation')} aria-pressed={activeMainTab === 'organisation'}
-          style={{ padding: '10px 20px', minHeight: 44, cursor: 'pointer', background: activeMainTab === 'organisation' ? primaryColor : 'transparent', color: activeMainTab === 'organisation' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
-          📋 Organisationsmanagement
-        </button>
-        <button onClick={() => setMainTab('stammdaten')} aria-pressed={activeMainTab === 'stammdaten'}
-          style={{ padding: '10px 20px', minHeight: 44, cursor: 'pointer', background: activeMainTab === 'stammdaten' ? primaryColor : 'transparent', color: activeMainTab === 'stammdaten' ? '#fff' : '#495057', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 15 }}>
-          ⚙️ Stammdaten
-        </button>
-      </nav>
-
-      {/* KONTEXT-LEISTE FÜR TURNIER UND JAHRGANG */}
-      {activeMainTab !== 'stammdaten' && (
-        <div style={{ display: 'flex', gap: 16, background: '#f8f9fa', padding: '16px 20px', borderRadius: 12, border: '1px solid #dee2e6', marginBottom: 24, alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 300px' }}>
-          <label style={{ fontWeight: 'bold', fontSize: 14, color: '#495057' }}>Aktives Turnier:</label>
-          <select
-            value={selectedTournamentId || ''}
-            onChange={e => { setSelectedTournamentId(e.target.value ? parseInt(e.target.value) : null); setSelectedYearGroupId(null); }}
-            style={{ padding: '12px 14px', border: '1px solid #ced4da', borderRadius: 6, minWidth: 200, fontSize: 16, background: '#fff', minHeight: 44, flex: 1 }}
-          >
-            <option value="">-- Bitte wählen --</option>
-            {tournaments.map(t => (
-              <option key={t.id} value={t.id}>{t.name} ({new Date(t.startDate).toLocaleDateString('de-DE')})</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Sponsor Logo Anzeige */}
-        {selectedTournamentId && (() => {
-          const tournament = tournaments.find(t => t.id === selectedTournamentId);
-          return tournament?.logo ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-              <span style={{ fontSize: 12, color: '#6c757d' }}>Sponsor:</span>
-              <img src={tournament.logo} alt="Sponsor" style={{ maxWidth: 150, maxHeight: 40, objectFit: 'contain', borderRadius: 4 }} />
-            </div>
-          ) : null;
-        })()}
-
-        {/* Nur im Spielplan-Bereich wirksam (Turnier-Tage/Felder/Teilnehmer/Modus/
-            Spielplan) - Dienstplan, Verpflegung und Push-Nachrichten lasen diesen
-            Wert nie aus, hatten aber trotzdem eine (wirkungslose, verwirrende)
-            zweite Jahrgang-Auswahl neben ihrem eigenen, echten Filter (z.B. bei
-            Verpflegung). */}
-        {selectedTournamentId && activeMainTab === 'spielplan' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 250px' }}>
-            <label style={{ fontWeight: 'bold', fontSize: 14, color: '#495057' }}>Jahrgang:</label>
-            <select
-              value={selectedYearGroupId || ''}
-              onChange={e => setSelectedYearGroupId(e.target.value ? parseInt(e.target.value) : null)}
-              style={{ padding: '12px 14px', border: '1px solid #ced4da', borderRadius: 6, minWidth: 180, fontSize: 16, background: '#fff', minHeight: 44, flex: 1 }}
-            >
-              <option value="">-- Alle --</option>
-              {tournaments.find(t => t.id === selectedTournamentId)?.yearGroups?.map(yg => (
-                <option key={yg.id} value={yg.id}>{yg.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        </div>
-      )}
-
-      {/* LEVEL 2: SUB-NAVIGATION – SPIELPLAN */}
-      {activeMainTab === 'spielplan' && (
-        <nav style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
-          {[{ key: 'turnier-tage' as SpielplanTab, icon: '📅', label: 'Turnier-Tage' }, { key: 'felder' as SpielplanTab, icon: '⚽', label: 'Spielfelder' }, { key: 'teilnehmer' as SpielplanTab, icon: '📋', label: 'Teilnehmer' }, { key: 'modus' as SpielplanTab, icon: '⚙️', label: 'Modus' }, { key: 'spielplan-gruppenphase' as SpielplanTab, icon: '📊', label: 'Gruppenphase' }, { key: 'spielplan-ko' as SpielplanTab, icon: '🏆', label: 'KO-Phase' }].map(tab => (
-            <button key={tab.key} onClick={() => setSpielplanTab(tab.key)}
-              style={{ padding: '12px 16px', cursor: 'pointer', background: activeSpielplanTab === tab.key ? '#0d6efd' : '#e9ecef', color: activeSpielplanTab === tab.key ? '#fff' : '#000', border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>{tab.icon}</span><span>{tab.label}</span>
-            </button>
-          ))}
-        </nav>
-      )}
-
-      {/* LEVEL 2: SUB-NAVIGATION – ORGANISATION */}
-      {activeMainTab === 'organisation' && (
-        <nav style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
-          {[
-            { key: 'uebersicht' as OrgTab, icon: '📋', label: 'Dienstplan' },
-            { key: 'food-donation-slots' as OrgTab, icon: '🍰', label: 'Verpflegung' },
-            { key: 'shopping-list' as OrgTab, icon: '🛒', label: 'Einkaufsliste' },
-            { key: 'push-broadcast' as OrgTab, icon: '🔔', label: 'Push-Nachrichten' }
-          ].map(tab => (
-            <button key={tab.key} onClick={() => setOrgTab(tab.key)}
-              style={{ padding: '12px 16px', cursor: 'pointer', background: activeOrgTab === tab.key ? '#198754' : '#e9ecef', color: activeOrgTab === tab.key ? '#fff' : '#000', border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>{tab.icon}</span><span>{tab.label}</span>
-            </button>
-          ))}
-        </nav>
-      )}
-
-      {activeMainTab === 'stammdaten' && (
-        <nav style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-          {/* "Benutzer" nur für Admins - Organisatoren sind bewusst auf ihre
-              Turniere beschränkt, eine turnierübergreifende Nutzerliste geht
-              sie nichts an (auch backend-seitig durchgesetzt, nicht nur hier). */}
-          {[{ key: 'vereine' as StammTab, icon: '🛡️', label: 'Vereine' }, { key: 'turniere' as StammTab, icon: '🏆', label: 'Turniere' }, { key: 'jahrgaenge' as StammTab, icon: '👶', label: 'Jahrgänge' }, { key: 'work-areas' as StammTab, icon: '📍', label: 'Arbeitsbereiche' }, { key: 'global-time-slots' as StammTab, icon: '📅', label: 'Tagesvorlagen' }, { key: 'lebensmittel' as StammTab, icon: '🍔', label: 'Verpflegung' }, { key: 'helfer' as StammTab, icon: '👤', label: 'Benutzer' }, { key: 'db-management' as StammTab, icon: '🗄️', label: 'DB-Management' }].filter(tab => tab.key !== 'helfer' || isAdmin).map(tab => (
-            <button key={tab.key} onClick={() => setStammTab(tab.key)} style={{ padding: '12px 16px', cursor: 'pointer', background: activeStammTab === tab.key ? '#6c757d' : '#e9ecef', color: activeStammTab === tab.key ? '#fff' : '#000', border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>{tab.icon}</span><span>{tab.label}</span>
-            </button>
-          ))}
-        </nav>
-      )}
-
-      {/* CONTENT AREA */}
-      <main>
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'turnier-tage' && <TurnierTage tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} yearGroups={(tournaments.find(t => t.id === selectedTournamentId)?.yearGroups as any) || []} />}
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'felder' && <Felder tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} />}
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'teilnehmer' && <Teilnehmer tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} tournament={(tournaments.find(t => t.id === selectedTournamentId) as any) || null} />}
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'modus' && <TurnierModus tournament={tournaments.find(t => t.id === selectedTournamentId) || null} selectedYearGroupId={selectedYearGroupId} yearGroups={(tournaments.find(t => t.id === selectedTournamentId)?.yearGroups as any) || []} />}
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan-gruppenphase' && <Spielplan tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} phase="gruppenphase" />}
-        {activeMainTab === 'spielplan' && activeSpielplanTab === 'spielplan-ko' && <Spielplan tournamentId={selectedTournamentId} yearGroupId={selectedYearGroupId} phase="ko" />}
-        
-        {activeMainTab === 'organisation' && activeOrgTab === 'uebersicht' && <Uebersicht selectedTournament={selectedTournamentId} />}
-        {activeMainTab === 'organisation' && activeOrgTab === 'food-donation-slots' && <FoodDonationSlots selectedTournament={selectedTournamentId} tournament={tournaments.find(t => t.id === selectedTournamentId) || null} adminPrimary="#198754" />}
-        {activeMainTab === 'organisation' && activeOrgTab === 'shopping-list' && <ShoppingList selectedTournament={selectedTournamentId} tournaments={tournaments} />}
-        {activeMainTab === 'organisation' && activeOrgTab === 'push-broadcast' && <PushBroadcast selectedTournament={selectedTournamentId} />}
-
-        {activeMainTab === 'stammdaten' && activeStammTab === 'turniere' && <Turniere adminPrimary="#6c757d" adminSecondary="#adb5bd" />}
-        {activeMainTab === 'stammdaten' && activeStammTab === 'vereine' && <Vereine adminPrimary="#6c757d" />}
-        {activeMainTab === 'stammdaten' && activeStammTab === 'work-areas' && <WorkAreas adminPrimary="#6c757d" />}
-        {activeMainTab === 'stammdaten' && activeStammTab === 'global-time-slots' && <GlobalDayTemplates adminPrimary="#6c757d" />}
-        {activeMainTab === 'stammdaten' && activeStammTab === 'helfer' && isAdmin && <Helfer adminPrimary="#6c757d" tournamentId={selectedTournamentId} />}
-        {activeMainTab === 'stammdaten' && activeStammTab === 'jahrgaenge' && <Jahrgaenge adminPrimary="#6c757d" />}
-        {activeMainTab === 'stammdaten' && activeStammTab === 'lebensmittel' && <Lebensmittel adminPrimary="#6c757d" />}
-        {activeMainTab === 'stammdaten' && activeStammTab === 'db-management' && isAdmin && <DbManagement />}
-      </main>
-
-      {/* FOOTER */}
-      <footer style={{ textAlign: 'center', marginTop: 40, paddingTop: 16, borderTop: '1px solid #e9ecef', color: '#adb5bd', fontSize: 12 }}>
-        <a href="?view=privacy" style={{ color: '#6c757d', textDecoration: 'underline' }}>Datenschutzerklärung</a>
-        <span> · </span>
-        <a href="?view=impressum" style={{ color: '#6c757d', textDecoration: 'underline' }}>Impressum</a>
-        <p style={{ marginTop: 8 }}>© {new Date().getFullYear()} Peter Philipp</p>
-      </footer>
-    </div>
-  );
-}
-
-// ===================== Root App mit UserProvider =====================
 export default function App() {
-  // URL-Parameter auf der ersten Render-Phase auswerten (vor dem ersten Paint)
-  const getInitialView = (): View => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const viewParam = params.get('view');
-      if (viewParam === 'admin' || viewParam === 'privacy' || viewParam === 'impressum') return viewParam as View;
-    }
-    return 'selfservice';
-  };
-
-  const [currentView, setCurrentView] = useState<View>(getInitialView);
-
-  // Callback für den Wechsel in den Admin-Bereich aus SelfServiceView heraus.
-  // Setzt den React-State (kein Hard-Reload), aktualisiert die URL damit
-  // Reload und Back-Button korrekt funktionieren.
-  const handleNavigateToAdmin = () => {
-    window.history.replaceState(null, '', '?view=admin');
-    setCurrentView('admin');
-  };
-
-  if (currentView === 'privacy') {
-    return <Privacy />;
-  }
-
-  if (currentView === 'impressum') {
-    return <Impressum />;
-  }
-
   return (
     <UserProvider>
-      {currentView === 'selfservice' ? (
-        <SelfServiceView onLoginAsAdmin={handleNavigateToAdmin} />
-      ) : (
-        <AdminView />
-      )}
+      <BrowserRouter>
+        <Routes>
+          {/* Public / Static */}
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/impressum" element={<Impressum />} />
+
+          {/* Self Service (Volunteers) */}
+          <Route element={<SelfServiceLayout />}>
+            <Route path="/" element={<DashboardView />} />
+            <Route path="/login" element={<LoginView />} />
+            <Route path="/register" element={<RegisterView />} />
+            <Route path="/reset-password" element={<PasswordResetView />} />
+            <Route path="/profile" element={<ProfileView />} />
+          </Route>
+
+          {/* Admin Area */}
+          <Route path="/admin" element={<AdminLayout />}>
+            {/* Redirect /admin to /admin/spielplan */}
+            <Route index element={<Navigate to="spielplan" replace />} />
+            
+            {/* Level 1: Spielplan */}
+            <Route path="spielplan" element={<SpielplanLayout />}>
+              <Route path="turnier-tage" element={<TurnierTageWrapper />} />
+              <Route path="felder" element={<FelderWrapper />} />
+              <Route path="teilnehmer" element={<TeilnehmerWrapper />} />
+              <Route path="modus" element={<TurnierModusWrapper />} />
+              <Route path="gruppenphase" element={<SpielplanWrapper phase="gruppenphase" />} />
+              <Route path="ko" element={<SpielplanWrapper phase="ko" />} />
+            </Route>
+
+            {/* Level 1: Organisation */}
+            <Route path="organisation" element={<OrganisationLayout />}>
+              <Route path="uebersicht" element={<UebersichtWrapper />} />
+              <Route path="food-donation-slots" element={<FoodDonationSlotsWrapper />} />
+              <Route path="shopping-list" element={<ShoppingListWrapper />} />
+              <Route path="push-broadcast" element={<PushBroadcastWrapper />} />
+            </Route>
+
+            {/* Level 1: Stammdaten */}
+            <Route path="stammdaten" element={<StammdatenLayout />}>
+              <Route path="turniere" element={<Turniere adminPrimary="#6c757d" adminSecondary="#adb5bd" />} />
+              <Route path="vereine" element={<Vereine adminPrimary="#6c757d" />} />
+              <Route path="jahrgaenge" element={<Jahrgaenge adminPrimary="#6c757d" />} />
+              <Route path="work-areas" element={<WorkAreas adminPrimary="#6c757d" />} />
+              <Route path="global-time-slots" element={<GlobalDayTemplates adminPrimary="#6c757d" />} />
+              <Route path="lebensmittel" element={<Lebensmittel adminPrimary="#6c757d" />} />
+              <Route path="helfer" element={<HelferWrapper />} />
+              <Route path="db-management" element={<DbManagement />} />
+            </Route>
+          </Route>
+          
+          {/* Catch-all 404 */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
       <ModalRoot />
     </UserProvider>
   );
+}
+
+// ==============================================================================
+// WRAPPERS FÜR ADMIN-KOMPONENTEN
+// Da die alten Admin-Komponenten ihre Parameter über Props bekamen (aus dem App.tsx State),
+// nutzen wir hier Wrapper-Komponenten, die den Context via `useOutletContext` auslesen
+// und als Props weiterreichen, damit wir die alten Komponenten nicht anfassen müssen.
+// ==============================================================================
+import { useOutletContext } from 'react-router-dom';
+
+function TurnierTageWrapper() {
+  const ctx = useOutletContext<any>();
+  return <TurnierTage tournamentId={ctx.selectedTournamentId} yearGroupId={ctx.selectedYearGroupId} yearGroups={(ctx.tournaments.find((t:any) => t.id === ctx.selectedTournamentId)?.yearGroups) || []} />;
+}
+function FelderWrapper() {
+  const ctx = useOutletContext<any>();
+  return <Felder tournamentId={ctx.selectedTournamentId} yearGroupId={ctx.selectedYearGroupId} />;
+}
+function TeilnehmerWrapper() {
+  const ctx = useOutletContext<any>();
+  return <Teilnehmer tournamentId={ctx.selectedTournamentId} yearGroupId={ctx.selectedYearGroupId} tournament={(ctx.tournaments.find((t:any) => t.id === ctx.selectedTournamentId)) || null} />;
+}
+function TurnierModusWrapper() {
+  const ctx = useOutletContext<any>();
+  return <TurnierModus tournament={ctx.tournaments.find((t:any) => t.id === ctx.selectedTournamentId) || null} selectedYearGroupId={ctx.selectedYearGroupId} yearGroups={(ctx.tournaments.find((t:any) => t.id === ctx.selectedTournamentId)?.yearGroups) || []} />;
+}
+function SpielplanWrapper({ phase }: { phase: 'gruppenphase' | 'ko' }) {
+  const ctx = useOutletContext<any>();
+  return <Spielplan tournamentId={ctx.selectedTournamentId} yearGroupId={ctx.selectedYearGroupId} phase={phase} />;
+}
+function UebersichtWrapper() {
+  const ctx = useOutletContext<any>();
+  return <Uebersicht selectedTournament={ctx.selectedTournamentId} />;
+}
+function FoodDonationSlotsWrapper() {
+  const ctx = useOutletContext<any>();
+  return <FoodDonationSlots selectedTournament={ctx.selectedTournamentId} tournament={ctx.tournaments.find((t:any) => t.id === ctx.selectedTournamentId) || null} adminPrimary="#198754" />;
+}
+function ShoppingListWrapper() {
+  const ctx = useOutletContext<any>();
+  return <ShoppingList selectedTournament={ctx.selectedTournamentId} tournaments={ctx.tournaments} />;
+}
+function PushBroadcastWrapper() {
+  const ctx = useOutletContext<any>();
+  return <PushBroadcast selectedTournament={ctx.selectedTournamentId} />;
+}
+function HelferWrapper() {
+  const ctx = useOutletContext<any>();
+  if (!ctx.isAdmin) return <Navigate to="/admin" replace />;
+  return <Helfer adminPrimary="#6c757d" tournamentId={ctx.selectedTournamentId} />;
 }

@@ -130,7 +130,7 @@ export const updateVolunteer = async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Ungültige Rolle' });
   }
 
-  const data: any = { ...rest };
+  const data: Record<string, unknown> = { ...rest };
   if (children !== undefined) {
     // Komplettersatz statt Diff: die Admin-Oberfläche schickt immer die volle,
     // aktuelle Liste - einfacher und robuster als einzelne Kinder per ID zu
@@ -152,7 +152,7 @@ export const updateVolunteer = async (req: Request, res: Response) => {
     data,
     include: { children: true }
   });
-  if (data.tournamentId) await ensureTournamentMembership(user.id, data.tournamentId);
+  if (data.tournamentId) await ensureTournamentMembership(user.id, data.tournamentId as number);
   logVolunteerUpdated(user.id, Object.keys(rest));
   return res.json(sanitizeUser(user));
 };

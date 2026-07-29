@@ -10,6 +10,10 @@ export interface GanttItem {
   startMin: number;
   endMin: number;
   label?: string; // Optionaler Label-Text auf dem Balken
+  tooltip?: string;
+  border?: string;
+  boxShadow?: string;
+  isPending?: boolean;
 }
 
 export interface GanttRow {
@@ -43,6 +47,7 @@ export function GanttTimeline({
   onTimeChange,
   onDelete,
   onAddSlot,
+  onItemClick,
 }: {
   globalStartMin: number;
   globalEndMin: number;
@@ -52,6 +57,7 @@ export function GanttTimeline({
   onTimeChange?: (itemId: number, startMin: number, endMin: number) => void;
   onDelete?: (itemId: number) => void;
   onAddSlot?: (rowId: number) => void;
+  onItemClick?: (itemId: number) => void;
 }) {
   // Globale Zeitachse verwenden (nicht lokal berechnen!)
   const dayStart = globalStartMin;
@@ -69,14 +75,22 @@ export function GanttTimeline({
   }
 
   const [drag, setDrag] = useState<DragState | null>(null);
-  const displayRange = useRef({ start: dayStart, end: dayEnd });
-  const [, forceUpdate] = useState(0);
+  const [visibleRange, setVisibleRange] = useState({ start: dayStart, end: dayEnd });
+  const visibleRangeRef = useRef(visibleRange);
+  useEffect(() => {
+    visibleRangeRef.current = visibleRange;
+  }, [visibleRange]);
+
+  const rowsRef = useRef(rows);
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Display range IMMER auf globale Zeitachse setzen (bei Props-Änderung)
   useEffect(() => {
-    displayRange.current = { start: dayStart, end: dayEnd };
-    forceUpdate(n => n + 1);
+    setVisibleRange({ start: dayStart, end: dayEnd });
   }, [globalStartMin, globalEndMin]);
 
   const handlePointerDown = (e: React.PointerEvent, item: GanttItem, type: 'start' | 'end' | 'move') => {
@@ -101,8 +115,10 @@ export function GanttTimeline({
 
     const onMove = (e: PointerEvent) => {
       if (e.pointerId !== drag.pointerId) return;
-      const deltaMin = Math.round(((e.clientX - drag.startX) / drag.containerWidth) * span);
-      const gridDelta = Math.round(deltaMin / GRID_MINUTES) * GRID_MINUTES;
+      // Delta = Bewegung seit Drag-Start in Minuten.
+      // Die Bar bewegt sich exakt so weit wie der Cursor – kein Offset nötig.
+      const deltaMin = Math.round(((e.clientX - drag.startX) / drag.containerWidth) * span / GRID_MINUTES) * GRID_MINUTES;
+      const gridDelta = deltaMin;
 
       let nextStart = drag.origStart + gridDelta;
       let nextEnd = drag.origEnd + gridDelta;
@@ -121,7 +137,7 @@ export function GanttTimeline({
         let maxLeftShift = -1440;  // Maximale Verschiebung nach links (default: ganzer Tag)
         let maxRightShift = 1440;  // Maximale Verschiebung nach rechts (default: ganzer Tag)
         
-        for (const row of rows) {
+        for (const row of rowsRef.current) {
           for (const other of row.items) {
             if (other.id === drag.itemId) continue;
             const otherStart = other.startMin;
@@ -146,23 +162,27 @@ export function GanttTimeline({
       }
 
       // Begrenzen auf sinnvolle Werte + sicherstellen start < end
-      nextStart = Math.max(0, Math.min(nextStart, 1439));
+      nextStart = Math.max(0, Math.min(nextStart, 1439 - GRID_MINUTES));
       nextEnd = Math.max(nextStart + GRID_MINUTES, Math.min(nextEnd, 1440));
 
       // Grenzen während des Ziehens erweitern
-      const ref = displayRange.current;
+      const ref = visibleRangeRef.current;
+      let nextStartRange = ref.start;
+      let nextEndRange = ref.end;
       let changed = false;
       if (nextStart < ref.start - 30) {
-        ref.start = Math.floor((ref.start - 120) / 60) * 60;
+        nextStartRange = Math.max(0, Math.floor((ref.start - 120) / 60) * 60);
         changed = true;
       }
       if (nextEnd > ref.end + 30) {
-        ref.end = Math.ceil((ref.end + 120) / 60) * 60;
+        nextEndRange = Math.min(1440, Math.ceil((ref.end + 120) / 60) * 60);
         changed = true;
       }
 
       setDrag(prev => prev ? { ...prev, curStart: nextStart, curEnd: nextEnd } : null);
-      if (changed) forceUpdate(n => n + 1); // Re-render für neue Grenzen
+      if (changed) {
+        setVisibleRange({ start: nextStartRange, end: nextEndRange });
+      }
     };
 
     const onUp = (e: PointerEvent) => {
@@ -171,16 +191,10 @@ export function GanttTimeline({
       
       // Zeitachse NICHT neu berechnen – globale Achse (globalStartMin/globalEndMin) hat Vorrang!
       setDrag(null);
-      // Validierung: nur aufrufen wenn Werte gültig sind
-      if ((curStart !== origStart || curEnd !== origEnd) 
-          && typeof curStart === 'number' && !isNaN(curStart)
-          && typeof curEnd === 'number' && !isNaN(curEnd)
-          && curStart < curEnd) {
+      if (curStart !== origStart || curEnd !== origEnd) {
         onTimeChange?.(itemId, curStart, curEnd);
       }
     };
-
-    window.addEventListener('pointermove', onMove);
 
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
@@ -200,7 +214,7 @@ export function GanttTimeline({
   const minToTime = (min: number) => `${Math.floor(min / 60).toString().padStart(2, '0')}:${(min % 60).toString().padStart(2, '0')}`;
 
   // Dynamische Stunden berechnen
-  const { start: dStart, end: dEnd } = displayRange.current;
+  const { start: dStart, end: dEnd } = visibleRange;
   const displayHours: number[] = [];
   const dispStartHour = Math.floor(dStart / 60);
   const dispEndHour = Math.ceil(dEnd / 60);
@@ -268,28 +282,35 @@ export function GanttTimeline({
                   return (
                     <div
                       key={item.id}
-                      title={`${minToTime(st)}–${minToTime(en)}`}
+                      className="gantt-item-wrapper"
                       onPointerDown={(e) => handlePointerDown(e, item, 'move')}
+                      onClick={!canDrag && onItemClick ? () => onItemClick(item.id) : undefined}
                       style={{
                         position: 'absolute', left: `${left}%`, width: `${width}%`, top: 2, bottom: 2,
                         background: row.color, borderRadius: 6,
-                        boxShadow: isDragging(item.id) ? '0 4px 12px rgba(0,0,0,0.4)' : '0 1px 3px rgba(0,0,0,0.2)',
+                        boxShadow: isDragging(item.id) ? '0 4px 12px rgba(0,0,0,0.4)' : item.boxShadow || '0 1px 3px rgba(0,0,0,0.2)',
+                        border: item.isPending ? '3px dashed #fd7e14' : item.border || 'none',
                         color: '#fff', fontSize: 11,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         whiteSpace: 'nowrap', padding: '0 8px', boxSizing: 'border-box',
-                        cursor: isDragging(item.id) ? 'grabbing' : canDrag ? 'grab' : 'default',
+                        cursor: isDragging(item.id) ? 'grabbing' : canDrag ? 'grab' : (onItemClick ? 'pointer' : 'default'),
                         opacity: isDragging(item.id) ? 0.9 : 1,
                         zIndex: isDragging(item.id) ? 50 : 1,
                         transition: isDragging(item.id) ? 'none' : 'left 0.15s, width 0.15s',
                         touchAction: canDrag ? 'none' : undefined
                       }}
                     >
+                      {/* Custom Tooltip */}
+                      <div className="gantt-item-tooltip">
+                        {item.tooltip || `${minToTime(st)}–${minToTime(en)}`}
+                      </div>
+
                       {canDrag && (
                         <div onPointerDown={(e) => handlePointerDown(e, item, 'start')} style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 16, cursor: 'ew-resize', background: 'rgba(0,0,0,0.15)', touchAction: 'none' }} title="Startzeit verschieben" />
                       )}
 
                       <span style={{ fontWeight: 600, opacity: 0.92, pointerEvents: 'none', fontSize: 11 }}>
-                        {`${minToTime(st)}–${minToTime(en)}`}
+                        {item.label || `${minToTime(st)}–${minToTime(en)}`}
                       </span>
 
                       {canDrag && (

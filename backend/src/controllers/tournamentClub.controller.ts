@@ -29,8 +29,8 @@ export const addTournamentClub = async (req: Request, res: Response) => {
       include: { club: true }
     });
     res.status(201).json(tc.club);
-  } catch (error: any) {
-    if (error.code === 'P2002') {
+  } catch (error: unknown) {
+    if ((error as any).code === 'P2002') {
       return res.status(409).json({ error: 'Verein ist bereits hinzugefügt' });
     }
     throw error;

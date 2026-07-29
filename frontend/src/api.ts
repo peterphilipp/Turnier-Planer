@@ -20,7 +20,7 @@ export class ApiError extends Error {
 }
 
 // Generic fetch wrapper to handle errors and JSON parsing
-export const apiFetch = async (url: string, options?: RequestInit): Promise<any> => {
+export const apiFetch = async <T = any>(url: string, options?: RequestInit): Promise<T> => {
   // Automatisch Token hinzufügen wenn noch nicht in Options
   const authHeader = options?.headers && 
     (options.headers as Record<string, string>)['Authorization'];
@@ -80,7 +80,7 @@ export const apiFetch = async (url: string, options?: RequestInit): Promise<any>
   }
   
   // Für 204 No Content
-  if (res.status === 204) return null;
+  if (res.status === 204) return null as T;
   return res.json();
 };
 
@@ -102,7 +102,7 @@ export const getShifts = (tournamentId?: string | number | null) =>
   tournamentId ? apiFetch(`/api/shifts?tournamentId=${tournamentId}`) : Promise.resolve([]);
 export const createShift = (data: { tournamentId: number; tournamentDayId: number; daySlotId: number; tournamentWorkAreaId: number; minVolunteers?: number; maxVolunteers?: number }) =>
   apiPost('/api/shifts', data);
-export const updateShift = (id: number, data: any) => apiPatch(`/api/shifts/${id}`, data);
+export const updateShift = <T = Record<string, unknown>>(id: number, data: T) => apiPatch(`/api/shifts/${id}`, data);
 export const updateShiftsBatch = (changes: { id: number; startMin: number; endMin: number }[]) =>
   apiPatch('/api/shifts/batch', { changes });
 
@@ -146,17 +146,17 @@ export const getBrackets = (tournamentId: number | null) =>
   tournamentId ? apiFetch(`/api/knockout-brackets?tournamentId=${tournamentId}`) : Promise.resolve([]);
 
 // ===================== Mutations (Generic) =====================
-export const apiPost = (url: string, data: any) => 
-  apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+export const apiPost = <T = any, R = any>(url: string, data: T): Promise<R> => 
+  apiFetch<R>(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
 
-export const apiPatch = (url: string, data: any) => 
-  apiFetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+export const apiPatch = <T = any, R = any>(url: string, data: T): Promise<R> => 
+  apiFetch<R>(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
 
-export const apiPut = (url: string, data: any) => 
-  apiFetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+export const apiPut = <T = any, R = any>(url: string, data: T): Promise<R> => 
+  apiFetch<R>(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
 
-export const apiDelete = (url: string) => 
-  apiFetch(url, { method: 'DELETE' });
+export const apiDelete = <R = any>(url: string): Promise<R> => 
+  apiFetch<R>(url, { method: 'DELETE' });
 
 export const getDeleteImpact = (type: string, id: number) =>
   apiFetch(`/api/impact/${type}/${id}`);
@@ -165,16 +165,16 @@ export const getDeleteImpact = (type: string, id: number) =>
 // Katalog (Tag-Vorlagen)
 export const getDayTemplates = () => apiFetch('/api/day-templates');
 export const createDayTemplate = (data: { name: string }) => apiPost('/api/day-templates', data);
-export const updateDayTemplate = (id: number, data: any) => apiPatch(`/api/day-templates/${id}`, data);
+export const updateDayTemplate = <T = Record<string, unknown>>(id: number, data: T) => apiPatch(`/api/day-templates/${id}`, data);
 export const deleteDayTemplate = (id: number) => apiDelete(`/api/day-templates/${id}`);
-export const addTemplateWorkArea = (data: any) => apiPost('/api/day-templates/work-areas', data);
-export const updateTemplateWorkArea = (id: number, data: any) => apiPatch(`/api/day-templates/work-areas/${id}`, data);
+export const addTemplateWorkArea = <T = Record<string, unknown>>(data: T) => apiPost('/api/day-templates/work-areas', data);
+export const updateTemplateWorkArea = <T = Record<string, unknown>>(id: number, data: T) => apiPatch(`/api/day-templates/work-areas/${id}`, data);
 export const deleteTemplateWorkArea = (id: number) => apiDelete(`/api/day-templates/work-areas/${id}`);
 
 // Work Area Categories (Stammdaten)
 export const getWorkAreaCategories = () => apiFetch('/api/work-area-categories');
-export const createWorkAreaCategory = (data: any) => apiPost('/api/work-area-categories', data);
-export const updateWorkAreaCategory = (id: number, data: any) => apiPatch(`/api/work-area-categories/${id}`, data);
+export const createWorkAreaCategory = <T = Record<string, unknown>>(data: T) => apiPost('/api/work-area-categories', data);
+export const updateWorkAreaCategory = <T = Record<string, unknown>>(id: number, data: T) => apiPatch(`/api/work-area-categories/${id}`, data);
 export const deleteWorkAreaCategory = (id: number) => apiDelete(`/api/work-area-categories/${id}`);
 export const updateWorkAreaCategoryOrder = (order: number[]) => apiPost('/api/work-area-categories/reorder', { order });
 export const updateWorkAreaOrder = (order: number[]) => apiPost('/api/work-areas/reorder', { order });
@@ -183,16 +183,16 @@ export const updateWorkAreaOrder = (order: number[]) => apiPost('/api/work-areas
 export const getTournamentWorkAreas = (tid: number | null) =>
   tid ? apiFetch(`/api/tournament-work-areas?tournamentId=${tid}`) : Promise.resolve([]);
 export const syncTournamentWorkAreas = (tid: number) => apiPost('/api/tournament-work-areas/sync', { tournamentId: tid });
-export const updateTournamentWorkArea = (id: number, data: any) => apiPatch(`/api/tournament-work-areas/${id}`, data);
+export const updateTournamentWorkArea = <T = Record<string, unknown>>(id: number, data: T) => apiPatch(`/api/tournament-work-areas/${id}`, data);
 
 // Turnier-Tage + Slots
 export const getTournamentDays = (tid: number | null) =>
   tid ? apiFetch(`/api/tournament-days?tournamentId=${tid}`) : Promise.resolve([]);
-export const createTournamentDay = (data: any) => apiPost('/api/tournament-days', data);
-export const updateTournamentDay = (id: number, data: any) => apiPatch(`/api/tournament-days/${id}`, data);
+export const createTournamentDay = <T = Record<string, unknown>>(data: T) => apiPost('/api/tournament-days', data);
+export const updateTournamentDay = <T = Record<string, unknown>>(id: number, data: T) => apiPatch(`/api/tournament-days/${id}`, data);
 export const deleteTournamentDay = (id: number) => apiDelete(`/api/tournament-days/${id}`);
-export const addDaySlot = (data: any) => apiPost('/api/day-slots', data);
-export const updateDaySlot = (id: number, data: any) => apiPatch(`/api/day-slots/${id}`, data);
+export const addDaySlot = <T = Record<string, unknown>>(data: T) => apiPost('/api/day-slots', data);
+export const updateDaySlot = <T = Record<string, unknown>>(id: number, data: T) => apiPatch(`/api/day-slots/${id}`, data);
 export const deleteDaySlot = (id: number) => apiDelete(`/api/day-slots/${id}`);
 export const generateShifts = (tid: number) => apiPost('/api/tournament-days/generate-shifts', { tournamentId: tid });
 export const clearShifts = (tid: number) => apiPost('/api/tournament-days/clear-shifts', { tournamentId: tid });
@@ -211,12 +211,12 @@ export const addDayWorkArea = (dayId: number, workAreaId: number, order?: number
 
 // ===================== Web Push =====================
 export const getVapidPublicKey = () => apiFetch('/api/self/vapid-public-key');
-export const subscribeToPush = (subscription: any) => apiPost('/api/self/push-subscribe', subscription);
-export const broadcastPush = (data: any) => apiPost('/api/volunteers/push-broadcast', data);
+export const subscribeToPush = <T = Record<string, unknown>>(subscription: T) => apiPost('/api/self/push-subscribe', subscription);
+export const broadcastPush = <T = Record<string, unknown>>(data: T) => apiPost('/api/volunteers/push-broadcast', data);
 
 // ===================== Passkeys (WebAuthn) =====================
 export const getPasskeyRegistrationOptions = () => apiPost('/api/auth/passkey/register-options', {});
-export const verifyPasskeyRegistration = (data: { response: any; challengeToken: string; label?: string }) =>
+export const verifyPasskeyRegistration = <T = any>(data: { response: T; challengeToken: string; label?: string }) =>
   apiPost('/api/auth/passkey/register-verify', data);
 export const getMyPasskeys = () => apiFetch('/api/auth/passkey');
 export const deletePasskey = (id: number) => apiDelete(`/api/auth/passkey/${id}`);
@@ -225,7 +225,7 @@ export const deletePasskey = (id: number) => apiDelete(`/api/auth/passkey/${id}`
 // Gerät an, ohne dass Name/E-Mail vorher eingegeben werden muss.
 export const getPasskeyAuthenticationOptions = (identifier?: string) =>
   apiPost('/api/auth/passkey/login-options', identifier ? { identifier } : {});
-export const verifyPasskeyAuthentication = (data: { response: any; challengeToken: string }) =>
+export const verifyPasskeyAuthentication = <T = any>(data: { response: T; challengeToken: string }) =>
   apiPost('/api/auth/passkey/login-verify', data);
 
 // ===================== Einkaufsliste =====================

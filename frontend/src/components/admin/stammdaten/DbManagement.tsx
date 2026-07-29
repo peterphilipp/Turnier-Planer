@@ -113,19 +113,19 @@ export default function DbManagement() {
   };
 
   return (
-    <div style={{ maxWidth: 600, margin: '0 auto', padding: 24 }}>
-      <h2 style={{ marginBottom: 24, color: '#333' }}>🗄️ Datenbank-Management</h2>
+    <div className="db-management-container">
+      <h2 className="db-management-title">🗄️ Datenbank-Management</h2>
 
       {/* EXPORT */}
-      <div style={{ background: '#f8f9fa', borderRadius: 12, padding: 20, marginBottom: 24, border: '1px solid #dee2e6' }}>
-        <h3 style={{ margin: '0 0 12px', fontSize: 16, color: '#495057' }}>📤 Datenbank exportieren</h3>
-        <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>
+      <div className="db-management-export-card">
+        <h3 className="db-management-card-title">📤 Datenbank exportieren</h3>
+        <p className="db-management-card-desc">
           Erstellt einen vollständigen Dump der SQLite-Datenbank als Download.
           <br />Nützlich für Backups oder Sync mit Testumgebungen.
         </p>
 
         {dumpInfo && (
-          <div style={{ background: '#d1e7dd', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+          <div className="db-management-success-msg">
             ✅ Letzter Export: {(dumpInfo.size / 1024).toFixed(1)} KB am {new Date(dumpInfo.timestamp).toLocaleString('de-DE')}
           </div>
         )}
@@ -133,31 +133,21 @@ export default function DbManagement() {
         <button
           onClick={handleExport}
           disabled={loading}
-          style={{
-            padding: '12px 24px',
-            background: loading ? '#6c757d' : '#0d6efd',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 8,
-            cursor: loading ? 'not-allowed' : 'pointer',
-            fontWeight: 'bold',
-            fontSize: 14,
-            opacity: loading ? 0.7 : 1
-          }}
+          className={`db-management-export-btn ${loading ? 'loading' : ''}`}
         >
           {loading ? 'Exportiere...' : '📥 Datenbank herunterladen'}
         </button>
       </div>
 
       {/* IMPORT */}
-      <div style={{ background: '#fff3cd', borderRadius: 12, padding: 20, border: '1px solid #ffc107' }}>
-        <h3 style={{ margin: '0 0 12px', fontSize: 16, color: '#664d03' }}>📥 Datenbank importieren</h3>
-        <p style={{ fontSize: 14, color: '#664d03', marginBottom: 16 }}>
+      <div className="db-management-import-card">
+        <h3 className="db-management-import-title">📥 Datenbank importieren</h3>
+        <p className="db-management-import-desc">
           ⚠️ Achtung: Die aktuelle Datenbank wird durch den Import überschrieben!
           <br />Ein Backup wird automatisch erstellt.
         </p>
 
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div className="db-management-import-row">
           <input
             type="file"
             accept=".db,.sqlite"
@@ -176,16 +166,16 @@ export default function DbManagement() {
               }
             }}
             disabled={importing}
-            style={{ flex: 1, padding: 10, border: '2px dashed #ffc107', borderRadius: 8, cursor: importing ? 'not-allowed' : 'pointer' }}
+            className={`db-management-import-input ${importing ? 'importing' : ''}`}
           />
           {importing && (
-            <span style={{ fontSize: 14, color: '#664d03' }}>Importiere...</span>
+            <span className="db-management-importing-text">Importiere...</span>
           )}
         </div>
       </div>
 
       {/* HINWEIS */}
-      <div style={{ marginTop: 24, padding: 16, background: '#e7f3ff', borderRadius: 8, fontSize: 13, color: '#004085' }}>
+      <div className="db-management-tip">
         💡 <strong>Tipp:</strong> Für regelmäßige Syncs zwischen Produktion und Test kannst du den Export herunterladen und die Datei manuell in die Testumgebung kopieren.
       </div>
     </div>

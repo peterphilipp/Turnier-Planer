@@ -85,7 +85,7 @@ export const getRegistrationOptions = async (req: AuthRequest, res: Response) =>
     attestationType: 'none',
     excludeCredentials: user.webAuthnCredentials.map(c => ({
       id: c.credentialId,
-      transports: parseTransports(c.transports) as any
+      transports: parseTransports(c.transports) as unknown as AuthenticatorTransport[]
     })),
     authenticatorSelection: {
       // 'required' statt 'preferred': erzwingt einen "discoverable" Credential,
@@ -112,14 +112,20 @@ export const verifyRegistration = async (req: AuthRequest, res: Response) => {
 
   let verification;
   try {
+    const allowedOrigins = [getOrigin(), 'http://localhost:3000', 'http://localhost:5173'];
+    if (req.headers.origin) allowedOrigins.push(req.headers.origin);
+    if (req.headers.referer) {
+      try { allowedOrigins.push(new URL(req.headers.referer).origin); } catch {}
+    }
+
     verification = await verifyRegistrationResponse({
       response,
       expectedChallenge: payload.challenge,
-      expectedOrigin: getOrigin(),
+      expectedOrigin: Array.from(new Set(allowedOrigins.filter(Boolean))),
       expectedRPID: getRpID()
     });
-  } catch (e: any) {
-    return res.status(400).json({ error: 'Passkey-Registrierung fehlgeschlagen: ' + e.message });
+  } catch (e: unknown) {
+    return res.status(400).json({ error: 'Passkey-Registrierung fehlgeschlagen: ' + (e as Error).message });
   }
 
   if (!verification.verified || !verification.registrationInfo) {
@@ -199,7 +205,7 @@ export const getAuthenticationOptions = async (req: AuthRequest, res: Response) 
     rpID: getRpID(),
     allowCredentials: user.webAuthnCredentials.map(c => ({
       id: c.credentialId,
-      transports: parseTransports(c.transports) as any
+      transports: parseTransports(c.transports) as unknown as AuthenticatorTransport[]
     })),
     userVerification: 'preferred'
   });
@@ -230,22 +236,28 @@ export const verifyAuthentication = async (req: AuthRequest, res: Response) => {
   const user = await prisma.user.findUnique({ where: { id: credentialRow.userId } });
   if (!user) return res.status(404).json({ error: 'User nicht gefunden' });
 
+  const allowedOrigins = [getOrigin(), 'http://localhost:3000', 'http://localhost:5173'];
+  if (req.headers.origin) allowedOrigins.push(req.headers.origin);
+  if (req.headers.referer) {
+    try { allowedOrigins.push(new URL(req.headers.referer).origin); } catch {}
+  }
+
   let verification;
   try {
     verification = await verifyAuthenticationResponse({
       response,
       expectedChallenge: payload.challenge,
-      expectedOrigin: getOrigin(),
+      expectedOrigin: Array.from(new Set(allowedOrigins.filter(Boolean))),
       expectedRPID: getRpID(),
       credential: {
         id: credentialRow.credentialId,
         publicKey: new Uint8Array(Buffer.from(credentialRow.publicKey, 'base64')),
         counter: credentialRow.counter,
-        transports: parseTransports(credentialRow.transports) as any
+        transports: parseTransports(credentialRow.transports) as unknown as AuthenticatorTransport[]
       }
     });
-  } catch (e: any) {
-    return res.status(400).json({ error: 'Passkey-Anmeldung fehlgeschlagen: ' + e.message });
+  } catch (e: unknown) {
+    return res.status(400).json({ error: 'Passkey-Anmeldung fehlgeschlagen: ' + (e as Error).message });
   }
 
   if (!verification.verified) {

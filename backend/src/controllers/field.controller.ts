@@ -17,7 +17,7 @@ export const getFields = async (req: Request, res: Response) => {
   
   const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId as string)) : null;
   
-  const where: any = { tournamentId };
+  const where: Record<string, unknown> = { tournamentId };
   if (yearGroupId) where.yearGroupId = yearGroupId;
   
   const fields = await prisma.field.findMany({
@@ -54,7 +54,7 @@ export const createField = async (req: Request, res: Response) => {
 export const updateField = async (req: Request, res: Response) => {
   // Nur erlaubte Felder übernehmen (kein Mass-Assignment über rohen req.body)
   const { name, status, yearGroupId } = req.body;
-  const data: any = {};
+  const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name;
   if (status !== undefined) data.status = status;
   if (yearGroupId !== undefined) data.yearGroupId = yearGroupId;

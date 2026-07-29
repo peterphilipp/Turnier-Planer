@@ -29,7 +29,16 @@ export async function isConditionalUiSupported(): Promise<boolean> {
 /** Setzt einen bestehenden Login voraus - registriert das aktuelle Gerät als zusätzlichen Passkey. */
 export async function registerPasskey(label?: string): Promise<void> {
   const { options, challengeToken } = await getPasskeyRegistrationOptions();
-  const response = await startRegistration({ optionsJSON: options });
+  
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Zeitüberschreitung (Timeout): Die biometrische Abfrage wurde nicht rechtzeitig abgeschlossen. Möglicherweise blockiert ein Passwortmanager.')), 30000)
+  );
+
+  const response = await Promise.race([
+    startRegistration({ optionsJSON: options }),
+    timeoutPromise
+  ]);
+
   await verifyPasskeyRegistration({ response, challengeToken, label });
 }
 
@@ -41,7 +50,16 @@ export async function registerPasskey(label?: string): Promise<void> {
  */
 export async function loginWithPasskey(identifier?: string): Promise<{ token: string; user: any }> {
   const { options, challengeToken } = await getPasskeyAuthenticationOptions(identifier);
-  const response = await startAuthentication({ optionsJSON: options });
+  
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Zeitüberschreitung (Timeout): Die biometrische Abfrage wurde nicht rechtzeitig abgeschlossen. Möglicherweise blockiert ein Passwortmanager.')), 30000)
+  );
+
+  const response = await Promise.race([
+    startAuthentication({ optionsJSON: options }),
+    timeoutPromise
+  ]);
+
   return await verifyPasskeyAuthentication({ response, challengeToken });
 }
 

@@ -264,7 +264,7 @@ export const createTournamentDay = async (req: Request, res: Response) => {
 
 export const updateTournamentDay = async (req: Request, res: Response) => {
   const { date, label, order } = req.body;
-  const data: any = {};
+  const data: Record<string, unknown> = {};
   if (date !== undefined) data.date = new Date(date);
   if (label !== undefined) data.label = label;
   if (order !== undefined) data.order = order;

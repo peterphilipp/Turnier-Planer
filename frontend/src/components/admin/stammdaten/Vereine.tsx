@@ -138,52 +138,52 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
   const closeEdit = () => { resetAnalysis(); setEditingClub(null); setClubForm({ name: '', city: '', primaryColor: '#0d6efd', secondaryColor: '#198754', logo: '' }); setClubLogo(null); };
 
   const ColorPicker = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
-    <div style={{ textAlign: 'center' }}>
-      <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>{label}</div>
-      <input type="color" value={value} onChange={e => onChange(e.target.value)} style={{ width: 48, height: 36, padding: 0, border: '2px solid #dee2e6', borderRadius: 6, cursor: 'pointer' }} />
+    <div className="vereine-style-1">
+      <div className="vereine-style-2">{label}</div>
+      <input type="color" value={value} onChange={e => onChange(e.target.value)} className="vereine-style-3" />
     </div>
   );
 
   return (
     <>
       <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-        <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>🛡️ Vereine & Clubs</h3>
+        <h3 className="vereine-style-4">🛡️ Vereine & Clubs</h3>
         
         {/* Neue Verein Form */}
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 16 }}>
-          <div style={{ flex: 2, minWidth: 200 }}>
-            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
-            <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="z.B. TSV Holm" style={{ width: '100%', padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+        <div className="vereine-style-5">
+          <div className="vereine-style-6">
+            <label className="vereine-style-7">📝 Name</label>
+            <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="z.B. TSV Holm" className="vereine-style-8" />
           </div>
-          <div style={{ width: 160 }}>
-            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🏙️ Stadt</label>
-            <input value={clubForm.city} onChange={e => setClubForm({ ...clubForm, city: e.target.value })} placeholder="z.B. Holm" style={{ width: '100%', padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+          <div className="vereine-style-9">
+            <label className="vereine-style-10">🏙️ Stadt</label>
+            <input value={clubForm.city} onChange={e => setClubForm({ ...clubForm, city: e.target.value })} placeholder="z.B. Holm" className="vereine-style-11" />
           </div>
           <button onClick={saveClub} style={{ padding: '14px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, minHeight: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
-            <span style={{ fontSize: 18, fontWeight: 'bold', lineHeight: 1 }} aria-hidden="true">+</span><span>Hinzufügen</span>
+            <span className="vereine-style-12" aria-hidden="true">+</span><span>Hinzufügen</span>
           </button>
         </div>
       </div>
 
       {/* Vereinsliste */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div className="vereine-style-13">
         {groupedClubs.map(group => (
           <div key={group.city}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: 16, fontWeight: '600', color: '#495057' }}>📍 {group.city} ({group.clubs.length})</h3>
+            <h3 className="vereine-style-14">📍 {group.city} ({group.clubs.length})</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 }}>
               {group.clubs.map(club => (
-                <div key={club.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, background: '#fff', border: '1px solid #dee2e6', borderRadius: 10 }}>
-                  {club.logo ? <img src={club.logo} alt={club.name} style={{ width: 48, height: 48, borderRadius: 10, objectFit: 'contain' }} /> : <div style={{ width: 48, height: 48, borderRadius: 10, background: club.primaryColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>{club.name.charAt(0)}</div>}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <h4 style={{ margin: 0, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{club.name}</h4>
-                    {club.city && <div style={{ fontSize: 12, color: '#6c757d' }}>📍 {club.city}</div>}
-                    <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                <div key={club.id} className="vereine-style-15">
+                  {club.logo ? <img src={club.logo} alt={club.name} className="vereine-style-16" /> : <div style={{ width: 48, height: 48, borderRadius: 10, background: club.primaryColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>{club.name.charAt(0)}</div>}
+                  <div className="vereine-style-17">
+                    <h4 className="vereine-style-18">{club.name}</h4>
+                    {club.city && <div className="vereine-style-19">📍 {club.city}</div>}
+                    <div className="vereine-style-20">
                       <span title="Vereinsfarbe" style={{ width: 10, height: 10, borderRadius: '50%', background: club.primaryColor }} />
                       <span title="Aktionsfarbe" style={{ width: 10, height: 10, borderRadius: '50%', background: club.secondaryColor }} />
                     </div>
                   </div>
-                  <button onClick={() => openEdit(club)} style={{ width: 40, height: 40, border: 'none', background: '#fff3cd', color: '#856404', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✏️</button>
-                  <button onClick={() => deleteClub(club)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
+                  <button onClick={() => openEdit(club)} className="vereine-style-21">✏️</button>
+                  <button onClick={() => deleteClub(club)} className="vereine-style-22">🗑️</button>
                 </div>
               ))}
             </div>
@@ -195,44 +195,44 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
       {editingClub && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: '28px 32px 24px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '90%', maxWidth: 560, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>✏️ Verein bearbeiten</h3>
-              <button onClick={closeEdit} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#666' }}>×</button>
+            <div className="vereine-style-23">
+              <h3 className="vereine-style-24">✏️ Verein bearbeiten</h3>
+              <button onClick={closeEdit} className="vereine-style-25">×</button>
             </div>
             {/* Scrollbarer Inhalt */}
-            <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="vereine-style-26">
+              <div className="vereine-style-27">
                 
                 {/* Name & Stadt – mit Labels (§13.1) */}
                 <div>
-                  <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
-                  <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="Vereinsname" style={{ width: '100%', padding: '10px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 14, minHeight: 40, boxSizing: 'border-box' }} />
+                  <label className="vereine-style-28">📝 Name</label>
+                  <input value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} placeholder="Vereinsname" className="vereine-style-29" />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🏙️ Stadt</label>
-                  <input value={clubForm.city} onChange={e => setClubForm({ ...clubForm, city: e.target.value })} placeholder="z.B. Holm" style={{ width: '100%', padding: '10px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 14, minHeight: 40, boxSizing: 'border-box' }} />
+                  <label className="vereine-style-30">🏙️ Stadt</label>
+                  <input value={clubForm.city} onChange={e => setClubForm({ ...clubForm, city: e.target.value })} placeholder="z.B. Holm" className="vereine-style-31" />
                 </div>
 
             {/* Logo-Upload */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <label style={{ fontSize: 14, color: '#495057', minWidth: 60 }}>🖼️ Logo</label>
-              <input type="file" accept="image/*" ref={fileInputRef} onChange={handleLogoUpload} style={{ display: 'none' }} />
+            <div className="vereine-style-32">
+              <label className="vereine-style-33">🖼️ Logo</label>
+              <input type="file" accept="image/*" ref={fileInputRef} onChange={handleLogoUpload} className="vereine-style-34" />
               {!clubLogo ? (
-                <button onClick={() => fileInputRef.current?.click()} style={{ padding: '10px 16px', border: '1px solid #dee2e6', background: '#fff', borderRadius: 8, cursor: 'pointer', fontSize: 14, minHeight: 40, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                <button onClick={() => fileInputRef.current?.click()} className="vereine-style-35">
                   Bild auswählen
                 </button>
               ) : (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <img src={clubLogo} alt="Vereinslogo" style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: 6, border: '1px solid #dee2e6', background: '#f8f9fa', padding: 3 }} />
+                <div className="vereine-style-36">
+                  <img src={clubLogo} alt="Vereinslogo" className="vereine-style-37" />
                   {extractedColors && (
-                    <button onClick={() => setClubForm({ ...clubForm, primaryColor: extractedColors.primary, secondaryColor: extractedColors.secondary })} style={{ padding: '10px 16px', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, minHeight: 40, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#e7f3ff', color: '#0d6efd' }}>
+                    <button onClick={() => setClubForm({ ...clubForm, primaryColor: extractedColors.primary, secondaryColor: extractedColors.secondary })} className="vereine-style-38">
                       Farben übernehmen
                     </button>
                   )}
-                  <button onClick={() => { setColorStrategyIndex(prev => prev + 1); extractColors(clubLogo, analysisCount); }} style={{ padding: '10px 16px', border: '1px solid #dee2e6', background: '#fff', borderRadius: 8, cursor: 'pointer', fontSize: 14, minHeight: 40, minWidth: 100, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <button onClick={() => { setColorStrategyIndex(prev => prev + 1); extractColors(clubLogo, analysisCount); }} className="vereine-style-39">
                     Neu analysieren
                   </button>
-                  <button onClick={() => { setClubLogo(null); setExtractedColors(null); }} style={{ padding: '10px 16px', border: '1px solid #dee2e6', background: '#fff', borderRadius: 8, cursor: 'pointer', fontSize: 14, minHeight: 40, minWidth: 80, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <button onClick={() => { setClubLogo(null); setExtractedColors(null); }} className="vereine-style-40">
                     Ändern
                   </button>
                 </div>
@@ -241,24 +241,24 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
 
             {/* Vereinsfarben – nur wenn Logo vorhanden */}
             {clubLogo && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <label style={{ fontSize: 14, color: '#495057' }}>🎨 Vereinsfarben</label>
+              <div className="vereine-style-41">
+                <label className="vereine-style-42">🎨 Vereinsfarben</label>
                 
                 {/* Detaillierte Legende – was die Farben bewirken */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 14, color: '#6c757d' }}>
+                <div className="vereine-style-43">
                   <span>🔵 <strong>Vereinsfarbe</strong>: Aktive Tabs, Header-Hintergrund, Club-Avatar. Wähle die dominante Farbe deines Logos/Vereinsbrandings.</span>
                   <span>🟢 <strong>Aktionsfarbe</strong>: Push-Banner-Button, wichtige CTAs. Sollte auf weißem Grund gut lesbar sein!</span>
                 </div>
                 
                 {/* Pipette-Hinweis */}
-                <div style={{ fontSize: 14, color: '#856404', background: '#fff3cd', padding: '8px 12px', borderRadius: 6 }}>
+                <div className="vereine-style-44">
                   💡 Tipp: Klicke auf einen Farbwähler → Pipette aktivieren → Farbe vom Logo oben auswählen
                 </div>
                 
                 {/* ColorPicker mit Tausch-Button */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="vereine-style-45">
                   <ColorPicker label="Vereinsfarbe" value={extractedColors ? extractedColors.primary : clubForm.primaryColor} onChange={v => { if (extractedColors) setExtractedColors({ ...extractedColors, primary: v }); else setClubForm({ ...clubForm, primaryColor: v }); }} />
-                  <button onClick={() => handleSwap()} title="Farben tauschen" style={{ width: 28, height: 28, border: '1px solid #dee2e6', background: '#f8f9fa', borderRadius: 4, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⇄</button>
+                  <button onClick={() => handleSwap()} title="Farben tauschen" className="vereine-style-46">⇄</button>
                   <ColorPicker label="Aktionsfarbe" value={extractedColors ? extractedColors.secondary : clubForm.secondaryColor} onChange={v => { if (extractedColors) setExtractedColors({ ...extractedColors, secondary: v }); else setClubForm({ ...clubForm, secondaryColor: v }); }} />
                 </div>
               </div>
@@ -266,7 +266,7 @@ export default function Vereine({ adminPrimary }: { adminPrimary: string }) {
 
             </div>
             {/* Fixierter Footer – IMMER sichtbar (§13.2) */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid #e9ecef', marginTop: 0 }}>
+            <div className="vereine-style-47">
               <button onClick={closeEdit} style={{ ...btnStyleSecondary, border: '1px solid #dee2e6', background: '#fff', padding: '10px 20px', fontSize: 14 }}>Abbrechen</button>
               <button onClick={saveClub} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14, minHeight: 40 }}>Speichern</button>
             </div>

@@ -7,17 +7,46 @@ export function getRoundName(matchCount: number) {
   return `Letzte ${matchCount * 2}`;
 }
 
+export interface KnockoutParticipant {
+  teamId?: number;
+  placeholder?: string;
+}
+
+export interface KoGenerateMatchNode {
+  tournamentId: number;
+  yearGroupId: number;
+  bracketId: number;
+  status: string;
+  stage: number;
+  phase: string;
+  teamAId: number | null;
+  placeholderA: string | null;
+  teamBId: number | null;
+  placeholderB: string | null;
+  upperBound: number;
+  lowerBound: number;
+  id?: number;
+  dependsOnAMatchId?: number;
+  dependsOnBMatchId?: number;
+  dependsOnALoser?: boolean;
+  dependsOnBLoser?: boolean;
+  dependsOnAPlaceholder?: string;
+  dependsOnBPlaceholder?: string;
+  [key: string]: unknown;
+}
+
 export function generateKnockoutTree(
   tournamentId: number,
   yearGroupId: number,
   bracketId: number,
-  participants: any[], // { teamId?: number, placeholder?: string }
+  participants: KnockoutParticipant[], 
+
   playoutAllPlacements: boolean,
   thirdPlaceMatch: boolean,
   startStage: number,
   qualificationRule: string | null = null
 ) {
-  let matches: any[] = [];
+  let matches: KoGenerateMatchNode[] = [];
   
   // 1. Pad to power of 2
   let powerOf2 = 2;
@@ -30,7 +59,7 @@ export function generateKnockoutTree(
   }
 
   // 2. Initial round
-  let currentRoundNodes: any[] = [];
+  let currentRoundNodes: KoGenerateMatchNode[] = [];
   const initialMatchCount = powerOf2 / 2;
   const initialRoundName = getRoundName(initialMatchCount);
 
@@ -62,10 +91,10 @@ export function generateKnockoutTree(
   let stageCounter = startStage + 1;
   
   while (previousRoundNodes.length > 0) {
-    let nextRoundNodes: any[] = [];
+    let nextRoundNodes: KoGenerateMatchNode[] = [];
     
     // Group previous nodes by bounds
-    const groups: { [key: string]: any[] } = {};
+    const groups: { [key: string]: KoGenerateMatchNode[] } = {};
     for (const node of previousRoundNodes) {
       const key = `${node.upperBound}-${node.lowerBound}`;
       if (!groups[key]) groups[key] = [];

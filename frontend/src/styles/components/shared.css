@@ -1,0 +1,104 @@
+.input-base {
+  padding: 14px 16px;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-md);
+  outline: none;
+  box-sizing: border-box;
+  font-family: var(--font-family-base);
+  transition: border-color var(--transition-fast);
+  width: 100%;
+}
+
+/* Chrome Autofill Fix: Unterdrückt das Overlay, das die Eingabe blockiert */
+.input-base:-webkit-autofill,
+.input-base:-webkit-autofill:hover,
+.input-base:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary);
+  -webkit-box-shadow: 0 0 0px 1000px transparent inset;
+  transition: background-color 50000s ease-in-out 0s;
+}
+
+.input-base:focus {
+  border-color: var(--border-color-focus);
+}
+
+/* Chrome Autofill Fix für alle Input-Felder */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary);
+  -webkit-box-shadow: 0 0 0px 1000px transparent inset;
+  transition: background-color 50000s ease-in-out 0s;
+}
+
+/* Zentrale Utility-Klasse gegen Chrome Autofill Extension Overlays.
+ * Verwendbar als className="input-no-autofill-overlay" auf Inputs,
+ * die vom Browser/Extension nicht automatisch ausgefüllt werden sollen. */
+.input-no-autofill-overlay {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
+
+.btn {
+  padding: 14px 16px;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  font-family: var(--font-family-base);
+  width: 100%;
+}
+
+.btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--club-primary);
+  color: var(--text-inverse);
+  box-shadow: var(--shadow-md);
+  padding: 16px;
+  font-size: 17px;
+}
+
+.btn-accent {
+  background: var(--club-accent, #28a745);
+  color: var(--text-inverse);
+  box-shadow: var(--shadow-md);
+  padding: 16px;
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--club-primary);
+  border: 2px solid var(--club-primary);
+}
+
+.btn-text {
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-3);
+  text-decoration: underline;
+}
+
+.auth-btn-icon {
+  font-size: 20px;
+}

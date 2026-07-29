@@ -5,6 +5,15 @@
 
 ---
 
+## 0. CSS-Architektur (NEU)
+
+**WICHTIG:** Inline-Styles (`style={{...}}`) sind im gesamten Frontend strikt verboten. Wir nutzen ein sauberes **Vanilla CSS Design System**.
+
+Alle Farben, Abstände, Schriften und Schatten werden zentral in `frontend/src/styles/design-tokens.css` als CSS-Variablen definiert (z.B. `var(--club-primary)`, `var(--spacing-4)`).
+Zusammengehörige Komponenten-Styles liegen in `frontend/src/styles/components/` (z.B. `auth.css`, `dashboard.css`, `admin-core.css`, `admin-data.css`, `shared.css`).
+
+Verwende immer Klassen (z.B. `className="btn btn-primary"`) statt Inline-Styles.
+
 ## 1. Zwei Welten, zwei Kontexte
 
 Die Anwendung bedient **zwei grundverschiedene Nutzergruppen** mit unterschiedlichen Geräten, Erwartungen und Arbeitsrhythmen. Jede Welt hat eigene Design-Regeln – sie dürfen nicht vermischt werden.
@@ -465,14 +474,14 @@ Alle Stammdaten-Komponenten (`stammdaten/`) müssen folgende Regeln einheitlich 
 ```tsx
 // ✅ GÜLTIGES MUSTER (immer anwenden):
 <div>
-  <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>
+  <label className="...">
     📝 Name
   </label>
   <input 
     placeholder="Optionaler Zusatzhinweis" 
     value={form.name} 
     onChange={...} 
-    style={{ ... }}
+    className="..."
   />
 </div>
 
@@ -480,7 +489,7 @@ Alle Stammdaten-Komponenten (`stammdaten/`) müssen folgende Regeln einheitlich 
 <label>Name</label>  ← FALSCH! Immer Emoji voran!
 
 // ❌ NICHT MEHR ERLAUBT – Label daneben:
-<div style={{ display: 'flex', alignItems: 'center' }}>
+<div className="...">
   <span>👤 Name:</span>  ← FALSCH! Immer oben drüber!
   <input placeholder="z.B. Sommerturnier" />
 </div>
@@ -491,19 +500,19 @@ Alle Stammdaten-Komponenten (`stammdaten/`) müssen folgende Regeln einheitlich 
 ```tsx
 // ✅ GÜLTIGES MUSTER (immer anwenden):
 <div>
-  <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>
+  <label className="...">
     Feldname
   </label>
   <input 
     placeholder="Optionaler Zusatzhinweis" 
     value={form.name} 
     onChange={...} 
-    style={{ ... }}
+    className="..."
   />
 </div>
 
 // ❌ NICHT MEHR ERLAUBT – Label daneben:
-<div style={{ display: 'flex', alignItems: 'center' }}>
+<div className="...">
   <span>Name:</span>  ← FALSCH! Immer oben drüber!
   <input placeholder="z.B. Sommerturnier" />
 </div>
@@ -570,7 +579,7 @@ Alle Stammdaten-Komponenten (`stammdaten/`) müssen folgende Regeln einheitlich 
     borderTop: '1px solid #e9ecef'
   }}>
     <button onClick={closeEdit}>Abbrechen</button>
-    <button onClick={save} style={{ fontWeight: 600 }}>💾 Speichern</button>
+    <button onClick={save} className="...">💾 Speichern</button>
   </div>
 </div>
 ```
@@ -674,7 +683,7 @@ Alle Stammdaten-Komponenten (`stammdaten/`) müssen folgende Regeln einheitlich 
 
 ```tsx
 // ✅ KORREKT – Inline unter dem Icon-Feld:
-<div style={{ width: 70, display: 'flex', flexDirection: 'column' }}>
+<div className="...">
   <label>😀 Icon</label>
   <button onClick={() => setShowPicker(!showPicker)}>{currentIcon}</button>
   {showPicker && (
@@ -695,7 +704,7 @@ Alle Stammdaten-Komponenten (`stammdaten/`) müssen folgende Regeln einheitlich 
 </div>
 
 // ❌ FALSCH – Absolut positioniert:
-<div style={{ position: 'absolute', top: -5, left: 0 }}>...</div>
+<div className="...">...</div>
 ```
 
 > ⚠️ **Wichtig:** Der Emoji-Picker muss **nicht** `position: absolute` oder `zIndex` verwenden. Er fließt natürlich im Document-Flow und erscheint direkt unter dem Icon-Feld.

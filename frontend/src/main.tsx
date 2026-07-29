@@ -2,6 +2,16 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { registerSW } from 'virtual:pwa-register'
+
+import './styles/design-tokens.css'
+import './styles/base.css'
+import './styles/components/auth.css'
+import './styles/components/dashboard.css'
+import './styles/components/admin.css'
+import './styles/components/shared.css'
+import './styles/components/admin-core.css'
+import './styles/components/admin-data.css'
+
 import App from './App'
 
 if ('serviceWorker' in navigator) {

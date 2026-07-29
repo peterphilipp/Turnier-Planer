@@ -10,8 +10,8 @@ const emojiList = ['🏪', '🍳', '🔥', '🎪', '🎯', '⚽', '🍰', '☕',
 
 export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
   const queryClient = useQueryClient();
-  const { data: workAreas = [] } = useQuery<WorkArea[]>({ queryKey: ['workAreas'], queryFn: getWorkAreas });
-  const { data: allCategories = [] } = useQuery<WorkAreaCategory[]>({ queryKey: ['work-area-categories'], queryFn: getWorkAreaCategories });
+  const { data: workAreas = [], isLoading: isLoadingWA } = useQuery<WorkArea[]>({ queryKey: ['workAreas'], queryFn: getWorkAreas });
+  const { data: categories = [], isLoading: isLoadingCat } = useQuery<WorkAreaCategory[]>({ queryKey: ['workAreaCategories'], queryFn: getWorkAreaCategories });
   
   const { items: sortedWorkAreas, requestSort, getSortIndicator } = useSortableData(workAreas, { key: 'order', direction: 'asc' });
 
@@ -59,51 +59,51 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
   const closeEdit = () => { setEditingAb(null); setAbForm({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8, isStandard: false, categoryIds: [] }); setEmojiPickerOpen(false); };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div className="work-areas-style-1">
     <WorkAreaCategories adminPrimary={adminPrimary} />
 
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-      <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>📍 Arbeitsbereiche</h3>
+      <h3 className="work-areas-style-2">📍 Arbeitsbereiche</h3>
 
       {/* Emoji Picker */}
       {emojiPickerOpen && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: 8, background: '#f8f9fa', borderRadius: 8, marginBottom: 12 }}>
+        <div className="work-areas-style-3">
           {emojiList.map(e => (<button key={e} onClick={() => { setAbForm({ ...abForm, icon: e }); setEmojiPickerOpen(false); }} style={{ fontSize: 20, padding: '4px 6px', border: abForm.icon === e ? '2px solid #0d6efd' : '1px solid #dee2e6', background: abForm.icon === e ? '#e8f4fd' : '#fff', borderRadius: 6, cursor: 'pointer' }}>{e}</button>))}
         </div>
       )}
 
       {/* Neue ARB Form */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch', marginBottom: 16 }}>
-        <div style={{ flex: 2, minWidth: 250, display: 'flex', flexDirection: 'column' }}>
-          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
-          <input value={abForm.name} onChange={e => setAbForm({ ...abForm, name: e.target.value })} placeholder="z.B. Kasse" style={{ width: '100%', padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+      <div className="work-areas-style-4">
+        <div className="work-areas-style-5">
+          <label className="work-areas-style-6">📝 Name</label>
+          <input value={abForm.name} onChange={e => setAbForm({ ...abForm, name: e.target.value })} placeholder="z.B. Kasse" className="work-areas-style-7" />
         </div>
-        <div style={{ width: 70, display: 'flex', flexDirection: 'column' }}>
-          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>😀 Icon</label>
-          <button onClick={() => setEmojiPickerOpen(!emojiPickerOpen)} style={{ fontSize: 20, padding: '6px 12px', border: '1px solid #dee2e6', background: '#f8f9fa', borderRadius: 8, cursor: 'pointer', height: 44 }}>{abForm.icon}</button>
+        <div className="work-areas-style-8">
+          <label className="work-areas-style-9">😀 Icon</label>
+          <button onClick={() => setEmojiPickerOpen(!emojiPickerOpen)} className="work-areas-style-10">{abForm.icon}</button>
         </div>
-        <div style={{ width: 100, display: 'flex', flexDirection: 'column' }}>
-          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎨 Farbe</label>
-          <input type="color" value={abForm.color} onChange={e => setAbForm({ ...abForm, color: e.target.value })} style={{ width: '100%', height: 44, border: '1px solid #dee2e6', borderRadius: 8, cursor: 'pointer', padding: 2 }} />
+        <div className="work-areas-style-11">
+          <label className="work-areas-style-12">🎨 Farbe</label>
+          <input type="color" value={abForm.color} onChange={e => setAbForm({ ...abForm, color: e.target.value })} className="work-areas-style-13" />
         </div>
-        <div style={{ width: 70, display: 'flex', flexDirection: 'column' }}>
-          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>👥 Min</label>
-          <input type="number" value={abForm.minVolunteers || ''} onChange={e => setAbForm({ ...abForm, minVolunteers: parseInt(e.target.value) || 0 })} placeholder="–" style={{ width: '100%', padding: '14px 8px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+        <div className="work-areas-style-14">
+          <label className="work-areas-style-15">👥 Min</label>
+          <input type="number" value={abForm.minVolunteers || ''} onChange={e => setAbForm({ ...abForm, minVolunteers: parseInt(e.target.value) || 0 })} placeholder="–" className="work-areas-style-16" />
         </div>
-        <div style={{ width: 70, display: 'flex', flexDirection: 'column' }}>
-          <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>👥 Max</label>
-          <input type="number" value={abForm.maxVolunteers || ''} onChange={e => setAbForm({ ...abForm, maxVolunteers: parseInt(e.target.value) || 0 })} placeholder="–" style={{ width: '100%', padding: '14px 8px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+        <div className="work-areas-style-17">
+          <label className="work-areas-style-18">👥 Max</label>
+          <input type="number" value={abForm.maxVolunteers || ''} onChange={e => setAbForm({ ...abForm, maxVolunteers: parseInt(e.target.value) || 0 })} placeholder="–" className="work-areas-style-19" />
         </div>
         <button onClick={saveWorkArea} style={{ padding: '8px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, height: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
-          <span style={{ fontSize: 18, fontWeight: 'bold', lineHeight: 1 }} aria-hidden="true">+</span><span>Hinzufügen</span>
+          <span className="work-areas-style-20" aria-hidden="true">+</span><span>Hinzufügen</span>
         </button>
       </div>
 
 
     </div>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ width: 30, padding: '10px 4px', textAlign: 'center' }}>⋮⋮</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Icon</th><th onClick={() => requestSort('name')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Name{getSortIndicator('name')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'center' }}>Standard</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Kategorien</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Farbe</th><th onClick={() => requestSort('minVolunteers')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Min{getSortIndicator('minVolunteers')}</th><th onClick={() => requestSort('maxVolunteers')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Max{getSortIndicator('maxVolunteers')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
+      <table className="work-areas-style-21">
+        <thead><tr className="work-areas-style-22"><th className="work-areas-style-23">⋮⋮</th><th className="work-areas-style-24">Icon</th><th onClick={() => requestSort('name')} className="work-areas-style-25">Name{getSortIndicator('name')}</th><th className="work-areas-style-26">Standard</th><th className="work-areas-style-27">Kategorien</th><th className="work-areas-style-28">Farbe</th><th onClick={() => requestSort('minVolunteers')} className="work-areas-style-29">Min{getSortIndicator('minVolunteers')}</th><th onClick={() => requestSort('maxVolunteers')} className="work-areas-style-30">Max{getSortIndicator('maxVolunteers')}</th><th className="work-areas-style-31">Aktion</th></tr></thead>
         <tbody>
           {sortedWorkAreas.map((ab, idx) => (
             <tr 
@@ -113,27 +113,27 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
               onDragEnter={() => (dragOverItemIndex.current = idx)} 
               onDragEnd={handleSort} 
               onDragOver={e => e.preventDefault()}
-              style={{ borderBottom: '1px solid #f0f0f0', cursor: 'grab' }}
+              className="work-areas-style-32"
             >
-              <td style={{ padding: '10px 4px', cursor: 'grab', color: '#ccc', textAlign: 'center' }}>⋮⋮</td>
-              <td style={{ padding: '10px 12px', fontSize: 24, textAlign: 'center' }}>{ab.icon}</td>
-              <td style={{ padding: '10px 12px', fontWeight: 500 }}>{ab.name}</td>
-              <td style={{ padding: '10px 12px' }}>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              <td className="work-areas-style-33">⋮⋮</td>
+              <td className="work-areas-style-34">{ab.icon}</td>
+              <td className="work-areas-style-35">{ab.name}</td>
+              <td className="work-areas-style-36">
+                <div className="work-areas-style-37">
                   {(ab.categories || []).map(cat => (
                     <span key={cat.id} style={{ fontSize: 11, background: cat.color, border: `1px solid ${cat.color}`, padding: '2px 6px', borderRadius: 10 }}>{cat.name}</span>
                   ))}
                 </div>
               </td>
-              <td style={{ padding: '10px 12px' }}><div style={{ background: ab.color, width: 40, height: 20, borderRadius: 4 }} /></td>
-              <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+              <td className="work-areas-style-38"><div style={{ background: ab.color, width: 40, height: 20, borderRadius: 4 }} /></td>
+              <td className="work-areas-style-39">
                 {ab.isStandard ? '⭐ Ja' : '—'}
               </td>
-              <td style={{ padding: '10px 12px', textAlign: 'right' }}>{ab.minVolunteers}</td>
-              <td style={{ padding: '10px 12px', textAlign: 'right' }}>{ab.maxVolunteers}</td>
-              <td style={{ padding: '10px 12px' }}>
-                <button onClick={() => openEdit(ab)} style={{ padding: '6px 10px', border: 'none', background: '#fff3cd', color: '#856404', borderRadius: 6, cursor: 'pointer', marginRight: 4 }}>✏️</button>
-                <button onClick={() => deleteWorkArea(ab)} style={{ padding: '6px 10px', border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 6, cursor: 'pointer' }}>🗑️</button>
+              <td className="work-areas-style-40">{ab.minVolunteers}</td>
+              <td className="work-areas-style-41">{ab.maxVolunteers}</td>
+              <td className="work-areas-style-42">
+                <button onClick={() => openEdit(ab)} className="work-areas-style-43">✏️</button>
+                <button onClick={() => deleteWorkArea(ab)} className="work-areas-style-44">🗑️</button>
               </td>
             </tr>
           ))}
@@ -144,22 +144,22 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
       {editingAb && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: '28px 32px 24px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '90%', maxWidth: 560, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>✏️ Arbeitsbereich bearbeiten</h3>
-              <button onClick={closeEdit} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#666' }}>×</button>
+            <div className="work-areas-style-45">
+              <h3 className="work-areas-style-46">✏️ Arbeitsbereich bearbeiten</h3>
+              <button onClick={closeEdit} className="work-areas-style-47">×</button>
             </div>
             {/* Scrollbarer Inhalt */}
-            <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="work-areas-style-48">
+              <div className="work-areas-style-49">
                 <div>
-                  <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
-                  <input value={abForm.name} onChange={e => setAbForm({ ...abForm, name: e.target.value })} placeholder="z.B. Kasse" style={{ padding: '10px 12px', border: '1px solid #dee2e6', borderRadius: 8, width: '100', boxSizing: 'border-box' }} />
+                  <label className="work-areas-style-50">📝 Name</label>
+                  <input value={abForm.name} onChange={e => setAbForm({ ...abForm, name: e.target.value })} placeholder="z.B. Kasse" className="work-areas-style-51" />
                 </div>
             
             {/* Emoji Picker */}
             <div>
-              <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>😀 Icon</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+              <label className="work-areas-style-52">😀 Icon</label>
+              <div className="work-areas-style-53">
                 {emojiList.map(e => (
                   <button key={e} onClick={() => setAbForm({ ...abForm, icon: e })} style={{ fontSize: 20, padding: '6px 8px', border: abForm.icon === e ? '2px solid #0d6efd' : '1px solid #dee2e6', background: abForm.icon === e ? '#e8f4fd' : '#fff', borderRadius: 8, cursor: 'pointer' }}>{e}</button>
                 ))}
@@ -168,15 +168,15 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
 
             {/* Kategorien */}
             <div>
-              <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📂 Kategorien</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                {allCategories.filter(c => !c.isObsolete).map(cat => {
+              <label className="work-areas-style-54">📂 Kategorien</label>
+              <div className="work-areas-style-55">
+                {categories.filter(c => !c.isObsolete).map((cat: WorkAreaCategory) => {
                   const isActive = abForm.categoryIds.includes(cat.id);
                   return (
                     <label key={cat.id} style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, background: isActive ? cat.color : '#fff', border: isActive ? `1px solid ${cat.color}` : '1px solid #dee2e6', color: isActive ? '#000' : '#666', borderRadius: 12, padding: '4px 10px', cursor: 'pointer' }}>
                       <input 
                         type="checkbox" 
-                        style={{ display: 'none' }} 
+                        className="work-areas-style-56" 
                         checked={isActive}
                         onChange={e => {
                           const nextIds = e.target.checked 
@@ -189,7 +189,7 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
                     </label>
                   );
                 })}
-                {allCategories.length === 0 && <span style={{ fontSize: 13, color: '#888' }}>Keine Kategorien vorhanden. Lege weiter unten auf dieser Seite welche an.</span>}
+                {categories.length === 0 && <span className="work-areas-style-57">Keine Kategorien vorhanden. Lege weiter unten auf dieser Seite welche an.</span>}
               </div>
             </div>
 
@@ -199,22 +199,22 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
                 type="checkbox" 
                 checked={abForm.isStandard}
                 onChange={e => setAbForm({ ...abForm, isStandard: e.target.checked })}
-                style={{ width: 18, height: 18, cursor: 'pointer' }}
+                className="work-areas-style-58"
               />
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#856404' }}>⭐ Standard-Bereich (wird automatisch bei neuen Turnieren aktiviert)</span>
+              <span className="work-areas-style-59">⭐ Standard-Bereich (wird automatisch bei neuen Turnieren aktiviert)</span>
             </label>
 
             {/* Farben & Helfer */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-              <div><label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>🎨 Farbe</label><input type="color" value={abForm.color} onChange={e => setAbForm({ ...abForm, color: e.target.value })} style={{ width: '100%', height: 44, padding: 0, border: '1px solid #dee2e6', borderRadius: 8, cursor: 'pointer' }} /></div>
-              <div><label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>👥 Min</label><input type="number" value={abForm.minVolunteers} onChange={e => setAbForm({ ...abForm, minVolunteers: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '14px 8px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} /></div>
-              <div><label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>👥 Max</label><input type="number" value={abForm.maxVolunteers} onChange={e => setAbForm({ ...abForm, maxVolunteers: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '14px 8px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} /></div>
+            <div className="work-areas-style-60">
+              <div><label className="work-areas-style-61">🎨 Farbe</label><input type="color" value={abForm.color} onChange={e => setAbForm({ ...abForm, color: e.target.value })} className="work-areas-style-62" /></div>
+              <div><label className="work-areas-style-63">👥 Min</label><input type="number" value={abForm.minVolunteers} onChange={e => setAbForm({ ...abForm, minVolunteers: parseInt(e.target.value) || 0 })} className="work-areas-style-64" /></div>
+              <div><label className="work-areas-style-65">👥 Max</label><input type="number" value={abForm.maxVolunteers} onChange={e => setAbForm({ ...abForm, maxVolunteers: parseInt(e.target.value) || 0 })} className="work-areas-style-66" /></div>
             </div>
 
             </div>
             {/* Fixierter Footer – IMMER sichtbar (§13.2) */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid #e9ecef', marginTop: 0, position: 'sticky', bottom: 0, background: '#fff' }}>
-              <button onClick={closeEdit} style={{ padding: '10px 20px', border: '1px solid #dee2e6', background: '#fff', borderRadius: 8, cursor: 'pointer' }}>Abbrechen</button>
+            <div className="work-areas-style-67">
+              <button onClick={closeEdit} className="work-areas-style-68">Abbrechen</button>
               <button onClick={saveWorkArea} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>💾 Speichern</button>
             </div>
           </div>

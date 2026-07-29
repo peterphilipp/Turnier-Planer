@@ -89,45 +89,45 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
   const closeEditItem = () => { setEditingFoodItem(null); setFoodItemForm({ categoryId: 0, name: '', price: '', unit: 'Stk' }); };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div className="lebensmittel-container">
       {/* Kategorien */}
-      <div style={{ background: '#fff', borderRadius: 16, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-        <h3 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: '600', color: '#212529' }}>📂 Kategorien</h3>
+      <div className="lebensmittel-card">
+        <h3 className="lebensmittel-card-title">📂 Kategorien</h3>
         
         {/* Emoji Picker */}
         {showEmojiPicker && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: 8, background: '#f8f9fa', borderRadius: 8, marginBottom: 12 }}>
-            {EMOJI_PICKER.map(emoji => (<button key={emoji} onClick={() => selectEmoji(emoji)} style={{ fontSize: 20, padding: '4px 6px', border: foodCatForm.icon === emoji ? '2px solid #0d6efd' : '1px solid #dee2e6', background: foodCatForm.icon === emoji ? '#e8f4fd' : '#fff', borderRadius: 6, cursor: 'pointer' }}>{emoji}</button>))}
+          <div className="lebensmittel-emoji-picker-container">
+            {EMOJI_PICKER.map(emoji => (<button key={emoji} onClick={() => selectEmoji(emoji)} className={`lebensmittel-emoji-btn ${foodCatForm.icon === emoji ? 'lebensmittel-emoji-btn-active' : ''}`}>{emoji}</button>))}
           </div>
         )}
 
         {/* Kategorie Neu hinzufügen */}
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch', marginBottom: 16 }}>
-          <div style={{ flex: 2, minWidth: 250, display: 'flex', flexDirection: 'column' }}>
-            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
-            <input value={foodCatForm.name} onChange={e => setFoodCatForm(f => ({ ...f, name: e.target.value }))} placeholder="z.B. Getränke" style={{ width: '100%', padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+        <div className="lebensmittel-form-row">
+          <div className="lebensmittel-form-group-flex2">
+            <label className="lebensmittel-form-label">📝 Name</label>
+            <input value={foodCatForm.name} onChange={e => setFoodCatForm(f => ({ ...f, name: e.target.value }))} placeholder="z.B. Getränke" className="lebensmittel-form-input" />
           </div>
-          <div style={{ width: 70, display: 'flex', flexDirection: 'column' }}>
-            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>😀 Icon</label>
-            <div onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ width: '100%', height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, background: '#f8f9fa', borderRadius: 8, cursor: 'pointer', border: showEmojiPicker ? '2px solid #0d6efd' : '1px solid #dee2e6', userSelect: 'none' }} title="Emoji auswählen">{foodCatForm.icon}</div>
+          <div className="lebensmittel-form-group-w70">
+            <label className="lebensmittel-form-label">😀 Icon</label>
+            <div onClick={() => setShowEmojiPicker(!showEmojiPicker)} className={`lebensmittel-emoji-toggle ${showEmojiPicker ? 'lebensmittel-emoji-toggle-active' : ''}`} title="Emoji auswählen">{foodCatForm.icon}</div>
           </div>
-          <button onClick={saveFoodCategory} style={{ padding: '8px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, height: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
-            <span style={{ fontSize: 18, fontWeight: 'bold', lineHeight: 1 }} aria-hidden="true">+</span><span>Hinzufügen</span>
+          <button onClick={saveFoodCategory} className="lebensmittel-add-btn" style={{ background: adminPrimary }}>
+            <span className="lebensmittel-add-btn-icon" aria-hidden="true">+</span><span>Hinzufügen</span>
           </button>
         </div>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Icon</th><th onClick={() => sortCat('name')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Name{getCatInd('name')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right' }}>Artikel</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
+        <table className="lebensmittel-table">
+          <thead><tr className="lebensmittel-table-header-row"><th className="lebensmittel-th-left">Icon</th><th onClick={() => sortCat('name')} className="lebensmittel-th-left-pointer">Name{getCatInd('name')}</th><th className="lebensmittel-th-right">Artikel</th><th className="lebensmittel-th-left">Aktion</th></tr></thead>
           <tbody>
             {sortedCategories.map(cat => (
-              <tr key={cat.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td style={{ padding: '10px 12px', fontSize: 24 }}>{cat.icon}</td>
-                <td style={{ padding: '10px 12px', fontWeight: 500 }}>{cat.name}</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#6c757d' }}>{cat.items?.length || 0}</td>
-                <td style={{ padding: '8px 12px' }}>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button onClick={() => openEditCat(cat)} style={{ width: 40, height: 40, border: 'none', background: '#fff3cd', color: '#856404', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✏️</button>
-                    <button onClick={() => deleteFoodCategory(cat)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
+              <tr key={cat.id} className="lebensmittel-tr">
+                <td className="lebensmittel-td-icon">{cat.icon}</td>
+                <td className="lebensmittel-td-bold">{cat.name}</td>
+                <td className="lebensmittel-td-right-gray">{cat.items?.length || 0}</td>
+                <td className="lebensmittel-td-actions">
+                  <div className="lebensmittel-actions-container">
+                    <button onClick={() => openEditCat(cat)} className="lebensmittel-btn-edit">✏️</button>
+                    <button onClick={() => deleteFoodCategory(cat)} className="lebensmittel-btn-delete">🗑️</button>
                   </div>
                 </td>
               </tr>
@@ -137,29 +137,29 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
 
         {/* Kategorie Edit Modal */}
         {editingFoodCat && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div style={{ background: '#fff', borderRadius: 16, padding: '28px 32px 24px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '90%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <h3 style={{ margin: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>✏️ Kategorie bearbeiten</h3>
-                <button onClick={closeEditCat} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#666' }}>×</button>
+          <div className="lebensmittel-modal-overlay">
+            <div className="lebensmittel-modal-content">
+              <div className="lebensmittel-modal-header">
+                <h3 className="lebensmittel-modal-title">✏️ Kategorie bearbeiten</h3>
+                <button onClick={closeEditCat} className="lebensmittel-modal-close">×</button>
               </div>
               {/* Scrollbarer Inhalt */}
-              <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="lebensmittel-modal-body">
+                <div className="lebensmittel-modal-form">
                   <div>
-                    <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
-                    <input value={foodCatForm.name} onChange={e => setFoodCatForm(f => ({ ...f, name: e.target.value }))} placeholder="z.B. Getränke" style={{ padding: '14px 14px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, width: '100%', boxSizing: 'border-box' }} />
+                    <label className="lebensmittel-form-label">📝 Name</label>
+                    <input value={foodCatForm.name} onChange={e => setFoodCatForm(f => ({ ...f, name: e.target.value }))} placeholder="z.B. Getränke" className="lebensmittel-modal-input" />
                   </div>
               <div>
-                <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>😀 Icon</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-                  {EMOJI_PICKER.map(emoji => (<button key={emoji} onClick={() => setFoodCatForm(f => ({ ...f, icon: emoji }))} style={{ fontSize: 20, padding: '6px 8px', border: foodCatForm.icon === emoji ? '2px solid #0d6efd' : '1px solid #dee2e6', background: foodCatForm.icon === emoji ? '#e8f4fd' : '#fff', borderRadius: 8, cursor: 'pointer' }}>{emoji}</button>))}
+                <label className="lebensmittel-form-label">😀 Icon</label>
+                <div className="lebensmittel-modal-emoji-container">
+                  {EMOJI_PICKER.map(emoji => (<button key={emoji} onClick={() => setFoodCatForm(f => ({ ...f, icon: emoji }))} className={`lebensmittel-modal-emoji-btn ${foodCatForm.icon === emoji ? 'lebensmittel-modal-emoji-btn-active' : ''}`}>{emoji}</button>))}
                 </div>
               </div>
               {/* Fixierter Footer – IMMER sichtbar (§13.2) */}
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid #e9ecef', marginTop: 0, position: 'sticky', bottom: 0, background: '#fff' }}>
-                <button onClick={closeEditCat} style={{ ...btnStyleSecondary, border: '1px solid #dee2e6', background: '#fff' }}>Abbrechen</button>
-                <button onClick={saveFoodCategory} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>💾 Speichern</button>
+              <div className="lebensmittel-modal-footer">
+                <button onClick={closeEditCat} style={btnStyleSecondary} className="lebensmittel-btn-cancel">Abbrechen</button>
+                <button onClick={saveFoodCategory} className="lebensmittel-btn-save" style={{ background: adminPrimary }}>💾 Speichern</button>
               </div>
             </div>
           </div>
@@ -169,51 +169,51 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
       </div>
 
       {/* Artikel */}
-      <div style={{ background: '#fff', borderRadius: 16, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-        <h3 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: '600', color: '#212529' }}>📦 Artikel</h3>
+      <div className="lebensmittel-card">
+        <h3 className="lebensmittel-card-title">📦 Artikel</h3>
         
         {/* Artikel Neu hinzufügen */}
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch', marginBottom: 16 }}>
-          <div style={{ flex: 2, minWidth: 250, display: 'flex', flexDirection: 'column' }}>
-            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
-            <input value={foodItemForm.name} onChange={e => setFoodItemForm(f => ({ ...f, name: e.target.value }))} placeholder="z.B. Wasser" style={{ width: '100%', padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+        <div className="lebensmittel-form-row">
+          <div className="lebensmittel-form-group-flex2">
+            <label className="lebensmittel-form-label">📝 Name</label>
+            <input value={foodItemForm.name} onChange={e => setFoodItemForm(f => ({ ...f, name: e.target.value }))} placeholder="z.B. Wasser" className="lebensmittel-form-input-p12" />
           </div>
-          <div style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column' }}>
-            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📂 Kategorie</label>
-            <select value={foodItemForm.categoryId} onChange={e => setFoodItemForm(f => ({ ...f, categoryId: parseInt(e.target.value) }))} style={{ width: '100%', padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }}>
+          <div className="lebensmittel-form-group-flex1">
+            <label className="lebensmittel-form-label">📂 Kategorie</label>
+            <select value={foodItemForm.categoryId} onChange={e => setFoodItemForm(f => ({ ...f, categoryId: parseInt(e.target.value) }))} className="lebensmittel-form-input-p12">
               <option value={0}>-- Kategorie --</option>
               {foodCategories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
             </select>
           </div>
-          <div style={{ width: 90, display: 'flex', flexDirection: 'column' }}>
-            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>💰 Preis</label>
-            <input value={foodItemForm.price} onChange={e => setFoodItemForm(f => ({ ...f, price: e.target.value }))} placeholder="0.00" type="number" step="0.01" style={{ width: '100%', padding: '14px 8px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, boxSizing: 'border-box' }} />
+          <div className="lebensmittel-form-group-w90">
+            <label className="lebensmittel-form-label">💰 Preis</label>
+            <input value={foodItemForm.price} onChange={e => setFoodItemForm(f => ({ ...f, price: e.target.value }))} placeholder="0.00" type="number" step="0.01" className="lebensmittel-form-input-p8" />
           </div>
-          <div style={{ width: 100, display: 'flex', flexDirection: 'column' }}>
-            <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📏 Einheit</label>
-            <select value={foodItemForm.unit} onChange={e => setFoodItemForm(f => ({ ...f, unit: e.target.value }))} style={{ width: '100%', padding: '14px 8px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }}>
+          <div className="lebensmittel-form-group-w100">
+            <label className="lebensmittel-form-label">📏 Einheit</label>
+            <select value={foodItemForm.unit} onChange={e => setFoodItemForm(f => ({ ...f, unit: e.target.value }))} className="lebensmittel-form-input-p8">
               {FOOD_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
             </select>
           </div>
-          <button onClick={saveFoodItem} style={{ padding: '8px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, height: 44, minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15 }}>
-            <span style={{ fontSize: 18, fontWeight: 'bold', lineHeight: 1 }} aria-hidden="true">+</span><span>Hinzufügen</span>
+          <button onClick={saveFoodItem} className="lebensmittel-add-btn" style={{ background: adminPrimary }}>
+            <span className="lebensmittel-add-btn-icon" aria-hidden="true">+</span><span>Hinzufügen</span>
           </button>
         </div>
 
 
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr style={{ borderBottom: '2px solid #e9ecef' }}><th onClick={() => sortItem('name')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Name{getItemInd('name')}</th><th onClick={() => sortItem('categoryName')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Kategorie{getItemInd('categoryName')}</th><th onClick={() => sortItem('price')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'right', cursor: 'pointer' }}>Preis{getItemInd('price')}</th><th onClick={() => sortItem('unit')} style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>Einheit{getItemInd('unit')}</th><th style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Aktion</th></tr></thead>
+        <table className="lebensmittel-table">
+          <thead><tr className="lebensmittel-table-header-row"><th onClick={() => sortItem('name')} className="lebensmittel-th-left-pointer">Name{getItemInd('name')}</th><th onClick={() => sortItem('categoryName')} className="lebensmittel-th-left-pointer">Kategorie{getItemInd('categoryName')}</th><th onClick={() => sortItem('price')} className="lebensmittel-th-right-pointer">Preis{getItemInd('price')}</th><th onClick={() => sortItem('unit')} className="lebensmittel-th-left-pointer">Einheit{getItemInd('unit')}</th><th className="lebensmittel-th-left">Aktion</th></tr></thead>
           <tbody>
             {sortedItems.map(item => (
-              <tr key={item.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td style={{ padding: '10px 12px', fontWeight: 500 }}>{item.name}</td>
-                <td style={{ padding: '10px 12px', color: '#6c757d' }}>{item.category?.icon} {item.category?.name || '–'}</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', color: item.price ? '#2e7d32' : '#adb5bd' }}>{item.price ? `${item.price} €` : '–'}</td>
-                <td style={{ padding: '10px 12px' }}>{item.unit}</td>
-                <td style={{ padding: '8px 12px' }}>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button onClick={() => openEditItem(item)} style={{ width: 40, height: 40, border: 'none', background: '#fff3cd', color: '#856404', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✏️</button>
-                    <button onClick={() => deleteFoodItem(item)} style={{ width: 40, height: 40, border: 'none', background: '#ffe3e3', color: '#dc3545', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
+              <tr key={item.id} className="lebensmittel-tr">
+                <td className="lebensmittel-td-bold">{item.name}</td>
+                <td className="lebensmittel-td-gray">{item.category?.icon} {item.category?.name || '–'}</td>
+                <td className="lebensmittel-td-right" style={{ color: item.price ? '#2e7d32' : '#adb5bd' }}>{item.price ? `${item.price} €` : '–'}</td>
+                <td className="lebensmittel-th-left" style={{ fontWeight: 'normal' }}>{item.unit}</td>
+                <td className="lebensmittel-td-actions">
+                  <div className="lebensmittel-actions-container">
+                    <button onClick={() => openEditItem(item)} className="lebensmittel-btn-edit">✏️</button>
+                    <button onClick={() => deleteFoodItem(item)} className="lebensmittel-btn-delete">🗑️</button>
                   </div>
                 </td>
               </tr>
@@ -223,40 +223,40 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
 
         {/* Artikel Edit Modal */}
         {editingFoodItem && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div style={{ background: '#fff', borderRadius: 16, padding: '28px 32px 24px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '90%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <h3 style={{ margin: 0, fontSize: 18, fontWeight: '600', color: '#212529' }}>✏️ Artikel bearbeiten</h3>
-                <button onClick={closeEditItem} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#666' }}>×</button>
+          <div className="lebensmittel-modal-overlay">
+            <div className="lebensmittel-modal-content">
+              <div className="lebensmittel-modal-header">
+                <h3 className="lebensmittel-modal-title">✏️ Artikel bearbeiten</h3>
+                <button onClick={closeEditItem} className="lebensmittel-modal-close">×</button>
               </div>
               {/* Scrollbarer Inhalt */}
-              <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="lebensmittel-modal-body">
+                <div className="lebensmittel-modal-form">
                   <div>
-                    <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📂 Kategorie</label>
-                    <select value={foodItemForm.categoryId} onChange={e => setFoodItemForm(f => ({ ...f, categoryId: parseInt(e.target.value) }))} style={{ padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, width: '100%', boxSizing: 'border-box' }}>
+                    <label className="lebensmittel-form-label">📂 Kategorie</label>
+                    <select value={foodItemForm.categoryId} onChange={e => setFoodItemForm(f => ({ ...f, categoryId: parseInt(e.target.value) }))} className="lebensmittel-modal-input-p12">
                       <option value={0}>-- Kategorie --</option>
                       {foodCategories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
-                    <input value={foodItemForm.name} onChange={e => setFoodItemForm(f => ({ ...f, name: e.target.value }))} placeholder="z.B. Wasser" style={{ padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44, width: '100%', boxSizing: 'border-box' }} />
+                    <label className="lebensmittel-form-label">📝 Name</label>
+                    <input value={foodItemForm.name} onChange={e => setFoodItemForm(f => ({ ...f, name: e.target.value }))} placeholder="z.B. Wasser" className="lebensmittel-modal-input-p12" />
                   </div>
               <div>
-                <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>💰 Preis & 📏 Einheit</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <input value={foodItemForm.price} onChange={e => setFoodItemForm(f => ({ ...f, price: e.target.value }))} placeholder="Preis" type="number" step="0.01" style={{ padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }} />
-                  <select value={foodItemForm.unit} onChange={e => setFoodItemForm(f => ({ ...f, unit: e.target.value }))} style={{ padding: '14px 12px', border: '1px solid #dee2e6', borderRadius: 8, fontSize: 16, minHeight: 44 }}>
+                <label className="lebensmittel-form-label">💰 Preis & 📏 Einheit</label>
+                <div className="lebensmittel-grid-2">
+                  <input value={foodItemForm.price} onChange={e => setFoodItemForm(f => ({ ...f, price: e.target.value }))} placeholder="Preis" type="number" step="0.01" className="lebensmittel-modal-input-grid" />
+                  <select value={foodItemForm.unit} onChange={e => setFoodItemForm(f => ({ ...f, unit: e.target.value }))} className="lebensmittel-modal-input-grid">
                     {FOOD_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
               </div>
             </div>
             {/* Fixierter Footer – IMMER sichtbar (§13.2) */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid #e9ecef', marginTop: 0, position: 'sticky', bottom: 0, background: '#fff' }}>
-              <button onClick={closeEditItem} style={{ ...btnStyleSecondary, border: '1px solid #dee2e6', background: '#fff' }}>Abbrechen</button>
-              <button onClick={saveFoodItem} style={{ padding: '10px 20px', background: adminPrimary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>💾 Speichern</button>
+            <div className="lebensmittel-modal-footer">
+              <button onClick={closeEditItem} style={btnStyleSecondary} className="lebensmittel-btn-cancel">Abbrechen</button>
+              <button onClick={saveFoodItem} className="lebensmittel-btn-save" style={{ background: adminPrimary }}>💾 Speichern</button>
             </div>
           </div>
         </div>

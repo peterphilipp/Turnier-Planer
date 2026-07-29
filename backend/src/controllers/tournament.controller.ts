@@ -109,13 +109,13 @@ export const updateTournament = async (req: Request, res: Response) => {
       'teamsAdvancingPerGroup', 'playoutAllPlacements', 'thirdPlaceMatch',
       'qualificationRule', 'clubId', 'hasSponsor', 'sponsorName', 'sponsorUrl', 'logo'
     ] as const;
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     for (const key of ALLOWED) {
       if (req.body[key] !== undefined) updateData[key] = req.body[key];
     }
 
-    if (updateData.startDate) updateData.startDate = new Date(updateData.startDate);
-    if (updateData.endDate) updateData.endDate = new Date(updateData.endDate);
+    if (updateData.startDate) updateData.startDate = new Date(updateData.startDate as string | number | Date);
+    if (updateData.endDate) updateData.endDate = new Date(updateData.endDate as string | number | Date);
 
     // clubId als null wenn leer/0
     if (updateData.clubId === '' || updateData.clubId === 0) updateData.clubId = null;
@@ -132,9 +132,10 @@ export const updateTournament = async (req: Request, res: Response) => {
     });
     logTournamentUpdated(tournament.id, Object.keys(updateData));
     return res.json(tournament);
-  } catch (err: any) {
-    console.error('updateTournament error:', err.message);
-    return res.status(400).json({ error: err.message });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('updateTournament error:', message);
+    return res.status(400).json({ error: message });
   }
 };
 
@@ -211,8 +212,21 @@ interface ScheduleParams {
   breakDuration: number;
 }
 
+interface ScheduleMatch {
+  tournamentId: number;
+  yearGroupId: number;
+  stage?: number;
+  teamAId?: number | null;
+  teamBId?: number | null;
+  phase: string;
+  groupId?: number | null;
+  label?: string | null;
+  nextMatchId?: number | null;
+  [key: string]: unknown;
+}
+
 async function scheduleAndSaveMatches(
-  matchesToSchedule: any[],
+  matchesToSchedule: ScheduleMatch[],
   tournamentId: number,
   yearGroupId: number,
   params: ScheduleParams
@@ -354,7 +368,14 @@ async function scheduleAndSaveMatches(
 
     await prisma.match.create({
       data: {
-        ...match,
+        tournamentId: match.tournamentId,
+        yearGroupId: match.yearGroupId,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
+        phase: match.phase,
+        groupId: match.groupId,
+        label: match.label,
+        nextMatchId: match.nextMatchId,
         time: currentTime,
         fieldId: field.id
       }
@@ -387,7 +408,7 @@ export const generateMatchesForYearGroup = async (req: Request, res: Response) =
   if (!tournament) return res.status(404).json({ error: 'Turnier nicht gefunden' });
 
   const mode = tournament.turnierModus || 'GRUPPEN_KO';
-  let result: any = { message: '', matchesCreated: 0, bracketsCreated: 0 };
+  let result: Record<string, unknown> = { message: '', matchesCreated: 0, bracketsCreated: 0 };
   
   const params: ScheduleParams = {
     matchDuration: parseInt(String(matchDuration as string)),
@@ -415,8 +436,9 @@ export const generateMatchesForYearGroup = async (req: Request, res: Response) =
     }
 
     return res.json({ tournament, ...result });
-  } catch (error: any) {
-    return res.status(400).json({ error: error.message || 'Ein unerwarteter Fehler ist aufgetreten.' });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Ein unerwarteter Fehler ist aufgetreten.';
+    return res.status(400).json({ error: message });
   }
 };
 
@@ -467,8 +489,9 @@ export const generateKoOnly = async (req: Request, res: Response) => {
 
     const result = await generateKO(tournamentId, yId, params);
     return res.json({ ...result });
-  } catch (error: any) {
-    return res.status(400).json({ error: error.message || 'Ein unerwarteter Fehler ist aufgetreten.' });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Ein unerwarteter Fehler ist aufgetreten.';
+    return res.status(400).json({ error: message });
   }
 };
 
@@ -556,8 +579,9 @@ export const generateKoFromGruppen = async (req: Request, res: Response) => {
 
     const matchesCreated = await scheduleAndSaveMatches(koMatches, tournamentId, yId, params);
     return res.json({ message: `K.O.-Bracket (Platzhalter) mit ${koMatches.length} Spielen erstellt`, matchesCreated, bracketsCreated: 1 });
-  } catch (error: any) {
-    return res.status(400).json({ error: error.message || 'Ein unerwarteter Fehler ist aufgetreten.' });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Ein unerwarteter Fehler ist aufgetreten.';
+    return res.status(400).json({ error: message });
   }
 };
 

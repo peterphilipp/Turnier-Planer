@@ -69,10 +69,10 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
 
   if (!selectedTournament) {
     return (
-      <div style={{ padding: 48, textAlign: 'center', background: '#fff', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-        <div style={{ fontSize: 56, marginBottom: 16 }}>🔔</div>
-        <div style={{ fontSize: 20, fontWeight: '600', marginBottom: 8, color: '#212529' }}>Bitte ein Turnier auswählen</div>
-        <div style={{ fontSize: 14, color: '#666' }}>Wähle oben ein Turnier aus, um Push-Nachrichten an Helfer zu senden</div>
+      <div className="push-broadcast-empty">
+        <div className="push-broadcast-empty-icon">🔔</div>
+        <div className="push-broadcast-empty-title">Bitte ein Turnier auswählen</div>
+        <div className="push-broadcast-empty-subtitle">Wähle oben ein Turnier aus, um Push-Nachrichten an Helfer zu senden</div>
       </div>
     );
   }
@@ -134,18 +134,18 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
   };
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <div style={{ background: '#fff', borderRadius: 16, padding: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.06)', border: '1px solid #e9ecef' }}>
-        <h2 style={{ margin: '0 0 6px 0', fontSize: 22, color: '#212529', display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div className="push-broadcast-container">
+      <div className="push-broadcast-card">
+        <h2 className="push-broadcast-title">
           <span>🔔</span> Helfer per PWA Push kontaktieren
         </h2>
-        <p style={{ margin: '0 0 24px 0', color: '#6c757d', fontSize: 14 }}>
+        <p className="push-broadcast-description">
           Sende Sofort-Benachrichtigungen direkt auf die Geräte deiner Helfer. Keine E-Mails erforderlich!
         </p>
 
-        <div style={{ marginBottom: 24 }}>
-          <label style={{ display: 'block', fontWeight: '600', marginBottom: 10, color: '#333' }}>1. Zielgruppe wählen:</label>
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+        <div className="push-broadcast-section">
+          <label className="push-broadcast-section-label">1. Zielgruppe wählen:</label>
+          <div className={`push-broadcast-mode-grid ${isMobile ? 'push-broadcast-mode-grid-mobile' : 'push-broadcast-mode-grid-desktop'}`}>
             {[
               { id: 'all', label: '📢 Alle Helfer im Turnier', desc: 'An alle registrierten Helfer' },
               { id: 'shifts', label: '🧩 Schichten auswählen', desc: 'An Helfer bestimmter Schichten' },
@@ -154,24 +154,12 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
               <div
                 key={item.id}
                 onClick={() => setMode(item.id as any)}
-                style={{
-                  padding: isMobile ? '16px 18px' : 14,
-                  minHeight: isMobile ? 64 : undefined,
-                  borderRadius: 12,
-                  border: `2px solid ${mode === item.id ? '#0d6efd' : '#dee2e6'}`,
-                  background: mode === item.id ? '#f0f7ff' : '#fff',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  display: 'flex',
-                  flexDirection: isMobile ? 'row' : 'column',
-                  alignItems: isMobile ? 'center' : undefined,
-                  gap: isMobile ? 12 : 4
-                }}
+                className={`push-broadcast-mode-item ${isMobile ? 'push-broadcast-mode-item-mobile' : ''} ${mode === item.id ? 'push-broadcast-mode-item-active' : ''}`}
               >
-                <div style={{ fontWeight: 'bold', color: mode === item.id ? '#0d6efd' : '#212529', fontSize: isMobile ? 16 : 14 }}>
+                <div className={`push-broadcast-mode-label ${isMobile ? 'push-broadcast-mode-label-mobile' : ''} ${mode === item.id ? 'push-broadcast-mode-label-active' : ''}`}>
                   {item.label}
                 </div>
-                <div style={{ fontSize: 12, color: '#6c757d' }}>{item.desc}</div>
+                <div className="push-broadcast-mode-desc">{item.desc}</div>
               </div>
             ))}
           </div>
@@ -181,40 +169,30 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
             gemeint ist (nur Helfer dieses Turniers, nie die ganze Datenbank),
             statt sich auf eine vage Beschreibung verlassen zu müssen. */}
         {mode === 'all' && (
-          <div style={{ background: '#f8f9fa', borderRadius: 12, padding: 16, border: '1px solid #dee2e6', marginBottom: 24 }}>
-            <div style={{ marginBottom: 12 }}>
-              <strong style={{ color: '#212529' }}>Diese Helfer werden informiert:</strong>
-              <span style={{ marginLeft: 10, fontSize: 13, background: '#e9ecef', padding: '2px 8px', borderRadius: 10, color: '#495057', fontWeight: 600 }}>
+          <div className="push-broadcast-selection-panel">
+            <div className="push-broadcast-selection-header-simple">
+              <strong className="push-broadcast-selection-title">Diese Helfer werden informiert:</strong>
+              <span className="push-broadcast-badge">
                 {volunteers.length} Helfer dieses Turniers
               </span>
             </div>
 
             {loadingVolunteers ? (
-              <div style={{ textAlign: 'center', padding: 20 }}>⏳ Lade Helfer...</div>
+              <div className="push-broadcast-loading">⏳ Lade Helfer...</div>
             ) : volunteers.length === 0 ? (
-              <div style={{ color: '#6c757d', fontStyle: 'italic', padding: 10 }}>Diesem Turnier sind noch keine Helfer zugeordnet.</div>
+              <div className="push-broadcast-empty-state">Diesem Turnier sind noch keine Helfer zugeordnet.</div>
             ) : (
-              <div style={{ maxHeight: 250, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="push-broadcast-list">
                 {volunteers.map(v => (
                   <div
                     key={v.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: isMobile ? '12px 14px' : '8px 12px',
-                      minHeight: isMobile ? 56 : undefined,
-                      background: '#fff',
-                      border: '1px solid #dee2e6',
-                      borderRadius: 8,
-                      fontSize: 13
-                    }}
+                    className={`push-broadcast-list-item ${isMobile ? 'push-broadcast-list-item-mobile' : ''}`}
                   >
                     <div>
-                      <strong style={{ color: '#212529' }}>{v.name}</strong>
-                      {v.email && <span style={{ color: '#6c757d', marginLeft: 6 }}>({v.email})</span>}
+                      <strong className="push-broadcast-item-name">{v.name}</strong>
+                      {v.email && <span className="push-broadcast-item-email">({v.email})</span>}
                     </div>
-                    {v.role && <span style={{ fontSize: 11, background: '#e9ecef', padding: '2px 6px', borderRadius: 6, color: '#495057', fontWeight: 600 }}>{v.role}</span>}
+                    {v.role && <span className="push-broadcast-role-badge">{v.role}</span>}
                   </div>
                 ))}
               </div>
@@ -224,24 +202,24 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
 
         {/* Bedingte Auswahl: Schichten */}
         {mode === 'shifts' && (
-          <div style={{ background: '#f8f9fa', borderRadius: 12, padding: 16, border: '1px solid #dee2e6', marginBottom: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+          <div className="push-broadcast-selection-panel">
+            <div className="push-broadcast-selection-header-flex">
               <div>
-                <strong style={{ color: '#212529' }}>Schichten anhaken:</strong>
-                <span style={{ marginLeft: 10, fontSize: 13, background: '#e9ecef', padding: '2px 8px', borderRadius: 10, color: '#495057', fontWeight: 600 }}>
+                <strong className="push-broadcast-selection-title">Schichten anhaken:</strong>
+                <span className="push-broadcast-badge">
                   Empfänger: ca. {estimatedShiftRecipients} Helfer ({selectedShiftIds.length} Schichten)
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="push-broadcast-actions">
                 <button
                   onClick={() => setSelectedShiftIds(sortedShifts.map(s => s.id))}
-                  style={{ padding: '4px 10px', fontSize: 12, background: '#fff', border: '1px solid #ced4da', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}
+                  className="push-broadcast-action-btn"
                 >
                   Alle auswählen
                 </button>
                 <button
                   onClick={() => setSelectedShiftIds([])}
-                  style={{ padding: '4px 10px', fontSize: 12, background: '#fff', border: '1px solid #ced4da', borderRadius: 6, cursor: 'pointer', color: '#dc3545' }}
+                  className="push-broadcast-action-btn push-broadcast-action-btn-danger"
                 >
                   Auswahl aufheben
                 </button>
@@ -249,11 +227,11 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
             </div>
 
             {loadingShifts ? (
-              <div style={{ textAlign: 'center', padding: 20 }}>⏳ Lade Schichten...</div>
+              <div className="push-broadcast-loading">⏳ Lade Schichten...</div>
             ) : sortedShifts.length === 0 ? (
-              <div style={{ color: '#6c757d', fontStyle: 'italic', padding: 10 }}>Keine Schichten in diesem Turnier vorhanden.</div>
+              <div className="push-broadcast-empty-state">Keine Schichten in diesem Turnier vorhanden.</div>
             ) : (
-              <div style={{ maxHeight: 250, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="push-broadcast-list">
                 {sortedShifts.map((s: any) => {
                   const shiftDate = s.day?.date || s.date;
                   const startMin = s.startMin ?? s.daySlot?.startMin ?? 0;
@@ -266,34 +244,23 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
                   return (
                     <label
                       key={s.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: isMobile ? '12px 14px' : '8px 12px',
-                        minHeight: isMobile ? 56 : undefined,
-                        background: isChecked ? '#e7f1ff' : '#fff',
-                        border: `1px solid ${isChecked ? '#b6d4fe' : '#dee2e6'}`,
-                        borderRadius: 8,
-                        cursor: 'pointer',
-                        fontSize: 13
-                      }}
+                      className={`push-broadcast-list-item push-broadcast-list-item-selectable ${isMobile ? 'push-broadcast-list-item-mobile' : ''} ${isChecked ? 'push-broadcast-list-item-checked' : ''}`}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div className="push-broadcast-list-item-content">
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => handleToggleShift(s.id)}
-                          style={{ width: isMobile ? 22 : 16, height: isMobile ? 22 : 16, cursor: 'pointer' }}
+                          className={`push-broadcast-checkbox ${isMobile ? 'push-broadcast-checkbox-mobile' : ''}`}
                         />
                         <div>
-                          <strong style={{ color: '#212529' }}>{areaIcon} {roleName}</strong>
-                          <span style={{ color: '#6c757d', marginLeft: 8 }}>
+                          <strong className="push-broadcast-item-name">{areaIcon} {roleName}</strong>
+                          <span className="push-broadcast-shift-details">
                             📅 {new Date(shiftDate).toLocaleDateString('de-DE')} | ⏰ {minToTime(startMin)}-{minToTime(endMin)}
                           </span>
                         </div>
                       </div>
-                      <span style={{ background: assignedCount > 0 ? '#d1e7dd' : '#f8d7da', color: assignedCount > 0 ? '#0f5132' : '#842029', padding: '2px 8px', borderRadius: 10, fontWeight: 600, fontSize: 11 }}>
+                      <span className={`push-broadcast-assigned-badge ${assignedCount > 0 ? 'push-broadcast-assigned-badge-has' : 'push-broadcast-assigned-badge-empty'}`}>
                         {assignedCount} {assignedCount === 1 ? 'Helfer' : 'Helfer'}
                       </span>
                     </label>
@@ -306,24 +273,24 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
 
         {/* Bedingte Auswahl: Einzelne Helfer */}
         {mode === 'users' && (
-          <div style={{ background: '#f8f9fa', borderRadius: 12, padding: 16, border: '1px solid #dee2e6', marginBottom: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+          <div className="push-broadcast-selection-panel">
+            <div className="push-broadcast-selection-header-flex">
               <div>
-                <strong style={{ color: '#212529' }}>Helfer auswählen:</strong>
-                <span style={{ marginLeft: 10, fontSize: 13, background: '#e9ecef', padding: '2px 8px', borderRadius: 10, color: '#495057', fontWeight: 600 }}>
+                <strong className="push-broadcast-selection-title">Helfer auswählen:</strong>
+                <span className="push-broadcast-badge">
                   Ausgewählt: {selectedUserIds.length} von {volunteers.length}
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="push-broadcast-actions">
                 <button
                   onClick={() => setSelectedUserIds(volunteers.map(v => v.id))}
-                  style={{ padding: '4px 10px', fontSize: 12, background: '#fff', border: '1px solid #ced4da', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}
+                  className="push-broadcast-action-btn"
                 >
                   Alle auswählen
                 </button>
                 <button
                   onClick={() => setSelectedUserIds([])}
-                  style={{ padding: '4px 10px', fontSize: 12, background: '#fff', border: '1px solid #ced4da', borderRadius: 6, cursor: 'pointer', color: '#dc3545' }}
+                  className="push-broadcast-action-btn push-broadcast-action-btn-danger"
                 >
                   Auswahl aufheben
                 </button>
@@ -331,42 +298,31 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
             </div>
 
             {loadingVolunteers ? (
-              <div style={{ textAlign: 'center', padding: 20 }}>⏳ Lade Helfer...</div>
+              <div className="push-broadcast-loading">⏳ Lade Helfer...</div>
             ) : volunteers.length === 0 ? (
-              <div style={{ color: '#6c757d', fontStyle: 'italic', padding: 10 }}>Keine Helfer gefunden.</div>
+              <div className="push-broadcast-empty-state">Keine Helfer gefunden.</div>
             ) : (
-              <div style={{ maxHeight: 250, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="push-broadcast-list">
                 {volunteers.map(v => {
                   const isChecked = selectedUserIds.includes(v.id);
                   return (
                     <label
                       key={v.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: isMobile ? '12px 14px' : '8px 12px',
-                        minHeight: isMobile ? 56 : undefined,
-                        background: isChecked ? '#e7f1ff' : '#fff',
-                        border: `1px solid ${isChecked ? '#b6d4fe' : '#dee2e6'}`,
-                        borderRadius: 8,
-                        cursor: 'pointer',
-                        fontSize: 13
-                      }}
+                      className={`push-broadcast-list-item push-broadcast-list-item-selectable ${isMobile ? 'push-broadcast-list-item-mobile' : ''} ${isChecked ? 'push-broadcast-list-item-checked' : ''}`}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div className="push-broadcast-list-item-content">
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => handleToggleUser(v.id)}
-                          style={{ width: isMobile ? 22 : 16, height: isMobile ? 22 : 16, cursor: 'pointer' }}
+                          className={`push-broadcast-checkbox ${isMobile ? 'push-broadcast-checkbox-mobile' : ''}`}
                         />
                         <div>
-                          <strong style={{ color: '#212529' }}>{v.name}</strong>
-                          {v.email && <span style={{ color: '#6c757d', marginLeft: 6 }}>({v.email})</span>}
+                          <strong className="push-broadcast-item-name">{v.name}</strong>
+                          {v.email && <span className="push-broadcast-item-email">({v.email})</span>}
                         </div>
                       </div>
-                      {v.role && <span style={{ fontSize: 11, background: '#e9ecef', padding: '2px 6px', borderRadius: 6, color: '#495057', fontWeight: 600 }}>{v.role}</span>}
+                      {v.role && <span className="push-broadcast-role-badge">{v.role}</span>}
                     </label>
                   );
                 })}
@@ -376,62 +332,54 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
         )}
 
         {/* Nachrichten-Inhalt */}
-        <div style={{ marginBottom: 24 }}>
-          <label style={{ display: 'block', fontWeight: '600', marginBottom: 10, color: '#333' }}>2. Nachricht verfassen:</label>
+        <div className="push-broadcast-section">
+          <label className="push-broadcast-section-label">2. Nachricht verfassen:</label>
           
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 'bold', color: '#495057', marginBottom: 4 }}>Titel (Betreff):</label>
+          <div className="push-broadcast-input-group">
+            <label className="push-broadcast-input-label">Titel (Betreff):</label>
             <input
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder="z.B. Aufbau verschiebt sich um 30 Min"
-              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+              style={inputStyle}
+              className="push-broadcast-input"
             />
           </div>
 
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 'bold', color: '#495057', marginBottom: 4 }}>Nachrichtentext:</label>
+          <div className="push-broadcast-input-group">
+            <label className="push-broadcast-input-label">Nachrichtentext:</label>
             <textarea
               value={body}
               onChange={e => setBody(e.target.value)}
               placeholder="Gib hier deine Nachricht an die Helfer ein..."
               rows={isMobile ? 6 : 4}
-              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical', fontSize: isMobile ? 16 : 14 }}
+              style={inputStyle}
+              className={`push-broadcast-textarea ${isMobile ? 'push-broadcast-textarea-mobile' : ''}`}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 'bold', color: '#495057', marginBottom: 4 }}>Ziel-URL beim Klick (optional):</label>
+            <label className="push-broadcast-input-label">Ziel-URL beim Klick (optional):</label>
             <input
               type="text"
               value={url}
               onChange={e => setUrl(e.target.value)}
               placeholder="/"
-              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+              style={inputStyle}
+              className="push-broadcast-input"
             />
-            <span style={{ fontSize: 11, color: '#6c757d', marginTop: 2, display: 'block' }}>Wohin soll der Helfer in der PWA geleitet werden, wenn er die Benachrichtigung anklickt?</span>
+            <span className="push-broadcast-input-hint">Wohin soll der Helfer in der PWA geleitet werden, wenn er die Benachrichtigung anklickt?</span>
           </div>
         </div>
 
         {/* Absenden Button */}
-        <div style={{ borderTop: '1px solid #e9ecef', paddingTop: 20, textAlign: isMobile ? 'center' : 'right' }}>
+        <div className={`push-broadcast-footer ${isMobile ? 'push-broadcast-footer-mobile' : 'push-broadcast-footer-desktop'}`}>
           <button
             onClick={handleSend}
             disabled={sending || !title.trim() || !body.trim()}
-            style={{
-              ...btnStyle,
-              background: sending || !title.trim() || !body.trim() ? '#6c757d' : '#0d6efd',
-              padding: isMobile ? '16px 24px' : '12px 24px',
-              minHeight: 56,
-              fontSize: isMobile ? 16 : 15,
-              width: isMobile ? '100%' : undefined,
-              cursor: sending || !title.trim() || !body.trim() ? 'not-allowed' : 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8
-            }}
+            style={btnStyle}
+            className={`push-broadcast-submit-btn ${isMobile ? 'push-broadcast-submit-btn-mobile' : ''} ${sending || !title.trim() || !body.trim() ? 'push-broadcast-submit-btn-disabled' : ''}`}
           >
             <span>{sending ? '⏳' : '🚀'}</span>
             <span>{sending ? 'Versende Push-Nachrichten...' : 'Push-Nachricht jetzt absenden'}</span>

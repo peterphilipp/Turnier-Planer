@@ -8,7 +8,7 @@ function hasAdminAccess(role: Role): boolean {
   return role === 'ADMIN' || role === 'ORGANIZER';
 }
 
-interface VolunteerData {
+export interface VolunteerData {
   id: number;
   name: string;
   email: string | null;
@@ -24,6 +24,7 @@ interface UserContextType {
   volunteer: VolunteerData | null;
   token: string;
   isLoggedIn: boolean;
+  isInitializing: boolean; // True solange localStorage noch gelesen wird
   role: Role;
   isAdmin: boolean;
   isOrganizer: boolean;
@@ -44,6 +45,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [volunteer, setVolunteer] = useState<VolunteerData | null>(null);
   const [token, setToken] = useState<string>('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   // Initialisierung aus localStorage (nur beim Mounten)
   useEffect(() => {
@@ -62,6 +64,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         }
       }
     }
+    // Initialisierung abgeschlossen
+    setIsInitializing(false);
   }, []);
 
   const login = useCallback((newToken: string, newVolunteer: VolunteerData) => {
@@ -87,7 +91,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const hasAdminAccessRole = hasAdminAccess(role);
 
   return (
-    <UserContext.Provider value={{ volunteer, token, isLoggedIn, role, isAdmin, isOrganizer, hasAdminAccess: hasAdminAccessRole, login, logout }}>
+    <UserContext.Provider value={{ volunteer, token, isLoggedIn, isInitializing, role, isAdmin, isOrganizer, hasAdminAccess: hasAdminAccessRole, login, logout }}>
       {children}
     </UserContext.Provider>
   );

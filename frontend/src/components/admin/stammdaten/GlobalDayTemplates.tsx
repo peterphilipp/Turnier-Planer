@@ -176,9 +176,9 @@ export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { admin
   };
 
   return (
-    <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-      <h3 style={{ margin: '0 0 4px 0', color: '#212557' }}>📅 Tag-Vorlagen</h3>
-      <p style={{ color: '#666', fontSize: 13, marginTop: 0 }}>
+    <div className="day-templates-container">
+      <h3 className="day-templates-title">📅 Tag-Vorlagen</h3>
+      <p className="day-templates-subtitle">
         Vorlagen für Tag-Typen (z. B. Aufbautag, Turniertag). Jede Vorlage definiert Arbeitsbereiche mit ihren Zeiten. Ziehe Balken im Chart zum Ändern der Zeiten.
       </p>
 

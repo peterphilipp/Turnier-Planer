@@ -426,7 +426,7 @@ router.get('/export', async (req, res, next) => {
       include: {
         children: true,
         shifts: {
-          include: { shift: { include: { workArea: true, globalTimeSlot: true, tournament: true } } }
+          include: { shift: { include: { workArea: true, daySlot: true, tournament: true } } }
         },
         foodDonations: {
           include: { foodItem: true }
@@ -448,14 +448,14 @@ router.get('/export', async (req, res, next) => {
         role: user.role,
         children: user.children.map(c => ({ childName: c.childName, childYear: c.childYear })),
       },
-      shifts: (user as any).shifts.map((s: any) => ({
+      shifts: ((user as unknown as Record<string, unknown>).shifts as Array<Record<string, any>>)?.map(s => ({
         date: s.date,
         slot: s.slot,
         role: s.role,
         arbeitsbereich: s.shift?.workArea?.name ?? null,
-        zeitslot: s.shift?.globalTimeSlot ? `${s.shift.globalTimeSlot.name} (${s.shift.globalTimeSlot.startTime}-${s.shift.globalTimeSlot.endTime})` : null
-      })),
-      donations: (user as any).foodDonations.map((d: any) => ({
+        zeitslot: s.shift?.daySlot ? `${s.shift.daySlot.name} (${s.shift.daySlot.startTime}-${s.shift.daySlot.endTime})` : null
+      })) || [],
+      donations: ((user as unknown as Record<string, unknown>).foodDonations as Array<Record<string, any>>)?.map(d => ({
         foodItem: d.foodItem?.name,
         quantity: d.quantity,
         note: d.note,
@@ -551,7 +551,7 @@ router.patch('/profile', validate(profileSchema), async (req, res, next) => {
     const current = await prisma.user.findUnique({ where: { id: decoded.userId } });
     if (!current) return res.status(404).json({ error: 'Nicht gefunden' });
 
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (phone !== undefined) updateData.phone = phone;
 
     // --- Name: normalisieren + Eindeutigkeit erzwingen ---
@@ -608,9 +608,9 @@ router.patch('/profile', validate(profileSchema), async (req, res, next) => {
       await prisma.userChild.deleteMany({ where: { userId: decoded.userId } });
       // Neue Kinder erstellen
       updateData.children = {
-        create: children.map((c: { childName: string; childYear: number }) => ({
+        create: children.map((c: { childName: string; childYear: number | string }) => ({
           childName: c.childName,
-          childYear: parseInt(c.childYear as any)
+          childYear: parseInt(String(c.childYear))
         }))
       };
     }
@@ -671,7 +671,7 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res,
     const pin = email ? null : await createPinPair();
 
     const hashed = await bcrypt.hash(password, 10);
-    const createData: any = {
+    let createData: import('@prisma/client').Prisma.UserUncheckedCreateInput = {
       name,
       email: email || null,
       phone: phone || null,
@@ -691,16 +691,16 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res,
     // Kinder erstellen
     if (children && Array.isArray(children) && children.length > 0) {
       createData.children = {
-        create: children.map((c: { childName: string; childYear: number }) => ({
+        create: children.map((c: { childName: string; childYear: number | string }) => ({
           childName: c.childName,
-          childYear: parseInt(c.childYear as any)
+          childYear: parseInt(String(c.childYear))
         }))
       };
     }
 
     const ip = getClientIp(req);
     const user = await prisma.user.create({
-      data: createData,
+      data: createData as import('@prisma/client').Prisma.UserCreateInput,
       include: { children: true }
     });
     await ensureTournamentMembership(user.id, activeTournament?.id);

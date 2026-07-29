@@ -54,7 +54,7 @@ export const lookupBarcode = async (req: Request, res: Response) => {
   if (!barcode) return res.status(400).json({ error: 'Barcode erforderlich' });
 
   // 1. Bereits im eigenen Katalog?
-  const existing = await prisma.shoppingCatalogItem.findUnique({ where: { barcode } }) as any;
+  const existing = await prisma.shoppingCatalogItem.findFirst({ where: { barcode } });
   if (existing) {
     // Wenn bereits verknüpft → trotzdem OFF-Hierarchie nachreichen
     const foodCat = await prisma.foodCategory.findUnique({ where: { id: existing.foodCategoryId! } });
@@ -72,11 +72,11 @@ export const lookupBarcode = async (req: Request, res: Response) => {
 
       if (offResponse.ok) {
         const offData = await offResponse.json();
-        const productName = offData?.product?.product_name || offData?.product?.product_name_de;
+        const productName = (offData?.product as Record<string, unknown>)?.["product_name"] || (offData?.product as Record<string, unknown>)?.["product_name_de"];
         if (offData?.status === 1 && productName) {
           // categories_hierarchy aus OFF nutzen
-          const hierarchy = Array.isArray(offData.product.categories_hierarchy)
-            ? offData.product.categories_hierarchy.map((tag: string) => tag.replace(/^en:/, '')).filter(Boolean)
+          const hierarchy = Array.isArray((offData.product as any).categories_hierarchy)
+            ? (offData.product as any).categories_hierarchy.map((tag: string) => tag.replace(/^en:/, '')).filter(Boolean)
             : [];
           const displayHierarchy = hierarchy.slice(0, 5);
 
@@ -100,8 +100,8 @@ export const lookupBarcode = async (req: Request, res: Response) => {
 
           offProduct = {
             name: String(productName).trim().slice(0, 150),
-            category: typeof offData.product.categories === 'string'
-              ? offData.product.categories.split(',')[0]?.trim().slice(0, 100) || null
+            category: typeof (offData.product as any).categories === 'string'
+              ? (offData.product as any).categories.split(',')[0]?.trim().slice(0, 100) || null
               : null,
             hierarchy: displayHierarchy,
             hierarchyLabelsDe: hierarchyLabels
@@ -116,7 +116,7 @@ export const lookupBarcode = async (req: Request, res: Response) => {
   }
 
   // 2. Open Food Facts abfragen (neuer Barcode)
-  let offData: any;
+  let offData: Record<string, unknown> = {};
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -131,7 +131,7 @@ export const lookupBarcode = async (req: Request, res: Response) => {
     }
 
     offData = await offResponse.json();
-    const productName = offData?.product?.product_name || offData?.product?.product_name_de;
+    const productName = (offData?.product as Record<string, unknown>)?.["product_name"] || (offData?.product as Record<string, unknown>)?.["product_name_de"];
     if (offData?.status !== 1 || !productName) {
       return res.status(404).json({ error: 'Kein Produkt gefunden' });
     }
@@ -140,20 +140,20 @@ export const lookupBarcode = async (req: Request, res: Response) => {
     return res.status(404).json({ error: 'Kein Produkt gefunden' });
   }
 
-  const productName = String(offData?.product?.product_name || offData?.product?.product_name_de || '').trim().slice(0, 150);
+  const productName = String((offData?.product as Record<string, unknown>)?.["product_name"] || (offData?.product as Record<string, unknown>)?.["product_name_de"] || '').trim().slice(0, 150);
 
   // OFF-Kategorie extrahieren (für Anzeige als Fallback)
   let offCategory: string | null = null;
-  if (typeof offData.product.categories === 'string') {
-    offCategory = offData.product.categories.split(',')[0]?.trim().slice(0, 100) || null;
+  if (typeof (offData.product as any).categories === 'string') {
+    offCategory = (offData.product as any).categories.split(',')[0]?.trim().slice(0, 100) || null;
   }
 
   // categories_hierarchy aus OFF nutzen für generalisierte Kategorie:
   // Hierarchie-Tiefe 3-4 ist meist die richtige Abstraktionsebene.
   // Beispiel: [snacks, sweet-snacks, cocoa-and-its-products, chocolates, milk-chocolates]
   // → Index 3 "chocolates" = "Schokolade" (nicht "Milchschokolade mit Haselnüssen")
-  const hierarchy = Array.isArray(offData.product.categories_hierarchy)
-    ? offData.product.categories_hierarchy
+  const hierarchy = Array.isArray((offData.product as any).categories_hierarchy)
+    ? (offData.product as any).categories_hierarchy
         .map((tag: string) => tag.replace(/^en:/, ''))
         .filter(Boolean)
     : [];
@@ -260,34 +260,25 @@ export const lookupBarcode = async (req: Request, res: Response) => {
     }
   }
 
-  // 4. Katalog-Eintrag anlegen oder updaten (mit Mapping-Vorschlag)
+  // 4. Katalog-Eintrag anlegen (mit Mapping-Vorschlag)
   const foodCategoryId = matchedFoodCategoryId ?? (bestMatch ? bestMatch.categoryId : null);
-  let created: any;
-  if (existing) {
-    // Bestehenden Eintrag mit neuem Mapping updaten
-    created = await prisma.shoppingCatalogItem.update({
-      where: { id: existing.id },
-      data: { foodCategoryId, category: offCategory || existing.category },
-      include: { foodCategory: true }
-    });
-  } else {
-    // Neuen Eintrag anlegen
-    created = await prisma.shoppingCatalogItem.create({
-      data: {
-        name: productName,
-        category: offCategory,
-        barcode,
-        unit: 'Stk',
-        foodCategoryId
-      },
-      include: { foodCategory: true }
-    });
-  }
+  
+  // Neuen Eintrag anlegen
+  const created = await prisma.shoppingCatalogItem.create({
+    data: {
+      name: productName,
+      category: offCategory,
+      barcode,
+      unit: 'Stk',
+      foodCategoryId
+    },
+    include: { foodCategory: true }
+  });
 
   // Typ-Safe: created.foodCategory kann null sein (SetNull relation)
-  const foodCategory = (created as any).foodCategory || null;
+  const foodCategory = created.foodCategory || null;
 
-  return res.status(existing ? 200 : 201).json({
+  return res.status(201).json({
     ...created,
     matchedFoodItem: bestMatch || null,
     matchedFoodCategory: foodCategory,
@@ -307,11 +298,11 @@ export const createCatalogItem = async (req: Request, res: Response) => {
       data: { name, category: category || null, unit: unit || 'Stk', barcode: barcode || null }
     });
     res.status(201).json(created);
-  } catch (e: any) {
-    if (e.code === 'P2002') {
+  } catch (e: unknown) {
+    if ((e as any).code === 'P2002') {
       return res.status(409).json({ error: 'Ein Artikel mit diesem Barcode existiert bereits' });
     }
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: (e as Error).message });
   }
 };
 
@@ -341,15 +332,16 @@ export const addShoppingListItem = async (req: Request, res: Response) => {
       include: { catalogItem: true }
     });
     res.status(201).json(created);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? (e as Error).message : 'Fehler beim Erstellen des Artikels';
+    return res.status(400).json({ error: message });
   }
 };
 
 export const updateShoppingListItem = async (req: Request, res: Response) => {
   const id = parseInt(req.params.id as string, 10);
   const { plannedQuantity, purchasedQuantity, note } = req.body;
-  const data: any = {};
+  const data: Record<string, unknown> = {};
   if (plannedQuantity !== undefined) data.plannedQuantity = plannedQuantity;
   if (purchasedQuantity !== undefined) data.purchasedQuantity = purchasedQuantity;
   if (note !== undefined) data.note = note;
@@ -357,7 +349,7 @@ export const updateShoppingListItem = async (req: Request, res: Response) => {
   try {
     const updated = await prisma.shoppingListItem.update({ where: { id }, data, include: { catalogItem: true } });
     res.json(updated);
-  } catch (e: any) {
+  } catch (e: unknown) {
     res.status(404).json({ error: 'Eintrag nicht gefunden' });
   }
 };
@@ -405,11 +397,11 @@ export const linkFoodCategory = async (req: Request, res: Response) => {
       include: { foodCategory: true }
     });
     res.json(updated);
-  } catch (e: any) {
-    if (e.code === 'P2025') {
+  } catch (e: unknown) {
+    if ((e as any).code === 'P2025') {
       return res.status(404).json({ error: 'Artikel nicht gefunden' });
     }
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: (e as Error).message });
   }
 };
 

@@ -25,6 +25,6 @@ export const getHealth = async (req: Request, res: Response) => {
       sha: backendSha
     });
   } catch (err) {
-    return res.status(503).json({ status: 'ERR', db: 'disconnected', detail: (err as any).message });
+    return res.status(503).json({ status: 'ERR', db: 'disconnected', detail: (err as Error).message });
   }
 };

@@ -80,7 +80,7 @@ export const createTimeSlot = async (req: Request, res: Response) => {
 export const updateTimeSlot = async (req: Request, res: Response) => {
   // Nur erlaubte Felder übernehmen (kein Mass-Assignment über rohen req.body)
   const { date, startTime, endTime, label, order, yearGroupId } = req.body;
-  const data: any = {};
+  const data: Record<string, unknown> = {};
   if (date !== undefined) data.date = new Date(date);
   if (startTime !== undefined) data.startTime = startTime;
   if (endTime !== undefined) data.endTime = endTime;

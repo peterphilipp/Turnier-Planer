@@ -49,7 +49,14 @@ export async function subscribeToPushNotifications() {
   }
 
   try {
-    const registration = await navigator.serviceWorker.ready;
+    // 5-second timeout to prevent blocking indefinitely if Service Worker is not active/ready
+    const swTimeout = new Promise<ServiceWorkerRegistration>((_, reject) =>
+      setTimeout(() => reject(new Error('Service Worker ready timeout')), 5000)
+    );
+    const registration = await Promise.race([
+      navigator.serviceWorker.ready,
+      swTimeout
+    ]);
     const { publicKey } = await getVapidPublicKey();
     if (!publicKey) throw new Error('No VAPID public key available');
 

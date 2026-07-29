@@ -88,7 +88,7 @@ export const deleteVolunteerShift = async (req: Request, res: Response) => {
 
 export const getFeedback = async (req: Request, res: Response) => {
   const { tournamentId } = req.query;
-  const where: any = {};
+  const where: Record<string, unknown> = {};
   if (tournamentId) {
     where.tournamentId = parseInt(tournamentId as string, 10);
   }

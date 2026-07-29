@@ -85,16 +85,16 @@ export default function WorkAreaCategories({ adminPrimary = '#6c757d' }: { admin
 
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-      <h3 style={{ margin: '0 0 4px 0', color: '#212557' }}>🏷️ Arbeitsbereich-Kategorien</h3>
-      <p style={{ color: '#666', fontSize: 13, marginTop: 0 }}>
+      <h3 className="wa-categories-style-1">🏷️ Arbeitsbereich-Kategorien</h3>
+      <p className="wa-categories-style-2">
         Verwalte Kategorien (z.B. Aufbau, Spielbetrieb), die Arbeitsbereichen zugeordnet werden können. 
         Tagesvorlagen generieren ihren Namen vollautomatisch aus diesen Kategorien.
       </p>
 
       {/* Neue Kategorie */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '16px 0' }}>
-        <label style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>📝 Name</label>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div className="wa-categories-style-3">
+        <label className="wa-categories-style-4">📝 Name</label>
+        <div className="wa-categories-style-5">
           <input 
             style={{ ...inputStyle, flex: 1, minWidth: 200 }} 
             placeholder="z. B. Siegerehrung" 
@@ -102,13 +102,13 @@ export default function WorkAreaCategories({ adminPrimary = '#6c757d' }: { admin
             onChange={e => setNewName(e.target.value)} 
             onKeyDown={e => e.key === 'Enter' && addCategory()} 
           />
-          <button style={{ ...btnStyle, background: adminPrimary, color: '#fff', minHeight: 44 }} onClick={addCategory}><span style={{ fontSize: 18, fontWeight: 'bold', lineHeight: 1 }}>+</span> Hinzufügen</button>
+          <button style={{ ...btnStyle, background: adminPrimary, color: '#fff', minHeight: 44 }} onClick={addCategory}><span className="wa-categories-style-6">+</span> Hinzufügen</button>
         </div>
       </div>
 
-      {categories.length === 0 && <p style={{ color: '#888' }}>Keine Kategorien vorhanden.</p>}
+      {categories.length === 0 && <p className="wa-categories-style-7">Keine Kategorien vorhanden.</p>}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div className="wa-categories-style-8">
         {categories.map((c, idx) => (
           <div 
             key={c.id} 
@@ -123,7 +123,7 @@ export default function WorkAreaCategories({ adminPrimary = '#6c757d' }: { admin
               opacity: c.isObsolete ? 0.6 : 1, cursor: 'grab' 
             }}
           >
-            <div style={{ cursor: 'grab', color: '#ccc', padding: '0 4px' }}>⋮⋮</div>
+            <div className="wa-categories-style-9">⋮⋮</div>
             
             {/* onBlur statt onChange: onChange feuert bei einem Color-Picker pro
                 Farbschritt und würde dutzende PATCH-Requests auslösen. Der key
@@ -133,7 +133,7 @@ export default function WorkAreaCategories({ adminPrimary = '#6c757d' }: { admin
               key={`color-${c.id}-${c.color}`}
               defaultValue={c.color}
               onBlur={e => updateColor(c.id, e.target.value)}
-              style={{ width: 32, height: 32, padding: 0, border: 'none', borderRadius: 4, cursor: 'pointer' }}
+              className="wa-categories-style-10"
               title="Farbe ändern"
             />
 
@@ -146,12 +146,12 @@ export default function WorkAreaCategories({ adminPrimary = '#6c757d' }: { admin
                 onKeyDown={e => { if (e.key === 'Enter') { updateName(c.id, e.currentTarget.value); setEditingId(null); } }}
               />
             ) : (
-              <strong style={{ flex: 1, fontSize: 15 }}>{c.name}</strong>
+              <strong className="wa-categories-style-11">{c.name}</strong>
             )}
 
             <button onClick={() => setEditingId(editingId === c.id ? null : c.id)} style={{ ...btnStyle, background: editingId === c.id ? '#d1e7dd' : '#fff3cd', color: editingId === c.id ? '#0f5132' : '#856404', padding: '4px 8px', minHeight: 32 }} title={editingId === c.id ? "Fertig" : "Bearbeiten"}>{editingId === c.id ? '✓' : '✏️'}</button>
 
-            <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+            <label className="wa-categories-style-12">
               <input type="checkbox" checked={c.isObsolete} onChange={() => toggleObsolete(c)} />
               obsolet
             </label>

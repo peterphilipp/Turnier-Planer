@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../../api';
 import { Tournament } from '../shared';
+import '../../../styles/components/dashboard.css';
 
 interface FeedbackItem {
   id: number;
@@ -136,39 +137,39 @@ export default function ShiftFeedbackModal({ tournament, onClose }: ShiftFeedbac
   const areas = Object.keys(aggregations);
 
   const getWorkloadBadge = (val: number | null) => {
-    if (val === null) return <span style={{ color: '#888' }}>–</span>;
-    if (val >= 4.0) return <span style={{ background: '#f8d7da', color: '#721c24', padding: '2px 8px', borderRadius: 6, fontWeight: 'bold' }}>{val} / 5 🥵 (Hoch)</span>;
-    if (val <= 1.8) return <span style={{ background: '#d1ecf1', color: '#0c5460', padding: '2px 8px', borderRadius: 6, fontWeight: 'bold' }}>{val} / 5 😴 (Ruhig)</span>;
-    return <span style={{ background: '#d4edda', color: '#155724', padding: '2px 8px', borderRadius: 6, fontWeight: 'bold' }}>{val} / 5 😊 (Optimal)</span>;
+    if (val === null) return <span className="feedback-badge-empty">–</span>;
+    if (val >= 4.0) return <span className="feedback-badge-high">{val} / 5 🥵 (Hoch)</span>;
+    if (val <= 1.8) return <span className="feedback-badge-low">{val} / 5 😴 (Ruhig)</span>;
+    return <span className="feedback-badge-opt">{val} / 5 😊 (Optimal)</span>;
   };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 850, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 30px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+    <div className="feedback-modal-overlay">
+      <div className="feedback-modal-content">
         
         {/* Header */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #e9ecef', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8f9fa' }}>
+        <div className="feedback-modal-header">
           <div>
-            <h2 style={{ margin: 0, fontSize: 20, color: '#0d6efd', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h2 className="feedback-modal-title">
               <span>📊</span> Helfer-Feedback & Learnings ({tournament.name})
             </h2>
-            <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+            <div className="feedback-modal-subtitle">
               Erkenntnisse und Bewertungen nach Kriterien für die zukünftige Schicht- & Turnierplanung.
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#666', padding: 4 }}>✕</button>
+          <button onClick={onClose} className="feedback-modal-close">✕</button>
         </div>
 
         {/* Content */}
-        <div style={{ padding: 24, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {loading && <div style={{ textAlign: 'center', padding: 40, color: '#666', fontSize: 16 }}>Lade Bewertungen...</div>}
-          {error && <div style={{ padding: 16, background: '#f8d7da', color: '#721c24', borderRadius: 10 }}>{error}</div>}
+        <div className="feedback-modal-body">
+          {loading && <div className="feedback-loading">Lade Bewertungen...</div>}
+          {error && <div className="feedback-error">{error}</div>}
 
           {!loading && !error && feedbacks.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 40, background: '#f8f9fa', borderRadius: 12, color: '#666' }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>📝</div>
-              <div style={{ fontWeight: 'bold', fontSize: 16 }}>Noch keine Bewertungen vorhanden</div>
-              <div style={{ fontSize: 14, marginTop: 4 }}>Sobald Helfer nach ihren Schichten eine Bewertung oder Notiz abgeben, erscheinen diese hier.</div>
+            <div className="feedback-empty">
+              <div className="feedback-empty-icon">📝</div>
+              <div className="feedback-empty-title">Noch keine Bewertungen vorhanden</div>
+              <div className="feedback-empty-desc">Sobald Helfer nach ihren Schichten eine Bewertung oder Notiz abgeben, erscheinen diese hier.</div>
             </div>
           )}
 
@@ -176,37 +177,37 @@ export default function ShiftFeedbackModal({ tournament, onClose }: ShiftFeedbac
             <>
               {/* Aggregation Cards per WorkArea */}
               <div>
-                <h3 style={{ margin: '0 0 12px', fontSize: 16, color: '#333' }}>📈 Auswertung nach Arbeitsbereichen</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 14 }}>
+                <h3 className="feedback-section-title">📈 Auswertung nach Arbeitsbereichen</h3>
+                <div className="feedback-grid">
                   {areas.map(area => {
                     const agg = aggregations[area];
                     const isHighLoad = agg.avgWorkload !== null && agg.avgWorkload >= 4.0;
                     return (
-                      <div key={area} style={{ border: '1px solid #e9ecef', borderRadius: 12, padding: 16, background: isHighLoad ? '#fffcfc' : '#fff', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, borderBottom: '1px solid #f1f3f5', paddingBottom: 8 }}>
-                          <span style={{ fontSize: 20 }}>{agg.workAreaIcon}</span>
-                          <strong style={{ fontSize: 15, color: '#333' }}>{agg.workAreaName}</strong>
-                          <span style={{ marginLeft: 'auto', fontSize: 12, background: '#e9ecef', padding: '2px 8px', borderRadius: 10 }}>{agg.totalRatings} Bewertungen</span>
+                      <div key={area} className={`feedback-agg-card ${isHighLoad ? "feedback-agg-card-highload" : "feedback-agg-card-normal"}`}>
+                        <div className="feedback-agg-header">
+                          <span className="feedback-agg-icon">{agg.workAreaIcon}</span>
+                          <strong className="feedback-agg-title">{agg.workAreaName}</strong>
+                          <span className="feedback-agg-count">{agg.totalRatings} Bewertungen</span>
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ color: '#555' }}>Stress / Auslastung:</span>
+                        <div className="feedback-agg-stats">
+                          <div className="feedback-agg-stat-row">
+                            <span className="feedback-agg-stat-label">Stress / Auslastung:</span>
                             {getWorkloadBadge(agg.avgWorkload)}
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ color: '#555' }}>Organisation / Info:</span>
-                            <span style={{ fontWeight: 'bold' }}>{agg.avgOrganization !== null ? `${agg.avgOrganization} / 5 ⭐` : '–'}</span>
+                          <div className="feedback-agg-stat-row">
+                            <span className="feedback-agg-stat-label">Organisation / Info:</span>
+                            <span className="feedback-agg-stat-value">{agg.avgOrganization !== null ? `${agg.avgOrganization} / 5 ⭐` : '–'}</span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ color: '#555' }}>Spaß / Stimmung:</span>
-                            <span style={{ fontWeight: 'bold' }}>{agg.avgFun !== null ? `${agg.avgFun} / 5 🤩` : '–'}</span>
+                          <div className="feedback-agg-stat-row">
+                            <span className="feedback-agg-stat-label">Spaß / Stimmung:</span>
+                            <span className="feedback-agg-stat-value">{agg.avgFun !== null ? `${agg.avgFun} / 5 🤩` : '–'}</span>
                           </div>
                         </div>
 
                         {/* Learning Recommendation */}
                         {isHighLoad && (
-                          <div style={{ marginTop: 12, padding: '8px 10px', background: '#f8d7da', color: '#721c24', borderRadius: 8, fontSize: 12, display: 'flex', gap: 6 }}>
+                          <div className="feedback-learning-alert">
                             <span>💡</span>
                             <span><strong>Learning:</strong> Hohe Arbeitsbelastung. Für künftige Turniere +1 Helfer oder kürzere Schichten prüfen!</span>
                           </div>
@@ -219,33 +220,33 @@ export default function ShiftFeedbackModal({ tournament, onClose }: ShiftFeedbac
 
               {/* Filter for Comments */}
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <h3 style={{ margin: 0, fontSize: 16, color: '#333' }}>💬 Notizen & Verbesserungsvorschläge ({allComments.length})</h3>
+                <div className="feedback-comments-header">
+                  <h3 className="feedback-comments-title">💬 Notizen & Verbesserungsvorschläge ({allComments.length})</h3>
                   {areas.length > 1 && (
-                    <select value={selectedArea} onChange={e => setSelectedArea(e.target.value)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #ccc', fontSize: 13 }}>
+                    <select value={selectedArea} onChange={e => setSelectedArea(e.target.value)} className="feedback-comments-select">
                       <option value="all">Alle Bereiche</option>
                       {areas.map(a => <option key={a} value={a}>{aggregations[a].workAreaIcon} {a}</option>)}
                     </select>
                   )}
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div className="feedback-comments-list">
                   {allComments
                     .filter(c => selectedArea === 'all' || (c.shift?.workArea?.name || c.role) === selectedArea)
                     .map(item => (
-                      <div key={item.id} style={{ padding: 14, background: '#f8f9fa', borderRadius: 10, borderLeft: '4px solid #0d6efd', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#666' }}>
+                      <div key={item.id} className="feedback-comment-card">
+                        <div className="feedback-comment-meta">
                           <div>
-                            <strong style={{ color: '#333', fontSize: 13 }}>{item.shift?.workArea?.icon || '📍'} {item.shift?.workArea?.name || item.role}</strong>
-                            <span style={{ margin: '0 6px' }}>•</span>
+                            <strong className="feedback-comment-area">{item.shift?.workArea?.icon || '📍'} {item.shift?.workArea?.name || item.role}</strong>
+                            <span className="feedback-comment-dot">•</span>
                             <span>{new Date(item.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })} ({item.slot})</span>
                           </div>
-                          <div style={{ fontWeight: '500', color: '#495057' }}>👤 {item.user?.name || 'Helfer'}</div>
+                          <div className="feedback-comment-user">👤 {item.user?.name || 'Helfer'}</div>
                         </div>
-                        <div style={{ fontSize: 14, color: '#212529', fontStyle: 'italic', background: '#fff', padding: '8px 12px', borderRadius: 6, border: '1px solid #e9ecef' }}>
+                        <div className="feedback-comment-text">
                           "{item.ratingComment}"
                         </div>
-                        <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#666' }}>
+                        <div className="feedback-comment-ratings">
                           {item.ratingWorkload != null && <span>Stress: <strong>{item.ratingWorkload}/5</strong></span>}
                           {item.ratingOrganization != null && <span>Orga: <strong>{item.ratingOrganization}/5</strong></span>}
                           {item.ratingFun != null && <span>Spaß: <strong>{item.ratingFun}/5</strong></span>}
@@ -253,7 +254,7 @@ export default function ShiftFeedbackModal({ tournament, onClose }: ShiftFeedbac
                       </div>
                     ))}
                   {allComments.filter(c => selectedArea === 'all' || (c.shift?.workArea?.name || c.role) === selectedArea).length === 0 && (
-                    <div style={{ padding: 20, textAlign: 'center', color: '#888', background: '#f8f9fa', borderRadius: 10 }}>Keine Kommentare in diesem Bereich vorhanden.</div>
+                    <div className="feedback-comments-empty">Keine Kommentare in diesem Bereich vorhanden.</div>
                   )}
                 </div>
               </div>
@@ -262,8 +263,8 @@ export default function ShiftFeedbackModal({ tournament, onClose }: ShiftFeedbac
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '16px 24px', borderTop: '1px solid #e9ecef', display: 'flex', justifyContent: 'flex-end', background: '#f8f9fa' }}>
-          <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: '#0d6efd', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}>Schließen</button>
+        <div className="feedback-modal-footer">
+          <button onClick={onClose} className="feedback-modal-btn">Schließen</button>
         </div>
       </div>
     </div>

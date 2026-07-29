@@ -124,7 +124,7 @@ export const updateShift = async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Endzeit muss nach der Startzeit liegen.' });
   }
 
-  const data: any = {};
+  const data: Record<string, unknown> = {};
   if (startMin !== undefined) data.startMin = startMin === null ? null : Number(startMin);
   if (endMin !== undefined) data.endMin = endMin === null ? null : Number(endMin);
   if (minVolunteers !== undefined) data.minVolunteers = Number(minVolunteers);

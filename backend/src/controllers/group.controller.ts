@@ -13,7 +13,7 @@ export const getGroupsByTournament = async (req: Request, res: Response) => {
   const tournamentId = parseInt(String(req.params.tournamentId as string));
   const yearGroupId = req.query.yearGroupId ? parseInt(String(req.query.yearGroupId as string)) : null;
   
-  const where: any = { tournamentId };
+  const where: Record<string, unknown> = { tournamentId };
   if (yearGroupId) where.yearGroupId = yearGroupId;
   
   const gs = await prisma.group.findMany({
