@@ -604,7 +604,14 @@ export const syncDayWorkAreas = async (req: Request, res: Response) => {
     let created = 0;
     for (const area of areas) {
       await tx.tournamentDayWorkArea.create({
-        data: { tournamentId: day.tournamentId, tournamentDayId: dayId, tournamentWorkAreaId: area.id, active: true, order: area.order }
+        data: { 
+          tournamentId: day.tournamentId, 
+          tournamentDayId: dayId, 
+          tournamentWorkAreaId: area.id, 
+          active: true, 
+          order: area.order,
+          targetHelpers: area.minVolunteers
+        }
       });
       created++;
     }
@@ -652,8 +659,18 @@ export const addDayWorkArea = async (req: Request, res: Response) => {
   const existing = await prisma.tournamentDayWorkArea.findUnique({ where: { tournamentDayId_tournamentWorkAreaId: { tournamentDayId, tournamentWorkAreaId } } });
   if (existing) return res.status(409).json({ error: 'Eintrag existiert bereits' });
 
+  const workArea = await prisma.tournamentWorkArea.findUnique({ where: { id: tournamentWorkAreaId } });
+  if (!workArea) return res.status(404).json({ error: 'Arbeitsbereich nicht gefunden' });
+
   const created = await prisma.tournamentDayWorkArea.create({
-    data: { tournamentId: day.tournamentId, tournamentDayId, tournamentWorkAreaId, active: true, order: order ?? 0 }
+    data: { 
+      tournamentId: day.tournamentId, 
+      tournamentDayId, 
+      tournamentWorkAreaId, 
+      active: true, 
+      order: order ?? workArea.order,
+      targetHelpers: workArea.minVolunteers
+    }
   });
   return res.status(201).json(created);
 };

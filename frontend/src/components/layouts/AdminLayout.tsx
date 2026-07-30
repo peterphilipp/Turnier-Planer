@@ -8,7 +8,7 @@ import { Tournament } from '../admin/shared';
 type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
 
 export default function AdminLayout() {
-  const { isAdmin, isOrganizer, token, isLoggedIn: ctxLoggedIn, logout } = useUser();
+  const { isAdmin, isOrganizer, token, isLoggedIn: ctxLoggedIn, logout, isInitializing } = useUser();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -25,29 +25,6 @@ export default function AdminLayout() {
   useEffect(() => {
     if (token) setAuthToken(token);
   }, [token]);
-
-  // Auth redirect
-  if (!ctxLoggedIn && !token) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (!adminAccess) {
-    return (
-      <div className="admin-core-style-30">
-        <div className="admin-core-style-31">🔒</div>
-        <h2 className="admin-core-style-32">Zugriff verweigert</h2>
-        <p className="admin-core-style-33">
-          Du hast keine Berechtigung für den Admin-Bereich.
-        </p>
-        <button
-          onClick={() => navigate('/')}
-          className="admin-core-style-34"
-        >
-          Zurück
-        </button>
-      </div>
-    );
-  }
 
   // Fetch Tournaments and state
   const [selectedTournamentId, setSelectedTournamentId] = useState<number | null>(null);
@@ -82,6 +59,38 @@ export default function AdminLayout() {
       setSelectedTournamentId(active.id);
     }
   }, [tournaments, selectedTournamentId]);
+
+  // Warten bis Initialisierung abgeschlossen ist (verhindert fälschliche Redirects bei F5 Reloads)
+  if (isInitializing) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f8f9fa', fontSize: 18, color: '#666' }}>
+        🔄 Lade Admin-Bereich...
+      </div>
+    );
+  }
+
+  // Auth redirect
+  if (!ctxLoggedIn && !token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!adminAccess) {
+    return (
+      <div className="admin-core-style-30">
+        <div className="admin-core-style-31">🔒</div>
+        <h2 className="admin-core-style-32">Zugriff verweigert</h2>
+        <p className="admin-core-style-33">
+          Du hast keine Berechtigung für den Admin-Bereich.
+        </p>
+        <button
+          onClick={() => navigate('/')}
+          className="admin-core-style-34"
+        >
+          Zurück
+        </button>
+      </div>
+    );
+  }
 
   if (error) {
     return (

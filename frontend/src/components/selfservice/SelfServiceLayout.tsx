@@ -54,7 +54,6 @@ export default function SelfServiceLayout() {
 
   const [exportLoading, setExportLoading] = useState(false);
   
-  // PWA Update-Erkennung für iOS (manuell)
   const [pwaUpdateAvailable, setPwaUpdateAvailable] = useState(false);
   const [dismissedUpdate, setDismissedUpdate] = useState(false);
 
@@ -62,32 +61,13 @@ export default function SelfServiceLayout() {
     isPasskeySupported().then(setPasskeySupported);
   }, []);
 
-  // PWA Update-Erkennung: Prüft ob eine neue Version verfügbar ist (iOS)
+  // PWA Update-Erkennung via Service Worker
   useEffect(() => {
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches 
-      || (window.navigator as any).standalone === true;
-    if (!isStandalone) return; // Nur in installierter PWA prüfen
-    
-    const checkForUpdate = async () => {
-      try {
-        const storedVersion = localStorage.getItem('pwa-version');
-        const response = await fetch('/manifest.json', { cache: 'no-store' });
-        const manifest = await response.json();
-        const currentVersion = manifest.version || '1.0.0';
-        
-        if (storedVersion && storedVersion !== currentVersion) {
-          setPwaUpdateAvailable(true);
-        }
-        localStorage.setItem('pwa-version', currentVersion);
-      } catch {
-        // Ignorieren
-      }
+    const handleUpdate = () => {
+      setPwaUpdateAvailable(true);
     };
-    
-    checkForUpdate();
-    // Alle 5 Minuten prüfen
-    const interval = setInterval(checkForUpdate, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    window.addEventListener('pwa-update-available', handleUpdate);
+    return () => window.removeEventListener('pwa-update-available', handleUpdate);
   }, []);
 
   const handleExportData = async () => {
@@ -362,7 +342,11 @@ export default function SelfServiceLayout() {
                   <button
                     onClick={() => {
                       setDismissedUpdate(true);
-                      window.location.reload();
+                      if ((window as any).updatePWA) {
+                        (window as any).updatePWA(true);
+                      } else {
+                        window.location.reload();
+                      }
                     }}
                     style={{ width: '100%', padding: '8px 16px', background: '#ffc107', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
                   >

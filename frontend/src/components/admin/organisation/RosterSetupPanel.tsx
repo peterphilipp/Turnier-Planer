@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment } from 'react';
+import { useState, useEffect, useMemo, Fragment, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Tournament, TournamentWorkArea, TournamentDay, GlobalDayTemplate, Shift,
@@ -112,21 +112,30 @@ export default function RosterSetupPanel({
 
   const daysWithTypes = useMemo(() => days.filter(d => d.sourceTemplateId !== null), [days]);
 
-  // Load day work areas details for expanded days
+  const fetchedDaysRef = useRef<Set<number>>(new Set());
+
+  // Reset cache on tournament change
+  useEffect(() => {
+    setDayWorkAreasCache({});
+    fetchedDaysRef.current.clear();
+  }, [tid]);
+
+  // Load day work areas details for all days with templates (active days)
   useEffect(() => {
     if (!daysWithTypes || daysWithTypes.length === 0) return;
-    const activeDayIds = Array.from(expandedDays)
-      .filter(k => k.startsWith('day-'))
-      .map(k => Number(k.replace('day-', '')))
-      .filter(id => !Number.isNaN(id));
 
-    activeDayIds.forEach(dayId => {
-      if (dayWorkAreasCache[dayId]) return;
-      getDayWorkAreas(dayId).then(data => {
-        setDayWorkAreasCache(prev => ({ ...prev, [dayId]: data }));
-      }).catch(() => {});
+    daysWithTypes.forEach(day => {
+      if (fetchedDaysRef.current.has(day.id)) return;
+      fetchedDaysRef.current.add(day.id);
+
+      getDayWorkAreas(day.id).then(data => {
+        setDayWorkAreasCache(prev => ({ ...prev, [day.id]: data }));
+      }).catch(() => {
+        // Remove from ref on failure to allow retry
+        fetchedDaysRef.current.delete(day.id);
+      });
     });
-  }, [expandedDays, daysWithTypes, dayWorkAreasCache]);
+  }, [daysWithTypes]);
 
   // Synchronize target helpers if missing for day work areas
   const dayWorkAreasSynced = useMemo(() => {
@@ -136,23 +145,29 @@ export default function RosterSetupPanel({
   const uniqueAreas = useMemo(() => {
     if (!dayWorkAreasSynced) return [];
     const set = new Set<string>();
-    const list: { id: number; name: string; icon: string }[] = [];
+    const list: { id: number; name: string; icon: string; order: number }[] = [];
     daysWithTypes.forEach(day => {
       const dayData = dayWorkAreasCache[day.id];
       const activeAreas = (dayData?.active || []).filter(a => a.active);
       activeAreas.forEach(a => {
-        const key = `${a.arbeitsbereichId || a.tournamentWorkAreaId}`;
+        const key = `${a.tournamentWorkAreaId}`;
         if (!set.has(key)) {
           set.add(key);
           list.push({
-            id: a.arbeitsbereichId || a.tournamentWorkAreaId,
-            name: a.name || '?',
-            icon: a.icon || '📍'
+            id: a.tournamentWorkAreaId,
+            name: a.workArea?.name || '?',
+            icon: a.workArea?.icon || '📍',
+            order: a.workArea?.order ?? 0
           });
         }
       });
     });
-    return list.sort((a, b) => a.name.localeCompare(b.name));
+    return list.sort((a, b) => {
+      if (a.order !== b.order) {
+        return a.order - b.order;
+      }
+      return a.name.localeCompare(b.name);
+    });
   }, [daysWithTypes, dayWorkAreasCache, dayWorkAreasSynced]);
 
   const handleDayTypeChange = async (dateStr: string, templateIdStr: string) => {
@@ -442,7 +457,7 @@ export default function RosterSetupPanel({
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
                                       {(data.active || []).map((dwa: any) => (
                                         <div key={dwa.id} className="admin-core-style-145">
-                                          <span className="admin-core-style-146">{dwa.icon || '📍'} {dwa.name}</span>
+                                          <span className="admin-core-style-146">{dwa.workArea?.icon || '📍'} {dwa.workArea?.name}</span>
                                           <div className="admin-core-style-147">
                                             <input
                                               type="number"
@@ -568,7 +583,7 @@ export default function RosterSetupPanel({
                         const dayData = dayWorkAreasCache[day.id];
                         const activeAreas = (dayData?.active || []).filter(a => a.active);
                         activeAreas.forEach(a => {
-                          const key = `${a.icon || '📍'} ${a.name}`;
+                          const key = `${a.workArea?.icon || '📍'} ${a.workArea?.name || '?'}`;
                           if (!matrix[key]) matrix[key] = {};
                           matrix[key][day.id] = a.targetHelpers ?? 0;
                         });
@@ -585,22 +600,59 @@ export default function RosterSetupPanel({
                       }
 
                       return uniqueAreas.map(area => {
-                        const key = `${area.icon} ${area.name}`;
-                        const rowData = matrix[key] || {};
                         return (
-                          <tr key={key} className="admin-core-style-172">
+                          <tr key={area.id} className="admin-core-style-172">
                             <td className="admin-core-style-173">
                               {area.icon} {area.name}
                             </td>
                             {daysWithTypes.map(day => {
-                              const val = rowData[day.id] ?? 0;
+                              const dayData = dayWorkAreasCache[day.id];
+                              const dva = (dayData?.active || []).find((x: any) => x.tournamentWorkAreaId === area.id && x.active);
+
+                              if (!dva) {
+                                return (
+                                  <td key={day.id} className="admin-core-style-174" style={{ color: '#ccc' }}>
+                                    —
+                                  </td>
+                                );
+                              }
+
                               return (
-                                <td key={day.id} className="admin-core-style-174">
-                                  {val > 0 ? (
-                                    <span className="admin-core-style-175">{val}</span>
-                                  ) : (
-                                    '—'
-                                  )}
+                                <td key={day.id} className="admin-core-style-174" style={{ padding: '6px 4px' }}>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={dva.targetHelpers || ''}
+                                    onChange={e => {
+                                      const rawVal = e.target.value;
+                                      const val = rawVal === '' ? 0 : (parseInt(rawVal, 10) || 0);
+
+                                      // Optimistisches State-Update (sofortige Reaktion der UI & Summe)
+                                      setDayWorkAreasCache(prev => {
+                                        const next = { ...prev };
+                                        const dayData = next[day.id];
+                                        if (dayData) {
+                                          dayData.active = dayData.active.map((x: any) => x.id === dva.id ? { ...x, targetHelpers: val } : x);
+                                        }
+                                        return next;
+                                      });
+
+                                      // API-Update im Hintergrund
+                                      updateDayWorkAreaTargetHelpers(dva.id, val).catch(err => {
+                                        console.error('Fehler beim Aktualisieren des Helferbedarfs:', err);
+                                      });
+                                    }}
+                                    style={{
+                                      width: 50,
+                                      padding: '4px 6px',
+                                      fontSize: 13,
+                                      textAlign: 'center',
+                                      border: '1px solid #ced4da',
+                                      borderRadius: 6,
+                                      background: (dva.targetHelpers ?? 0) > 0 ? '#e8f0fe' : '#fff',
+                                      fontWeight: (dva.targetHelpers ?? 0) > 0 ? 'bold' : 'normal'
+                                    }}
+                                  />
                                 </td>
                               );
                             })}
@@ -617,7 +669,7 @@ export default function RosterSetupPanel({
                       {daysWithTypes.map(day => {
                         const dayData = dayWorkAreasCache[day.id];
                         const activeAreas = (dayData?.active || []).filter(a => a.active);
-                        const sum = activeAreas.reduce((acc, dwa) => acc + (dwa.targetHelpers ?? 0), 0);
+                        const sum = activeAreas.reduce((acc, dwa) => acc + Number(dwa.targetHelpers ?? 0), 0);
                         return (
                           <td key={day.id} className="admin-core-style-178">
                             {sum > 0 ? sum : '—'}

@@ -283,21 +283,32 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
       {slots.length === 0 ? (
         <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>Noch keine Verpflegungs-Ziele angelegt.</div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ borderCollapse: 'collapse', fontSize: 12 }}>
+        <div style={{ overflowX: 'auto', paddingBottom: 15 }}>
+          <table style={{ borderCollapse: 'collapse', fontSize: 13, width: '100%', minWidth: 500 }}>
             <thead>
               <tr>
-                <th style={{ position: 'sticky', left: 0, background: '#fff', textAlign: 'left', padding: '4px 10px 8px 0', borderBottom: '2px solid #e9ecef', verticalAlign: 'bottom' }}>Jahrgang</th>
+                <th style={{ position: 'sticky', left: 0, background: '#fff', textAlign: 'left', padding: '12px 16px 12px 0', borderBottom: '2px solid #dee2e6', verticalAlign: 'bottom', zIndex: 1 }}>Jahrgang</th>
                 {cols.map(col => (
-                  <th key={col.id} style={{ height: 120, minWidth: 34, maxWidth: 34, padding: 0, borderBottom: '2px solid #e9ecef', verticalAlign: 'bottom', overflow: 'visible' }}>
-                    <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-end', height: '100%' }}>
-                      <div style={{ transform: 'rotate(-45deg)', transformOrigin: 'bottom left', whiteSpace: 'nowrap', fontWeight: 600, color: '#495057', paddingBottom: 4 }}>
+                  <th key={col.id} style={{ height: 140, minWidth: 80, padding: 0, borderBottom: '2px solid #dee2e6', verticalAlign: 'bottom', overflow: 'visible', position: 'relative' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-end', height: '100%', overflow: 'visible' }}>
+                      <div style={{ 
+                        transform: 'rotate(-60deg)', 
+                        transformOrigin: 'bottom left', 
+                        whiteSpace: 'nowrap', 
+                        fontWeight: 600, 
+                        color: '#495057',
+                        position: 'absolute',
+                        bottom: 8,
+                        left: 20,
+                        fontSize: 12,
+                        paddingBottom: 4
+                      }}>
                         {col.icon} {col.name}
                       </div>
                     </div>
                   </th>
                 ))}
-                <th style={{ minWidth: 90, padding: '4px 8px', borderBottom: '2px solid #e9ecef', borderLeft: '2px solid #e9ecef', verticalAlign: 'bottom', textAlign: 'center', fontWeight: 700, color: '#495057' }}>Gesamt</th>
+                <th style={{ minWidth: 100, padding: '12px 16px', borderBottom: '2px solid #dee2e6', borderLeft: '2px solid #dee2e6', verticalAlign: 'bottom', textAlign: 'center', fontWeight: 700, color: '#495057' }}>Gesamt</th>
               </tr>
             </thead>
             <tbody>
@@ -306,21 +317,31 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
                 const progress = total.target > 0 ? Math.min(100, (total.collected / total.target) * 100) : 0;
                 return (
                 <tr key={row.id}>
-                  <td style={{ position: 'sticky', left: 0, background: '#fff', fontWeight: 600, padding: '4px 10px 4px 0', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' }}>{row.name}</td>
+                  <td style={{ position: 'sticky', left: 0, background: '#fff', fontWeight: 600, padding: '12px 16px 12px 0', borderBottom: '1px solid #dee2e6', whiteSpace: 'nowrap', zIndex: 1 }}>{row.name}</td>
                   {cols.map(col => {
                     const slot = slotAt(row.id, col.id);
-                    if (!slot) return <td key={col.id} style={{ textAlign: 'center', color: '#dee2e6', borderBottom: '1px solid #f0f0f0' }}>–</td>;
+                    if (!slot) return <td key={col.id} style={{ textAlign: 'center', color: '#dee2e6', borderBottom: '1px solid #dee2e6', borderRight: '1px solid #f0f0f0', padding: '8px 4px' }}>–</td>;
                     const isDone = slot.collected >= slot.targetQuantity;
                     const hasProgress = slot.collected > 0;
                     return (
-                      <td key={col.id} style={{ textAlign: 'center', borderBottom: '1px solid #f0f0f0', padding: 2 }}>
+                      <td key={col.id} style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6', borderRight: '1px solid #f0f0f0', padding: '8px 4px' }}>
                         <button
                           onClick={() => setSelectedSlotDetail(slot)}
                           title={`${row.name} – ${col.icon} ${col.name}: ${slot.collected}/${slot.targetQuantity} ${col.unit}`}
                           style={{
-                            width: 30, height: 26, border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 11,
-                            background: isDone ? '#d4edda' : hasProgress ? '#fff3cd' : '#f8d7da',
-                            color: isDone ? '#155724' : hasProgress ? '#856404' : '#721c24'
+                            width: '100%', maxWidth: 52, height: 28, border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 11,
+                            background: isDone ? '#d1e7dd' : hasProgress ? '#fff3cd' : '#f8d7da',
+                            color: isDone ? '#0f5132' : hasProgress ? '#664d03' : '#842029',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                            transition: 'transform 0.1s, box-shadow 0.1s'
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                            e.currentTarget.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.transform = 'none';
+                            e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
                           }}
                         >
                           {slot.collected}/{slot.targetQuantity}
@@ -328,11 +349,11 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
                       </td>
                     );
                   })}
-                  <td style={{ borderBottom: '1px solid #f0f0f0', borderLeft: '2px solid #e9ecef', padding: '4px 8px', textAlign: 'center' }}>
-                    <div style={{ fontWeight: 700, fontSize: 12, color: progress >= 100 ? '#155724' : progress > 0 ? '#856404' : '#721c24' }}>
+                  <td style={{ borderBottom: '1px solid #dee2e6', borderLeft: '2px solid #dee2e6', padding: '12px 16px', textAlign: 'center', background: '#f8f9fa' }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: progress >= 100 ? '#198754' : progress > 0 ? '#664d03' : '#842029' }}>
                       {total.collected}/{total.target}
                     </div>
-                    <div style={{ background: '#e9ecef', borderRadius: 4, height: 6, overflow: 'hidden', marginTop: 3 }}>
+                    <div style={{ background: '#e9ecef', borderRadius: 4, height: 6, overflow: 'hidden', marginTop: 5, width: 80, marginLeft: 'auto', marginRight: 'auto' }}>
                       <div style={{ width: `${progress}%`, height: '100%', background: progress >= 100 ? '#198754' : '#ffc107', borderRadius: 4 }} />
                     </div>
                   </td>

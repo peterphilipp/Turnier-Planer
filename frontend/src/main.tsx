@@ -15,8 +15,12 @@ import './styles/components/admin-data.css'
 import App from './App'
 
 if ('serviceWorker' in navigator) {
-  registerSW({
+  const updateSW = registerSW({
     immediate: true,
+    onNeedRefresh() {
+      // Send custom event to notify layouts that an update is available
+      window.dispatchEvent(new CustomEvent('pwa-update-available'));
+    },
     onRegisteredSW(_swUrl, registration) {
       if (!registration) return
       // Die App bleibt am Turniertag oft stundenlang in einem Tab offen
@@ -25,7 +29,8 @@ if ('serviceWorker' in navigator) {
       // Browser zufällig sein eigenes ~24h-Intervall erreicht.
       setInterval(() => { registration.update() }, 30 * 60 * 1000)
     }
-  })
+  });
+  (window as any).updatePWA = updateSW;
 }
 
 const queryClient = new QueryClient({
