@@ -215,9 +215,14 @@ interface ScheduleParams {
 interface ScheduleMatch {
   tournamentId: number;
   yearGroupId: number;
-  stage?: number;
+  stage?: number | null;
   teamAId?: number | null;
   teamBId?: number | null;
+  placeholderA?: string | null;
+  placeholderB?: string | null;
+  bracketId?: number | null;
+  upperBound?: number | null;
+  lowerBound?: number | null;
   phase: string;
   groupId?: number | null;
   label?: string | null;
@@ -372,6 +377,12 @@ async function scheduleAndSaveMatches(
         yearGroupId: match.yearGroupId,
         teamAId: match.teamAId,
         teamBId: match.teamBId,
+        placeholderA: match.placeholderA as string | null | undefined,
+        placeholderB: match.placeholderB as string | null | undefined,
+        bracketId: match.bracketId as number | null | undefined,
+        stage: match.stage as number | null | undefined,
+        upperBound: match.upperBound as number | null | undefined,
+        lowerBound: match.lowerBound as number | null | undefined,
         phase: match.phase,
         groupId: match.groupId,
         label: match.label,
@@ -563,22 +574,31 @@ export const generateKoFromGruppen = async (req: Request, res: Response) => {
     });
     
     let participants = [];
-    for (let i = 0; i < totalKoTeams / 2; i++) {
+    const numMatches = Math.ceil(totalKoTeams / 2);
+    for (let i = 0; i < numMatches; i++) {
       let pA = `TBD ${i * 2 + 1}`;
       let pB = `TBD ${i * 2 + 2}`;
       
-      if (totalKoTeams === 4 && groups.length === 2 && advancingPerGroup === 2) {
-          pA = i === 0 ? `1. ${groups[0].name}` : `1. ${groups[1].name}`;
-          pB = i === 0 ? `2. ${groups[1].name}` : `2. ${groups[0].name}`;
-      } else if (totalKoTeams === 8 && groups.length === 4 && advancingPerGroup === 2) {
-          pA = `1. ${groups[i].name}`;
-          pB = `2. ${groups[(i + 1) % 4].name}`;
-      } else if (totalKoTeams === 8 && groups.length === 2 && advancingPerGroup === 4) {
-          pA = i < 2 ? `${i+1}. ${groups[0].name}` : `${i-1}. ${groups[1].name}`;
-          pB = i < 2 ? `${4-i}. ${groups[1].name}` : `${6-i}. ${groups[0].name}`;
-      } else if (groups.length === 1) {
-          pA = `${i * 2 + 1}. ${groups[0].name}`;
-          pB = `${i * 2 + 2}. ${groups[0].name}`;
+      if (groups.length === 1) {
+        pA = `${i * 2 + 1}. ${groups[0].name}`;
+        pB = `${i * 2 + 2}. ${groups[0].name}`;
+      } else if (advancingPerGroup === 1) {
+        const gA = i * 2;
+        const gB = i * 2 + 1;
+        pA = gA < groups.length ? `1. ${groups[gA].name}` : `TBD ${i * 2 + 1}`;
+        pB = gB < groups.length ? `1. ${groups[gB].name}` : `TBD ${i * 2 + 2}`;
+      } else {
+        const rankIndex = Math.floor(i / groups.length);
+        const groupIndex = i % groups.length;
+        
+        const rankA = rankIndex + 1;
+        const rankB = advancingPerGroup - rankIndex;
+        
+        const groupIndexA = groupIndex;
+        const groupIndexB = (groupIndex + rankA) % groups.length;
+        
+        pA = `${rankA}. ${groups[groupIndexA].name}`;
+        pB = `${rankB}. ${groups[groupIndexB].name}`;
       }
       
       participants.push({ placeholder: pA });
