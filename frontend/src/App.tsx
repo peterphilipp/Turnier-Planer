@@ -51,11 +51,13 @@ export default function App() {
           {/* Self Service (Volunteers) */}
           <Route element={<SelfServiceLayout />}>
             <Route path="/" element={<DashboardView />} />
-            <Route path="/login" element={<LoginView />} />
-            <Route path="/register" element={<RegisterView />} />
-            <Route path="/reset-password" element={<PasswordResetView />} />
             <Route path="/profile" element={<ProfileView />} />
           </Route>
+          
+          {/* Auth Pages (unmittelbar, ohne Layout-Wrapper) */}
+          <Route path="/login" element={<LoginView clubPrimary="#0d6efd" clubSecondary="#6c757d" clubAccent="#198754" clubLogo={null} />} />
+          <Route path="/register" element={<RegisterView clubPrimary="#0d6efd" clubSecondary="#6c757d" clubAccent="#198754" clubLogo={null} />} />
+          <Route path="/reset-password" element={<PasswordResetView clubPrimary="#0d6efd" clubSecondary="#6c757d" clubAccent="#198754" clubLogo={null} />} />
 
           {/* Admin Area */}
           <Route path="/admin" element={<AdminLayout />}>
@@ -151,3 +153,5 @@ function HelferWrapper() {
   if (!ctx.isAdmin) return <Navigate to="/admin" replace />;
   return <Helfer adminPrimary="#6c757d" tournamentId={ctx.selectedTournamentId} />;
 }
+
+

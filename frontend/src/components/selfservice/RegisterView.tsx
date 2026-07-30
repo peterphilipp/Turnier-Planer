@@ -1,16 +1,10 @@
 import { useState } from 'react';
-import { useNavigate, useOutletContext, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useUser } from '../../context/UserContext';
 import { apiPost } from '../../api';
 import { modal } from '../admin/Modal';
 import { inputStyle, btnStyle } from '../admin/shared';
 import { formatPhoneNumber } from '../../utils/phone';
-
-interface LayoutContext {
-  clubPrimary: string;
-  clubSecondary: string;
-  clubAccent: string;
-}
 
 function shadeColor(color: string | undefined, percent: number) {
   if (!color || typeof color !== 'string' || !color.startsWith('#')) {
@@ -31,11 +25,10 @@ function shadeColor(color: string | undefined, percent: number) {
   return '#' + RR + GG + BB;
 }
 
-export default function RegisterView() {
+export default function RegisterView({ clubPrimary: propClubPrimary, clubSecondary: _cs, clubAccent: _ca, clubLogo: _cl }: { clubPrimary?: string; clubSecondary?: string; clubAccent?: string; clubLogo?: string | null }) {
   const { login: contextLogin } = useUser();
   const navigate = useNavigate();
-  const context = useOutletContext<LayoutContext>() || {};
-  const clubPrimary = context.clubPrimary || '#0d6efd';
+  const clubPrimary = propClubPrimary || '#0d6efd';
 
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');

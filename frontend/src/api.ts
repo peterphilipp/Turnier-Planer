@@ -59,8 +59,9 @@ export const apiFetch = async <T = any>(url: string, options?: RequestInit): Pro
     }
 
     let errorMsg = 'Ein Fehler ist aufgetreten';
+    const text = await res.text();
+    console.error(`[API Error ${res.status}] ${options?.method || 'GET'} ${url}`, text);
     try {
-      const text = await res.text();
       try {
         const errorData = JSON.parse(text);
         errorMsg = errorData.error || errorData.message || errorMsg;

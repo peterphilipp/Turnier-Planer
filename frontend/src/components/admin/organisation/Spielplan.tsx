@@ -389,6 +389,20 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
     );
   };
 
+  // Turnier-Info laden für Modus-Prüfung (MUSS vor bedingtem Return stehen!)
+  const { data: currentTournament } = useQuery({
+    queryKey: ['tournament', tournamentId],
+    queryFn: async () => {
+      if (!tournamentId) return null;
+      const token = getAuthToken();
+      const res = await fetch(`/api/tournaments/${tournamentId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      return res.json().catch(() => null);
+    },
+    enabled: !!tournamentId,
+  });
+
   const advanceMatch = async () => {
     try {
       if (!tournamentId || !yearGroupId) {
@@ -516,21 +530,7 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
   }
 
   // ============ KO-PHASE ============
-  // Turnier-Info laden für Modus-Prüfung
-  const { data: currentTournament } = useQuery({
-    queryKey: ['tournament', tournamentId],
-    queryFn: async () => {
-      if (!tournamentId) return null;
-      const token = getAuthToken();
-      const res = await fetch(`/api/tournaments/${tournamentId}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      return res.json().catch(() => null);
-    },
-    enabled: !!tournamentId,
-  });
-
-  // Prüfen ob GRUPPEN_KO Modus (hat Gruppenspiele)
+  // currentTournament ist oben bereits geladen
   const isGruppenKo = currentTournament?.turnierModus === 'GRUPPEN_KO';
   const hasPlayedGroupMatches = isGruppenKo && gruppenMatches.some(m => m.scoreA !== null && m.scoreB !== null);
 
@@ -557,7 +557,10 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
           {isGruppenKo && hasPlayedGroupMatches ? (
             <button
               onClick={async () => {
-                if (!tournamentId || !yearGroupId) return;
+                if (!tournamentId || !yearGroupId) {
+                  await modal.alert({ title: 'Hinweis', message: 'Bitte Turnier und Jahrgang auswählen.' });
+                  return;
+                }
                 try {
                   await apiPost(`/api/tournaments/${tournamentId}/generate-ko-from-gruppen`, {
                     yearGroupId,
@@ -578,26 +581,36 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
           ) : isGruppenKo ? (
             <p className="admin-core-style-97">Trage zuerst Ergebnisse in die Gruppenspiele ein.</p>
           ) : (
-            <button
-              onClick={async () => {
-                if (!tournamentId || !yearGroupId) return;
-                try {
-                  await apiPost(`/api/tournaments/${tournamentId}/generate-ko-only`, {
-                    yearGroupId,
-                    matchDuration: 15,
-                    halves: 2,
-                    halftimeBreak: 5,
-                    breakDuration: 5
-                  });
-                  queryClient.invalidateQueries({ queryKey: ['matches', tournamentId] });
-                } catch (e) {
-                  await modal.alert({ title: 'Fehler', message: 'Spielplan konnte nicht generiert werden: ' + (e as Error).message });
-                }
-              }}
-              className="admin-core-style-98"
-            >
-              🎯 Spielplan generieren
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <p style={{ color: '#6c757d', fontSize: 14 }}>⚠️ Nur für GRUPPEN_KO-Turniere verfügbar. Ändere den Modus in "Modus".</p>
+              <button
+                onClick={async () => {
+                  if (!tournamentId || !yearGroupId) {
+                    await modal.alert({ title: 'Hinweis', message: 'Bitte Turnier und Jahrgang auswählen.' });
+                    return;
+                  }
+                  if (currentTournament?.turnierModus !== 'GRUPPEN_KO') {
+                    await modal.alert({ title: 'Hinweis', message: 'Dieses Turnier ist kein GRUPPEN_KO-Turnier. Ändere den Modus in "Modus".' });
+                    return;
+                  }
+                  try {
+                    await apiPost(`/api/tournaments/${tournamentId}/generate-ko-only`, {
+                      yearGroupId,
+                      matchDuration: 15,
+                      halves: 2,
+                      halftimeBreak: 5,
+                      breakDuration: 5
+                    });
+                    queryClient.invalidateQueries({ queryKey: ['matches', tournamentId] });
+                  } catch (e) {
+                    await modal.alert({ title: 'Fehler', message: 'Spielplan konnte nicht generiert werden: ' + (e as Error).message });
+                  }
+                }}
+                className="admin-core-style-98"
+              >
+                🎯 Spielplan generieren
+              </button>
+            </div>
           )}
         </div>
       ) : (
@@ -626,7 +639,14 @@ export default function Spielplan({ tournamentId, yearGroupId, phase }: Props) {
           <div className="admin-core-style-105">
             <button
               onClick={async () => {
-                if (!tournamentId || !yearGroupId) return;
+                if (!tournamentId || !yearGroupId) {
+                  await modal.alert({ title: 'Hinweis', message: 'Bitte Turnier und Jahrgang auswählen.' });
+                  return;
+                }
+                if (currentTournament?.turnierModus !== 'GRUPPEN_KO') {
+                  await modal.alert({ title: 'Hinweis', message: 'Dieses Turnier ist kein GRUPPEN_KO-Turnier. Ändere den Modus in "Modus".' });
+                  return;
+                }
                 const confirmed = await modal.confirm({
                   title: 'KO-Phase neu generieren?',
                   message: 'Alle bestehenden KO-Spiele werden gelöscht und neu erstellt. Gruppenspiele bleiben erhalten.',

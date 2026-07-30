@@ -527,13 +527,32 @@ export const generateKoFromGruppen = async (req: Request, res: Response) => {
     const deletedBrackets = await prisma.knockoutBracket.deleteMany({ where: { tournamentId, yearGroupId: yId } });
     console.log(`[GenerateKoFromGruppen] Alte KO-Daten gelöscht: ${deletedMatches.count} Matches, ${deletedBrackets.count} Brackets`);
 
-    const groups = await prisma.group.findMany({
+    let groups = await prisma.group.findMany({
       where: { tournamentId, yearGroup: { id: yId } },
       orderBy: { order: 'asc' }
     });
 
+    // Fallback: Wenn keine Gruppen existieren, aber Matches mit played scores,
+    // erstelle automatisch eine Standard-Gruppe aus den vorhandenen Matches.
+    if (groups.length === 0) {
+      const playedMatches = await prisma.match.findMany({
+        where: { tournamentId, yearGroupId: yId, scoreA: { not: null }, scoreB: { not: null } }
+      });
+      
+      if (playedMatches.length >= 3) {
+        // Mindestens 3 Spiele für eine sinnvolle Gruppe
+        const defaultGroup = await prisma.group.create({
+          data: { tournamentId, yearGroupId: yId, name: 'Gruppe A', order: 1 }
+        });
+        groups = [defaultGroup];
+        console.log(`[GenerateKoFromGruppen] Keine Gruppen gefunden – Standard-Gruppe "Gruppe A" erstellt aus ${playedMatches.length} gespielten Matches.`);
+      } else {
+        return res.status(400).json({ error: 'Zu wenige gespielte Spiele für KO-Phase. Mindestens 3 Spiele benötigt.' });
+      }
+    }
+
     const advancingPerGroup = tournament?.teamsAdvancingPerGroup || 2;
-    const totalKoTeams = groups.length > 0 ? groups.length * advancingPerGroup : 0;
+    const totalKoTeams = groups.length * advancingPerGroup;
     
     if (totalKoTeams < 2) {
       return res.status(400).json({ error: 'Zu wenige Teams für K.O.-Phase konfiguriert.' });

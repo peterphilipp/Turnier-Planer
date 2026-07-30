@@ -181,7 +181,6 @@ export default function DashboardView() {
   };
 
   const cancelDonation = async (id: number) => {
-    if (!(await modal.confirm({ title: 'Eintrag löschen', message: 'Möchtest du diesen Eintrag wirklich löschen?', variant: 'danger' }))) return;
     try {
       await apiDelete('/api/food/donations/' + id);
       await loadFood();
@@ -294,16 +293,9 @@ export default function DashboardView() {
       await modal.alert({ title: 'Fehler', message: 'Diese Schicht liegt in der Vergangenheit.' });
       return;
     }
-    const childrenStr = volunteer?.children?.map(c => `${c.childName} (${c.childYear})`).join(', ');
-    const msg = `Möchtest du diese Schicht übernehmen?\n\nBereich: ${shift.arbeitsbereich?.name}\nDatum: ${new Date(shift.date).toLocaleDateString('de-DE')}\nZeit: ${shift.zeitslot?.name}\n\n${childrenStr ? 'Kinder: ' + childrenStr : ''}`;
-    const confirmed = await modal.confirm({ title: 'Schicht übernehmen', message: msg, confirmText: 'Ja, übernehmen' });
-    if (!confirmed) return;
     setBusy(true);
     try {
-      await apiPost('/api/self/signup', {
-        date: shift.date,
-        slot: shift.zeitslot?.name,
-        areaId: shift.arbeitsbereich?.name,
+      await apiPost('/api/self/assign', {
         shiftId: shift.id
       });
       await loadAvailable();
@@ -321,11 +313,9 @@ export default function DashboardView() {
       await modal.alert({ title: 'Fehler', message: 'Diese Schicht liegt in der Vergangenheit und kann nicht mehr storniert werden.' });
       return;
     }
-    const confirmed = await modal.confirm({ title: 'Schicht stornieren', message: 'Bist du sicher, dass du diese Schicht absagen möchtest?', confirmText: 'Ja, absagen', variant: 'danger' });
-    if (!confirmed) return;
     setBusy(true);
     try {
-      await apiDelete(`/api/self/shifts/${vs.id}`);
+      await apiDelete(`/api/self/unassign/${vs.id}`);
       await loadAvailable();
     } catch (err: unknown) {
       const e = err as Error;
@@ -593,7 +583,7 @@ export default function DashboardView() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Meine Einträge */}
             {myDonations.length > 0 && (
-              <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+              <div style={{ background: '#fff', border: `2px solid ${clubPrimary}`, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
                 <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>Meine Einträge ({myDonations.length})</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {myDonations.map(d => (
@@ -613,7 +603,7 @@ export default function DashboardView() {
 
             {/* Verpflegung für Kinder */}
             {foodDonationSlots.length > 0 && (
-              <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+              <div style={{ background: '#fff', border: `2px solid ${clubPrimary}`, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
                 <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>Verpflegung für deine Kinder</h3>
                 {(() => {
                   const grouped: Record<string, FoodDonationSlot[]> = {};
@@ -716,7 +706,7 @@ export default function DashboardView() {
 
             {/* Zusätzliche Verpflegung */}
             {(!tournament || tournament.status === 'aktiv') && (
-              <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+              <div style={{ background: '#fff', border: `2px solid ${clubPrimary}`, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
                 <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>Zusätzliche Verpflegungsspenden</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <select value={donationFoodId} onChange={e => setDonationFoodId(parseInt(e.target.value, 10))} style={{ padding: '12px 14px', border: '2px solid #e9ecef', borderRadius: 10, fontSize: 15, outline: 'none', background: '#fff', boxSizing: 'border-box' }}>

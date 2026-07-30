@@ -1,17 +1,8 @@
 import { useState } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useUser } from '../../context/UserContext';
 import { tryConditionalPasskeyLogin, loginWithPasskey } from '../../utils/passkey';
 import { modal } from '../admin/Modal';
-
-interface LayoutContext {
-  clubPrimary: string;
-  clubSecondary: string;
-  clubAccent: string;
-  clubAccentText: string;
-  clubPrimaryText: string;
-  clubLogo: string;
-}
 
 // Hilfsfunktion für dunklere Farben (aus SelfServiceView.tsx)
 function shadeColor(color: string | undefined, percent: number) {
@@ -33,15 +24,14 @@ function shadeColor(color: string | undefined, percent: number) {
   return '#' + RR + GG + BB;
 }
 
-export default function LoginView() {
+export default function LoginView({ clubPrimary: propClubPrimary, clubSecondary: propClubSecondary, clubAccent: propClubAccent, clubLogo: propClubLogo }: { clubPrimary?: string; clubSecondary?: string; clubAccent?: string; clubLogo?: string | null }) {
   const { login: contextLogin } = useUser();
   const navigate = useNavigate();
   
-  const context = useOutletContext<LayoutContext>() || {};
-  const clubPrimary = context.clubPrimary || '#0d6efd';
-  const clubSecondary = context.clubSecondary || '#6c757d';
-  const clubAccent = context.clubAccent || '#198754';
-  const clubLogo = context.clubLogo || null;
+  const clubPrimary = propClubPrimary || '#0d6efd';
+  const clubSecondary = propClubSecondary || '#6c757d';
+  const clubAccent = propClubAccent || '#198754';
+  const clubLogo = propClubLogo || null;
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');

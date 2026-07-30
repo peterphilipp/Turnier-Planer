@@ -1,12 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiPost } from '../../api';
 import { modal } from '../admin/Modal';
 import { btnStyle, inputStyle } from '../admin/shared';
-
-interface LayoutContext {
-  clubPrimary: string;
-}
 
 function shadeColor(color: string | undefined, percent: number) {
   if (!color || typeof color !== 'string' || !color.startsWith('#')) {
@@ -27,11 +23,10 @@ function shadeColor(color: string | undefined, percent: number) {
   return '#' + RR + GG + BB;
 }
 
-export default function PasswordResetView() {
+export default function PasswordResetView({ clubPrimary: propClubPrimary, clubSecondary: _cs, clubAccent: _ca, clubLogo: _cl }: { clubPrimary?: string; clubSecondary?: string; clubAccent?: string; clubLogo?: string | null }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const context = useOutletContext<LayoutContext>() || {};
-  const clubPrimary = context.clubPrimary || '#0d6efd';
+  const clubPrimary = propClubPrimary || '#0d6efd';
 
   const tokenParam = searchParams.get('token');
   const [resetToken, setResetToken] = useState(tokenParam || '');
