@@ -61,6 +61,7 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
   const createExpanded = createExpandedOverride ?? (slots.length === 0);
 
   const [filterYear, setFilterYear] = useState('');
+  const [filterCategory, setFilterCategory] = useState<number>(0);
 
   // Für den Detail-Dialog eines angeklickten Matrix-Feldes (wer hat gespendet,
   // plus Bearbeiten/Löschen des Ziels selbst).
@@ -132,7 +133,6 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
     return <div style={{ padding: 24, background: '#fff', borderRadius: 16 }}>Bitte wähle zunächst oben ein Turnier aus.</div>;
   }
 
-  // Artikel nach Kategorie filtern
   const filteredItems = slotForm.categoryId
     ? foodItems.filter(item => item.categoryId === slotForm.categoryId)
     : [];
@@ -145,9 +145,6 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
     }));
   };
 
-  // Matrix: Zeilen = Jahrgänge, Spalten = Lebensmittel. "Ohne Jahrgang"/"Alle
-  // Artikel" (kein yearGroupId bzw. kein foodItemId) landen als eigene
-  // Zeile/Spalte am Ende, statt zu verschwinden.
   const yearGroupKey = (yg: FoodDonationSlot['yearGroup']) => yg?.id ?? -1;
   const itemKey = (item: FoodDonationSlot['foodItem']) => item?.id ?? -1;
 
@@ -162,9 +159,6 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
   const cols = [...itemsMap.values()].sort((a, b) => a.id === -1 ? 1 : b.id === -1 ? -1 : a.name.localeCompare(b.name));
   const slotAt = (ygId: number, itId: number) => slots.find(s => yearGroupKey(s.yearGroup) === ygId && itemKey(s.foodItem) === itId);
 
-  /** Gesamt-Erreichungsgrad eines Jahrgangs über alle Artikel - gab es vorher
-      in der Listenansicht pro Jahrgangs-Header, ist in der Matrix sonst nicht
-      mehr auf einen Blick ersichtlich. */
   const rowTotal = (ygId: number) => {
     let target = 0, collected = 0;
     for (const col of cols) {
@@ -174,8 +168,6 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
     return { target, collected };
   };
 
-  // Geteilt zwischen "neuen Slot anlegen" (inline oben) und "Slot bearbeiten"
-  // (Modal, siehe unten) - vermeidet, denselben Formular-Code zweimal zu pflegen.
   const formContent = (
     <div style={{ background: '#f8f9fa', padding: 20, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
@@ -225,9 +217,30 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
 
         <div>
           <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 8, fontSize: 14 }}>4. Soll-Menge</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input type="number" value={slotForm.targetQuantity} onChange={e => setSlotForm({ ...slotForm, targetQuantity: parseInt(e.target.value) || 0 })} placeholder="0" style={{ ...inputStyle, width: 120 }} />
-            <span style={{ color: '#666', fontSize: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="mobile-touch-stepper">
+              <button
+                type="button"
+                className="mobile-stepper-btn"
+                onClick={() => setSlotForm(prev => ({ ...prev, targetQuantity: Math.max(0, prev.targetQuantity - 1) }))}
+              >
+                –
+              </button>
+              <input
+                type="number"
+                value={slotForm.targetQuantity}
+                onChange={e => setSlotForm({ ...slotForm, targetQuantity: Math.max(0, parseInt(e.target.value) || 0) })}
+                className="mobile-stepper-value"
+              />
+              <button
+                type="button"
+                className="mobile-stepper-btn"
+                onClick={() => setSlotForm(prev => ({ ...prev, targetQuantity: prev.targetQuantity + 1 }))}
+              >
+                +
+              </button>
+            </div>
+            <span style={{ color: '#666', fontSize: 14, fontWeight: 600 }}>
               {filteredItems.find(i => i.id === slotForm.foodItemId)?.unit || 'Stk'}
             </span>
           </div>
@@ -250,32 +263,26 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
   );
 
   return (
-    <div style={{ background: '#fff', padding: 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
-      {/* Ziel-Erstellung: eingeklappt, sobald schon Ziele existieren (dann ist
-          es Alltag, keine Ersteinrichtung mehr), aber jederzeit auf einen
-          Klick erreichbar, ohne die Seite zu verlassen - analog zum
-          Dienstplan ("Turnier-Einrichtung"). */}
+    <div style={{ background: '#fff', padding: isMobile ? 16 : 24, borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
       <div style={{ marginBottom: 24, border: '1px solid #e9ecef', borderRadius: 12, overflow: 'hidden' }}>
         <button
           onClick={() => setCreateExpandedOverride(!createExpanded)}
           style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', background: '#f8f9fa', border: 'none', cursor: 'pointer', textAlign: 'left' }}
         >
           <span style={{ fontSize: 15, fontWeight: 700, color: '#212557' }}>🍰 Verpflegungsziele erstellen</span>
-          <span style={{ fontSize: 13, color: '#6c757d' }}>Welche Jahrgänge sollen welche Verpflegung beitragen?</span>
+          <span style={{ fontSize: 13, color: '#6c757d', display: isMobile ? 'none' : 'inline' }}>Welche Jahrgänge sollen welche Verpflegung beitragen?</span>
           <span style={{ flex: 1 }} />
           <span style={{ fontSize: 18, color: '#6c757d', transition: 'transform 0.2s', display: 'inline-block', transform: createExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>›</span>
         </button>
 
         {createExpanded && (
-          <div style={{ padding: 20 }}>
-            <p style={{ color: '#666', fontSize: 14, marginTop: 0 }}>Lege hier fest, welche Jahrgänge während des gesamten Turniers welche Verpflegung beitragen sollen. Wer konkret was gespendet hat, siehst du unten in der Matrix.</p>
+          <div style={{ padding: isMobile ? 12 : 20 }}>
+            <p style={{ color: '#666', fontSize: 14, marginTop: 0 }}>Lege hier fest, welche Jahrgänge während des gesamten Turniers welche Verpflegung beitragen sollen.</p>
             {!editingSlotId && formContent}
           </div>
         )}
       </div>
 
-      {/* Slot bearbeiten: eigenes Modal statt inline, damit man beim Klick auf
-          "✏️ Bearbeiten" in der Matrix nicht quer durch die Seite scrollen muss. */}
       {editingSlotId && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}>
           <div style={{ background: '#fff', borderRadius: isMobile ? '16px 16px 0 0' : 16, width: '100%', maxWidth: isMobile ? undefined : 560, maxHeight: isMobile ? '92vh' : '90vh', overflowY: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
@@ -288,10 +295,28 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
         </div>
       )}
 
-      {/* Matrix: Zeilen = Jahrgänge, Spalten = Lebensmittel. Kompakter und pro
-          Jahrgang besser überblickbar als eine lange Liste. Klick auf eine
-          Zelle öffnet den Detail-Dialog (wer hat gespendet, bearbeiten, löschen). */}
       <h4 style={{ fontSize: 16, marginBottom: 12, color: '#212529' }}>Übersicht ({slots.length} Ziele)</h4>
+
+      <div className="mobile-filter-pills-bar">
+        <button
+          type="button"
+          onClick={() => setFilterCategory(0)}
+          className={`mobile-pill ${filterCategory === 0 ? 'mobile-pill-active' : ''}`}
+        >
+          🍽️ Alle Kategorien
+        </button>
+        {foodCategories.map(cat => (
+          <button
+            key={cat.id}
+            type="button"
+            onClick={() => setFilterCategory(cat.id)}
+            className={`mobile-pill ${filterCategory === cat.id ? 'mobile-pill-active' : ''}`}
+          >
+            {cat.icon} {cat.name}
+          </button>
+        ))}
+      </div>
+
       <div style={{ marginBottom: 16 }}>
         <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={{ ...inputStyle, maxWidth: 240 }}>
           <option value="">-- Alle Jahrgänge --</option>
@@ -302,13 +327,60 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
 
       {slots.length === 0 ? (
         <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>Noch keine Verpflegungs-Ziele angelegt.</div>
+      ) : isMobile ? (
+        <div className="mobile-food-cards-list">
+          {slots
+            .filter(s => !filterCategory || s.foodItem?.categoryId === filterCategory)
+            .filter(s => !filterYear || (filterYear === '-1' ? !s.yearGroupId : String(s.yearGroupId) === filterYear))
+            .map(slot => {
+              const isDone = slot.collected >= slot.targetQuantity;
+              const progress = slot.targetQuantity > 0 ? Math.min(100, Math.round((slot.collected / slot.targetQuantity) * 100)) : 0;
+              const slotDonationCount = foodDonations.filter(d => d.foodDonationSlotId === slot.id).length;
+              return (
+                <div key={slot.id} className="mobile-food-card" onClick={() => setSelectedSlotDetail(slot)}>
+                  <div className="mobile-food-card-header">
+                    <div className="mobile-food-card-title">
+                      {slot.foodItem?.category?.icon ?? '🍽️'} {slot.foodItem?.name || 'Unbekannt'}
+                    </div>
+                    <span className="mobile-food-card-year">
+                      {slot.yearGroup?.name || 'Ohne Jahrgang'}
+                    </span>
+                  </div>
+                  {slot.description && (
+                    <div style={{ fontSize: 12, color: '#6c757d', fontStyle: 'italic', marginBottom: 6 }}>
+                      {slot.description}
+                    </div>
+                  )}
+                  <div className="mobile-progress-container">
+                    <div className="mobile-progress-track">
+                      <div
+                        className="mobile-progress-fill"
+                        style={{
+                          width: `${progress}%`,
+                          background: isDone ? '#198754' : progress > 0 ? '#ffc107' : '#adb5bd'
+                        }}
+                      />
+                    </div>
+                    <div className="mobile-progress-text">
+                      <span>{slot.collected} von {slot.targetQuantity} {slot.foodItem?.unit || 'Stk'}</span>
+                      <span>{progress}%</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px dashed #e9ecef', fontSize: 12 }}>
+                    <span style={{ color: '#6c757d' }}>💬 {slotDonationCount} Spenden</span>
+                    <span style={{ color: adminPrimary, fontWeight: 'bold' }}>Details & Spender ›</span>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
       ) : (
         <div style={{ overflowX: 'auto', paddingBottom: 15 }}>
           <table style={{ borderCollapse: 'collapse', fontSize: 13, width: '100%', minWidth: 500 }}>
             <thead>
               <tr>
                 <th style={{ position: 'sticky', left: 0, background: '#fff', textAlign: 'left', padding: '12px 16px 12px 0', borderBottom: '2px solid #dee2e6', verticalAlign: 'bottom', zIndex: 1 }}>Jahrgang</th>
-                {cols.map(col => (
+                {cols.filter(c => !filterCategory || foodItems.find(i => i.id === c.id)?.categoryId === filterCategory).map(col => (
                   <th key={col.id} style={{ height: 140, minWidth: 80, padding: 0, borderBottom: '2px solid #dee2e6', verticalAlign: 'bottom', overflow: 'visible', position: 'relative' }}>
                     <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-end', height: '100%', overflow: 'visible' }}>
                       <div style={{ 
@@ -338,7 +410,7 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
                 return (
                 <tr key={row.id}>
                   <td style={{ position: 'sticky', left: 0, background: '#fff', fontWeight: 600, padding: '12px 16px 12px 0', borderBottom: '1px solid #dee2e6', whiteSpace: 'nowrap', zIndex: 1 }}>{row.name}</td>
-                  {cols.map(col => {
+                  {cols.filter(c => !filterCategory || foodItems.find(i => i.id === c.id)?.categoryId === filterCategory).map(col => {
                     const slot = slotAt(row.id, col.id);
                     if (!slot) return <td key={col.id} style={{ textAlign: 'center', color: '#dee2e6', borderBottom: '1px solid #dee2e6', borderRight: '1px solid #f0f0f0', padding: '8px 4px' }}>–</td>;
                     const isDone = slot.collected >= slot.targetQuantity;
@@ -402,11 +474,17 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
         </div>
       )}
 
-      {/* Detail-Dialog für eine angeklickte Matrix-Zelle: wer hat gespendet,
-          plus Bearbeiten/Löschen des Ziels selbst. */}
       {selectedSlotDetail && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}>
-          <div style={{ background: '#fff', borderRadius: isMobile ? '16px 16px 0 0' : 16, width: '100%', maxWidth: isMobile ? undefined : 500, boxShadow: '0 10px 40px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: isMobile ? '92vh' : '90vh' }}>
+        <div
+          className={isMobile ? 'mobile-bottom-sheet-overlay' : ''}
+          style={!isMobile ? { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 } : undefined}
+          onClick={(e) => { if (e.target === e.currentTarget) setSelectedSlotDetail(null); }}
+        >
+          <div
+            className={isMobile ? 'mobile-bottom-sheet-content' : ''}
+            style={!isMobile ? { background: '#fff', borderRadius: 16, width: '100%', maxWidth: 500, boxShadow: '0 10px 40px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' } : undefined}
+          >
+            {isMobile && <div className="mobile-bottom-sheet-handle" />}
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #e9ecef', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8f9fa' }}>
               <div style={{ fontSize: 18, fontWeight: 'bold', color: '#212529' }}>
                 {selectedSlotDetail.foodItem ? `${selectedSlotDetail.foodItem.category?.icon ?? '🍽️'} ${selectedSlotDetail.foodItem.name}` : '🍽️ Alle Artikel'}
@@ -467,21 +545,6 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
             </div>
 
             <div style={{ padding: '16px 20px', borderTop: '1px solid #e9ecef', background: '#f8f9fa', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={() => { const s = selectedSlotDetail; setSelectedSlotDetail(null); openEditSlot(s); }}
-                  style={{ padding: '12px 16px', minHeight: 44, background: '#fff3cd', color: '#856404', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold' }}
-                >
-                  ✏️ Bearbeiten
-                </button>
-                <button
-                  onClick={async () => { const id = selectedSlotDetail.id; setSelectedSlotDetail(null); await deleteSlot(id); }}
-                  style={{ padding: '12px 16px', minHeight: 44, background: '#ffe3e3', color: '#dc3545', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold' }}
-                >
-                  🗑️ Löschen
-                </button>
-              </div>
-              <button onClick={() => setSelectedSlotDetail(null)} style={{ padding: '12px 20px', minHeight: 44, minWidth: 100, background: '#6c757d', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold' }}>Schließen</button>
             </div>
           </div>
         </div>

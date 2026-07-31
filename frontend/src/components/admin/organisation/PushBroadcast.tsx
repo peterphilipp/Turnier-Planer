@@ -133,8 +133,14 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
     }
   };
 
+  const applyPreset = (presetTitle: string, presetBody: string, presetMode: 'all' | 'shifts' | 'users' = 'all') => {
+    setTitle(presetTitle);
+    setBody(presetBody);
+    setMode(presetMode);
+  };
+
   return (
-    <div className="push-broadcast-container">
+    <div className="push-broadcast-container" style={{ paddingBottom: isMobile ? 80 : undefined }}>
       <div className="push-broadcast-card">
         <h2 className="push-broadcast-title">
           <span>🔔</span> Helfer per PWA Push kontaktieren
@@ -142,6 +148,39 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
         <p className="push-broadcast-description">
           Sende Sofort-Benachrichtigungen direkt auf die Geräte deiner Helfer. Keine E-Mails erforderlich!
         </p>
+
+        {/* Schnell-Vorlagen / Presets */}
+        <div style={{ marginBottom: 12, fontWeight: 'bold', fontSize: 13, color: '#495057' }}>⚡ Schnell-Vorlagen (1-Tipp):</div>
+        <div className="mobile-preset-chips-container">
+          <button
+            type="button"
+            className="mobile-preset-chip"
+            onClick={() => applyPreset('Wichtige Info zum Turnier', 'Hallo zusammen! Hier ist eine wichtige Information zum Turnierverlauf.', 'all')}
+          >
+            📢 Wichtige Info
+          </button>
+          <button
+            type="button"
+            className="mobile-preset-chip"
+            onClick={() => applyPreset('⚠️ Dringend: Schicht besetzen', 'Wir suchen aktuell noch Unterstützung für Schichten. Wer kann spontan einspringen?', 'all')}
+          >
+            ⚠️ Schichten besetzen
+          </button>
+          <button
+            type="button"
+            className="mobile-preset-chip"
+            onClick={() => applyPreset('⏰ Schicht-Erinnerung', 'Erinnerung: Deine Schicht steht in Kürze an. Bitte denke an dein Pünktlichsein! Danke!', 'all')}
+          >
+            ⏰ Schicht-Erinnerung
+          </button>
+          <button
+            type="button"
+            className="mobile-preset-chip"
+            onClick={() => applyPreset('🍕 Verpflegungs-Info', 'Vielen Dank für alle Spenden und die Unterstützung am Verpflegungsstand!', 'all')}
+          >
+            🍕 Verpflegung & Danke
+          </button>
+        </div>
 
         <div className="push-broadcast-section">
           <label className="push-broadcast-section-label">1. Zielgruppe wählen:</label>
@@ -386,6 +425,35 @@ export default function PushBroadcast({ selectedTournament }: { selectedTourname
           </button>
         </div>
       </div>
+
+      {isMobile && (
+        <div className="mobile-sticky-push-bar">
+          <div>
+            <div style={{ fontSize: 11, color: '#6c757d', fontWeight: 'bold' }}>EMPFÄNGER</div>
+            <div style={{ fontSize: 13, fontWeight: '700', color: '#212529' }}>
+              {mode === 'all' ? `${volunteers.length} Helfer` : mode === 'shifts' ? `${estimatedShiftRecipients} Helfer` : `${selectedUserIds.length} Helfer`}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={sending || !title.trim() || !body.trim()}
+            style={{
+              background: sending || !title.trim() || !body.trim() ? '#adb5bd' : '#0d6efd',
+              color: '#fff',
+              border: 'none',
+              padding: '10px 18px',
+              borderRadius: 20,
+              fontWeight: 'bold',
+              fontSize: 14,
+              cursor: sending || !title.trim() || !body.trim() ? 'not-allowed' : 'pointer',
+              boxShadow: sending || !title.trim() || !body.trim() ? 'none' : '0 4px 12px rgba(13,110,253,0.3)'
+            }}
+          >
+            {sending ? '⏳ Senden...' : '🚀 Push Senden'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
