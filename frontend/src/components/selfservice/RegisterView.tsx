@@ -38,6 +38,8 @@ export default function RegisterView({ clubPrimary: propClubPrimary, clubSeconda
   const [regChildren, setRegChildren] = useState<{ childName: string; childYear: string }[]>([{ childName: '', childYear: '' }]);
   const [consentGiven, setConsentGiven] = useState(false);
 
+  const years = Array.from({ length: 30 }, (_, i) => new Date().getFullYear() - i);
+
   const applyLoginResult = async (data: Record<string, any>) => {
     contextLogin(data.token, data.user || data.volunteer);
     navigate('/');
@@ -60,7 +62,12 @@ export default function RegisterView({ clubPrimary: propClubPrimary, clubSeconda
       const payload = {
         name: regName, email: regEmail, phone: regPhone, password: regPassword,
         consentGiven,
-        children: regChildren.filter(c => c.childName.trim() !== '')
+        children: regChildren
+          .filter(c => c.childName.trim() !== '' || c.childYear !== '')
+          .map(c => ({
+            childName: c.childName.trim() || null,
+            childYear: c.childYear ? parseInt(c.childYear, 10) : null
+          }))
       };
       const data = await apiPost('/api/auth/register', payload);
       await applyLoginResult(data);
@@ -90,11 +97,24 @@ export default function RegisterView({ clubPrimary: propClubPrimary, clubSeconda
             <input type="tel" placeholder="Handynummer (optional)" value={regPhone} onChange={e => setRegPhone(e.target.value)} onBlur={() => setRegPhone(formatPhoneNumber(regPhone) || regPhone)} className="input-base" />
             
             <div style={{ marginTop: 8 }}>
-              <div style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 8 }}>Kinder (optional)</div>
+              <div style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 2 }}>Kinder (optional)</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.4 }}>
+                Trage hier deine Kinder mit ihrem <strong>Geburtsjahr</strong> ein, damit wir dir automatisch passende Helfer-Dienste für ihre Jugendmannschaften vorschlagen können.
+              </div>
               {regChildren.map((child, idx) => (
                 <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <input type="text" placeholder="Name des Kindes" value={child.childName} onChange={e => { const n = [...regChildren]; n[idx].childName = e.target.value; setRegChildren(n); }} className="input-base" style={{ flex: 1, minWidth: 140 }} />
-                  <input type="number" placeholder="Jg." value={child.childYear} onChange={e => { const n = [...regChildren]; n[idx].childYear = e.target.value; setRegChildren(n); }} className="input-base" style={{ width: 70, flexShrink: 0 }} />
+                  <select
+                    value={child.childYear}
+                    onChange={e => { const n = [...regChildren]; n[idx].childYear = e.target.value; setRegChildren(n); }}
+                    className="input-base"
+                    style={{ width: 130, flexShrink: 0 }}
+                  >
+                    <option value="">Geburtsjahr</option>
+                    {years.map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
                   {regChildren.length > 1 && (
                     <button type="button" onClick={() => { const n = regChildren.filter((_, i) => i !== idx); setRegChildren(n); }} className="btn" style={{ background: '#ffe3e3', color: '#dc3545', padding: '8px 10px', fontSize: 16, flexShrink: 0, width: 'auto' }}>🗑️</button>
                   )}

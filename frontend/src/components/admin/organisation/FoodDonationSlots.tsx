@@ -86,6 +86,8 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
         targetQuantity: slotForm.targetQuantity,
         description: slotForm.description || null
       });
+      resetSlotForm();
+      setEditingSlotId(null);
     } else {
       for (const yearGroupId of slotForm.yearGroupIds) {
         await apiPost('/api/food-donation-slots', {
@@ -96,16 +98,35 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
           description: slotForm.description || null
         });
       }
+      // Reset only item, quantity, and description to keep categories/years selected
+      setSlotForm(prev => ({
+        ...prev,
+        foodItemId: 0,
+        targetQuantity: 0,
+        description: ''
+      }));
     }
     queryClient.invalidateQueries({ queryKey: ['foodDonationSlots', selectedTournament] });
-    resetSlotForm();
-    setEditingSlotId(null);
   };
 
   const deleteSlot = async (id: number) => {
     if (!(await modal.confirm({ title: 'Ziel löschen', message: 'Möchtest du dieses Verpflegungs-Ziel wirklich löschen?', variant: 'danger' }))) return;
     await apiDelete(`/api/food-donation-slots/${id}`);
     queryClient.invalidateQueries({ queryKey: ['foodDonationSlots', selectedTournament] });
+  };
+
+  const deleteDonation = async (donationId: number, quantity: number) => {
+    if (!(await modal.confirm({ title: 'Spende löschen', message: 'Möchtest du diese Spende wirklich löschen?', variant: 'danger' }))) return;
+    await apiDelete(`/api/food/donations/${donationId}`);
+    queryClient.invalidateQueries({ queryKey: ['foodDonationSlots', selectedTournament] });
+    queryClient.invalidateQueries({ queryKey: ['allFoodDonations', selectedTournament] });
+
+    if (selectedSlotDetail) {
+      setSelectedSlotDetail(prev => prev ? {
+        ...prev,
+        collected: Math.max(0, prev.collected - quantity)
+      } : null);
+    }
   };
 
   if (!selectedTournament) {
@@ -417,7 +438,28 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
                             {d.note && <div style={{ fontSize: 12, color: '#6c757d' }}>„{d.note}"</div>}
                           </div>
                         </div>
-                        <div style={{ fontWeight: 600, color: '#212529' }}>{d.quantity} {selectedSlotDetail.foodItem?.unit || 'Stk'}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{ fontWeight: 600, color: '#212529' }}>{d.quantity} {selectedSlotDetail.foodItem?.unit || 'Stk'}</div>
+                          <button
+                            onClick={() => deleteDonation(d.id, d.quantity)}
+                            style={{
+                              border: 'none',
+                              background: '#ffe3e3',
+                              color: '#dc3545',
+                              borderRadius: 6,
+                              width: 28,
+                              height: 28,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              fontSize: 14
+                            }}
+                            title="Spende löschen"
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

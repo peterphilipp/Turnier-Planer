@@ -19,6 +19,7 @@ export default function ProfileView() {
   const [editEmail, setEditEmail] = useState(volunteer?.email || '');
   const [editPhone, setEditPhone] = useState(volunteer?.phone || '');
   const [editChildren, setEditChildren] = useState<{ childName: string; childYear: string }[]>([{ childName: '', childYear: '' }]);
+  const years = Array.from({ length: 30 }, (_, i) => new Date().getFullYear() - i);
   
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -48,9 +49,9 @@ export default function ProfileView() {
         email: editEmail,
         phone: editPhone,
         children: editChildren
-          .filter(c => c.childName.trim() !== '')
+          .filter(c => c.childName.trim() !== '' || c.childYear !== '')
           .map(c => ({
-            childName: c.childName,
+            childName: c.childName.trim() || null,
             childYear: c.childYear ? parseInt(c.childYear, 10) : null
           }))
       };
@@ -125,7 +126,16 @@ export default function ProfileView() {
           {editChildren.map((child, idx) => (
             <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
               <input type="text" placeholder="Name des Kindes" value={child.childName} onChange={e => { const n = [...editChildren]; n[idx].childName = e.target.value; setEditChildren(n); }} style={{ ...inputStyle, flex: 1, minWidth: 140 }} />
-              <input type="number" placeholder="Jg." value={child.childYear} onChange={e => { const n = [...editChildren]; n[idx].childYear = e.target.value; setEditChildren(n); }} style={{ ...inputStyle, width: 80, flexShrink: 0 }} />
+              <select
+                value={child.childYear}
+                onChange={e => { const n = [...editChildren]; n[idx].childYear = e.target.value; setEditChildren(n); }}
+                style={{ ...inputStyle, width: 130, flexShrink: 0 }}
+              >
+                <option value="">Geburtsjahr</option>
+                {years.map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
               {editChildren.length > 1 && (
                 <button type="button" onClick={() => { const n = editChildren.filter((_, i) => i !== idx); setEditChildren(n); }} style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', border: 'none', padding: '8px 10px', fontSize: 16, flexShrink: 0 }}>🗑️</button>
               )}

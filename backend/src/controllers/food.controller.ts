@@ -46,6 +46,19 @@ const getUserId = (req: Request): number | null => {
   }
 };
 
+const getUserRole = async (req: Request): Promise<string> => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return 'HELPER';
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    return user?.role || 'HELPER';
+  } catch {
+    return 'HELPER';
+  }
+};
+
 // ===================== Admin: Kategorien CRUD =====================
 
 export const getCategories = async (req: Request, res: Response) => {
@@ -249,11 +262,18 @@ export const deleteDonation = async (req: Request, res: Response) => {
 
     const id = parseInt(req.params.id as string);
     const existing = await prisma.foodDonation.findUnique({ where: { id } });
-    if (!existing || existing.userId !== userId) {
-      return res.status(403).json({ error: 'Zugriff verweigert oder nicht gefunden' });
+    if (!existing) {
+      return res.status(404).json({ error: 'Spende nicht gefunden' });
     }
 
-    const donor = await prisma.user.findUnique({ where: { id: existing.userId } });
+    const role = await getUserRole(req);
+    const isAdminOrOrganizer = role === 'ADMIN' || role === 'ORGANIZER';
+
+    if (existing.userId !== userId && !isAdminOrOrganizer) {
+      return res.status(403).json({ error: 'Zugriff verweigert' });
+    }
+
+    const donor = existing.userId ? await prisma.user.findUnique({ where: { id: existing.userId } }) : null;
 
     // Zähler-Korrektur + Löschen atomar; collected darf nicht negativ werden.
     await prisma.$transaction(async (tx) => {
