@@ -485,23 +485,32 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
             style={!isMobile ? { background: '#fff', borderRadius: 16, width: '100%', maxWidth: 500, boxShadow: '0 10px 40px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' } : undefined}
           >
             {isMobile && <div className="mobile-bottom-sheet-handle" />}
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e9ecef', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8f9fa' }}>
-              <div style={{ fontSize: 18, fontWeight: 'bold', color: '#212529' }}>
-                {selectedSlotDetail.foodItem ? `${selectedSlotDetail.foodItem.category?.icon ?? '🍽️'} ${selectedSlotDetail.foodItem.name}` : '🍽️ Alle Artikel'}
+            
+            {/* Schlanker, kompakter Header im Self-Service Style */}
+            <div style={{ padding: isMobile ? '12px 16px 10px' : '16px 20px 12px', borderBottom: '1px solid #e9ecef', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#212529', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>{selectedSlotDetail.foodItem?.category?.icon ?? '🍽️'}</span>
+                  <span>{selectedSlotDetail.foodItem?.name || 'Alle Artikel'}</span>
+                </div>
+                <div style={{ fontSize: 13, color: '#6c757d', marginTop: 2, fontWeight: 500 }}>
+                  {selectedSlotDetail.yearGroup?.name || 'Ohne Jahrgang'} · {selectedSlotDetail.collected}/{selectedSlotDetail.targetQuantity} {selectedSlotDetail.foodItem?.unit || 'Stk'}
+                  {selectedSlotDetail.description && <span style={{ marginLeft: 6, fontStyle: 'italic', color: '#495057' }}>({selectedSlotDetail.description})</span>}
+                </div>
               </div>
-              <button onClick={() => setSelectedSlotDetail(null)} style={{ border: 'none', background: 'transparent', fontSize: 24, lineHeight: 1, cursor: 'pointer', color: '#adb5bd' }}>×</button>
+              <button
+                onClick={() => setSelectedSlotDetail(null)}
+                style={{ border: 'none', background: '#f8f9fa', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, cursor: 'pointer', color: '#6c757d', flexShrink: 0 }}
+              >
+                ×
+              </button>
             </div>
 
-            <div style={{ padding: 20, overflowY: 'auto' }}>
-              <div style={{ marginBottom: 20, color: '#666', fontSize: 14 }}>
-                {selectedSlotDetail.yearGroup?.name || 'Ohne Jahrgang'} · {selectedSlotDetail.collected}/{selectedSlotDetail.targetQuantity} {selectedSlotDetail.foodItem?.unit || 'Stk'}
-                {selectedSlotDetail.description && <div style={{ marginTop: 4, fontStyle: 'italic' }}>{selectedSlotDetail.description}</div>}
-              </div>
-
-              <h4 style={{ margin: '0 0 12px 0', color: '#212529' }}>Spenden für dieses Ziel</h4>
+            <div style={{ padding: isMobile ? '14px 16px' : '20px', overflowY: 'auto', flex: 1 }}>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: 14, fontWeight: 700, color: '#212529' }}>Spenden für dieses Ziel</h4>
               {(() => {
                 const slotDonations = foodDonations.filter(d => d.foodDonationSlotId === selectedSlotDetail.id);
-                if (slotDonations.length === 0) return <div style={{ color: '#adb5bd', fontStyle: 'italic' }}>Noch keine Spenden für dieses Ziel.</div>;
+                if (slotDonations.length === 0) return <div style={{ color: '#adb5bd', fontStyle: 'italic', fontSize: 13 }}>Noch keine Spenden für dieses Ziel.</div>;
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {slotDonations.map(d => (
@@ -544,7 +553,30 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
               })()}
             </div>
 
-            <div style={{ padding: '16px 20px', borderTop: '1px solid #e9ecef', background: '#f8f9fa', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ padding: isMobile ? '12px 16px' : '16px 20px', borderTop: '1px solid #e9ecef', background: '#f8f9fa', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => { const slot = selectedSlotDetail; setSelectedSlotDetail(null); openEditSlot(slot); }}
+                  style={{ ...btnStyleSecondary, color: '#856404', borderColor: '#ffeeba', background: '#fff3cd', padding: '8px 12px', fontSize: 13, fontWeight: 600 }}
+                >
+                  ✏️ Bearbeiten
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => { const id = selectedSlotDetail.id; setSelectedSlotDetail(null); await deleteSlot(id); }}
+                  style={{ ...btnStyleSecondary, color: '#dc3545', borderColor: '#f5c6cb', background: '#f8d7da', padding: '8px 12px', fontSize: 13, fontWeight: 600 }}
+                >
+                  🗑️ Löschen
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSlotDetail(null)}
+                style={{ ...btnStyle, background: '#6c757d', color: '#fff', border: 'none', padding: '8px 16px', fontSize: 13, fontWeight: 600 }}
+              >
+                Schließen
+              </button>
             </div>
           </div>
         </div>
