@@ -15,7 +15,14 @@ import { describeUserAgent } from '../utils/userAgent.js';
 // eigenes Zuordnungsfeld, nur den Geburtsjahr-Abgleich.
 const childSchema = z.object({
   childName: z.string().trim().max(100).nullable().optional(),
-  childYear: z.number().int().min(1990).max(2030).nullable().optional()
+  childYear: z.preprocess(
+    (val) => {
+      if (val === '' || val === null || val === undefined) return null;
+      const parsed = parseInt(String(val), 10);
+      return isNaN(parsed) ? val : parsed;
+    },
+    z.number().int().min(1990).max(2030).nullable().optional()
+  )
 });
 
 export const volunteerSchema = z.object({

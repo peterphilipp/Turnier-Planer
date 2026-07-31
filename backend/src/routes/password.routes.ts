@@ -140,7 +140,14 @@ const LOGIN_FAILED_MESSAGE = 'Anmeldung fehlgeschlagen. Bitte prüfe Name/E-Mail
  */
 const childInputSchema = z.object({
   childName: z.string().trim().max(100).nullable().optional(),
-  childYear: z.number().int().min(1900).max(2100).nullable().optional()
+  childYear: z.preprocess(
+    (val) => {
+      if (val === '' || val === null || val === undefined) return null;
+      const parsed = parseInt(String(val), 10);
+      return isNaN(parsed) ? val : parsed;
+    },
+    z.number().int().min(1900).max(2100).nullable().optional()
+  )
 });
 
 const emailInput = z.union([
