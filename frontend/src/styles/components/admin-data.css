@@ -487,7 +487,7 @@
 .vereine-style-9 { width: 160px; }
 .vereine-style-10 { font-size: 12px; color: #666; font-weight: bold; }
 .vereine-style-11 { width: 100%; padding: 14px 14px; border: 1px solid #dee2e6; border-radius: 8px; font-size: 16px; min-height: 44px; box-sizing: border-box; }
-.vereine-style-12 { font-size: 18px; font-weight: bold; line-height: 1px; }
+.vereine-style-12 { font-size: 18px; font-weight: bold; line-height: 1; }
 .vereine-style-13 { display: flex; flex-direction: column; gap: 24px; }
 .vereine-style-14 { margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #495057; }
 .vereine-style-15 { display: flex; align-items: center; gap: 12px; padding: 14px; background: #fff; border: 1px solid #dee2e6; border-radius: 10px; }
@@ -528,13 +528,17 @@
 .wa-categories-style-3 { display: flex; flex-direction: column; gap: 6px; margin: 16px 0; }
 .wa-categories-style-4 { font-size: 12px; color: #666; font-weight: bold; }
 .wa-categories-style-5 { display: flex; gap: 8px; flex-wrap: wrap; }
-.wa-categories-style-6 { font-size: 18px; font-weight: bold; line-height: 1px; }
+.wa-categories-style-6 { font-size: 18px; font-weight: bold; line-height: 1; }
 .wa-categories-style-7 { color: #888; }
 .wa-categories-style-8 { display: flex; flex-direction: column; gap: 8px; }
-.wa-categories-style-9 { cursor: grab; color: #ccc; padding: 0 4px; }
-.wa-categories-style-10 { width: 32px; height: 32px; padding: 0px; border: none; border-radius: 4px; cursor: pointer; }
-.wa-categories-style-11 { flex: 1px; font-size: 15px; }
-.wa-categories-style-12 { font-size: 13px; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.wa-categories-style-9 { cursor: grab; color: #ccc; padding: 0 4px; flex-shrink: 0; }
+/* flex-shrink: 0 ist hier wesentlich: ohne das quetscht die Flex-Zeile das
+   32px-Farbfeld bei langen Kategorienamen auf einen Strich zusammen. */
+.wa-categories-style-10 { width: 32px; height: 32px; padding: 0px; border: none; border-radius: 4px; cursor: pointer; flex-shrink: 0; }
+/* min-width: 0 laesst den Namen selbst schrumpfen, statt die festen Elemente
+   daneben zusammenzudruecken. */
+.wa-categories-style-11 { flex: 1; min-width: 0; font-size: 15px; overflow-wrap: anywhere; }
+.wa-categories-style-12 { font-size: 13px; display: flex; align-items: center; gap: 4px; cursor: pointer; flex-shrink: 0; }
 .work-areas-style-1 { display: flex; flex-direction: column; gap: 24px; }
 .work-areas-style-2 { margin-top: 0px; font-size: 18px; font-weight: 600; color: #212529; }
 .work-areas-style-3 { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; background: #f8f9fa; border-radius: 8px; margin-bottom: 12px; }
@@ -554,22 +558,22 @@
 .work-areas-style-17 { width: 70px; display: flex; flex-direction: column; }
 .work-areas-style-18 { font-size: 12px; color: #666; font-weight: bold; }
 .work-areas-style-19 { width: 100%; padding: 14px 8px; border: 1px solid #dee2e6; border-radius: 8px; font-size: 16px; min-height: 44px; box-sizing: border-box; }
-.work-areas-style-20 { font-size: 18px; font-weight: bold; line-height: 1px; }
+.work-areas-style-20 { font-size: 18px; font-weight: bold; line-height: 1; }
 .work-areas-style-21 { width: 100%; border-collapse: collapse; }
 .work-areas-style-22 { border-bottom: 2px solid #e9ecef; }
 .work-areas-style-23 { width: 30px; padding: 10px 4px; text-align: center; }
-.work-areas-style-24 { padding: 10px 12px; font-weight: 600px; font-size: 13px; text-align: left; }
-.work-areas-style-25 { padding: 10px 12px; font-weight: 600px; font-size: 13px; text-align: left; cursor: pointer; }
-.work-areas-style-26 { padding: 10px 12px; font-weight: 600px; font-size: 13px; text-align: center; }
-.work-areas-style-27 { padding: 10px 12px; font-weight: 600px; font-size: 13px; text-align: left; }
-.work-areas-style-28 { padding: 10px 12px; font-weight: 600px; font-size: 13px; text-align: left; }
-.work-areas-style-29 { padding: 10px 12px; font-weight: 600px; font-size: 13px; text-align: right; cursor: pointer; }
-.work-areas-style-30 { padding: 10px 12px; font-weight: 600px; font-size: 13px; text-align: right; cursor: pointer; }
-.work-areas-style-31 { padding: 10px 12px; font-weight: 600px; font-size: 13px; text-align: left; }
+.work-areas-style-24 { padding: 10px 12px; font-weight: 600; font-size: 13px; text-align: left; }
+.work-areas-style-25 { padding: 10px 12px; font-weight: 600; font-size: 13px; text-align: left; cursor: pointer; }
+.work-areas-style-26 { padding: 10px 12px; font-weight: 600; font-size: 13px; text-align: center; }
+.work-areas-style-27 { padding: 10px 12px; font-weight: 600; font-size: 13px; text-align: left; }
+.work-areas-style-28 { padding: 10px 12px; font-weight: 600; font-size: 13px; text-align: left; }
+.work-areas-style-29 { padding: 10px 12px; font-weight: 600; font-size: 13px; text-align: right; cursor: pointer; }
+.work-areas-style-30 { padding: 10px 12px; font-weight: 600; font-size: 13px; text-align: right; cursor: pointer; }
+.work-areas-style-31 { padding: 10px 12px; font-weight: 600; font-size: 13px; text-align: left; }
 .work-areas-style-32 { border-bottom: 1px solid #f0f0f0; cursor: grab; }
 .work-areas-style-33 { padding: 10px 4px; cursor: grab; color: #ccc; text-align: center; }
 .work-areas-style-34 { padding: 10px 12px; font-size: 24px; text-align: center; }
-.work-areas-style-35 { padding: 10px 12px; font-weight: 500px; }
+.work-areas-style-35 { padding: 10px 12px; font-weight: 500; }
 .work-areas-style-36 { padding: 10px 12px; }
 .work-areas-style-37 { display: flex; gap: 4px; flex-wrap: wrap; }
 .work-areas-style-38 { padding: 10px 12px; }
@@ -593,7 +597,7 @@
 .work-areas-style-56 { display: none; }
 .work-areas-style-57 { font-size: 13px; color: #888; }
 .work-areas-style-58 { width: 18px; height: 18px; cursor: pointer; }
-.work-areas-style-59 { font-size: 14px; font-weight: 600px; color: #856404; }
+.work-areas-style-59 { font-size: 14px; font-weight: 600; color: #856404; }
 .work-areas-style-60 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 .work-areas-style-61 { font-size: 12px; color: #666; font-weight: bold; }
 .work-areas-style-62 { width: 100%; height: 44px; padding: 0px; border: 1px solid #dee2e6; border-radius: 8px; cursor: pointer; }
@@ -643,7 +647,7 @@
 .lebensmittel-actions-container { display: flex; gap: 4px; }
 .lebensmittel-btn-edit { width: 40px; height: 40px; border: none; background: #fff3cd; color: #856404; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; }
 .lebensmittel-btn-delete { width: 40px; height: 40px; border: none; background: #ffe3e3; color: #dc3545; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-.lebensmittel-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.lebensmittel-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999; }
 .lebensmittel-modal-content { background: #fff; border-radius: 16px; padding: 28px 32px 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); width: 90%; max-width: 480px; max-height: 80vh; display: flex; flex-direction: column; }
 .lebensmittel-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .lebensmittel-modal-title { margin: 0; font-size: 18px; font-weight: 600; color: #212529; }
@@ -703,7 +707,7 @@
 .turniere-actions-container { display: flex; gap: 4px; }
 .turniere-btn-edit { width: 40px; height: 40px; border: none; background: #fff3cd; color: #856404; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; }
 .turniere-btn-delete { width: 40px; height: 40px; border: none; background: #ffe3e3; color: #dc3545; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-.turniere-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.turniere-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999; }
 .turniere-modal-content { background: #fff; border-radius: 16px; padding: 28px 32px 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); width: 90%; max-width: 640px; max-height: 80vh; display: flex; flex-direction: column; }
 .turniere-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .turniere-modal-title { margin: 0; font-size: 18px; font-weight: 600; color: #212529; }
@@ -778,7 +782,7 @@
 .helfer-device-label { font-weight: 600; }
 .helfer-device-date { color: #999; }
 .helfer-empty-td { padding: 24px; text-align: center; color: #666; }
-.helfer-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.helfer-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999; }
 .helfer-modal-content { background: #fff; border-radius: 16px; padding: 28px 32px 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); width: 90%; max-width: 560px; max-height: 80vh; display: flex; flex-direction: column; }
 .helfer-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .helfer-modal-title { margin: 0; font-size: 18px; font-weight: 600; color: #212529; }
@@ -837,7 +841,7 @@
 .jahrgaenge-action-btns { display: flex; gap: 4px; }
 .jahrgaenge-btn-edit { width: 40px; height: 40px; border: none; background: #fff3cd; color: #856404; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; }
 .jahrgaenge-btn-delete { width: 40px; height: 40px; border: none; background: #ffe3e3; color: #dc3545; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-.jahrgaenge-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.jahrgaenge-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999; }
 .jahrgaenge-modal-content { background: #fff; border-radius: 16px; padding: 28px 32px 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); width: 90%; max-width: 480px; max-height: 80vh; display: flex; flex-direction: column; }
 .jahrgaenge-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .jahrgaenge-modal-title { margin: 0; font-size: 18px; font-weight: 600; color: #212529; }
@@ -1072,7 +1076,9 @@
 
 .mobile-sticky-push-bar {
   position: fixed;
-  bottom: 0;
+  /* Sitzt bewusst NICHT auf 0, sondern ueber der unteren Tab-Leiste des
+     Admin-Bereichs - beide sind fixiert und wuerden sich sonst ueberlagern. */
+  bottom: calc(var(--admin-bottom-nav-h, 0px) + env(safe-area-inset-bottom));
   left: 0;
   right: 0;
   background: #ffffff;

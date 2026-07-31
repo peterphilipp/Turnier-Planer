@@ -133,7 +133,8 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
         </button>
       </div>
 
-      <table className="helfer-table">
+      <div className="admin-table-scroll">
+      <table className="helfer-table admin-cards-mobile">
         <thead>
           <tr className="helfer-table-header-row">
             <th onClick={() => requestSort('name')} className="helfer-table-th">Name{getSortIndicator('name')}</th>
@@ -151,7 +152,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
             return (
             <Fragment key={v.id}>
             <tr className={`helfer-table-tr ${isExpanded ? 'helfer-table-tr-expanded' : ''}`}>
-              <td className="helfer-table-td">
+              <td data-label="Name" className="helfer-table-td">
                 {v.name}
                 {(v.children || []).some(c => !matchingYearGroup(String(c.childYear))) && (
                   <span title="Mindestens ein Kind passt zu keinem Jahrgang - bitte prüfen" className="helfer-warning-icon">⚠️</span>
@@ -166,14 +167,14 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
                   </button>
                 )}
               </td>
-              <td className="helfer-table-td-normal">{v.email || '–'}</td>
-              <td className="helfer-table-td-normal">{v.phone || '–'}</td>
-              <td className="helfer-table-td-normal">
+              <td data-label="E-Mail" className="helfer-table-td-normal">{v.email || '–'}</td>
+              <td data-label="Telefon" className="helfer-table-td-normal">{v.phone || '–'}</td>
+              <td data-label="Rolle" className="helfer-table-td-normal">
                 <div className="helfer-flex-row">
                   <RoleBadge role={v.role || 'HELPER'} />
                 </div>
               </td>
-              <td className={`helfer-table-td-normal helfer-date-text ${v.lastActivityAt ? 'helfer-date-active' : 'helfer-date-inactive'}`}>
+              <td data-label="Letzte Aktivität" className={`helfer-table-td-normal helfer-date-text ${v.lastActivityAt ? 'helfer-date-active' : 'helfer-date-inactive'}`}>
                 {v.lastActivityAt ? new Date(v.lastActivityAt).toLocaleDateString('de-DE') : 'Nie'}
               </td>
               <td className="helfer-table-td-actions">
@@ -190,7 +191,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
               </td>
             </tr>
             {isExpanded && (
-              <tr className="helfer-table-tr">
+              <tr className="helfer-table-tr helfer-expanded-row">
                 <td colSpan={6} className="helfer-expanded-td">
                   <div className="helfer-expanded-title">Geräte mit aktivierten Push-Benachrichtigungen:</div>
                   <div className="helfer-expanded-list">
@@ -213,6 +214,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
           ) : (filtered.length === 0 ? <tr><td colSpan={6} className="helfer-empty-td">Keine Treffer für "{search}"</td></tr> : null)}
         </tbody>
       </table>
+      </div>
 
       {/* Edit Modal */}
       {editingVol && (

@@ -102,8 +102,9 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
 
     </div>
 
-      <table className="work-areas-style-21">
-        <thead><tr className="work-areas-style-22"><th className="work-areas-style-23">⋮⋮</th><th className="work-areas-style-24">Icon</th><th onClick={() => requestSort('name')} className="work-areas-style-25">Name{getSortIndicator('name')}</th><th className="work-areas-style-26">Standard</th><th className="work-areas-style-27">Kategorien</th><th className="work-areas-style-28">Farbe</th><th onClick={() => requestSort('minVolunteers')} className="work-areas-style-29">Min{getSortIndicator('minVolunteers')}</th><th onClick={() => requestSort('maxVolunteers')} className="work-areas-style-30">Max{getSortIndicator('maxVolunteers')}</th><th className="work-areas-style-31">Aktion</th></tr></thead>
+      <div className="admin-table-scroll">
+      <table className="work-areas-style-21 admin-cards-mobile">
+        <thead><tr className="work-areas-style-22"><th className="work-areas-style-23">⋮⋮</th><th className="work-areas-style-24">Icon</th><th onClick={() => requestSort('name')} className="work-areas-style-25">Name{getSortIndicator('name')}</th><th className="work-areas-style-27">Kategorien</th><th className="work-areas-style-28">Farbe</th><th className="work-areas-style-26">Standard</th><th onClick={() => requestSort('minVolunteers')} className="work-areas-style-29">Min{getSortIndicator('minVolunteers')}</th><th onClick={() => requestSort('maxVolunteers')} className="work-areas-style-30">Max{getSortIndicator('maxVolunteers')}</th><th className="work-areas-style-31">Aktion</th></tr></thead>
         <tbody>
           {sortedWorkAreas.map((ab, idx) => (
             <tr 
@@ -116,21 +117,21 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
               className="work-areas-style-32"
             >
               <td className="work-areas-style-33">⋮⋮</td>
-              <td className="work-areas-style-34">{ab.icon}</td>
-              <td className="work-areas-style-35">{ab.name}</td>
-              <td className="work-areas-style-36">
+              <td data-label="Icon" className="work-areas-style-34">{ab.icon}</td>
+              <td data-label="Name" className="work-areas-style-35">{ab.name}</td>
+              <td data-label="Kategorien" className="work-areas-style-36">
                 <div className="work-areas-style-37">
                   {(ab.categories || []).map(cat => (
                     <span key={cat.id} style={{ fontSize: 11, background: cat.color, border: `1px solid ${cat.color}`, padding: '2px 6px', borderRadius: 10 }}>{cat.name}</span>
                   ))}
                 </div>
               </td>
-              <td className="work-areas-style-38"><div style={{ background: ab.color, width: 40, height: 20, borderRadius: 4 }} /></td>
-              <td className="work-areas-style-39">
+              <td data-label="Farbe" className="work-areas-style-38"><div style={{ background: ab.color, width: 40, height: 20, borderRadius: 4 }} /></td>
+              <td data-label="Standard" className="work-areas-style-39">
                 {ab.isStandard ? '⭐ Ja' : '—'}
               </td>
-              <td className="work-areas-style-40">{ab.minVolunteers}</td>
-              <td className="work-areas-style-41">{ab.maxVolunteers}</td>
+              <td data-label="Min. Helfer" className="work-areas-style-40">{ab.minVolunteers}</td>
+              <td data-label="Max. Helfer" className="work-areas-style-41">{ab.maxVolunteers}</td>
               <td className="work-areas-style-42">
                 <button onClick={() => openEdit(ab)} className="work-areas-style-43">✏️</button>
                 <button onClick={() => deleteWorkArea(ab)} className="work-areas-style-44">🗑️</button>
@@ -139,10 +140,11 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
           ))}
         </tbody>
       </table>
+      </div>
 
       {/* Edit Modal */}
       {editingAb && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: '28px 32px 24px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '90%', maxWidth: 560, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
             <div className="work-areas-style-45">
               <h3 className="work-areas-style-46">✏️ Arbeitsbereich bearbeiten</h3>

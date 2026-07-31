@@ -4,13 +4,19 @@ import { useUser } from '../../context/UserContext';
 import { useQuery } from '@tanstack/react-query';
 import { getTournaments, setAuthToken, ApiError } from '../../api';
 import { Tournament } from '../admin/shared';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
-type MainTab = 'spielplan' | 'organisation' | 'stammdaten';
+const MAIN_TABS = [
+  { key: 'spielplan', icon: '⚽', label: 'Spielplan', color: '#0d6efd' },
+  { key: 'organisation', icon: '📋', label: 'Organisation', color: '#198754' },
+  { key: 'stammdaten', icon: '⚙️', label: 'Stammdaten', color: '#6c757d' }
+] as const;
 
 export default function AdminLayout() {
   const { isAdmin, isOrganizer, token, isLoggedIn: ctxLoggedIn, logout, isInitializing } = useUser();
   const location = useLocation();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   // Role check
   let adminAccess = isAdmin || isOrganizer;
@@ -115,56 +121,68 @@ export default function AdminLayout() {
   return (
     <div className="admin-core-style-40">
       <header className="admin-core-style-41">
-        <div className="admin-core-style-42" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <img src="/logo.webp" alt="Logo" style={{ width: 40, height: 40, objectFit: 'contain' }} />
-          <h1 className="admin-core-style-43" onClick={() => navigate('/admin')} style={{ margin: 0, fontSize: 28, fontWeight: 'bold', color: '#212529', cursor: 'pointer' }}>
-            Turnierplaner – Admin
+        <div className="admin-core-style-42" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          <img src="/logo.webp" alt="Logo" style={{ width: isMobile ? 32 : 40, height: isMobile ? 32 : 40, objectFit: 'contain', flexShrink: 0 }} />
+          <h1
+            className="admin-core-style-43"
+            onClick={() => navigate('/admin')}
+            style={{ margin: 0, fontSize: isMobile ? 18 : 28, fontWeight: 'bold', color: '#212529', cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            {/* Auf dem Handy reicht "Admin": der lange Titel verdraengt sonst
+                die eigentliche Arbeitsflaeche, und wo man ist, sagt ohnehin
+                die untere Tab-Leiste. */}
+            {isMobile ? 'Admin' : 'Turnierplaner – Admin'}
           </h1>
         </div>
-        
+
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <span style={{ background: '#dc3545', color: '#fff', padding: '6px 12px', borderRadius: 20, fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 4 }}>👑 Admin</span>
+          {!isMobile && (
+            <span style={{ background: '#dc3545', color: '#fff', padding: '6px 12px', borderRadius: 20, fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 4 }}>👑 Admin</span>
+          )}
           <button
             onClick={() => navigate('/')}
             className="admin-core-style-46"
-            style={{ background: '#0d6efd', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer', fontSize: 14 }}
+            title="Zum Self-Service-Bereich"
+            aria-label="Zum Self-Service-Bereich"
+            style={{ background: '#0d6efd', color: '#fff', border: 'none', padding: isMobile ? '8px 12px' : '10px 16px', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer', fontSize: 14, minHeight: 40, whiteSpace: 'nowrap' }}
           >
-            Self-Service-Bereich
+            {isMobile ? '👤' : 'Self-Service-Bereich'}
           </button>
         </div>
       </header>
 
-      {/* MAIN NAVIGATION */}
-      <nav className="admin-core-style-47">
-        {[
-          { key: 'spielplan', icon: '⚽', label: 'Spielplan' },
-          { key: 'organisation', icon: ' clipboard', label: 'Organisation', iconObj: '📋' },
-          { key: 'stammdaten', icon: 'database', label: 'Stammdaten', iconObj: '⚙️' }
-        ].map(tab => (
-          <NavLink
-            key={tab.key}
-            to={`/admin/${tab.key}`}
-            className={({ isActive }) => (isActive || (activeMainTab === tab.key)) ? 'active' : ''}
-            style={({ isActive }) => ({
-              padding: '12px 24px',
-              textDecoration: 'none',
-              cursor: 'pointer',
-              background: (isActive || activeMainTab === tab.key) ? (tab.key === 'spielplan' ? '#0d6efd' : tab.key === 'organisation' ? '#198754' : '#6c757d') : 'transparent',
-              color: (isActive || activeMainTab === tab.key) ? '#fff' : '#6c757d',
-              border: (isActive || activeMainTab === tab.key) ? 'none' : '2px solid #e9ecef',
-              borderRadius: 8,
-              fontSize: 16,
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              transition: 'all 0.2s'
-            })}
-          >
-            <span>{tab.iconObj || tab.icon}</span> <span>{tab.label}</span>
-          </NavLink>
-        ))}
-      </nav>
+      {/* HAUPTNAVIGATION - auf dem Desktop oben, mobil als untere Tab-Leiste */}
+      {!isMobile && (
+        <nav className="admin-core-style-47">
+          {MAIN_TABS.map(tab => {
+            const active = activeMainTab === tab.key;
+            return (
+              <NavLink
+                key={tab.key}
+                to={`/admin/${tab.key}`}
+                className={active ? 'active' : ''}
+                style={{
+                  padding: '12px 24px',
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                  background: active ? tab.color : 'transparent',
+                  color: active ? '#fff' : '#6c757d',
+                  border: active ? 'none' : '2px solid #e9ecef',
+                  borderRadius: 8,
+                  fontSize: 16,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  transition: 'all 0.2s'
+                }}
+              >
+                <span>{tab.icon}</span> <span>{tab.label}</span>
+              </NavLink>
+            );
+          })}
+        </nav>
+      )}
 
       {/* SUB-NAVIGATION & CONTENT (via Outlet) */}
       <Outlet context={{
@@ -176,10 +194,36 @@ export default function AdminLayout() {
         isAdmin
       }} />
 
-      {/* FOOTER */}
-      <footer className="admin-core-style-48">
-        <p className="admin-core-style-49">© {new Date().getFullYear()} Peter Philipp</p>
-      </footer>
+      {/* FOOTER - mobil ausgeblendet, die Zeile stuende sonst direkt ueber
+          der Tab-Leiste und kostet Platz ohne Nutzen. */}
+      {!isMobile && (
+        <footer className="admin-core-style-48">
+          <p className="admin-core-style-49">© {new Date().getFullYear()} Peter Philipp</p>
+        </footer>
+      )}
+
+      {isMobile && (
+        <nav className="admin-bottom-nav" aria-label="Hauptbereiche">
+          {MAIN_TABS.map(tab => {
+            const active = activeMainTab === tab.key;
+            return (
+              <NavLink
+                key={tab.key}
+                to={`/admin/${tab.key}`}
+                className={`admin-bottom-nav-item${active ? ' is-active' : ''}`}
+                aria-current={active ? 'page' : undefined}
+                style={active ? ({
+                  ['--admin-bottom-nav-active' as any]: tab.color,
+                  ['--admin-bottom-nav-active-bg' as any]: `${tab.color}12`
+                } as React.CSSProperties) : undefined}
+              >
+                <span className="admin-bottom-nav-icon" aria-hidden="true">{tab.icon}</span>
+                <span>{tab.label}</span>
+              </NavLink>
+            );
+          })}
+        </nav>
+      )}
     </div>
   );
 }

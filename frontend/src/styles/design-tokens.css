@@ -49,6 +49,13 @@
   --spacing-12: 3rem;     /* 48px */
   --spacing-16: 4rem;     /* 64px */
 
+  /* Hoehe der unteren Tab-Leiste im Admin-Bereich (nur mobil sichtbar).
+     Als Variable, damit sich andere fixierte Elemente - z.B. die klebende
+     Sende-Leiste im Push-Broadcast - darueber setzen koennen, statt sie zu
+     ueberlagern. Der Safe-Area-Zuschlag fuer die iPhone-Home-Leiste kommt
+     dort jeweils zusaetzlich dazu. */
+  --admin-bottom-nav-h: 60px;
+
   /* Border Radius */
   --radius-sm: 4px;
   --radius-md: 8px;

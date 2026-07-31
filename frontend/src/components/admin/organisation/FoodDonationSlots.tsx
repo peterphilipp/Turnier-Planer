@@ -1,24 +1,13 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getFoodDonationSlots, getAllFoodDonations, getYearGroups, getFoodCategories, getFoodItems, apiPost, apiPatch, apiDelete } from '../../../api';
 import { btnStyleSecondary, btnStyle, inputStyle, FoodDonationSlot, FoodDonation, YearGroup, FoodItem, FoodCategory, Tournament } from '../shared';
-
-/** Liefert die aktuelle Fensterbreite und aktualisiert bei Resize. */
-function useWindowWidth() {
-  const [width, setWidth] = useState(window.innerWidth);
-  useEffect(() => {
-    const handler = () => setWidth(window.innerWidth);
-    window.addEventListener('resize', handler);
-    return () => window.removeEventListener('resize', handler);
-  }, []);
-  return width;
-}
+import { useIsMobile } from '../../../hooks/useIsMobile';
 
 export default function FoodDonationSlots({ selectedTournament, tournament, adminPrimary }: { selectedTournament: number | null, tournament: Tournament | null, adminPrimary: string }) {
   const queryClient = useQueryClient();
-  const windowWidth = useWindowWidth();
-  const isMobile = windowWidth < 768;
+  const isMobile = useIsMobile();
 
   const { data: slots = [] } = useQuery<FoodDonationSlot[]>({
     queryKey: ['foodDonationSlots', selectedTournament],

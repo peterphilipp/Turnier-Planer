@@ -71,7 +71,8 @@ export default function Jahrgaenge({ adminPrimary }: { adminPrimary: string }) {
         </button>
       </div>
 
-      <table className="jahrgaenge-table">
+      <div className="admin-table-scroll">
+      <table className="jahrgaenge-table admin-cards-mobile">
         <thead><tr className="jahrgaenge-table-header-row"><th className="jahrgaenge-table-th-grip">⋮⋮</th><th onClick={() => requestSort('name')} className="jahrgaenge-table-th">Jahrgang{getSortIndicator('name')}</th><th onClick={() => requestSort('yearGroupRange')} className="jahrgaenge-table-th-right">Geburtsjahr{getSortIndicator('yearGroupRange')}</th><th onClick={() => requestSort('isActive')} className="jahrgaenge-table-th-center">Aktiv{getSortIndicator('isActive')}</th><th className="jahrgaenge-table-th-no-cursor">Aktion</th></tr></thead>
         <tbody>
           {isLoading || sortedYearGroups.length === 0 ? (
@@ -80,9 +81,9 @@ export default function Jahrgaenge({ adminPrimary }: { adminPrimary: string }) {
             sortedYearGroups.map((yg, idx) => (
               <tr key={yg.id} draggable onDragStart={() => {}} onDragEnter={() => {}} onDragEnd={() => {}} onDragOver={e => e.preventDefault()} className="jahrgaenge-table-tr">
                 <td className="jahrgaenge-table-td-grip">⋮⋮</td>
-                <td className="jahrgaenge-table-td">{yg.name}</td>
-                <td className="jahrgaenge-table-td-right">{yg.birthYearStart} – {yg.birthYearEnd}</td>
-                <td className="jahrgaenge-table-td-center">{yg.isActive ? '✅' : '⏸️'}</td>
+                <td data-label="Jahrgang" className="jahrgaenge-table-td">{yg.name}</td>
+                <td data-label="Geburtsjahr" className="jahrgaenge-table-td-right">{yg.birthYearStart} – {yg.birthYearEnd}</td>
+                <td data-label="Aktiv" className="jahrgaenge-table-td-center">{yg.isActive ? '✅' : '⏸️'}</td>
                 <td className="jahrgaenge-table-td-actions">
                   <div className="jahrgaenge-action-btns">
                     <button onClick={() => openEdit(yg)} className="jahrgaenge-btn-edit">✏️</button>
@@ -94,6 +95,7 @@ export default function Jahrgaenge({ adminPrimary }: { adminPrimary: string }) {
           )}
         </tbody>
       </table>
+      </div>
 
       {/* Edit Modal */}
       {editingId && (

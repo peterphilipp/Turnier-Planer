@@ -1,23 +1,12 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getVolunteers, getShifts, getVolunteerShifts, broadcastPush } from '../../../api';
 import { Shift, VolunteerShift, minToTime, inputStyle, btnStyle } from '../shared';
 import { modal } from '../Modal';
-
-/** Liefert die aktuelle Fensterbreite und aktualisiert bei Resize. */
-function useWindowWidth() {
-  const [width, setWidth] = useState(window.innerWidth);
-  useEffect(() => {
-    const handler = () => setWidth(window.innerWidth);
-    window.addEventListener('resize', handler);
-    return () => window.removeEventListener('resize', handler);
-  }, []);
-  return width;
-}
+import { useIsMobile } from '../../../hooks/useIsMobile';
 
 export default function PushBroadcast({ selectedTournament }: { selectedTournament: number | null }) {
-  const windowWidth = useWindowWidth();
-  const isMobile = windowWidth < 768;
+  const isMobile = useIsMobile();
   const [mode, setMode] = useState<'all' | 'shifts' | 'users'>('all');
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [selectedShiftIds, setSelectedShiftIds] = useState<number[]>([]);

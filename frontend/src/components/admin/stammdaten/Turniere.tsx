@@ -134,29 +134,30 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
         </button>
       </div>
 
-      <table className="turniere-table">
-        <thead><tr className="turniere-table-header-row"><th onClick={() => requestSort('clubName')} className="turniere-th-left-pointer">Verein{getSortIndicator('clubName')}</th><th onClick={() => requestSort('name')} className="turniere-th-left-pointer">Name{getSortIndicator('name')}</th><th className="turniere-th-center">Sponsor-Logo</th><th onClick={() => requestSort('startDate')} className="turniere-th-right-pointer">Von{getSortIndicator('startDate')}</th><th onClick={() => requestSort('endDate')} className="turniere-th-right-pointer">Bis{getSortIndicator('endDate')}</th><th onClick={() => requestSort('statusBadge')} className="turniere-th-center-pointer">Status{getSortIndicator('statusBadge')}</th><th className="turniere-th-left">Jahrgänge</th></tr></thead>
+      <div className="admin-table-scroll">
+      <table className="turniere-table admin-cards-mobile">
+        <thead><tr className="turniere-table-header-row"><th onClick={() => requestSort('clubName')} className="turniere-th-left-pointer">Verein{getSortIndicator('clubName')}</th><th onClick={() => requestSort('name')} className="turniere-th-left-pointer">Name{getSortIndicator('name')}</th><th className="turniere-th-center">Sponsor-Logo</th><th onClick={() => requestSort('startDate')} className="turniere-th-right-pointer">Von{getSortIndicator('startDate')}</th><th onClick={() => requestSort('endDate')} className="turniere-th-right-pointer">Bis{getSortIndicator('endDate')}</th><th onClick={() => requestSort('statusBadge')} className="turniere-th-center-pointer">Status{getSortIndicator('statusBadge')}</th><th className="turniere-th-left">Jahrgänge</th><th className="turniere-th-left">Aktion</th></tr></thead>
         <tbody>
           {sortedTournaments.map(t => (
             <tr key={t.id} className="turniere-tr">
-              <td className="turniere-td">
+              <td data-label="Verein" className="turniere-td">
                 {t.club ? (<span className="turniere-club-info">
                   {t.club.logo ? <img src={t.club.logo} alt={t.club.name} className="turniere-club-logo" /> : <span className="turniere-club-logo-placeholder" style={{ background: t.club.primaryColor }}>{t.club.name.charAt(0)}</span>}
                   <span className="turniere-club-name">{t.club.name}</span>
                 </span>) : <span className="turniere-gray-text">–</span>}
               </td>
-              <td className="turniere-td-bold">{t.name}</td>
-              <td className="turniere-td-center">
+              <td data-label="Name" className="turniere-td-bold">{t.name}</td>
+              <td data-label="Sponsor-Logo" className="turniere-td-center">
                 {t.logo ? (
                   <img src={t.logo} alt="Sponsor" className="turniere-sponsor-logo" />
                 ) : (
                   <span className="turniere-gray-text-small">–</span>
                 )}
               </td>
-              <td className="turniere-td-right">{new Date(t.startDate).toLocaleDateString('de-DE')}</td>
-              <td className="turniere-td-right">{new Date(t.endDate).toLocaleDateString('de-DE')}</td>
-              <td className="turniere-td-center">{statusBadge(t.status)}</td>
-              <td className="turniere-td">
+              <td data-label="Von" className="turniere-td-right">{new Date(t.startDate).toLocaleDateString('de-DE')}</td>
+              <td data-label="Bis" className="turniere-td-right">{new Date(t.endDate).toLocaleDateString('de-DE')}</td>
+              <td data-label="Status" className="turniere-td-center">{statusBadge(t.status)}</td>
+              <td data-label="Jahrgänge" className="turniere-td">
                 {t.yearGroups && t.yearGroups.length > 0 ? (<div className="turniere-year-group-container">{t.yearGroups.map(yg => (<span key={yg.id} className="turniere-year-group-badge">{yg.name}</span>))}</div>) : <span className="turniere-gray-text">–</span>}
               </td>
               <td className="turniere-td-actions">
@@ -169,6 +170,7 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
           ))}
         </tbody>
       </table>
+      </div>
 
       {/* Edit Modal */}
       {statusDialog.open && statusDialog.tournament && (

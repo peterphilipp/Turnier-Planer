@@ -21,7 +21,7 @@
 .admin-core-style-4 {
   margin: 0px;
   font-size: 18px;
-  font-weight: 700px;
+  font-weight: 700;
   line-height: 1.2;
 }
 
@@ -253,7 +253,7 @@
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  font-weight: 600px;
+  font-weight: 600;
   font-size: 15px;
   margin-top: 16px;
 }
@@ -295,10 +295,209 @@
   margin: 0 auto;
 }
 
+@media (max-width: 767px) {
+  /* Seitenrand halbieren: 2x20px sind auf einem 375px-Geraet ueber zehn
+     Prozent der nutzbaren Breite. Unten Platz fuer die Tab-Leiste, sonst
+     verschwindet der letzte Inhalt dahinter. */
+  .admin-core-style-40 {
+    padding: 12px 12px calc(var(--admin-bottom-nav-h) + env(safe-area-inset-bottom) + 20px);
+  }
+}
+
+/* ---- Untere Tab-Leiste (nur mobil) ---- */
+.admin-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1100;
+  display: flex;
+  background: #ffffff;
+  border-top: 1px solid #e9ecef;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
+  height: calc(var(--admin-bottom-nav-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.admin-bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  text-decoration: none;
+  color: #6c757d;
+  font-size: 11px;
+  font-weight: 600;
+  border: none;
+  background: none;
+  cursor: pointer;
+  /* Farbiger Aktiv-Indikator sitzt oben auf der Kante, transparent im
+     Ruhezustand, damit die Beschriftung nicht um 3px springt. */
+  border-top: 3px solid transparent;
+  padding: 0 4px;
+}
+
+.admin-bottom-nav-item .admin-bottom-nav-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.admin-bottom-nav-item.is-active {
+  color: var(--admin-bottom-nav-active, #0d6efd);
+  border-top-color: var(--admin-bottom-nav-active, #0d6efd);
+  background: var(--admin-bottom-nav-active-bg, rgba(13, 110, 253, 0.06));
+}
+
+/* ---- Breite Tabellen auf dem Handy ----
+   Die Stammdaten-Tabellen haben fuenf bis neun Spalten. Ohne eigenen
+   Scrollbereich schiebt die breiteste davon die GESAMTE Seite in den
+   Querscroll, samt Kopfzeile und Navigation. Der Wrapper begrenzt das
+   Scrollen auf die Tabelle selbst.
+   Bewusst nur innerhalb der Media Query: auf dem Desktop ist das Element ein
+   voellig neutraler Block, die Darstellung dort bleibt unveraendert. */
+@media (max-width: 767px) {
+  .admin-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Angeschnittene Spalte am Rand signalisiert, dass es weitergeht. */
+    margin-right: -12px;
+    padding-right: 12px;
+  }
+
+  .admin-table-scroll > table {
+    /* Ohne Mindestbreite quetscht der Browser die Spalten auf
+       Buchstabenbreite, statt den Scrollbereich zu nutzen. */
+    min-width: max-content;
+  }
+}
+
+/* ---- Tabellen als Karten (nur Handy) ----
+   Statt eine neun-spaltige Tabelle seitlich zu scrollen, wird jede Zeile zu
+   einer Karte und jede Zelle zu einer Zeile "Beschriftung: Wert". Die
+   Beschriftung kommt aus data-label am <td>, weil <thead> ausgeblendet ist.
+   Bewusst rein ueber CSS und komplett innerhalb der Media Query: die
+   Render-Logik der Komponenten bleibt unangetastet und der Desktop kann sich
+   dadurch nicht aendern. */
+@media (max-width: 767px) {
+  .admin-cards-mobile,
+  .admin-cards-mobile > tbody,
+  .admin-cards-mobile > tbody > tr,
+  .admin-cards-mobile > tbody > tr > td {
+    display: block;
+    width: auto;
+  }
+
+  .admin-cards-mobile > thead {
+    display: none;
+  }
+
+  .admin-cards-mobile > tbody > tr {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    padding: 8px 14px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  }
+
+  .admin-cards-mobile > tbody > tr > td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: none;
+    padding: 8px 0;
+    text-align: left;
+    white-space: normal;
+  }
+
+  .admin-cards-mobile > tbody > tr > td + td {
+    border-top: 1px solid #f1f3f5;
+  }
+
+  .admin-cards-mobile > tbody > tr > td[data-label]::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6c757d;
+  }
+
+  /* Zellen ohne Beschriftung sind Aktionsleisten oder Leerzustaende - die
+     brauchen die volle Breite statt einer Zwei-Spalten-Aufteilung. */
+  .admin-cards-mobile > tbody > tr > td:not([data-label]) {
+    justify-content: flex-start;
+  }
+
+  /* Der Griff zum Umsortieren per Ziehen ist auf dem Touchscreen nutzlos. */
+  .admin-cards-mobile .jahrgaenge-table-td-grip,
+  .admin-cards-mobile .work-areas-style-33 {
+    display: none;
+  }
+
+  /* Aufgeklappte Geraeteliste in der Benutzerliste: gehoert zur Karte
+     darueber, also keine eigene Karte daraus machen. */
+  .admin-cards-mobile > tbody > tr.helfer-expanded-row {
+    margin-top: -14px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    box-shadow: none;
+    background: #f8f9fa;
+  }
+
+  .admin-cards-mobile > tbody > tr.helfer-expanded-row > td {
+    display: block;
+  }
+
+  /* Der Scroll-Wrapper darf die Karten nicht kuenstlich breit ziehen. */
+  .admin-table-scroll > .admin-cards-mobile {
+    min-width: 0;
+  }
+}
+
+/* ---- Unternavigation: eine seitlich scrollbare Zeile statt Umbruch ---- */
+.admin-subnav {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 767px) {
+  .admin-subnav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    /* Kein scroll-snap: es schnappt nach dem Laden auf den ersten Reiter
+       zurueck und macht damit das Einscrollen des aktiven Reiters zunichte. */
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-bottom: 16px;
+    /* Negative Raender heben den Seitenrand auf, damit die Reiter beim
+       Scrollen bis an den Bildschirmrand laufen statt vorher abzuschneiden. */
+    margin-left: -12px;
+    margin-right: -12px;
+    padding: 0 12px 2px;
+  }
+
+  .admin-subnav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .admin-subnav > a {
+    flex: 0 0 auto;
+  }
+}
+
 .admin-core-style-41 {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  /* Ohne Umbruch quetschen sich Titel, Rollen-Badge und Button auf schmalen
+     Geraeten ineinander und schieben die Seite in den Querscroll. */
+  flex-wrap: wrap;
+  gap: 12px;
   margin-bottom: 24px;
 }
 
@@ -336,11 +535,12 @@
   color: #0d6efd;
   border-radius: 8px;
   cursor: pointer;
-  font-weight: 600px;
+  font-weight: 600;
 }
 
 .admin-core-style-47 {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 24px;
   border-bottom: 2px solid #e9ecef;
@@ -362,7 +562,7 @@
 
 .admin-core-style-50 {
   min-width: 130px;
-  flex-shrink: 0px;
+  flex-shrink: 0;
 }
 
 .admin-core-style-51 {
@@ -375,12 +575,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 1px;
+  flex-shrink: 1;
 }
 
 .admin-core-style-53 {
   font-size: 13px;
-  font-weight: 500px;
+  font-weight: 500;
   text-align: left;
   margin-right: auto;
 }
@@ -389,7 +589,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  flex-shrink: 0px;
+  flex-shrink: 0;
 }
 
 .admin-core-style-55 {
@@ -418,7 +618,7 @@
 
 .admin-core-style-58 {
   font-size: 13px;
-  font-weight: 500px;
+  font-weight: 500;
   text-align: right;
   margin-left: auto;
 }
@@ -426,7 +626,7 @@
 .admin-core-style-59 {
   display: flex;
   gap: 6px;
-  flex-shrink: 0px;
+  flex-shrink: 0;
 }
 
 .admin-core-style-60 {
@@ -436,14 +636,14 @@
   border-radius: 4px;
   cursor: pointer;
   font-size: 11px;
-  font-weight: 500px;
+  font-weight: 500;
   color: #664d03;
 }
 
 .admin-core-style-61 {
   margin: 0 0 16px 0;
   font-size: 18px;
-  font-weight: 600px;
+  font-weight: 600;
   color: #212557;
 }
 
@@ -469,7 +669,7 @@
 .admin-core-style-66 {
   margin: 0 0 8px 0;
   font-size: 15px;
-  font-weight: 600px;
+  font-weight: 600;
   color: #212557;
 }
 
@@ -546,7 +746,7 @@
 
 .admin-core-style-78 {
   padding: 8px 12px;
-  font-weight: 500px;
+  font-weight: 500;
 }
 
 .admin-core-style-79 {
@@ -597,7 +797,7 @@
 .admin-core-style-86 {
   margin: 0 0 8px 0;
   font-size: 15px;
-  font-weight: 600px;
+  font-weight: 600;
   color: #212557;
 }
 
@@ -614,7 +814,7 @@
 .admin-core-style-89 {
   margin: 0 0 8px 0;
   font-size: 15px;
-  font-weight: 600px;
+  font-weight: 600;
   color: #6c757d;
 }
 
@@ -627,7 +827,7 @@
 .admin-core-style-91 {
   margin: 0 0 16px 0;
   font-size: 18px;
-  font-weight: 600px;
+  font-weight: 600;
   color: #212557;
 }
 
@@ -643,7 +843,7 @@
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 600px;
+  font-weight: 600;
 }
 
 .admin-core-style-94 {
@@ -665,7 +865,7 @@
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 600px;
+  font-weight: 600;
 }
 
 .admin-core-style-97 {
@@ -680,7 +880,7 @@
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 600px;
+  font-weight: 600;
 }
 
 .admin-core-style-99 {
@@ -690,7 +890,7 @@
 .admin-core-style-100 {
   margin: 0 0 8px 0;
   font-size: 15px;
-  font-weight: 600px;
+  font-weight: 600;
   color: #212557;
 }
 
@@ -707,7 +907,7 @@
 .admin-core-style-103 {
   margin: 0 0 8px 0;
   font-size: 15px;
-  font-weight: 600px;
+  font-weight: 600;
   color: #6c757d;
 }
 
@@ -730,7 +930,7 @@
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 600px;
+  font-weight: 600;
 }
 
 .admin-core-style-107 {
@@ -740,7 +940,7 @@
 
 .admin-core-style-108 {
   font-size: 20px;
-  font-weight: 600px;
+  font-weight: 600;
   margin-bottom: 8px;
   color: #212529;
 }
@@ -776,7 +976,7 @@
 
 .admin-core-style-113 {
   font-size: 15px;
-  font-weight: 700px;
+  font-weight: 700;
   color: #212557;
 }
 
@@ -828,7 +1028,7 @@
 }
 
 .admin-core-style-122 {
-  font-weight: 700px;
+  font-weight: 700;
   font-size: 13px;
   color: #212529;
   margin-bottom: 8px;
@@ -876,7 +1076,7 @@
 }
 
 .admin-core-style-130 {
-  font-weight: 700px;
+  font-weight: 700;
   font-size: 13px;
   color: #212529;
   margin-bottom: 8px;
@@ -954,7 +1154,7 @@
 }
 
 .admin-core-style-144 {
-  font-weight: 700px;
+  font-weight: 700;
   font-size: 14px;
   color: #212529;
 }
@@ -967,7 +1167,7 @@
 }
 
 .admin-core-style-146 {
-  font-weight: 700px;
+  font-weight: 700;
   font-size: 13px;
   color: #212529;
   margin-bottom: 8px;
@@ -1025,7 +1225,7 @@
 }
 
 .admin-core-style-156 {
-  font-weight: 700px;
+  font-weight: 700;
   font-size: 13px;
   color: #212529;
   margin-bottom: 8px;
@@ -1095,17 +1295,17 @@
 
 .admin-core-style-168 {
   padding: 8px 12px;
-  font-weight: 600px;
+  font-weight: 600;
   text-align: left;
   position: sticky;
   left: 0px;
   background: #f8f9fa;
-  z-index: 1px;
+  z-index: 1;
 }
 
 .admin-core-style-169 {
   padding: 8px 12px;
-  font-weight: 600px;
+  font-weight: 600;
   text-align: center;
   min-width: 100px;
 }
@@ -1128,11 +1328,11 @@
 
 .admin-core-style-173 {
   padding: 8px 12px;
-  font-weight: 500px;
+  font-weight: 500;
   position: sticky;
   left: 0px;
   background: #fff;
-  z-index: 1px;
+  z-index: 1;
 }
 
 .admin-core-style-174 {
@@ -1152,17 +1352,17 @@
 
 .admin-core-style-177 {
   padding: 8px 12px;
-  font-weight: 700px;
+  font-weight: 700;
   text-align: left;
   position: sticky;
   left: 0px;
   background: #f8f9fa;
-  z-index: 1px;
+  z-index: 1;
 }
 
 .admin-core-style-178 {
   padding: 8px 12px;
-  font-weight: 700px;
+  font-weight: 700;
   text-align: center;
 }
 
@@ -1249,14 +1449,14 @@
   border: 1px solid #ced4da;
   background: #fff;
   color: #212529;
-  font-weight: 600px;
+  font-weight: 600;
   cursor: pointer;
   font-size: 13px;
 }
 
 .admin-core-style-194 {
   font-size: 13px;
-  font-weight: 600px;
+  font-weight: 600;
   color: #856404;
 }
 
@@ -1301,7 +1501,7 @@
 }
 
 .admin-core-style-202 {
-  font-weight: 600px;
+  font-weight: 600;
   font-size: 14px;
   color: #212529;
 }
@@ -1320,9 +1520,9 @@
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  font-weight: 600px;
+  font-weight: 600;
   font-size: 13px;
-  flex-shrink: 0px;
+  flex-shrink: 0;
 }
 
 .admin-core-style-205 {
@@ -1358,7 +1558,7 @@
   border: none;
   background: transparent;
   font-size: 24px;
-  line-height: 1px;
+  line-height: 1;
   cursor: pointer;
   color: #adb5bd;
 }
@@ -1457,7 +1657,7 @@
 }
 
 .admin-core-style-224 {
-  font-weight: 600px;
+  font-weight: 600;
   color: #212529;
 }
 
@@ -1477,7 +1677,7 @@
   cursor: pointer;
   font-size: 13px;
   font-weight: bold;
-  flex-shrink: 0px;
+  flex-shrink: 0;
 }
 
 .admin-core-style-227 {

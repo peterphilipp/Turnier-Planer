@@ -116,14 +116,15 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
           </button>
         </div>
 
-        <table className="lebensmittel-table">
+        <div className="admin-table-scroll">
+        <table className="lebensmittel-table admin-cards-mobile">
           <thead><tr className="lebensmittel-table-header-row"><th className="lebensmittel-th-left">Icon</th><th onClick={() => sortCat('name')} className="lebensmittel-th-left-pointer">Name{getCatInd('name')}</th><th className="lebensmittel-th-right">Artikel</th><th className="lebensmittel-th-left">Aktion</th></tr></thead>
           <tbody>
             {sortedCategories.map(cat => (
               <tr key={cat.id} className="lebensmittel-tr">
-                <td className="lebensmittel-td-icon">{cat.icon}</td>
-                <td className="lebensmittel-td-bold">{cat.name}</td>
-                <td className="lebensmittel-td-right-gray">{cat.items?.length || 0}</td>
+                <td data-label="Icon" className="lebensmittel-td-icon">{cat.icon}</td>
+                <td data-label="Name" className="lebensmittel-td-bold">{cat.name}</td>
+                <td data-label="Artikel" className="lebensmittel-td-right-gray">{cat.items?.length || 0}</td>
                 <td className="lebensmittel-td-actions">
                   <div className="lebensmittel-actions-container">
                     <button onClick={() => openEditCat(cat)} className="lebensmittel-btn-edit">✏️</button>
@@ -134,6 +135,7 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
             ))}
           </tbody>
         </table>
+        </div>
 
         {/* Kategorie Edit Modal */}
         {editingFoodCat && (
@@ -201,15 +203,16 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
         </div>
 
 
-        <table className="lebensmittel-table">
+        <div className="admin-table-scroll">
+        <table className="lebensmittel-table admin-cards-mobile">
           <thead><tr className="lebensmittel-table-header-row"><th onClick={() => sortItem('name')} className="lebensmittel-th-left-pointer">Name{getItemInd('name')}</th><th onClick={() => sortItem('categoryName')} className="lebensmittel-th-left-pointer">Kategorie{getItemInd('categoryName')}</th><th onClick={() => sortItem('price')} className="lebensmittel-th-right-pointer">Preis{getItemInd('price')}</th><th onClick={() => sortItem('unit')} className="lebensmittel-th-left-pointer">Einheit{getItemInd('unit')}</th><th className="lebensmittel-th-left">Aktion</th></tr></thead>
           <tbody>
             {sortedItems.map(item => (
               <tr key={item.id} className="lebensmittel-tr">
-                <td className="lebensmittel-td-bold">{item.name}</td>
-                <td className="lebensmittel-td-gray">{item.category?.icon} {item.category?.name || '–'}</td>
-                <td className="lebensmittel-td-right" style={{ color: item.price ? '#2e7d32' : '#adb5bd' }}>{item.price ? `${item.price} €` : '–'}</td>
-                <td className="lebensmittel-th-left" style={{ fontWeight: 'normal' }}>{item.unit}</td>
+                <td data-label="Name" className="lebensmittel-td-bold">{item.name}</td>
+                <td data-label="Kategorie" className="lebensmittel-td-gray">{item.category?.icon} {item.category?.name || '–'}</td>
+                <td data-label="Preis" className="lebensmittel-td-right" style={{ color: item.price ? '#2e7d32' : '#adb5bd' }}>{item.price ? `${item.price} €` : '–'}</td>
+                <td data-label="Einheit" className="lebensmittel-th-left" style={{ fontWeight: 'normal' }}>{item.unit}</td>
                 <td className="lebensmittel-td-actions">
                   <div className="lebensmittel-actions-container">
                     <button onClick={() => openEditItem(item)} className="lebensmittel-btn-edit">✏️</button>
@@ -220,6 +223,7 @@ export default function Lebensmittel({ adminPrimary }: LebensmittelProps) {
             ))}
           </tbody>
         </table>
+        </div>
 
         {/* Artikel Edit Modal */}
         {editingFoodItem && (

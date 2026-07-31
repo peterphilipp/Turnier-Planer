@@ -1,5 +1,42 @@
 import { NavLink, Outlet, useOutletContext, useLocation, Navigate } from 'react-router-dom';
 import { Tournament } from '../admin/shared';
+import { useIsMobile } from '../../hooks/useIsMobile';
+
+/**
+ * Reiter-Zeile der Unternavigation. Auf dem Desktop unveraendert umbrechend,
+ * mobil eine einzige seitlich scrollbare Zeile (siehe .admin-subnav) - sonst
+ * werden aus acht Stammdaten-Reitern vier gestapelte Zeilen.
+ */
+function SubNav({ tabs, activeColor }: { tabs: { to: string; icon: string; label: string }[]; activeColor: string }) {
+  const isMobile = useIsMobile();
+
+  return (
+    <nav className="admin-subnav">
+      {tabs.map(tab => (
+        <NavLink
+          key={tab.to}
+          to={tab.to}
+          style={({ isActive }) => ({
+            padding: isMobile ? '10px 14px' : '12px 16px',
+            textDecoration: 'none', cursor: 'pointer',
+            background: isActive ? activeColor : '#e9ecef',
+            color: isActive ? '#fff' : '#000',
+            border: 'none', borderRadius: 8,
+            fontSize: isMobile ? 14 : 15,
+            minHeight: 44,
+            // Feste Mindestbreite nur am Desktop: mobil laesst sie die Zeile
+            // unnoetig weit werden und kostet Scrollweg.
+            minWidth: isMobile ? undefined : 120,
+            whiteSpace: 'nowrap',
+            display: 'flex', alignItems: 'center', gap: 6
+          })}
+        >
+          <span>{tab.icon}</span><span>{tab.label}</span>
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
 
 interface AdminContext {
   selectedTournamentId: number | null;
@@ -14,41 +51,61 @@ function TournamentSelectCard({ context, showYearGroup = false }: { context: Adm
   const { selectedTournamentId, selectedYearGroupId, setSelectedTournamentId, setSelectedYearGroupId, tournaments } = context;
   const activeTournament = tournaments.find(t => t.id === selectedTournamentId);
   const sponsorLogo = activeTournament?.logo;
+  const isMobile = useIsMobile();
 
   const formatDate = (dateStr: string | Date) => {
     const d = new Date(dateStr);
     return `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
   };
 
+  // Mobil untereinander und ueber die volle Breite: die feste Mindestbreite
+  // des Selects plus Label sprengte zusammen mit gap:32 jedes Handy-Display
+  // und war der Hauptgrund fuers seitliche Wegscrollen der Seite.
+  const selectStyle = {
+    padding: isMobile ? '10px 12px' : '8px 12px',
+    borderRadius: 8,
+    border: '1px solid #ced4da',
+    fontSize: isMobile ? 16 : 15,
+    minWidth: isMobile ? 0 : 260,
+    width: isMobile ? '100%' : undefined,
+    minHeight: isMobile ? 44 : undefined,
+    background: '#fff'
+  } as const;
+
+  const fieldWrapStyle = {
+    display: 'flex',
+    alignItems: isMobile ? 'stretch' : 'center',
+    flexDirection: isMobile ? 'column' as const : 'row' as const,
+    gap: isMobile ? 4 : 12,
+    minWidth: 0,
+    flex: isMobile ? '1 1 100%' : undefined
+  };
+
+  const labelStyle = { fontWeight: 'bold', color: '#495057', fontSize: isMobile ? 12 : 15 };
+
   return (
     <div style={{
       background: '#fff',
       border: '1px solid #e9ecef',
       borderRadius: 12,
-      padding: '16px 24px',
+      padding: isMobile ? 12 : '16px 24px',
       display: 'flex',
+      flexWrap: 'wrap',
       alignItems: 'center',
-      gap: 32,
-      marginBottom: 24,
+      gap: isMobile ? 10 : 32,
+      marginBottom: isMobile ? 12 : 24,
       boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-      marginTop: 12
+      marginTop: isMobile ? 0 : 12
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontWeight: 'bold', color: '#495057', fontSize: 15 }}>Aktives Turnier:</span>
+      <div style={fieldWrapStyle}>
+        <span style={labelStyle}>{isMobile ? '🏆 Turnier' : 'Aktives Turnier:'}</span>
         <select
           value={selectedTournamentId || ''}
           onChange={(e) => {
             setSelectedTournamentId(Number(e.target.value));
             setSelectedYearGroupId(null);
           }}
-          style={{
-            padding: '8px 12px',
-            borderRadius: 8,
-            border: '1px solid #ced4da',
-            fontSize: 15,
-            minWidth: 260,
-            background: '#fff'
-          }}
+          style={selectStyle}
         >
           <option value="" disabled>Turnier wählen...</option>
           {tournaments.map(t => (
@@ -57,7 +114,8 @@ function TournamentSelectCard({ context, showYearGroup = false }: { context: Adm
         </select>
       </div>
 
-      {sponsorLogo && (
+      {/* Sponsorlogo ist reine Zierde - auf dem Handy zaehlt der Platz mehr. */}
+      {sponsorLogo && !isMobile && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ color: '#adb5bd', fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Sponsor:</span>
           <img src={sponsorLogo} alt="Sponsor" style={{ maxHeight: 36, objectFit: 'contain' }} />
@@ -65,19 +123,12 @@ function TournamentSelectCard({ context, showYearGroup = false }: { context: Adm
       )}
 
       {showYearGroup && selectedTournamentId && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto' }}>
-          <span style={{ fontWeight: 'bold', color: '#495057', fontSize: 15 }}>Jahrgang:</span>
+        <div style={{ ...fieldWrapStyle, marginLeft: isMobile ? undefined : 'auto' }}>
+          <span style={labelStyle}>{isMobile ? '👶 Jahrgang' : 'Jahrgang:'}</span>
           <select
             value={selectedYearGroupId || ''}
             onChange={(e) => setSelectedYearGroupId(e.target.value ? Number(e.target.value) : null)}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 8,
-              border: '1px solid #ced4da',
-              fontSize: 15,
-              minWidth: 200,
-              background: '#fff'
-            }}
+            style={{ ...selectStyle, minWidth: isMobile ? 0 : 200 }}
           >
             <option value="">-- Alle --</option>
             {activeTournament?.yearGroups?.map((yg: any) => (
@@ -114,23 +165,7 @@ export function SpielplanLayout() {
   return (
     <>
       <TournamentSelectCard context={context} showYearGroup={true} />
-      <nav style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
-        {tabs.map(tab => (
-          <NavLink
-            key={tab.to}
-            to={tab.to}
-            style={({ isActive }) => ({
-              padding: '12px 16px', textDecoration: 'none', cursor: 'pointer',
-              background: isActive ? '#0d6efd' : '#e9ecef',
-              color: isActive ? '#fff' : '#000',
-              border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120,
-              display: 'flex', alignItems: 'center', gap: 6
-            })}
-          >
-            <span>{tab.icon}</span><span>{tab.label}</span>
-          </NavLink>
-        ))}
-      </nav>
+      <SubNav tabs={tabs} activeColor="#0d6efd" />
       <main>
         <Outlet context={context} />
       </main>
@@ -159,23 +194,7 @@ export function OrganisationLayout() {
   return (
     <>
       <TournamentSelectCard context={context} showYearGroup={false} />
-      <nav style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
-        {tabs.map(tab => (
-          <NavLink
-            key={tab.to}
-            to={tab.to}
-            style={({ isActive }) => ({
-              padding: '12px 16px', textDecoration: 'none', cursor: 'pointer',
-              background: isActive ? '#198754' : '#e9ecef',
-              color: isActive ? '#fff' : '#000',
-              border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120,
-              display: 'flex', alignItems: 'center', gap: 6
-            })}
-          >
-            <span>{tab.icon}</span><span>{tab.label}</span>
-          </NavLink>
-        ))}
-      </nav>
+      <SubNav tabs={tabs} activeColor="#198754" />
       <main>
         <Outlet context={context} />
       </main>
@@ -208,23 +227,7 @@ export function StammdatenLayout() {
 
   return (
     <>
-      <nav style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-        {tabs.filter(t => !t.reqAdmin || isAdmin).map(tab => (
-          <NavLink
-            key={tab.to}
-            to={tab.to}
-            style={({ isActive }) => ({
-              padding: '12px 16px', textDecoration: 'none', cursor: 'pointer',
-              background: isActive ? '#6c757d' : '#e9ecef',
-              color: isActive ? '#fff' : '#000',
-              border: 'none', borderRadius: 8, fontSize: 15, minHeight: 44, minWidth: 120,
-              display: 'flex', alignItems: 'center', gap: 6
-            })}
-          >
-            <span>{tab.icon}</span><span>{tab.label}</span>
-          </NavLink>
-        ))}
-      </nav>
+      <SubNav tabs={tabs.filter(t => !t.reqAdmin || isAdmin)} activeColor="#6c757d" />
       <main>
         <Outlet context={context} />
       </main>

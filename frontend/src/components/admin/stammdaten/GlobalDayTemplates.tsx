@@ -8,8 +8,12 @@ import { modal } from '../Modal';
 import { btnStyle, inputStyle, minToTime, timeToMin, getTemplateDisplayName } from '../shared';
 import type { GlobalDayTemplate, WorkArea, TemplateWorkArea } from '../shared';
 import { GanttTimeline, GanttRow } from '../ganttTimeline';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 
 const GRID_MINUTES = 15;
+
+/** 1440 (Tagesende) ist fuer <input type="time"> kein gueltiger Wert. */
+const toTimeInput = (min: number) => minToTime(Math.max(0, Math.min(1439, min)));
 
 export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { adminPrimary?: string }) {
   const qc = useQueryClient();
@@ -25,6 +29,12 @@ export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { admin
   const [selectedWorkAreas, setSelectedWorkAreas] = useState<Record<number, number[]>>({});
   const [showObsolete, setShowObsolete] = useState(false);
   const [filterCategories, setFilterCategories] = useState<string[]>([]);
+  const isMobile = useIsMobile();
+  // Auf dem Handy werden Zeiten nicht gezogen, sondern in einem Bottom Sheet
+  // mit echten Zeitfeldern gesetzt - bei ~8 px pro Stunde waere Ziehen dort
+  // reine Gluecksache.
+  const [timeSheet, setTimeSheet] = useState<{ twaId: number; label: string; startMin: number; endMin: number } | null>(null);
+  const [sheetSaving, setSheetSaving] = useState(false);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['day-templates'] });
 
@@ -138,6 +148,72 @@ export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { admin
   const removeWorkAreaFromTemplate = async (twaId: number) => {
     await deleteTemplateWorkArea(twaId);
     refresh();
+  };
+
+  /** Zeiten eines Slots speichern - optimistisch, mit Rollback bei Ablehnung. */
+  const saveSlotTimes = async (twaId: number, startMin: number, endMin: number) => {
+    qc.setQueryData(['day-templates'], (old: GlobalDayTemplate[] | undefined) => {
+      if (!old) return old;
+      return old.map(tmpl => ({
+        ...tmpl,
+        workAreas: (tmpl.workAreas || []).map((twa: TemplateWorkArea) =>
+          twa.id === twaId ? { ...twa, startMin, endMin } : twa
+        )
+      }));
+    });
+    try {
+      await updateTemplateWorkArea(twaId, { startMin, endMin });
+      return true;
+    } catch (err: any) {
+      refresh();
+      await modal.alert({ title: 'Zeit nicht gespeichert', message: err?.message || 'Der Zeitraum konnte nicht gespeichert werden.' });
+      return false;
+    }
+  };
+
+  /**
+   * Legt einen weiteren Zeitraum fuer einen bereits zugewiesenen Arbeitsbereich
+   * an und sucht dafuer eine freie Luecke. Von Gantt (Desktop) und Liste
+   * (Handy) gemeinsam genutzt.
+   */
+  const addSlotForWorkArea = async (t: GlobalDayTemplate, rowId: number) => {
+    const wa = workAreas.find(w => w.id === rowId);
+    if (!wa) return;
+
+    const existingSlots = t.workAreas?.filter(s => s.workAreaId === rowId) || [];
+    let startMin = timeToMin('13:00');
+    let endMin = timeToMin('17:00');
+
+    const candidates = [
+      { start: timeToMin('06:00'), end: timeToMin('10:00') },
+      { start: timeToMin('18:00'), end: timeToMin('22:00') },
+      { start: timeToMin('22:00'), end: timeToMin('02:00') },
+    ];
+
+    for (const cand of candidates) {
+      let s = cand.start;
+      let e = cand.end;
+      if (e <= s) { e += 1440; }
+
+      const hasConflict = existingSlots.some(slot => slot.startMin < e && slot.endMin > s);
+      if (!hasConflict) { startMin = s; endMin = e; break; }
+    }
+
+    if (existingSlots.length > 0) {
+      const lastEnd = Math.max(...existingSlots.map(s => s.endMin));
+      startMin = lastEnd;
+      endMin = lastEnd + 240;
+      if (endMin > 1440) { endMin -= 1440; }
+    }
+
+    try {
+      await addTemplateWorkArea({ templateId: t.id, workAreaId: wa.id, startMin, endMin, order: (t.workAreas || []).length });
+      refresh();
+    } catch (err: any) {
+      if (err.message?.includes('überschneidet')) {
+        modal.alert({ title: 'Fehler', message: 'Alle Zeiten kollidieren mit bestehenden Zeiträumen. Bitte einen bestehenden Zeitraum anpassen.' });
+      }
+    }
   };
 
   // Baue GanttTimeline-Daten aus Template-Arbeitsbereichen
@@ -334,74 +410,67 @@ export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { admin
             </div>
 
             {/* Gantt-Ansicht oder Fallback wenn leer */}
-            {rows.length > 0 ? (
+            {rows.length > 0 ? (isMobile ? (
+              /* Handy: Liste statt Zeitleiste. Die Zeitachse waere hier nur
+                 ~127 px breit, also gut 2 px je 15-Minuten-Schritt - Ziehen
+                 ist damit nicht bedienbar. */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+                {rows.map(row => (
+                  <div key={row.id} style={{ border: '1px solid #e9ecef', borderRadius: 10, padding: '10px 12px', background: '#fff' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <span style={{ width: 4, alignSelf: 'stretch', borderRadius: 2, background: row.color, flexShrink: 0 }} />
+                      <strong style={{ fontSize: 14, minWidth: 0, overflowWrap: 'anywhere' }}>{row.label}</strong>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {row.items.map(item => (
+                        <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: 8, padding: '8px 10px' }}>
+                          <span style={{ flex: 1, fontSize: 15, fontVariantNumeric: 'tabular-nums' }}>
+                            {minToTime(item.startMin)} – {minToTime(item.endMin)}
+                          </span>
+                          {isEditing && (
+                            <>
+                              <button
+                                style={{ ...btnStyle, background: '#fff3cd', color: '#856404', minHeight: 40, minWidth: 44, padding: '6px 10px' }}
+                                onClick={() => setTimeSheet({ twaId: item.id, label: row.label, startMin: item.startMin, endMin: item.endMin })}
+                                title="Zeit ändern"
+                              >🕑</button>
+                              <button
+                                style={{ ...btnStyle, background: '#ffe3e3', color: '#dc3545', minHeight: 40, minWidth: 44, padding: '6px 10px' }}
+                                onClick={() => removeWorkAreaFromTemplate(item.id)}
+                                title="Zeitraum entfernen"
+                              >🗑️</button>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {isEditing && (
+                      <button
+                        style={{ ...btnStyle, background: '#e7f1ff', color: '#0d6efd', border: '1px solid #b6d4fe', minHeight: 40, padding: '6px 12px', marginTop: 8, width: '100%' }}
+                        onClick={() => addSlotForWorkArea(t, row.id)}
+                      >➕ Weiterer Zeitraum</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
               <GanttTimeline
                 globalStartMin={globalTimeRange.startMin}
                 globalEndMin={globalTimeRange.endMin}
                 rows={rows}
                 editable={isEditing}
                 timeEditMode={isEditing}
-                onTimeChange={async (twaId: number, startMin: number, endMin: number) => {
-                  qc.setQueryData(['day-templates'], (old: GlobalDayTemplate[] | undefined) => {
-                    if (!old) return old;
-                    return old.map(tmpl => ({
-                      ...tmpl,
-                      workAreas: (tmpl.workAreas || []).map((twa: TemplateWorkArea) =>
-                        twa.id === twaId ? { ...twa, startMin, endMin } : twa
-                      )
-                    }));
-                  });
-                  try {
-                    await updateTemplateWorkArea(twaId, { startMin, endMin });
-                  } catch (err: any) {
-                    refresh();
-                    await modal.alert({ title: 'Verschieben nicht möglich', message: err?.message || 'Der Zeitraum konnte nicht gespeichert werden.' });
-                  }
+                onTimeChange={(twaId: number, startMin: number, endMin: number) => {
+                  void saveSlotTimes(twaId, startMin, endMin);
                 }}
                 onDelete={async (twaId: number) => {
                   await removeWorkAreaFromTemplate(twaId);
                 }}
-                onAddSlot={async (rowId: number) => {
-                  const wa = workAreas.find(w => w.id === rowId);
-                  if (!wa) return;
-                  
-                  const existingSlots = t.workAreas?.filter(s => s.workAreaId === rowId) || [];
-                  let startMin = timeToMin('13:00');
-                  let endMin = timeToMin('17:00');
-                  
-                  const candidates = [
-                    { start: timeToMin('06:00'), end: timeToMin('10:00') },
-                    { start: timeToMin('18:00'), end: timeToMin('22:00') },
-                    { start: timeToMin('22:00'), end: timeToMin('02:00') },
-                  ];
-                  
-                  for (const cand of candidates) {
-                    let s = cand.start;
-                    let e = cand.end;
-                    if (e <= s) { e += 1440; }
-                    
-                    const hasConflict = existingSlots.some(slot => slot.startMin < e && slot.endMin > s);
-                    if (!hasConflict) { startMin = s; endMin = e; break; }
-                  }
-                  
-                  if (existingSlots.length > 0) {
-                    const lastEnd = Math.max(...existingSlots.map(s => s.endMin));
-                    startMin = lastEnd;
-                    endMin = lastEnd + 240;
-                    if (endMin > 1440) { endMin -= 1440; }
-                  }
-                  
-                  try {
-                    await addTemplateWorkArea({ templateId: t.id, workAreaId: wa.id, startMin, endMin, order: (t.workAreas || []).length });
-                    refresh();
-                  } catch (err: any) {
-                    if (err.message?.includes('überschneidet')) {
-                      modal.alert({ title: 'Fehler', message: 'Alle Zeiten kollidieren mit bestehenden Slots. Bitte ziehe einen Balken manuell.' });
-                    }
-                  }
-                }}
+                onAddSlot={(rowId: number) => addSlotForWorkArea(t, rowId)}
               />
-            ) : (
+            )) : (
               <div style={{ textAlign: 'center', padding: 24, color: '#888' }}>
                 {isEditing ? <p>➡️ Klicke unten „Arbeitsbereich hinzufügen"</p> : null}
               </div>
@@ -458,6 +527,63 @@ export default function GlobalDayTemplates({ adminPrimary = '#6c757d' }: { admin
           </div>
         );
       })}
+
+      {/* Zeit-Bottom-Sheet (nur Handy): echte Zeitfelder statt Pixel-Ziehen */}
+      {timeSheet && (
+        <div className="mobile-bottom-sheet-overlay" onClick={() => !sheetSaving && setTimeSheet(null)}>
+          <div className="mobile-bottom-sheet-content" onClick={e => e.stopPropagation()}>
+            <div className="mobile-bottom-sheet-handle" />
+
+            <div style={{ padding: '4px 20px 12px', borderBottom: '1px solid #e9ecef' }}>
+              <div style={{ fontSize: 12, color: '#6c757d', fontWeight: 600 }}>ZEITRAUM ÄNDERN</div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: '#212529', overflowWrap: 'anywhere' }}>{timeSheet.label}</div>
+            </div>
+
+            <div style={{ padding: 20, display: 'flex', gap: 12 }}>
+              <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 13, color: '#495057', fontWeight: 600 }}>Von</span>
+                <input
+                  type="time"
+                  value={toTimeInput(timeSheet.startMin)}
+                  onChange={e => setTimeSheet(s => s && { ...s, startMin: timeToMin(e.target.value) })}
+                  style={{ ...inputStyle, fontSize: 17, minHeight: 48, width: '100%' }}
+                />
+              </label>
+              <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 13, color: '#495057', fontWeight: 600 }}>Bis</span>
+                <input
+                  type="time"
+                  value={toTimeInput(timeSheet.endMin)}
+                  onChange={e => setTimeSheet(s => s && { ...s, endMin: timeToMin(e.target.value) })}
+                  style={{ ...inputStyle, fontSize: 17, minHeight: 48, width: '100%' }}
+                />
+              </label>
+            </div>
+
+            <div style={{ padding: '12px 20px 24px', borderTop: '1px solid #e9ecef', background: '#f8f9fa', display: 'flex', gap: 10 }}>
+              <button
+                style={{ ...btnStyle, flex: 1, background: '#fff', border: '1px solid #dee2e6', minHeight: 48 }}
+                disabled={sheetSaving}
+                onClick={() => setTimeSheet(null)}
+              >Abbrechen</button>
+              <button
+                style={{ ...btnStyle, flex: 1, background: adminPrimary, color: '#fff', minHeight: 48, opacity: sheetSaving ? 0.6 : 1 }}
+                disabled={sheetSaving}
+                onClick={async () => {
+                  if (timeSheet.endMin <= timeSheet.startMin) {
+                    await modal.alert({ title: 'Ungültiger Zeitraum', message: '„Bis" muss nach „Von" liegen.' });
+                    return;
+                  }
+                  setSheetSaving(true);
+                  const ok = await saveSlotTimes(timeSheet.twaId, timeSheet.startMin, timeSheet.endMin);
+                  setSheetSaving(false);
+                  if (ok) setTimeSheet(null);
+                }}
+              >{sheetSaving ? 'Speichert…' : 'Speichern'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
