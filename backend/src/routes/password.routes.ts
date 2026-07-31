@@ -649,27 +649,17 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res,
     const email = rawEmail ? String(rawEmail).trim().toLowerCase() : null;
     if (!name) return res.status(400).json({ error: 'Name darf nicht leer sein' });
 
+    const users = await prisma.user.findMany({
+      select: { name: true, email: true }
+    });
+
     if (email) {
-      const existingEmail = await prisma.user.findFirst({
-        where: {
-          email: {
-            equals: email,
-            mode: 'insensitive'
-          }
-        }
-      });
+      const existingEmail = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
       if (existingEmail) return res.status(409).json({ error: 'Email wird bereits verwendet' });
     }
 
-    const existingName = await prisma.user.findFirst({
-      where: {
-        name: {
-          equals: name,
-          mode: 'insensitive'
-        }
-      }
-    });
-    if (existingName) return res.status(409).json({ error: 'Dieser Name ist bereits vergeben. Bitte verwende einen Zusatz (z.B. \"Peter M.\" oder \"Peter (Trainer)\").' });
+    const existingName = users.find(u => u.name.toLowerCase() === name.toLowerCase());
+    if (existingName) return res.status(409).json({ error: 'Dieser Name ist bereits vergeben. Bitte verwende einen Zusatz (z.B. "Peter M." oder "Peter (Trainer)").' });
 
     // Admin-Berechtigungen robuster machen
     const adminEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.toLowerCase().split(',').map(e => e.trim()) : [];
