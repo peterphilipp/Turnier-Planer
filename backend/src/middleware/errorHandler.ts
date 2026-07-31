@@ -19,6 +19,10 @@ const errorHandler = (err: unknown, req: Request, res: Response, next: NextFunct
   }
 
   // Prisma specific errors
+  if (err instanceof Prisma.PrismaClientValidationError) {
+    return res.status(400).json({ error: 'Ungültige Eingabedaten übergeben.' });
+  }
+
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === 'P2002') {
       return res.status(409).json({ error: 'Eintrag existiert bereits' });
@@ -27,6 +31,7 @@ const errorHandler = (err: unknown, req: Request, res: Response, next: NextFunct
     if (err.code === 'P2025') {
       return res.status(404).json({ error: 'Eintrag nicht gefunden' });
     }
+    return res.status(400).json({ error: 'Datenbank-Anfrage fehlgeschlagen' });
   }
 
   const e = err as Error;

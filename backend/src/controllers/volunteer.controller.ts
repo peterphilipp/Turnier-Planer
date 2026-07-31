@@ -8,6 +8,7 @@ import { sendPushToUser } from '../utils/push.js';
 import { formatPhoneNumber } from '../utils/phone.js';
 import { ensureTournamentMembership } from '../utils/tournamentMembership.js';
 import { describeUserAgent } from '../utils/userAgent.js';
+import { sanitizeChildrenInput } from '../utils/sanitizeChildren.js';
 
 // Gleiche Jahrgangs-Grenzen wie bei den Turnier-Jahrgängen selbst (Jahrgaenge.tsx),
 // da genau darüber (childYear innerhalb YearGroup.birthYearStart/-End) die
@@ -18,10 +19,11 @@ const childSchema = z.object({
   childYear: z.preprocess(
     (val) => {
       if (val === '' || val === null || val === undefined) return null;
+      if (typeof val === 'number' && isNaN(val)) return null;
       const parsed = parseInt(String(val), 10);
-      return isNaN(parsed) ? val : parsed;
+      return isNaN(parsed) ? null : parsed;
     },
-    z.number().int().min(1990).max(2030).nullable().optional()
+    z.number().int().min(1900).max(2100).nullable().optional()
   )
 });
 
@@ -148,9 +150,7 @@ export const updateVolunteer = async (req: Request, res: Response) => {
     // riskieren; das Frontend verhindert das ohnehin schon vor dem Absenden.
     data.children = {
       deleteMany: {},
-      create: (children as { childName?: string | null; childYear?: number | null }[])
-        .filter(c => c.childName && c.childYear)
-        .map(c => ({ childName: c.childName as string, childYear: c.childYear as number }))
+      create: sanitizeChildrenInput(children as any)
     };
   }
 

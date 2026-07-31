@@ -14,6 +14,7 @@ import validate from '../middleware/validate.js';
 import { ensureTournamentMembership } from '../utils/tournamentMembership.js';
 import { resolveRoleAndForceAdmin, signSessionToken } from '../utils/authSession.js';
 import { deleteUserAccount } from '../utils/accountDeletion.js';
+import { sanitizeChildrenInput } from '../utils/sanitizeChildren.js';
 
 function getClientIp(req: express.Request): string | undefined {
   return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
@@ -143,8 +144,9 @@ const childInputSchema = z.object({
   childYear: z.preprocess(
     (val) => {
       if (val === '' || val === null || val === undefined) return null;
+      if (typeof val === 'number' && isNaN(val)) return null;
       const parsed = parseInt(String(val), 10);
-      return isNaN(parsed) ? val : parsed;
+      return isNaN(parsed) ? null : parsed;
     },
     z.number().int().min(1900).max(2100).nullable().optional()
   )
@@ -613,13 +615,13 @@ router.patch('/profile', validate(profileSchema), async (req, res, next) => {
     if (children && Array.isArray(children)) {
       // Alte Kinder löschen
       await prisma.userChild.deleteMany({ where: { userId: decoded.userId } });
-      // Neue Kinder erstellen
-      updateData.children = {
-        create: children.map((c: { childName: string; childYear: number | string }) => ({
-          childName: c.childName,
-          childYear: parseInt(String(c.childYear))
-        }))
-      };
+      // Neue Kinder erstellen (nur valide, vollständige Einträge)
+      const validChildren = sanitizeChildrenInput(children);
+      if (validChildren.length > 0) {
+        updateData.children = {
+          create: validChildren
+        };
+      }
     }
 
     const user = await prisma.user.update({
@@ -699,14 +701,14 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res,
       lastActivityAt: new Date()
     };
 
-    // Kinder erstellen
+    // Kinder erstellen (nur valide, vollständige Einträge)
     if (children && Array.isArray(children) && children.length > 0) {
-      createData.children = {
-        create: children.map((c: { childName: string; childYear: number | string }) => ({
-          childName: c.childName,
-          childYear: parseInt(String(c.childYear))
-        }))
-      };
+      const validChildren = sanitizeChildrenInput(children);
+      if (validChildren.length > 0) {
+        createData.children = {
+          create: validChildren
+        };
+      }
     }
 
     const ip = getClientIp(req);
