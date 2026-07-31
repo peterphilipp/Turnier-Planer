@@ -19,7 +19,7 @@ export default function ProfileView() {
   const [editEmail, setEditEmail] = useState(volunteer?.email || '');
   const [editPhone, setEditPhone] = useState(volunteer?.phone || '');
   const [editChildren, setEditChildren] = useState<{ childName: string; childYear: string }[]>([{ childName: '', childYear: '' }]);
-  const years = Array.from({ length: 30 }, (_, i) => new Date().getFullYear() - i);
+  const years = Array.from({ length: 30 }, (_, i) => (new Date().getFullYear() - 4) - i);
   
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');

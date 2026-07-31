@@ -98,11 +98,10 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
           description: slotForm.description || null
         });
       }
-      // Reset only item, quantity, and description to keep categories/years selected
+      // Reset only item and description to keep categories, years and targetQuantity selected
       setSlotForm(prev => ({
         ...prev,
         foodItemId: 0,
-        targetQuantity: 0,
         description: ''
       }));
     }

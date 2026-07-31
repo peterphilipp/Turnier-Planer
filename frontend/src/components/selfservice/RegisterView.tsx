@@ -38,7 +38,7 @@ export default function RegisterView({ clubPrimary: propClubPrimary, clubSeconda
   const [regChildren, setRegChildren] = useState<{ childName: string; childYear: string }[]>([{ childName: '', childYear: '' }]);
   const [consentGiven, setConsentGiven] = useState(false);
 
-  const years = Array.from({ length: 30 }, (_, i) => new Date().getFullYear() - i);
+  const years = Array.from({ length: 30 }, (_, i) => (new Date().getFullYear() - 4) - i);
 
   const applyLoginResult = async (data: Record<string, any>) => {
     contextLogin(data.token, data.user || data.volunteer);
