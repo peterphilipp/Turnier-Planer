@@ -13,7 +13,7 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
   
   const { items: sortedTournaments, requestSort, getSortIndicator } = useSortableData(tournaments, { key: 'startDate', direction: 'desc' });
 
-  const [statusDialog, setStatusDialog] = useState({ open: false, tournament: null as Tournament | null, editName: '', editClubId: '', editStart: '', editEnd: '', editStatus: '', yearGroupIds: [] as number[], logoFile: null as File | null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '' });
+  const [statusDialog, setStatusDialog] = useState({ open: false, tournament: null as Tournament | null, editName: '', editClubId: '', editStart: '', editEnd: '', editStatus: '', yearGroupIds: [] as number[], logoFile: null as File | null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '', editShiftDates: true });
 
   const [newTourn, setNewTourn] = useState({ name: '', start: '', end: '', clubId: '', isActive: true });
   const [isEndTouched, setIsEndTouched] = useState(false);
@@ -21,7 +21,7 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
   // Keine Datumswerte in der Vergangenheit anbieten (Von/Bis).
   const todayStr = new Date().toISOString().split('T')[0];
 
-  const closeStatusDialog = () => setStatusDialog({ open: false, tournament: null, editName: '', editClubId: '', editStart: '', editEnd: '', editStatus: '', yearGroupIds: [], logoFile: null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '' });
+  const closeStatusDialog = () => setStatusDialog({ open: false, tournament: null, editName: '', editClubId: '', editStart: '', editEnd: '', editStatus: '', yearGroupIds: [], logoFile: null, editHasSponsor: false, editSponsorName: '', editSponsorUrl: '', editShiftDates: true });
 
   const saveTournamentEdit = async () => {
     if (!statusDialog.tournament) return;
@@ -35,7 +35,8 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
       yearGroupIds: statusDialog.yearGroupIds,
       hasSponsor: statusDialog.editHasSponsor,
       sponsorName: statusDialog.editSponsorName || null,
-      sponsorUrl: statusDialog.editSponsorUrl || null
+      sponsorUrl: statusDialog.editSponsorUrl || null,
+      shiftDates: statusDialog.tournament?.startDate.split('T')[0] !== statusDialog.editStart ? statusDialog.editShiftDates : false
     };
 
     // Logo-Upload wenn vorhanden (als Base64)
@@ -160,7 +161,7 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
               </td>
               <td className="turniere-td-actions">
                 <div className="turniere-actions-container">
-                  <button onClick={() => setStatusDialog({ open: true, tournament: t, editName: t.name, editClubId: String(t.clubId || ''), editStart: t.startDate.split('T')[0], editEnd: t.endDate.split('T')[0], editStatus: (t.status || 'aktiv').toLowerCase(), yearGroupIds: t.yearGroups?.map(yg => yg.id) || [], logoFile: null, editHasSponsor: t.hasSponsor || false, editSponsorName: t.sponsorName || '', editSponsorUrl: t.sponsorUrl || '' })} className="turniere-btn-edit">✏️</button>
+                  <button onClick={() => setStatusDialog({ open: true, tournament: t, editName: t.name, editClubId: String(t.clubId || ''), editStart: t.startDate.split('T')[0], editEnd: t.endDate.split('T')[0], editStatus: (t.status || 'aktiv').toLowerCase(), yearGroupIds: t.yearGroups?.map(yg => yg.id) || [], logoFile: null, editHasSponsor: t.hasSponsor || false, editSponsorName: t.sponsorName || '', editSponsorUrl: t.sponsorUrl || '', editShiftDates: true })} className="turniere-btn-edit">✏️</button>
                   <button onClick={() => deleteTournament(t)} className="turniere-btn-delete">🗑️</button>
                 </div>
               </td>
@@ -190,6 +191,12 @@ export default function Turniere({ adminPrimary, adminSecondary }: { adminPrimar
                 <input type="date" value={statusDialog.editStart} min={todayStr} max={statusDialog.editEnd || undefined} onChange={e => setStatusDialog({ ...statusDialog, editStart: e.target.value })} className="turniere-modal-date-input" />
                 <input type="date" value={statusDialog.editEnd} min={statusDialog.editStart || todayStr} onChange={e => setStatusDialog({ ...statusDialog, editEnd: e.target.value })} className="turniere-modal-date-input" />
               </div>
+              {statusDialog.tournament && statusDialog.editStart !== statusDialog.tournament.startDate.split('T')[0] && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 13, color: '#0d6efd', background: '#e8f4fd', padding: '8px 12px', borderRadius: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={statusDialog.editShiftDates} onChange={e => setStatusDialog({ ...statusDialog, editShiftDates: e.target.checked })} style={{ cursor: 'pointer' }} />
+                  Geplante Tage, Spiele und Schichten um die Datumsdifferenz verschieben
+                </label>
+              )}
             </div>
             <div><label className="turniere-form-label">🏅 Verein</label>
               <select value={statusDialog.editClubId} onChange={e => setStatusDialog({ ...statusDialog, editClubId: e.target.value })} className="turniere-modal-select">

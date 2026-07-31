@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { modal } from '../Modal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getTimeSlots, apiPut } from '../../../api';
-import { tdStyle, thStyle, btnStyle, inputStyle, TimeSlot, YearGroup, Tournament } from '../shared';
+import { getTimeSlots, apiPut, apiPost } from '../../../api';
+import { tdStyle, thStyle, btnStyle, btnStyleSecondary, inputStyle, TimeSlot, YearGroup, Tournament } from '../shared';
 
 interface Props {
   tournamentId: number | null;

@@ -21,7 +21,14 @@ export const getFoodDonationSlots = async (req: Request, res: Response) => {
     where: tournamentId ? { tournamentId: Number(tournamentId) } : undefined,
     include: {
       tournament: true,
-      yearGroup: true,
+      yearGroup: {
+        include: {
+          timeSlots: {
+            where: tournamentId ? { tournamentId: Number(tournamentId) } : undefined,
+            orderBy: { date: 'asc' }
+          }
+        }
+      },
       foodItem: {
         include: {
           category: true

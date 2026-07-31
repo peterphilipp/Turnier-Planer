@@ -1015,7 +1015,7 @@
   max-width: 600px;
   border-top-left-radius: 20px;
   border-top-right-radius: 20px;
-  padding: 20px 20px 24px;
+  padding: 0;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
@@ -1028,7 +1028,8 @@
   height: 4px;
   background: #ced4da;
   border-radius: 2px;
-  margin: 0 auto 14px auto;
+  margin: 14px auto;
+  flex-shrink: 0;
 }
 
 @keyframes fadeInOverlay {

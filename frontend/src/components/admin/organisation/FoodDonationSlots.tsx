@@ -487,18 +487,19 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
             {isMobile && <div className="mobile-bottom-sheet-handle" />}
             
             {/* Schlanker, kompakter Header im Self-Service Style */}
-            <div style={{ padding: isMobile ? '12px 16px 10px' : '16px 20px 12px', borderBottom: '1px solid #e9ecef', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ padding: isMobile ? '4px 20px 16px' : '16px 20px 16px', borderBottom: '1px solid #e9ecef', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: '#212529', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span>{selectedSlotDetail.foodItem?.category?.icon ?? '🍽️'}</span>
                   <span>{selectedSlotDetail.foodItem?.name || 'Alle Artikel'}</span>
                 </div>
-                <div style={{ fontSize: 13, color: '#6c757d', marginTop: 2, fontWeight: 500 }}>
+                <div style={{ fontSize: 13, color: '#6c757d', marginTop: 4, fontWeight: 500 }}>
                   {selectedSlotDetail.yearGroup?.name || 'Ohne Jahrgang'} · {selectedSlotDetail.collected}/{selectedSlotDetail.targetQuantity} {selectedSlotDetail.foodItem?.unit || 'Stk'}
                   {selectedSlotDetail.description && <span style={{ marginLeft: 6, fontStyle: 'italic', color: '#495057' }}>({selectedSlotDetail.description})</span>}
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedSlotDetail(null)}
                 style={{ border: 'none', background: '#f8f9fa', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, cursor: 'pointer', color: '#6c757d', flexShrink: 0 }}
               >
@@ -506,27 +507,28 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
               </button>
             </div>
 
-            <div style={{ padding: isMobile ? '14px 16px' : '20px', overflowY: 'auto', flex: 1 }}>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: 14, fontWeight: 700, color: '#212529' }}>Spenden für dieses Ziel</h4>
+            <div style={{ padding: '20px', overflowY: 'auto', maxHeight: isMobile ? 'calc(85vh - 140px)' : '60vh' }}>
+              <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 700, color: '#212529' }}>Spenden für dieses Ziel</h4>
               {(() => {
                 const slotDonations = foodDonations.filter(d => d.foodDonationSlotId === selectedSlotDetail.id);
                 if (slotDonations.length === 0) return <div style={{ color: '#adb5bd', fontStyle: 'italic', fontSize: 13 }}>Noch keine Spenden für dieses Ziel.</div>;
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {slotDonations.map(d => (
-                      <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8f9fa', borderRadius: 8, border: '1px solid #e9ecef' }}>
+                      <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: '#f8f9fa', borderRadius: 8, border: '1px solid #e9ecef' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#0d6efd', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 14 }}>
                             {d.user?.name?.charAt(0).toUpperCase() || '?'}
                           </div>
                           <div>
-                            <div style={{ fontWeight: '600', color: '#212529' }}>{d.userId != null ? (d.user?.name || 'Unbekannt') : ''}</div>
-                            {d.note && <div style={{ fontSize: 12, color: '#6c757d' }}>„{d.note}"</div>}
+                            <div style={{ fontWeight: '600', color: '#212529', fontSize: 14 }}>{d.userId != null ? (d.user?.name || 'Unbekannt') : ''}</div>
+                            {d.note && <div style={{ fontSize: 12, color: '#6c757d', marginTop: 2 }}>„{d.note}"</div>}
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <div style={{ fontWeight: 600, color: '#212529' }}>{d.quantity} {selectedSlotDetail.foodItem?.unit || 'Stk'}</div>
+                          <div style={{ fontWeight: 600, color: '#212529', fontSize: 14 }}>{d.quantity} <span style={{ color: '#6c757d', fontSize: 12, fontWeight: 'normal' }}>{selectedSlotDetail.foodItem?.unit || 'Stk'}</span></div>
                           <button
+                            type="button"
                             onClick={() => deleteDonation(d.id, d.quantity)}
                             style={{
                               border: 'none',
@@ -553,7 +555,7 @@ export default function FoodDonationSlots({ selectedTournament, tournament, admi
               })()}
             </div>
 
-            <div style={{ padding: isMobile ? '12px 16px' : '16px 20px', borderTop: '1px solid #e9ecef', background: '#f8f9fa', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ padding: isMobile ? '12px 20px 24px' : '16px 20px', borderTop: '1px solid #e9ecef', background: '#f8f9fa', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   type="button"

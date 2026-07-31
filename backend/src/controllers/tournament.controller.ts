@@ -117,6 +117,17 @@ export const updateTournament = async (req: Request, res: Response) => {
     if (updateData.startDate) updateData.startDate = new Date(updateData.startDate as string | number | Date);
     if (updateData.endDate) updateData.endDate = new Date(updateData.endDate as string | number | Date);
 
+    const tournamentId = parseInt(String(req.params.id as string));
+    const oldTournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+    if (!oldTournament) return res.status(404).json({ error: 'Turnier nicht gefunden' });
+
+    let offsetMs = 0;
+    if (updateData.startDate && oldTournament.startDate) {
+      const newStart = (updateData.startDate as Date).getTime();
+      const oldStart = oldTournament.startDate.getTime();
+      offsetMs = newStart - oldStart;
+    }
+
     // clubId als null wenn leer/0
     if (updateData.clubId === '' || updateData.clubId === 0) updateData.clubId = null;
 
@@ -126,10 +137,35 @@ export const updateTournament = async (req: Request, res: Response) => {
     }
     
     const tournament = await prisma.tournament.update({
-      where: { id: parseInt(String(req.params.id as string)) },
+      where: { id: tournamentId },
       data: updateData,
       include: { club: true, yearGroups: true }
     });
+    
+    if (req.body.shiftDates && offsetMs !== 0) {
+      const days = await prisma.tournamentDay.findMany({ where: { tournamentId } });
+      for (const day of days) {
+        await prisma.tournamentDay.update({ where: { id: day.id }, data: { date: new Date(day.date.getTime() + offsetMs) } });
+      }
+
+      const slots = await prisma.timeSlot.findMany({ where: { tournamentId } });
+      for (const slot of slots) {
+        await prisma.timeSlot.update({ where: { id: slot.id }, data: { date: new Date(slot.date.getTime() + offsetMs) } });
+      }
+
+      const matches = await prisma.match.findMany({ where: { tournamentId } });
+      for (const match of matches) {
+        if (match.time) {
+          await prisma.match.update({ where: { id: match.id }, data: { time: new Date(match.time.getTime() + offsetMs) } });
+        }
+      }
+
+      const vShifts = await prisma.volunteerShift.findMany({ where: { tournamentId } });
+      for (const vShift of vShifts) {
+        await prisma.volunteerShift.update({ where: { id: vShift.id }, data: { date: new Date(vShift.date.getTime() + offsetMs) } });
+      }
+    }
+    
     logTournamentUpdated(tournament.id, Object.keys(updateData));
     return res.json(tournament);
   } catch (err: unknown) {

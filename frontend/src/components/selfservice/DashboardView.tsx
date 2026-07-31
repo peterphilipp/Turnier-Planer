@@ -13,7 +13,7 @@ interface Shift { id: number; date: string; slot: string; startMin?: number | nu
 interface VolunteerShift { id: number; userId: number; date: string; slot: string; role: string; areaId: string | null; shiftId: number | null; shift: Shift | null; ratingWorkload?: number | null; ratingOrganization?: number | null; ratingFun?: number | null; ratingComment?: string | null; }
 interface FoodCategory { id: number; name: string; icon: string; items: { id: number; name: string; price: string | null; unit: string }[]; }
 interface FoodDonation { id: number; foodItemId: number; quantity: number; note: string | null; createdAt: string; foodDonationSlotId: number | null; foodItem: { id: number; name: string; unit: string; category: { id: number; name: string; icon: string } } | null; }
-interface FoodDonationSlot { id: number; tournamentId: number; yearGroupId: number | null; yearGroup?: { id: number; name: string; birthYearStart: number; birthYearEnd: number } | null; foodItemId: number | null; targetQuantity: number; collected: number; foodItem: { id: number; name: string; unit: string; icon: string } | null; }
+interface FoodDonationSlot { id: number; tournamentId: number; yearGroupId: number | null; yearGroup?: { id: number; name: string; birthYearStart: number; birthYearEnd: number; timeSlots?: { date: string }[] } | null; foodItemId: number | null; targetQuantity: number; collected: number; foodItem: { id: number; name: string; unit: string; icon: string } | null; }
 
 interface LayoutContext {
   clubPrimary: string;
@@ -118,8 +118,15 @@ export default function DashboardView() {
       if (tId) {
         const allSlots = await apiFetch('/api/food-donation-slots?tournamentId=' + tId).catch(() => []);
         const childYears = volunteer?.children?.map((c: any) => c.childYear).filter((y: any) => y != null) || [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
         const relevantSlots = allSlots.filter((slot: FoodDonationSlot) => {
           if (!slot.yearGroup) return false;
+          if (slot.yearGroup.timeSlots && slot.yearGroup.timeSlots.length > 0) {
+            const allPast = slot.yearGroup.timeSlots.every((ts: any) => new Date(ts.date) < today);
+            if (allPast) return false;
+          }
           const yg = slot.yearGroup;
           if (childYears.some((y: number) => yg.name.includes(String(y)))) return true;
           if (yg.birthYearStart != null && yg.birthYearEnd != null) {
@@ -583,123 +590,186 @@ export default function DashboardView() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Meine Einträge */}
             {myDonations.length > 0 && (
-              <div style={{ background: '#fff', border: `2px solid ${clubPrimary}`, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
-                <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>Meine Einträge ({myDonations.length})</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {myDonations.map(d => (
-                    <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: '#f8f9fa', borderRadius: 10 }}>
-                      <div style={{ fontSize: 24 }}>{d.foodItem?.category?.icon || '❓'}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: '600', fontSize: 14, color: '#333' }}>{d.foodItem?.name || '-'}</div>
-                        <div style={{ fontSize: 12, color: '#999' }}>{d.quantity} {d.foodItem?.unit} • {new Date(d.createdAt).toLocaleDateString('de-DE')}</div>
-                        {d.note && <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{d.note}</div>}
+              <div className="dashboard-my-shifts-container" style={{ background: '#fff', border: `2px solid ${clubPrimary}`, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+                <h3 className="dashboard-my-shifts-title" style={{ color: clubPrimary, borderBottom: '1px solid #e9ecef', paddingBottom: 8, marginBottom: 12 }}>
+                  <span>⭐</span> Meine Einträge ({myDonations.length})
+                </h3>
+                {(() => {
+                  const grouped: Record<string, FoodDonation[]> = {};
+                  myDonations.forEach(d => {
+                    let groupName = 'Ohne Zuordnung';
+                    if (d.foodDonationSlotId) {
+                      const slot = foodDonationSlots.find(s => s.id === d.foodDonationSlotId);
+                      if (!slot) return; // Hide donations for past/unrelated slots
+
+                      if (slot.yearGroup) {
+                        let dateStr = '';
+                        if (slot.yearGroup.timeSlots && slot.yearGroup.timeSlots.length > 0) {
+                          const dates = Array.from(new Set(slot.yearGroup.timeSlots.map((ts: any) => new Date(ts.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }))));
+                          dateStr = ` am ${dates.join(' & ')}`;
+                        }
+
+                        const matchingChildren = volunteer?.children?.filter((c: any) => {
+                          if (!c.childYear) return false;
+                          const yg = slot.yearGroup;
+                          if (yg && yg.name.includes(String(c.childYear))) return true;
+                          if (yg && yg.birthYearStart != null && yg.birthYearEnd != null) {
+                            return c.childYear >= yg.birthYearStart && c.childYear <= yg.birthYearEnd;
+                          }
+                          if (yg && c.childYear === parseInt(yg.name)) return true;
+                          return false;
+                        }) || [];
+                        
+                        let childNameStr = slot.yearGroup.name;
+                        if (matchingChildren.length > 0) {
+                          childNameStr = matchingChildren.map((c: any) => c.childName).join(' & ');
+                        }
+                        
+                        groupName = `${childNameStr}${dateStr}`;
+                      }
+                    }
+                    if (!grouped[groupName]) grouped[groupName] = [];
+                    grouped[groupName].push(d);
+                  });
+                  
+                  return Object.entries(grouped).sort(([nameA, a], [nameB, b]) => {
+                    if (nameA === 'Ohne Zuordnung') return 1;
+                    if (nameB === 'Ohne Zuordnung') return -1;
+                    const getEarliest = (donations: FoodDonation[]) => {
+                      let earliest = Infinity;
+                      donations.forEach(d => {
+                        const slot = foodDonationSlots.find(s => s.id === d.foodDonationSlotId);
+                        if (slot?.yearGroup?.timeSlots) {
+                          slot.yearGroup.timeSlots.forEach((ts: any) => {
+                            const t = new Date(ts.date).getTime();
+                            if (t < earliest) earliest = t;
+                          });
+                        }
+                      });
+                      return earliest;
+                    };
+                    return getEarliest(a) - getEarliest(b);
+                  }).map(([groupName, donations], index, arr) => (
+                    <div key={groupName} style={{ marginBottom: index === arr.length - 1 ? 0 : 20 }}>
+                      <div style={{ fontSize: 13, fontWeight: '600', color: '#6c757d', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: '1px solid #e9ecef', paddingBottom: 4 }}>
+                        {groupName === 'Ohne Zuordnung' ? groupName : `👶 Für ${groupName}`}
                       </div>
-                      <button onClick={() => cancelDonation(d.id)} title="Löschen" style={{ width: 36, height: 36, borderRadius: 8, border: 'none', background: '#fde8e8', color: '#dc3545', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {donations.map(d => (
+                          <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: '#f8f9fa', borderRadius: 10 }}>
+                            <div style={{ fontSize: 24 }}>{d.foodItem?.category?.icon || '❓'}</div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: '600', fontSize: 14, color: '#333' }}>{d.foodItem?.name || '-'}</div>
+                              <div style={{ fontSize: 12, color: '#999' }}>{d.quantity} {d.foodItem?.unit} • {new Date(d.createdAt).toLocaleDateString('de-DE')}</div>
+                              {d.note && <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{d.note}</div>}
+                            </div>
+                            <button type="button" onClick={() => cancelDonation(d.id)} title="Löschen" style={{ width: 36, height: 36, borderRadius: 8, border: 'none', background: '#fde8e8', color: '#dc3545', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🗑️</button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  ));
+                })()}
               </div>
             )}
 
             {/* Verpflegung für Kinder */}
             {foodDonationSlots.length > 0 && (
-              <div style={{ background: '#fff', border: `2px solid ${clubPrimary}`, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
-                <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: '600', color: clubPrimary }}>Verpflegung für deine Kinder</h3>
+              <div className="dashboard-section" style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <h3 className="dashboard-section-title">Verpflegung für deine Kinder</h3>
                 {(() => {
-                  const grouped: Record<string, FoodDonationSlot[]> = {};
-                  foodDonationSlots.forEach(slot => {
-                    const key = slot.yearGroup?.name || 'Ohne Jahrgang';
-                    if (!grouped[key]) grouped[key] = [];
-                    grouped[key].push(slot);
-                  });
+                  type SlotWithInfo = FoodDonationSlot & { childrenStr: string };
+                  const groupedByDate: Record<string, SlotWithInfo[]> = {};
                   
-                  return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([yearName, slots]) => {
-                    const totalTarget = slots.reduce((s, sl) => s + sl.targetQuantity, 0);
-                    const totalCollected = slots.reduce((s, sl) => s + sl.collected, 0);
-                    const progress = totalTarget > 0 ? Math.min(100, (totalCollected / totalTarget) * 100) : 0;
-                    
-                    const firstSlot = slots[0];
+                  foodDonationSlots.forEach(slot => {
                     const matchingChildren = volunteer?.children?.filter(c => {
-                      if (!c.childYear || !firstSlot.yearGroup) return false;
-                      const yg = firstSlot.yearGroup;
+                      if (!c.childYear || !slot.yearGroup) return false;
+                      const yg = slot.yearGroup;
                       if (yg.name.includes(String(c.childYear))) return true;
                       if (yg.birthYearStart != null && yg.birthYearEnd != null) {
                         return c.childYear >= yg.birthYearStart && c.childYear <= yg.birthYearEnd;
                       }
+                      if (c.childYear === parseInt(yg.name)) return true;
                       return false;
                     }) || [];
                     
-                    return (
-                      <div key={yearName} style={{ marginBottom: 20 }}>
-                        <div style={{ background: '#f8f9fa', padding: '10px 14px', borderRadius: 10, marginBottom: 10, borderLeft: `4px solid ${clubPrimary}` }}>
-                          <div style={{ fontWeight: '600', fontSize: 15, color: '#333' }}>{yearName}</div>
-                          {matchingChildren.length > 0 && (
-                            <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-                              Für: {matchingChildren.map(c => c.childName ? `${c.childName} (${c.childYear})` : `Jahrgang ${c.childYear}`).join(', ')}
-                            </div>
-                          )}
-                          <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-                            {totalCollected} / {totalTarget} gesamt
-                          </div>
-                        </div>
-                        <div style={{ background: '#e9ecef', borderRadius: 4, height: 8, overflow: 'hidden', marginBottom: 10 }}>
-                          <div style={{ width: `${progress}%`, height: '100%', background: progress >= 100 ? '#198754' : progress > 0 ? '#ffc107' : '#dc3545', borderRadius: 4 }} />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {slots
-                            .sort((a, b) => {
-                              const aDone = a.targetQuantity > 0 && a.collected >= a.targetQuantity;
-                              const bDone = b.targetQuantity > 0 && b.collected >= b.targetQuantity;
-                              if (aDone === bDone) return 0;
-                              return aDone ? 1 : -1;
-                            })
-                            .map(slot => {
-                              const remaining = slot.targetQuantity - slot.collected;
-                              const myCommitted = myDonations
-                                .filter(d => d.foodDonationSlotId === slot.id)
-                                .reduce((sum, d) => sum + d.quantity, 0);
-                              const committed = slotCommitments[slot.id] || 0;
-                              return (
-                                <div key={slot.id} style={{ position: 'relative', padding: 12, background: '#f8f9fa', borderRadius: 10, overflow: 'hidden' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                    <span style={{ fontSize: 20, flexShrink: 0 }}>{slot.foodItem?.icon || '🍔'}</span>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                      <div style={{ fontWeight: '600', fontSize: 14, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot.foodItem?.name || '-'}</div>
-                                      <div style={{ fontSize: 12, color: '#999' }}>{slot.collected}/{slot.targetQuantity} {slot.foodItem?.unit}{remaining <= 0 && ' • Erfüllt'}</div>
-                                    </div>
-                                    {remaining > 0 && !committed && (
-                                      <button onClick={() => setSlotCommitments({ ...slotCommitments, [slot.id]: 1 })} title="Zusagen" style={{ width: 40, height: 40, borderRadius: 8, border: 'none', background: clubSecondary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-                                        <span style={{ fontSize: 20, fontWeight: 'bold', lineHeight: 1 }}>+</span>
-                                      </button>
-                                    )}
-                                  </div>
-                                  {myCommitted > 0 && (
-                                    <div style={{ fontSize: 13, color: clubSecondary, fontWeight: '600', marginTop: 6 }}>
-                                      ✓ Du bringst: {myCommitted} {slot.foodItem?.unit}
-                                    </div>
-                                  )}
-                                  {committed > 0 && (
-                                    <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-                                      <input type="number" min="1" value={committed} onChange={e => setSlotCommitments({ ...slotCommitments, [slot.id]: parseInt(e.target.value, 10) || 0 })} style={{ width: 70, padding: '8px 10px', border: '2px solid #e9ecef', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
-                                      <span style={{ fontSize: 13, color: '#666' }}>{slot.foodItem?.unit}</span>
-                                      <button onClick={() => commitSlot(slot.id, slot.foodItemId!)} title="Zusagen" style={{ width: 40, height: 40, borderRadius: 8, border: 'none', background: clubSecondary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                          <polyline points="20 6 9 17 4 12" />
-                                        </svg>
-                                      </button>
-                                      <button onClick={() => removeCommitment(slot.id)} title="Rücknahme" style={{ width: 40, height: 40, borderRadius: 8, border: 'none', background: '#fde8e8', color: '#dc3545', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', fontSize: 18, fontWeight: 'bold' }}>
-                                        ✕
-                                      </button>
-                                    </div>
-                                  )}
-                                  <FillBar assigned={slot.collected} max={slot.targetQuantity} />
-                                </div>
-                              );
-                            })}
-                        </div>
-                      </div>
-                    );
+                    let childrenStr = '';
+                    if (matchingChildren.length > 0) {
+                      childrenStr = matchingChildren.map(c => c.childName ? `${c.childName} (${c.childYear})` : `Jahrgang ${c.childYear}`).join(', ');
+                    } else {
+                      childrenStr = slot.yearGroup?.name || 'Ohne Jahrgang';
+                    }
+
+                    if (slot.yearGroup?.timeSlots && slot.yearGroup.timeSlots.length > 0) {
+                      const dates = Array.from(new Set(slot.yearGroup.timeSlots.map((ts: any) => ts.date.split('T')[0])));
+                      dates.forEach(d => {
+                        if (!groupedByDate[d]) groupedByDate[d] = [];
+                        groupedByDate[d].push({ ...slot, childrenStr });
+                      });
+                    }
                   });
+
+                  const sortedDates = Object.keys(groupedByDate).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+                  if (sortedDates.length === 0) return null;
+
+                  return sortedDates.map(dateStr => (
+                    <div key={dateStr} className="dashboard-date-group" style={{ marginBottom: 24 }}>
+                      <h4 className="dashboard-date-header" style={{ fontSize: 16, fontWeight: '600', color: '#333', borderBottom: '1px solid #dee2e6', paddingBottom: 8, marginBottom: 12 }}>
+                        {new Date(dateStr).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        <div style={{ fontSize: 13, color: '#666', marginTop: 4, fontWeight: 'normal' }}>
+                          Für: {Array.from(new Set(groupedByDate[dateStr].map(s => s.childrenStr))).join(' | ')}
+                        </div>
+                      </h4>
+                      <div className="dashboard-shifts-list" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {groupedByDate[dateStr].sort((a, b) => {
+                          const aDone = a.targetQuantity > 0 && a.collected >= a.targetQuantity;
+                          const bDone = b.targetQuantity > 0 && b.collected >= b.targetQuantity;
+                          if (aDone === bDone) return 0;
+                          return aDone ? 1 : -1;
+                        }).map(slot => {
+                          const remaining = slot.targetQuantity - slot.collected;
+                          const committed = slotCommitments[slot.id] || 0;
+                          const isDone = remaining <= 0;
+                          
+                          return (
+                            <div key={slot.id} className="dashboard-shift-card" style={{ borderLeft: `6px solid ${isDone ? '#198754' : clubAccent}` }}>
+                              <div className="dashboard-shift-card-inner">
+                                <div className="dashboard-shift-title">
+                                  <span>{slot.foodItem?.icon || '🍔'}</span> <span>{slot.foodItem?.name || '-'}</span>
+                                </div>
+                                <div className="dashboard-shift-time">
+                                  <span>Bedarf: {slot.targetQuantity} {slot.foodItem?.unit}</span>
+                                </div>
+                              </div>
+                              <div className="dashboard-shift-actions">
+                                <div className="dashboard-shift-remaining" style={{ color: isDone ? '#198754' : '#212529' }}>
+                                  {slot.collected}/{slot.targetQuantity}
+                                </div>
+                                {!isDone && !committed && (
+                                  <button onClick={() => setSlotCommitments({ ...slotCommitments, [slot.id]: 1 })} title="Zusagen" className="dashboard-btn-action" style={{ background: '#e8f4fd', color: '#0d6efd' }}>
+                                    ➕
+                                  </button>
+                                )}
+                                {committed > 0 && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <input type="number" min="1" value={committed} onChange={e => setSlotCommitments({ ...slotCommitments, [slot.id]: parseInt(e.target.value, 10) || 0 })} style={{ width: 50, padding: '4px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 13, textAlign: 'center' }} />
+                                    <button onClick={() => commitSlot(slot.id, slot.foodItemId!)} title="Zusagen" className="dashboard-btn-action" style={{ background: '#e8f4fd', color: '#0d6efd' }}>
+                                      ✓
+                                    </button>
+                                    <button onClick={() => removeCommitment(slot.id)} title="Abbrechen" className="dashboard-btn-action" style={{ background: '#fde8e8', color: '#dc3545', fontSize: 12 }}>
+                                      ✕
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                              <FillBar assigned={slot.collected} max={slot.targetQuantity || 0} />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ));
                 })()}
               </div>
             )}
