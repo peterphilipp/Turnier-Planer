@@ -122,7 +122,10 @@ export default function ProfileView() {
         </div>
 
         <div style={{ background: '#f8f9fa', padding: 16, borderRadius: 10, marginTop: 8 }}>
-          <div style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 12, color: '#444' }}>Kinder für Turnierschichten</div>
+          <div style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 4, color: '#444' }}>Kinder für Turnierschichten</div>
+          <div style={{ fontSize: 11, color: '#856404', background: '#fff3cd', border: '1px solid #ffeeba', padding: '8px 10px', borderRadius: 6, marginBottom: 12, lineHeight: 1.4 }}>
+            ⚠️ <strong>Wichtiger Hinweis:</strong> Ohne die Angabe eines Kindes inklusive Geburtsjahr ist keine Zuordnung zu einer Mannschaft möglich. Eine sinnvolle Teilnahme an der Organisation und Schichtplanung ist dann nicht möglich.
+          </div>
           {editChildren.map((child, idx) => (
             <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
               <input type="text" placeholder="Name des Kindes" value={child.childName} onChange={e => { const n = [...editChildren]; n[idx].childName = e.target.value; setEditChildren(n); }} style={{ ...inputStyle, flex: 1, minWidth: 140 }} />

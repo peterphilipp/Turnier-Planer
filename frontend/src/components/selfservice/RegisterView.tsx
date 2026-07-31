@@ -98,8 +98,11 @@ export default function RegisterView({ clubPrimary: propClubPrimary, clubSeconda
             
             <div style={{ marginTop: 8 }}>
               <div style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 2 }}>Kinder (optional)</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.4 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, lineHeight: 1.4 }}>
                 Trage hier deine Kinder mit ihrem <strong>Geburtsjahr</strong> ein, damit wir dir automatisch passende Helfer-Dienste für ihre Jugendmannschaften vorschlagen können.
+              </div>
+              <div style={{ fontSize: 11, color: '#856404', background: '#fff3cd', border: '1px solid #ffeeba', padding: '8px 10px', borderRadius: 6, marginBottom: 10, lineHeight: 1.4 }}>
+                ⚠️ <strong>Wichtiger Hinweis:</strong> Ohne die Angabe eines Kindes inklusive Geburtsjahr ist keine Zuordnung zu einer Mannschaft möglich. Eine sinnvolle Teilnahme an der Organisation und Schichtplanung ist dann nicht möglich.
               </div>
               {regChildren.map((child, idx) => (
                 <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
