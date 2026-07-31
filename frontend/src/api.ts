@@ -64,9 +64,22 @@ export const apiFetch = async <T = any>(url: string, options?: RequestInit): Pro
     try {
       try {
         const errorData = JSON.parse(text);
-        errorMsg = errorData.error || errorData.message || errorMsg;
-        if (errorData.details) {
-          errorMsg += ' - ' + JSON.stringify(errorData.details);
+        let detailMsg = '';
+        if (errorData.details && Array.isArray(errorData.details) && errorData.details.length > 0) {
+          const detailStrings = errorData.details
+            .map((d: any) => typeof d === 'string' ? d : (d.message || ''))
+            .filter((m: string) => m && m !== 'Invalid input' && m !== 'Required');
+          if (detailStrings.length > 0) {
+            detailMsg = detailStrings.join('. ');
+          }
+        }
+
+        if (errorData.error && errorData.error !== 'Validierungsfehler') {
+          errorMsg = errorData.error;
+        } else if (detailMsg) {
+          errorMsg = detailMsg;
+        } else {
+          errorMsg = errorData.error || errorData.message || errorMsg;
         }
       } catch (e) {
         // Fallback to text if not JSON

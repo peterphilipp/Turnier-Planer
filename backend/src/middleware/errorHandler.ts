@@ -6,14 +6,15 @@ const errorHandler = (err: unknown, req: Request, res: Response, next: NextFunct
   console.error('[Error]', err);
 
   if (err instanceof ZodError) {
-    // Zod v4 nennt das Array "issues" (v3 hieß es noch "errors") - ohne diese
-    // Unterscheidung crasht JEDE Validierungsfehlermeldung hier mit einem
-    // "Cannot read properties of undefined (reading 'map')" und Express faellt
-    // auf seine eigene HTML-Fehlerseite mit Stacktrace zurueck, statt eine
-    // saubere 400-Antwort zu liefern.
     const issues = err.issues || (err as any).errors || [];
+    const messages = issues
+      .map(e => e.message)
+      .filter((m): m is string => typeof m === 'string' && m.trim().length > 0 && m !== 'Invalid input' && m !== 'Required');
+
+    const mainMessage = messages.length > 0 ? messages.join('. ') : 'Validierungsfehler';
+
     return res.status(400).json({
-      error: 'Validierungsfehler',
+      error: mainMessage,
       details: issues.map(e => ({ path: e.path.join('.'), message: e.message }))
     });
   }
