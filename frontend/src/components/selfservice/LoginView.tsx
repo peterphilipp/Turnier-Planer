@@ -121,7 +121,7 @@ export default function LoginView({ clubPrimary: propClubPrimary, clubSecondary:
             <button onClick={() => navigate('/register')} className="btn btn-outline">Registrieren</button>
             <button onClick={() => navigate('/reset-password')} className="btn btn-text">Passwort vergessen?</button>
             <div style={{ marginTop: 16, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
-              v1.{(__APP_VERSION__ || '1.14.0').replace(/^v/, '')} · {(__GIT_SHA__?.slice(0, 7)) || '—'}
+              v{(__APP_VERSION__ || '1.14.0').replace(/^v/, '')} · {(__GIT_SHA__?.slice(0, 7)) || '—'}
             </div>
           </div>
         </div>

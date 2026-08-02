@@ -389,7 +389,7 @@ export default function SelfServiceLayout() {
                 style={{ background: 'none', border: 'none', color: '#6c757d', textDecoration: 'underline', cursor: 'pointer', fontSize: 12, padding: 0 }}
               >Impressum</button>
               <div style={{ marginTop: 4, fontSize: 11 }}>
-v1.{(__APP_VERSION__ || '1.14.0').replace(/^v/, '')} · {(__GIT_SHA__?.slice(0, 7)) || '—'}</div>
+v{(__APP_VERSION__ || '1.14.0').replace(/^v/, '')} · {(__GIT_SHA__?.slice(0, 7)) || '—'}</div>
             </div>
           </div>
         </>
