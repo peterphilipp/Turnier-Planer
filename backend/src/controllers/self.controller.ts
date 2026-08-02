@@ -149,11 +149,11 @@ export const getAvailable = async (req: Request, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: 'Nicht authentifiziert' });
 
-  const user = await prisma.user.findUnique({ 
+  const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { children: true }
+    include: { children: true, userRoles: { select: { role: true } } }
   });
-  
+
   if (!user) return res.status(404).json({ error: 'User nicht gefunden' });
 
   const requestedTournamentId = req.query.tournamentId ? parseInt(req.query.tournamentId as string) : undefined;
@@ -192,7 +192,20 @@ export const getAvailable = async (req: Request, res: Response) => {
     include: { club: true }
   });
 
-  res.json({ shifts, volunteerShifts, volunteer: user, tournament, availableTournaments });
+  // Das Frontend ersetzt mit diesem Objekt seinen zwischengespeicherten
+  // Nutzer. Die Rollen MUESSEN deshalb mit: fehlen sie, faellt der Client auf
+  // die alte Einzelspalte zurueck und ein Admin, der zusaetzlich Trainer ist,
+  // verliert den Trainer-Hut bei jedem Laden des Dashboards.
+  // password/recoveryPin werden entfernt - beides sind Anmeldegeheimnisse und
+  // haben in einer Antwort nichts verloren (recoveryPin erlaubt ueber
+  // /reset-by-pin sogar das Setzen eines neuen Passworts).
+  const { password: _pw, recoveryPin: _pin, userRoles, ...safeUser } = user;
+  const volunteer = {
+    ...safeUser,
+    roles: userRoles.length > 0 ? userRoles.map(r => r.role) : [user.role]
+  };
+
+  res.json({ shifts, volunteerShifts, volunteer, tournament, availableTournaments });
 };
 
 export const assignShift = async (req: Request, res: Response) => {

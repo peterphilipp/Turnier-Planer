@@ -629,10 +629,18 @@ router.patch('/profile', validate(profileSchema), async (req, res, next) => {
     const user = await prisma.user.update({
       where: { id: decoded.userId },
       data: updateData,
-      include: { children: true }
+      include: { children: true, userRoles: { select: { role: true } } }
     });
 
-    res.json(sanitizeUser(user));
+    // Rollen mitgeben: jede Antwort, aus der das Frontend seinen
+    // zwischengespeicherten Nutzer neu aufbaut, muss sie enthalten - sonst
+    // faellt der Client auf die alte Einzelspalte zurueck und verliert
+    // Zusatzrollen wie TRAINER.
+    const { userRoles, ...profil } = user;
+    res.json({
+      ...sanitizeUser(profil),
+      roles: userRoles.length > 0 ? userRoles.map(r => r.role) : [user.role]
+    });
   } catch (err) {
     next(err);
   }
