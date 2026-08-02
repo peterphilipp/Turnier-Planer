@@ -242,6 +242,15 @@ export const getAvailable = async (req: Request, res: Response) => {
     return [{ date: ts.date, startMin: start, endMin: ende, yearGroupName: yg.name, children: kinder }];
   });
 
+  // Ungelesene Meldungen (Schicht verschoben/entfallen). Bewusst mit der
+  // ohnehin geladenen Uebersicht ausgeliefert - so ist die Meldung sofort da,
+  // wenn die App geoeffnet wird, ohne zweiten Aufruf.
+  const notifications = await prisma.userNotification.findMany({
+    where: { userId, readAt: null },
+    orderBy: { createdAt: 'desc' },
+    take: 20
+  });
+
   const tournament = await prisma.tournament.findUnique({
     where: { id: targetTournamentId },
     include: { club: true }
@@ -260,7 +269,7 @@ export const getAvailable = async (req: Request, res: Response) => {
     roles: userRoles.length > 0 ? userRoles.map(r => r.role) : [user.role]
   };
 
-  res.json({ shifts, volunteerShifts, shiftAssignmentCounts, childPlaySlots, volunteer, tournament, availableTournaments });
+  res.json({ shifts, volunteerShifts, shiftAssignmentCounts, childPlaySlots, notifications, volunteer, tournament, availableTournaments });
 };
 
 export const assignShift = async (req: Request, res: Response) => {
@@ -338,6 +347,29 @@ export const unassignShift = async (req: Request, res: Response) => {
   await prisma.volunteerShift.delete({ where: { id: volunteerShiftId } });
   logJobUnassigned(userId, userName, existing.shiftId || 0, shiftDate);
   res.json({ success: true });
+};
+
+/**
+ * Meldungen als gelesen markieren. Ohne ids werden alle offenen bestaetigt -
+ * das ist der Normalfall, wenn der Nutzer das Banner schliesst.
+ */
+export const markNotificationsRead = async (req: Request, res: Response) => {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Nicht authentifiziert' });
+
+  const { ids } = req.body ?? {};
+  const nurEigene = { userId, readAt: null as Date | null };
+
+  await prisma.userNotification.updateMany({
+    // userId bleibt immer Teil der Bedingung: sonst liessen sich mit
+    // geratenen IDs fremde Meldungen als gelesen markieren.
+    where: Array.isArray(ids) && ids.length > 0
+      ? { ...nurEigene, id: { in: ids.filter((i: unknown) => typeof i === 'number') } }
+      : nurEigene,
+    data: { readAt: new Date() }
+  });
+
+  return res.json({ success: true });
 };
 
 export const getVapidPublicKey = (req: Request, res: Response) => {

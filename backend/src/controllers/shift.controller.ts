@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../config/prisma.js';
-import { sendPushToUser } from '../utils/push.js';
+import { notifyUser, notifyUsers } from '../utils/notify.js';
 
 // Hinweis: Das Erzeugen von Shifts erfolgt künftig über die Tag-/Template-basierte
 // Generierung (Etappe 2), nicht mehr über manuelles Anlegen einzelner Slots.
@@ -103,15 +103,12 @@ export const deleteShift = async (req: Request, res: Response) => {
 
   const areaName = shift.workArea?.name || 'Job';
   const dateStr = shift.day?.date ? new Date(shift.day.date).toLocaleDateString('de-DE') : '';
-  for (const vs of shift.volunteerShifts) {
-    if (!vs.userId) continue;
-    sendPushToUser(
-      vs.userId,
-      'Schicht entfallen ℹ️',
-      `Die Schicht ${areaName}${dateStr ? ` am ${dateStr}` : ''} wurde vom Organisator entfernt. Du bist dort nicht mehr eingeplant.`,
-      '/?view=selfservice'
-    ).catch(() => {});
-  }
+  await notifyUsers(
+    shift.volunteerShifts.map(vs => vs.userId).filter((id): id is number => id != null),
+    'Schicht entfallen',
+    `Die Schicht ${areaName}${dateStr ? ` am ${dateStr}` : ''} wurde entfernt. Du bist dort nicht mehr eingeplant.`,
+    '/'
+  );
 
   return res.json({ deletedVolunteerAssignments: shift.volunteerShifts.length });
 };
@@ -131,13 +128,62 @@ export const updateShift = async (req: Request, res: Response) => {
   if (maxVolunteers !== undefined) data.maxVolunteers = Number(maxVolunteers);
   if (description !== undefined) data.description = description;
 
+  // Zustand VOR der Aenderung, um echte Zeitverschiebungen zu erkennen und
+  // die eingeplanten Helfer zu erreichen.
+  const vorher = await prisma.shift.findUnique({
+    where: { id },
+    include: { daySlot: true, day: true, workArea: true, volunteerShifts: { select: { userId: true } } }
+  });
+  if (!vorher) return res.status(404).json({ error: 'Schicht nicht gefunden' });
+
   const updated = await prisma.shift.update({
     where: { id },
     data,
     include: { day: true, daySlot: true, workArea: true }
   });
+
+  await benachrichtigeBeiZeitaenderung(vorher, updated);
   return res.json(updated);
 };
+
+/**
+ * Meldet eine verschobene Schicht an die bereits eingeplanten Helfer.
+ *
+ * Nur bei tatsaechlich geaenderter Uhrzeit - ein Speichern ohne Zeitwechsel
+ * (etwa nur die Helferzahl) soll niemanden behelligen. Die effektive Zeit
+ * kann aus der Schicht selbst oder ersatzweise aus dem Slot kommen, deshalb
+ * wird sie hier genauso aufgeloest wie in der Anzeige.
+ */
+async function benachrichtigeBeiZeitaenderung(
+  vorher: { startMin: number | null; endMin: number | null; daySlot?: { startMin: number; endMin: number } | null; day?: { date: Date } | null; workArea?: { name: string } | null; volunteerShifts: { userId: number | null }[] },
+  nachher: { startMin: number | null; endMin: number | null; daySlot?: { startMin: number; endMin: number } | null }
+): Promise<void> {
+  const altStart = vorher.startMin ?? vorher.daySlot?.startMin ?? null;
+  const altEnde = vorher.endMin ?? vorher.daySlot?.endMin ?? null;
+  const neuStart = nachher.startMin ?? nachher.daySlot?.startMin ?? null;
+  const neuEnde = nachher.endMin ?? nachher.daySlot?.endMin ?? null;
+  if (altStart === neuStart && altEnde === neuEnde) return;
+
+  const betroffene = vorher.volunteerShifts.map(vs => vs.userId).filter((id): id is number => id != null);
+  if (betroffene.length === 0) return;
+
+  const bereich = vorher.workArea?.name || 'Deine Schicht';
+  const datum = vorher.day?.date ? new Date(vorher.day.date).toLocaleDateString('de-DE') : '';
+  const alt = altStart != null && altEnde != null ? `${minToTime(altStart)}-${minToTime(altEnde)}` : 'bisher';
+  const neu = neuStart != null && neuEnde != null ? `${minToTime(neuStart)}-${minToTime(neuEnde)}` : 'neu';
+
+  await notifyUsers(
+    betroffene,
+    'Schicht verschoben',
+    `${bereich}${datum ? ` am ${datum}` : ''}: neue Zeit ${neu} (vorher ${alt}). Bitte prüfe, ob das für dich passt.`,
+    '/'
+  );
+}
+
+/** Minuten seit Mitternacht → "HH:MM". */
+function minToTime(m: number): string {
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
 
 /**
  * Übernimmt mehrere Zeit-Änderungen als eine Business-Transaktion (Editiermodus
@@ -148,6 +194,11 @@ export const updateShift = async (req: Request, res: Response) => {
 export const updateShiftsBatch = async (req: Request, res: Response) => {
   const { changes } = req.body as { changes: { id: number; startMin: number; endMin: number }[] };
 
+  const vorherListe = await prisma.shift.findMany({
+    where: { id: { in: changes.map(c => c.id) } },
+    include: { daySlot: true, day: true, workArea: true, volunteerShifts: { select: { userId: true } } }
+  });
+
   const updated = await prisma.$transaction(
     changes.map(c =>
       prisma.shift.update({
@@ -157,6 +208,13 @@ export const updateShiftsBatch = async (req: Request, res: Response) => {
       })
     )
   );
+
+  // Erst nach der Transaktion benachrichtigen: schlaegt sie fehl, wurde nichts
+  // geaendert und es darf auch nichts gemeldet werden.
+  for (const nachher of updated) {
+    const vorher = vorherListe.find(v => v.id === nachher.id);
+    if (vorher) await benachrichtigeBeiZeitaenderung(vorher, nachher);
+  }
 
   return res.json(updated);
 };

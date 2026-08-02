@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma.js';
 import { z } from 'zod';
-import { sendPushToUser } from '../utils/push.js';
+import { notifyUser } from '../utils/notify.js';
 
 export const volunteerShiftSchema = z.object({
   userId: z.union([z.number(), z.string()]).transform(Number),
@@ -38,12 +38,12 @@ export const createVolunteerShift = async (req: Request, res: Response) => {
   });
 
   if (s.userId) {
-    sendPushToUser(
+    await notifyUser(
       s.userId,
-      'Schicht zugeteilt 📋',
-      `Der Organisator hat dich als ${s.role} (${s.slot}) eingeplant.`,
-      '/?view=selfservice'
-    ).catch(() => {});
+      'Schicht zugeteilt',
+      `Du wurdest als ${s.role} (${s.slot}) eingeplant.`,
+      '/'
+    );
   }
 
   return res.status(201).json(s);
@@ -54,6 +54,8 @@ export const updateVolunteerShift = async (req: Request, res: Response) => {
   const { slot, role, userId, areaId, date, shiftId } = body;
   const validDate = date ? new Date(date) : undefined;
   
+  const vorher = await prisma.volunteerShift.findUnique({ where: { id: parseInt(req.params.id as string) } });
+
   const updated = await prisma.volunteerShift.update({
     where: { id: parseInt(req.params.id as string) },
     data: {
@@ -66,6 +68,31 @@ export const updateVolunteerShift = async (req: Request, res: Response) => {
     },
     include: { user: true }
   });
+
+  // Umplanen war bisher voellig stumm: wer auf eine andere Zeit oder Aufgabe
+  // geschoben wurde, erfuhr es nirgends.
+  if (vorher) {
+    const zeitOderRolleGeaendert = vorher.slot !== updated.slot || vorher.role !== updated.role
+      || new Date(vorher.date).getTime() !== new Date(updated.date).getTime();
+    if (zeitOderRolleGeaendert && updated.userId) {
+      await notifyUser(
+        updated.userId,
+        'Schicht geändert',
+        `Deine Schicht wurde geändert: jetzt ${updated.role} (${updated.slot}).`,
+        '/'
+      );
+    }
+    // Auf eine andere Person umgetragen: die bisherige informieren.
+    if (vorher.userId && updated.userId && vorher.userId !== updated.userId) {
+      await notifyUser(
+        vorher.userId,
+        'Schicht entfallen',
+        `Du bist für ${vorher.role} (${vorher.slot}) nicht mehr eingeplant.`,
+        '/'
+      );
+    }
+  }
+
   return res.json(updated);
 };
 
@@ -75,12 +102,12 @@ export const deleteVolunteerShift = async (req: Request, res: Response) => {
   await prisma.volunteerShift.delete({ where: { id } });
   
   if (existing && existing.userId) {
-    sendPushToUser(
+    await notifyUser(
       existing.userId,
-      'Schicht geändert ℹ️',
+      'Schicht entfallen',
       `Du wurdest aus der Schicht ${existing.role} (${existing.slot}) ausgeplant.`,
-      '/?view=selfservice'
-    ).catch(() => {});
+      '/'
+    );
   }
   
   return res.status(204).send();

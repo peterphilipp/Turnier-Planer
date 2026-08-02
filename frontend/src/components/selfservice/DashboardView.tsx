@@ -64,6 +64,11 @@ export default function DashboardView() {
   // Wann spielen die eigenen Kinder? Wenige Zeitfenster je Jahrgang; die
   // Ueberschneidung mit einer Schicht wird hier gerechnet.
   const [childPlaySlots, setChildPlaySlots] = useState<{ date: string; startMin: number; endMin: number; yearGroupName: string; children: string[] }[]>([]);
+  // Meldungen zu Planaenderungen. Sie stehen ganz oben, weil Push nur eine
+  // Minderheit erreicht - sonst wuerde eine Verschiebung schlicht uebersehen.
+  const [notifications, setNotifications] = useState<{ id: number; title: string; body: string; createdAt: string }[]>([]);
+  // PWA-Update: lag bisher im Burger-Menue und wurde dort kaum gesehen.
+  const [updateVerfuegbar, setUpdateVerfuegbar] = useState(false);
 
   const applyAvailableData = (d: Record<string, any>) => {
     if (!d) return;
@@ -82,6 +87,7 @@ export default function DashboardView() {
     setShifts(d.shifts ? d.shifts.map(mapShift) : []);
     setShiftCounts(d.shiftAssignmentCounts || {});
     setChildPlaySlots(d.childPlaySlots || []);
+    setNotifications(d.notifications || []);
     
     setVolunteerShifts(d.volunteerShifts ? d.volunteerShifts.map((vs: Record<string, any>) => ({
       ...vs,
@@ -263,6 +269,22 @@ export default function DashboardView() {
     });
     driverObj.drive();
     localStorage.setItem('hasSeenTour', 'true');
+  };
+
+  useEffect(() => {
+    const beiUpdate = () => setUpdateVerfuegbar(true);
+    window.addEventListener('pwa-update-available', beiUpdate);
+    return () => window.removeEventListener('pwa-update-available', beiUpdate);
+  }, []);
+
+  const meldungenBestaetigen = async () => {
+    const ids = notifications.map(n => n.id);
+    setNotifications([]);            // sofort ausblenden, der Server folgt
+    try {
+      await apiPost('/api/self/notifications/read', { ids });
+    } catch {
+      // Nicht schlimm: beim naechsten Laden erscheinen sie erneut.
+    }
   };
 
   // Pull-to-refresh logic
@@ -466,8 +488,57 @@ export default function DashboardView() {
       {/* PTR Indicator */}
       <div className="dashboard-ptr-indicator" style={{ height: pullDistance, transition: refreshing ? "height 0.3s" : "none" }}>
         <div className="dashboard-ptr-indicator-icon" style={{ transform: `rotate(${pullDistance * 4}deg)`, opacity: pullDistance / 60, color: clubSecondary }}>↻</div>
+        {/* Ohne Beschriftung findet das Ziehen kaum jemand - das Symbol allein
+            erklaert sich erst, wenn man es schon kennt. */}
+        {pullDistance > 12 && (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', opacity: Math.min(1, pullDistance / 60) }}>
+            {refreshing ? 'Wird aktualisiert…' : pullDistance > 60 ? 'Loslassen zum Aktualisieren' : 'Zum Aktualisieren ziehen'}
+          </div>
+        )}
       </div>
       
+      {/* Meldungen ganz oben - vor allem anderen, damit eine Planaenderung
+          nicht uebersehen wird. Gleiche Optik wie der Update-Hinweis. */}
+      {updateVerfuegbar && (
+        <div style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 12, padding: '12px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 20 }} aria-hidden="true">🔄</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#664d03' }}>Neue Version verfügbar</div>
+            <div style={{ fontSize: 13, color: '#664d03' }}>Jetzt neu laden, um sie zu nutzen.</div>
+          </div>
+          <button
+            onClick={() => { const w = window as any; if (w.updatePWA) w.updatePWA(true); else window.location.reload(); }}
+            style={{ background: '#ffc107', color: '#000', border: 'none', borderRadius: 8, padding: '10px 14px', minHeight: 44, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+          >Neu laden</button>
+        </div>
+      )}
+
+      {notifications.length > 0 && (
+        <div style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 20 }} aria-hidden="true">📣</span>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#664d03', flex: 1 }}>
+              {notifications.length === 1 ? 'Änderung an deinem Dienstplan' : `${notifications.length} Änderungen an deinem Dienstplan`}
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {notifications.map(n => (
+              <div key={n.id} style={{ background: '#fff', borderRadius: 8, padding: '8px 10px' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#212529' }}>{n.title}</div>
+                <div style={{ fontSize: 13, color: '#495057', lineHeight: 1.5 }}>{n.body}</div>
+                <div style={{ fontSize: 11, color: '#adb5bd', marginTop: 2 }}>
+                  {new Date(n.createdAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={meldungenBestaetigen}
+            style={{ marginTop: 10, width: '100%', background: '#ffc107', color: '#000', border: 'none', borderRadius: 8, padding: '10px 14px', minHeight: 44, fontWeight: 600, cursor: 'pointer' }}
+          >Verstanden</button>
+        </div>
+      )}
+
       {/* TABS */}
       <div id="tour-tabs" className="dashboard-tabs-wrapper">
         <button onClick={() => setActiveSection('jobs')} className={`dashboard-pill-tab ${activeSection === "jobs" ? "active" : ""}`} style={{ background: activeSection === "jobs" ? clubSecondary : 'var(--bg-surface)', color: activeSection === "jobs" ? '#fff' : 'var(--text-muted)' }}>📋 Jobs</button>

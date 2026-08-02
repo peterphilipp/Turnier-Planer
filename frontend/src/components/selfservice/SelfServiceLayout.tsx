@@ -341,25 +341,8 @@ export default function SelfServiceLayout() {
                  {exportLoading ? '⏳ Exportiere...' : '📥 Meine Daten exportieren (DSGVO)'}
                </button>
 
-              {pwaUpdateAvailable && !dismissedUpdate && (
-                <div style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 8, padding: '12px 16px', marginBottom: 12 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#856404', marginBottom: 4 }}>🔄 Update verfügbar</div>
-                  <div style={{ fontSize: 12, color: '#856404', marginBottom: 8 }}>Eine neue Version ist installiert. Bitte neu laden.</div>
-                  <button
-                    onClick={() => {
-                      setDismissedUpdate(true);
-                      if ((window as any).updatePWA) {
-                        (window as any).updatePWA(true);
-                      } else {
-                        window.location.reload();
-                      }
-                    }}
-                    style={{ width: '100%', padding: '8px 16px', background: '#ffc107', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
-                  >
-                    Jetzt neu laden
-                  </button>
-                </div>
-              )}
+              {/* Der Update-Hinweis sitzt jetzt oben im Dienstplan statt hier im
+                  Menue - dort wurde er kaum gesehen. */}
 
               {(isAdmin || isOrganizer) && (
                 <button

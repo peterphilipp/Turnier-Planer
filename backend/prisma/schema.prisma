@@ -178,6 +178,7 @@ model User {
   foodDonations         FoodDonation[]
   resetTokens           PasswordResetToken[]
   pushSubscriptions     PushSubscription[]
+  notifications         UserNotification[]
   tournamentMemberships TournamentMembership[]
   tournament            Tournament?            @relation(fields: [tournamentId], references: [id])
   children              UserChild[]
@@ -209,6 +210,27 @@ model UserRole {
   @@unique([userId, role])
   @@index([userId])
   @@map("user_roles")
+}
+
+// Nachrichten an einen Nutzer, die auch OHNE Push ankommen muessen.
+//
+// Push erreicht in der Praxis nur eine Minderheit: die App wird selten
+// installiert und Benachrichtigungen noch seltener erlaubt. Aenderungen am
+// Dienstplan wuerden damit an den meisten Helfern vorbeigehen. Deshalb wird
+// jede solche Meldung zusaetzlich hier abgelegt und beim naechsten Oeffnen
+// der App oben angezeigt, bis der Nutzer sie bestaetigt.
+model UserNotification {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  title     String
+  body      String
+  url       String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  readAt    DateTime? @map("read_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("user_notifications")
 }
 
 model PushSubscription {
