@@ -179,13 +179,29 @@ export const getAvailable = async (req: Request, res: Response) => {
     orderBy: [{ tournamentDayId: 'asc' }, { daySlotId: 'asc' }, { workArea: { order: 'asc' } }, { id: 'asc' }]
   });
 
+  // NUR die eigenen Zusagen. Vorher kamen hier alle Zusagen des Turniers
+  // zurueck, und das Frontend zeigte sie ungefiltert unter "Deine Jobs" an -
+  // jeder sah also die Schichten aller anderen als seine eigenen. Nebenbei
+  // gingen dabei die Namen saemtlicher Teilnehmer an jeden Client, obwohl sie
+  // im Self-Service nirgends angezeigt werden.
   const volunteerShifts = await prisma.volunteerShift.findMany({
-    where: { tournamentId: targetTournamentId },
+    where: { tournamentId: targetTournamentId, userId },
     include: {
-      user: { select: { id: true, name: true } },
       shift: { include: { day: true, daySlot: true, workArea: true } }
     }
   });
+
+  // Belegung getrennt als reine Zahlen: das Frontend braucht sie fuer "3/8"
+  // und die Fortschrittsbalken, aber ohne zu wissen, WER eingetragen ist.
+  const belegung = await prisma.volunteerShift.groupBy({
+    by: ['shiftId'],
+    where: { tournamentId: targetTournamentId },
+    _count: { _all: true }
+  });
+  const shiftAssignmentCounts: Record<number, number> = {};
+  for (const b of belegung) {
+    if (b.shiftId != null) shiftAssignmentCounts[b.shiftId] = b._count._all;
+  }
 
   const tournament = await prisma.tournament.findUnique({
     where: { id: targetTournamentId },
@@ -205,7 +221,7 @@ export const getAvailable = async (req: Request, res: Response) => {
     roles: userRoles.length > 0 ? userRoles.map(r => r.role) : [user.role]
   };
 
-  res.json({ shifts, volunteerShifts, volunteer, tournament, availableTournaments });
+  res.json({ shifts, volunteerShifts, shiftAssignmentCounts, volunteer, tournament, availableTournaments });
 };
 
 export const assignShift = async (req: Request, res: Response) => {
@@ -231,6 +247,17 @@ export const assignShift = async (req: Request, res: Response) => {
   const existing = await prisma.volunteerShift.findFirst({ where: { userId, shiftId } });
   if (existing) {
     return res.status(400).json({ error: 'Du bist für diesen Job-Slot bereits eingetragen.' });
+  }
+
+  // Kapazität prüfen. Das fehlte bisher komplett: die Oberfläche zeigte
+  // freie Schichten immer als unbesetzt an (die Belegung wurde nie
+  // mitgeliefert), und serverseitig gab es keine Grenze - eine Schicht liess
+  // sich also beliebig weit über maxVolunteers hinaus füllen.
+  if (shift.maxVolunteers > 0) {
+    const belegt = await prisma.volunteerShift.count({ where: { shiftId } });
+    if (belegt >= shift.maxVolunteers) {
+      return res.status(409).json({ error: 'Dieser Job ist bereits voll besetzt.' });
+    }
   }
 
   const shiftDate = shift.day?.date ?? new Date();

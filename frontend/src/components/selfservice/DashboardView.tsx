@@ -57,6 +57,10 @@ export default function DashboardView() {
 
   const [pullDistance, setPullDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  // Belegung je Schicht (shiftId -> Anzahl). Kommt getrennt vom Server, damit
+  // die Anzeige "3/8" moeglich ist, ohne dass der Client die Zusagen aller
+  // anderen Teilnehmer erhaelt.
+  const [shiftCounts, setShiftCounts] = useState<Record<number, number>>({});
 
   const applyAvailableData = (d: Record<string, any>) => {
     if (!d) return;
@@ -73,6 +77,7 @@ export default function DashboardView() {
     });
 
     setShifts(d.shifts ? d.shifts.map(mapShift) : []);
+    setShiftCounts(d.shiftAssignmentCounts || {});
     
     setVolunteerShifts(d.volunteerShifts ? d.volunteerShifts.map((vs: Record<string, any>) => ({
       ...vs,
@@ -441,7 +446,7 @@ export default function DashboardView() {
                     const d = new Date(vs.date);
                     const prevVs = idx > 0 ? sortedMyShifts[idx - 1] : null;
                     const showDayHeader = !prevVs || new Date(prevVs.date).toDateString() !== d.toDateString();
-                    const assignedCount = volunteerShifts.filter(v => v.shiftId === vs.shift?.id).length;
+                    const assignedCount = vs.shift?.id != null ? (shiftCounts[vs.shift.id] ?? 0) : 0;
                     const remaining = (vs.shift?.maxVolunteers || 0) - assignedCount;
 
                     return (
@@ -547,7 +552,7 @@ export default function DashboardView() {
                     </h3>
                     <div className="dashboard-shifts-grid">
                       {groupedShifts[dateStr].map((s, idx) => {
-                        const assignedCount = Array.isArray((s as any).volunteerShifts) ? (s as any).volunteerShifts.length : 0;
+                        const assignedCount = shiftCounts[s.id] ?? 0;
                         const isFull = assignedCount >= s.maxVolunteers;
                         const amIAssigned = volunteerShifts.some(vs => vs.shift?.id === s.id);
                         const isPast = isPastShift(s.date, s.endMin);
