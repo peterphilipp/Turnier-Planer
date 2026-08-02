@@ -28,6 +28,8 @@ interface FormField {
 
 interface FormOpts {
   title: string;
+  /** Optionaler Hinweis über den Feldern - z.B. was nach dem Absenden passiert. */
+  message?: string;
   fields: FormField[];
   submitText?: string;
   cancelText?: string;
@@ -122,7 +124,10 @@ function FormDialog({ opts }: { opts: FormOpts }) {
       style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
     >
       <div style={{ background: '#fff', borderRadius: 16, padding: '28px 32px 24px', maxWidth: 480, width: '92%', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', margin: 'auto' }}>
-        <h3 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 600, color: '#212529' }}>{opts.title}</h3>
+        <h3 style={{ margin: opts.message ? '0 0 8px' : '0 0 20px', fontSize: 18, fontWeight: 600, color: '#212529' }}>{opts.title}</h3>
+        {opts.message && (
+          <p style={{ margin: '0 0 20px', fontSize: 13, color: '#6c757d', lineHeight: 1.5 }}>{opts.message}</p>
+        )}
         {opts.fields.map(f => (
           <div key={f.key} style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#495057', marginBottom: 4 }}>{f.label}</label>

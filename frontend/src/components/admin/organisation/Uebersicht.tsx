@@ -132,6 +132,13 @@ const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
    * Katalog synchronisieren und den Tag neu erzeugen lassen - für eine einzige
    * Schicht ein unverhältnismäßiger Umweg. Wird so ein Bereich gewählt, holt
    * ihn adoptTournamentWorkArea vorher ins Turnier.
+   *
+   * Gefragt wird nur nach dem Arbeitsbereich. Die Schicht landet im mittleren
+   * Zeitfenster des Tages und wird danach im Gantt-Diagramm an ihren Platz
+   * gezogen - das ist ohnehin der Weg, auf dem der Tag geplant wird. Eine
+   * Uhrzeit im Dialog abzufragen hiesse, dieselbe Entscheidung zweimal zu
+   * treffen. Auf dem Handy gibt es das Gantt nicht; dort hat jede Schichtkarte
+   * einen eigenen "⏰ Zeit"-Knopf.
    */
   const addShiftToDay = (day: TournamentDay) => guard(async () => {
     if (!tid) return;
@@ -152,20 +159,14 @@ const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
       ...zusaetzlich.map(w => ({ value: `k:${w.id}`, label: `${w.icon} ${w.name} — neu ins Turnier holen` }))
     ];
 
-    // Ein Zeitfenster gibt es pro Tag genau einmal, die Liste ist damit von
-    // sich aus eindeutig. Sortiert, damit sie der Tagesabfolge entspricht.
-    const slotOptions = [...(day.slots || [])]
-      .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin)
-      .map(s => ({ value: String(s.id), label: `${minToTime(s.startMin)}–${minToTime(s.endMin)}${s.label ? ' · ' + s.label : ''}` }));
-
     const res = await modal.form({
       title: '➕ Schicht zu diesem Tag hinzufügen',
+      message: 'Die Schicht wird mittig in den Tag gelegt. Die genaue Zeit ziehst du danach im Diagramm zurecht.',
       fields: [
-        { key: 'areaId', label: 'Arbeitsbereich', type: 'select', options: areaOptions },
-        { key: 'daySlotId', label: 'Zeit', type: 'select', options: [...slotOptions, { value: 'custom', label: '➕ Neue Zeit erstellen...' }] }
+        { key: 'areaId', label: 'Arbeitsbereich', type: 'select', options: areaOptions }
       ]
     });
-    if (!res || !res.areaId || !res.daySlotId) return;
+    if (!res || !res.areaId) return;
 
     // Bereich aus dem Katalog? Dann zuerst ins Turnier übernehmen.
     let areaId: number;
@@ -182,28 +183,27 @@ const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
       area = activeAreas.find(a => a.id === areaId);
     }
 
+    // Mittiges Zeitfenster: das, dessen Mitte der Tagesmitte am nächsten liegt.
+    // Ein bestehendes Fenster wiederzuverwenden ist besser, als dem Tag ein
+    // weiteres hinzuzufügen, das niemand angefordert hat.
+    const fenster = [...(day.slots || [])].sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
     let daySlotId: number;
-    if (String(res.daySlotId) === 'custom') {
-      const timeRes = await modal.form({
-        title: '➕ Neue Zeit für diesen Tag',
-        fields: [
-          { key: 'start', label: 'Start (HH:MM)', type: 'text', placeholder: '10:30' },
-          { key: 'end', label: 'Ende (HH:MM)', type: 'text', placeholder: '13:00' },
-          { key: 'label', label: 'Label (optional)', type: 'text' }
-        ]
-      });
-      if (!timeRes || !timeRes.start || !timeRes.end) return;
-      const startMin = timeToMin(String(timeRes.start));
-      const endMin = timeToMin(String(timeRes.end));
-      if (Number.isNaN(startMin) || Number.isNaN(endMin) || endMin <= startMin) {
-        await modal.alert({ title: 'Hinweis', message: 'Bitte gültige Uhrzeiten im Format HH:MM angeben, Ende nach Start.' });
-        return;
-      }
-      const newSlot = await addDaySlot({ tournamentDayId: day.id, startMin, endMin, label: timeRes.label ? String(timeRes.label) : null });
-      daySlotId = newSlot.id;
-      queryClient.invalidateQueries({ queryKey: ['t-days', tid] });
+    if (fenster.length > 0) {
+      const tagStart = Math.min(...fenster.map(s => s.startMin));
+      const tagEnde = Math.max(...fenster.map(s => s.endMin));
+      const mitte = (tagStart + tagEnde) / 2;
+      const mittigstes = fenster.reduce((best, s) =>
+        Math.abs((s.startMin + s.endMin) / 2 - mitte) < Math.abs((best.startMin + best.endMin) / 2 - mitte) ? s : best
+      );
+      daySlotId = mittigstes.id;
     } else {
-      daySlotId = Number(res.daySlotId);
+      // Ein Tag ohne jedes Zeitfenster (ohne Vorlage angelegt) braucht erst eins.
+      const gewaehlt = activeAreas.find(a => a.id === areaId);
+      const startMin = gewaehlt?.operatingStartMin ?? 600;
+      const endMin = gewaehlt?.operatingEndMin ?? 840;
+      const neu = await addDaySlot({ tournamentDayId: day.id, startMin, endMin, label: null });
+      daySlotId = neu.id;
+      queryClient.invalidateQueries({ queryKey: ['t-days', tid] });
     }
 
     try {
@@ -213,6 +213,44 @@ const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
     } catch (err: unknown) { const e = err as Error;
       await modal.alert({ title: 'Fehler', message: e.message || 'Schicht konnte nicht angelegt werden.' });
     }
+  });
+
+  /**
+   * Zeit einer einzelnen Schicht per Dialog setzen.
+   *
+   * Auf dem Desktop zieht man die Ränder im Gantt-Diagramm; auf dem Handy gibt
+   * es das Diagramm nicht, dort wäre eine Schicht sonst unveränderlich auf der
+   * Zeit festgenagelt, mit der sie angelegt wurde. Speichert direkt (nicht über
+   * den Sammel-Editiermodus), weil hier immer nur eine Schicht betroffen ist.
+   */
+  const editShiftTime = (shift: Record<string, any>) => guard(async () => {
+    const aktStart = shift.startMin ?? shift.daySlot?.startMin ?? 0;
+    const aktEnde = shift.endMin ?? shift.daySlot?.endMin ?? 0;
+    const name = shift.workArea?.name || shift.arbeitsbereich?.name || 'Schicht';
+
+    const res = await modal.form({
+      title: `⏰ Zeit für „${name}"`,
+      fields: [
+        { key: 'start', label: 'Start (HH:MM)', type: 'text', defaultValue: minToTime(aktStart) },
+        { key: 'end', label: 'Ende (HH:MM)', type: 'text', defaultValue: minToTime(aktEnde) }
+      ]
+    });
+    if (!res || !res.start || !res.end) return;
+
+    const startMin = timeToMin(String(res.start));
+    const endMin = timeToMin(String(res.end));
+    if (Number.isNaN(startMin) || Number.isNaN(endMin) || endMin <= startMin) {
+      await modal.alert({ title: 'Hinweis', message: 'Bitte gültige Uhrzeiten im Format HH:MM angeben, Ende nach Start.' });
+      return;
+    }
+    if (startMin === aktStart && endMin === aktEnde) return;
+
+    await updateShift(shift.id, { startMin, endMin });
+    queryClient.invalidateQueries({ queryKey: ['shifts', tid] });
+    await modal.alert({
+      title: 'Gespeichert ✅',
+      message: `„${name}" läuft jetzt von ${minToTime(startMin)} bis ${minToTime(endMin)}. Bereits eingeplante Helfer werden über die neue Zeit informiert.`
+    });
   });
 
   /**
@@ -449,12 +487,20 @@ const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
                                     {isFull ? '✅' : '⚠️'} {assigned.length}/{s.maxVolunteers} besetzt
                                   </div>
                                 </div>
-                                <button
-                                  onClick={() => setSelectedShift(s as unknown as Shift)}
-                                  className="admin-core-style-204"
-                                >
-                                  👥 Details
-                                </button>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+                                  <button
+                                    onClick={() => setSelectedShift(s as unknown as Shift)}
+                                    className="admin-core-style-204"
+                                  >
+                                    👥 Details
+                                  </button>
+                                  <button
+                                    onClick={() => editShiftTime(s)}
+                                    style={{ ...btnStyle, background: '#e2e3e5', color: '#383d41', fontSize: 12, minHeight: 36, padding: '4px 10px' }}
+                                  >
+                                    ⏰ Zeit
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           );
