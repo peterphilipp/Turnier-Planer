@@ -61,6 +61,9 @@ export default function DashboardView() {
   // die Anzeige "3/8" moeglich ist, ohne dass der Client die Zusagen aller
   // anderen Teilnehmer erhaelt.
   const [shiftCounts, setShiftCounts] = useState<Record<number, number>>({});
+  // Wann spielen die eigenen Kinder? Wenige Zeitfenster je Jahrgang; die
+  // Ueberschneidung mit einer Schicht wird hier gerechnet.
+  const [childPlaySlots, setChildPlaySlots] = useState<{ date: string; startMin: number; endMin: number; yearGroupName: string; children: string[] }[]>([]);
 
   const applyAvailableData = (d: Record<string, any>) => {
     if (!d) return;
@@ -78,6 +81,7 @@ export default function DashboardView() {
 
     setShifts(d.shifts ? d.shifts.map(mapShift) : []);
     setShiftCounts(d.shiftAssignmentCounts || {});
+    setChildPlaySlots(d.childPlaySlots || []);
     
     setVolunteerShifts(d.volunteerShifts ? d.volunteerShifts.map((vs: Record<string, any>) => ({
       ...vs,
@@ -365,6 +369,45 @@ export default function DashboardView() {
     return new Date() > end;
   };
 
+  /**
+   * Ueberschneidung einer Schicht mit den Spielzeiten der eigenen Kinder.
+   * Gibt null zurueck, wenn es keine gibt - dann wird auch nichts angezeigt,
+   * damit die Karten nicht unnoetig wachsen.
+   */
+  const spielKollision = (datum: string | null | undefined, startMin?: number | null, endMin?: number | null) => {
+    if (!datum || startMin == null || endMin == null) return null;
+    const tag = String(datum).slice(0, 10);
+    const treffer = childPlaySlots.filter(p => String(p.date).slice(0, 10) === tag && p.startMin < endMin && p.endMin > startMin);
+    if (treffer.length === 0) return null;
+
+    const von = Math.max(startMin, Math.min(...treffer.map(p => p.startMin)));
+    const bis = Math.min(endMin, Math.max(...treffer.map(p => p.endMin)));
+    const kinder = Array.from(new Set(treffer.flatMap(p => p.children)));
+    // "durchgehend" nur, wenn die Schicht komplett in der Spielzeit liegt.
+    const durchgehend = treffer.some(p => p.startMin <= startMin && p.endMin >= endMin);
+    return { von, bis, kinder, durchgehend };
+  };
+
+  const SpielHinweis = ({ datum, startMin, endMin }: { datum: string | null | undefined; startMin?: number | null; endMin?: number | null }) => {
+    const k = spielKollision(datum, startMin, endMin);
+    if (!k) return null;
+    return (
+      <div
+        title={`${k.kinder.join(', ')} spielt ${minToTime(k.von)}–${minToTime(k.bis)} (${k.durchgehend ? 'während der ganzen Schicht' : 'teilweise während der Schicht'})`}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4,
+          background: '#fff3cd', border: '1px solid #ffe69c', borderRadius: 999,
+          padding: '2px 8px', fontSize: 12, color: '#664d03', maxWidth: '100%'
+        }}
+      >
+        <span aria-hidden="true">⚽</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {k.kinder.join(', ')} {k.durchgehend ? 'spielt durchgehend' : `spielt ${minToTime(k.von)}–${minToTime(k.bis)}`}
+        </span>
+      </div>
+    );
+  };
+
   const FillBar = ({ assigned, max }: { assigned: number; max: number }) => {
     const ratio = max > 0 ? Math.min(1, assigned / max) : 0;
     const color = ratio >= 1 ? '#198754' : ratio > 0 ? '#ffc107' : '#dc3545';
@@ -464,6 +507,7 @@ export default function DashboardView() {
                             <div className="dashboard-shift-time">
                               <span>{vs.shift?.startMin != null ? `${minToTime(vs.shift.startMin)}-${minToTime(vs.shift.endMin || vs.shift.startMin + 60)}` : vs.shift?.zeitslot?.name || vs.slot}</span>
                             </div>
+                            <SpielHinweis datum={vs.date} startMin={vs.shift?.startMin} endMin={vs.shift?.endMin} />
                           </div>
                           <div className="dashboard-shift-actions">
                             {vs.shift && (
@@ -562,6 +606,7 @@ export default function DashboardView() {
                             <div className="dashboard-shift-card-inner">
                               <div className="dashboard-shift-title">{s.arbeitsbereich?.icon} <span>{s.arbeitsbereich?.name}</span></div>
                               <div className="dashboard-shift-time dashboard-shift-time-margin"><span>{s.startMin != null && s.endMin != null ? `${minToTime(s.startMin)}-${minToTime(s.endMin)}` : s.zeitslot?.name}</span></div>
+                              <SpielHinweis datum={s.date} startMin={s.startMin} endMin={s.endMin} />
                             </div>
                             <div className="dashboard-shift-footer" style={{ gap: 16 }}>
                               <div className={`dashboard-shift-status ${isFull ? "full" : "open"}`}>{assignedCount}/{s.maxVolunteers}</div>

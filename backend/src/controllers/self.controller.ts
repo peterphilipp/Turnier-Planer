@@ -51,6 +51,20 @@ const getUserId = (req: Request): number | null => {
 const minToTime = (m: number): string =>
   `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
+/**
+ * "HH:MM" → Minuten seit Mitternacht. TimeSlot speichert die Zeiten als
+ * Zeichenkette; null bei allem, was nicht diesem Muster entspricht, damit ein
+ * gepflegter Unsinn-Wert nicht als 0 Uhr durchrutscht.
+ */
+const timeToMin = (t: string | null | undefined): number | null => {
+  const treffer = /^(\d{1,2}):(\d{2})$/.exec((t ?? '').trim());
+  if (!treffer) return null;
+  const h = Number(treffer[1]);
+  const m = Number(treffer[2]);
+  if (h > 23 || m > 59) return null;
+  return h * 60 + m;
+};
+
 async function resolveTournamentForUser(
   userId: number,
   requestedTournamentId?: number,
@@ -203,6 +217,31 @@ export const getAvailable = async (req: Request, res: Response) => {
     if (b.shiftId != null) shiftAssignmentCounts[b.shiftId] = b._count._all;
   }
 
+  // Spielzeiten der eigenen Kinder: welcher Jahrgang spielt wann. Damit kann
+  // die Oberflaeche beim Buchen anzeigen, ob eine Schicht mit den Spielen des
+  // eigenen Kindes kollidiert - die haeufigste Rueckfrage bei der Planung.
+  // Bewusst nur die wenigen Zeitfenster ausliefern (ein bis zwei je Jahrgang)
+  // und die Ueberschneidung im Client rechnen, statt pro Schicht etwas zu
+  // schicken.
+  const spielzeiten = await prisma.timeSlot.findMany({
+    where: { tournamentId: targetTournamentId, yearGroupId: { not: null } },
+    include: { yearGroup: true },
+    orderBy: [{ date: 'asc' }, { startTime: 'asc' }]
+  });
+
+  const childPlaySlots = spielzeiten.flatMap(ts => {
+    const yg = ts.yearGroup;
+    if (!yg) return [];
+    const kinder = (user.children ?? [])
+      .filter(c => c.childYear >= yg.birthYearStart && c.childYear <= yg.birthYearEnd)
+      .map(c => c.childName);
+    if (kinder.length === 0) return [];
+    const start = timeToMin(ts.startTime);
+    const ende = timeToMin(ts.endTime);
+    if (start == null || ende == null) return [];
+    return [{ date: ts.date, startMin: start, endMin: ende, yearGroupName: yg.name, children: kinder }];
+  });
+
   const tournament = await prisma.tournament.findUnique({
     where: { id: targetTournamentId },
     include: { club: true }
@@ -221,7 +260,7 @@ export const getAvailable = async (req: Request, res: Response) => {
     roles: userRoles.length > 0 ? userRoles.map(r => r.role) : [user.role]
   };
 
-  res.json({ shifts, volunteerShifts, shiftAssignmentCounts, volunteer, tournament, availableTournaments });
+  res.json({ shifts, volunteerShifts, shiftAssignmentCounts, childPlaySlots, volunteer, tournament, availableTournaments });
 };
 
 export const assignShift = async (req: Request, res: Response) => {
