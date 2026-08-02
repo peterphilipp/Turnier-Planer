@@ -11,6 +11,8 @@ interface LayoutContext {
   selectedTournamentId: number | null;
 }
 
+type Bereich = 'jobs' | 'verpflegung';
+
 interface TrainerData {
   trainedYearGroups: { id: number; name: string }[];
   foodDonationSlots: any[];
@@ -43,8 +45,14 @@ function FillBar({ assigned, max }: { assigned: number; max: number }) {
  */
 export default function TrainerView() {
   const { volunteer } = useUser();
-  const { clubPrimary, clubAccent, selectedTournamentId } = useOutletContext<LayoutContext>();
+  const { clubPrimary, clubSecondary, clubAccent, selectedTournamentId } = useOutletContext<LayoutContext>();
   const navigate = useNavigate();
+
+  // Gleiche Aufteilung wie im Dienstplan: Jobs und Verpflegung sind auch hier
+  // zwei gleichrangige Inhaltsbereiche. Reiterzeile und Klassen sind bewusst
+  // dieselben wie dort (dashboard-tabs-wrapper / dashboard-pill-tab), damit es
+  // nicht nur aehnlich aussieht, sondern identisch bleibt.
+  const [bereich, setBereich] = useState<Bereich>('jobs');
 
   const [data, setData] = useState<TrainerData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +115,23 @@ export default function TrainerView() {
 
       {!loading && !error && jahrgaenge.length > 0 && data && (
         <>
-          <section>
+          {/* Identische Reiterzeile wie im Dienstplan. Die Anzahl steht mit im
+              Reiter, damit der Ueberblick nicht verloren geht, den das
+              Untereinander vorher geboten hat. */}
+          <div className="dashboard-tabs-wrapper">
+            <button
+              onClick={() => setBereich('jobs')}
+              className={`dashboard-pill-tab ${bereich === 'jobs' ? 'active' : ''}`}
+              style={{ background: bereich === 'jobs' ? clubSecondary : 'var(--bg-surface)', color: bereich === 'jobs' ? '#fff' : 'var(--text-muted)' }}
+            >📋 Jobs ({data.volunteerShifts.length})</button>
+            <button
+              onClick={() => setBereich('verpflegung')}
+              className={`dashboard-pill-tab ${bereich === 'verpflegung' ? 'active' : ''}`}
+              style={{ background: bereich === 'verpflegung' ? clubSecondary : 'var(--bg-surface)', color: bereich === 'verpflegung' ? '#fff' : 'var(--text-muted)' }}
+            >🍔 Verpflegung ({data.foodDonationSlots.length})</button>
+          </div>
+
+          <section style={{ display: bereich === 'verpflegung' ? 'block' : 'none' }}>
             <h3 style={{ margin: '0 0 12px', fontSize: 17, color: 'var(--text-main)' }}>Verpflegungsspenden</h3>
             {data.foodDonationSlots.length > 0 ? (
               <div className="dashboard-shifts-grid">
@@ -155,7 +179,7 @@ export default function TrainerView() {
             )}
           </section>
 
-          <section>
+          <section style={{ display: bereich === 'jobs' ? 'block' : 'none' }}>
             <h3 style={{ margin: '0 0 12px', fontSize: 17, color: 'var(--text-main)' }}>Helfer-Schichten der Eltern</h3>
             {data.volunteerShifts.length > 0 ? (
               <div className="dashboard-shifts-grid">
