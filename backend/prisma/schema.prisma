@@ -410,18 +410,24 @@ model TournamentDayWorkArea {
   @@map("tournament_day_work_areas")
 }
 
+// Ein Zeitfenster eines Turniertags - z.B. "07:45-11:30".
+//
+// Frueher wurde je Arbeitsbereich der Tagesvorlage ein eigener Slot angelegt,
+// wodurch dieselbe Uhrzeit mehrfach nebeneinander stand und die Auswahl in der
+// Oberflaeche unlesbar wurde. Jetzt gibt es ein Fenster genau einmal pro Tag;
+// welche Bereiche darin arbeiten, sagen die Schichten.
 model DaySlot {
-  id                       Int           @id @default(autoincrement())
-  tournamentDayId          Int           @map("tournament_day_id")
-  startMin                 Int           @map("start_min")
-  endMin                   Int           @map("end_min")
-  label                    String?
-  color                    String        @default("#3b98f8")
-  order                    Int           @default(0)
-  sourceTemplateWorkAreaId Int?          @map("source_template_work_area_id")
-  day                      TournamentDay @relation(fields: [tournamentDayId], references: [id], onDelete: Cascade)
-  shifts                   Shift[]
+  id              Int           @id @default(autoincrement())
+  tournamentDayId Int           @map("tournament_day_id")
+  startMin        Int           @map("start_min")
+  endMin          Int           @map("end_min")
+  label           String?
+  color           String        @default("#3b98f8")
+  order           Int           @default(0)
+  day             TournamentDay @relation(fields: [tournamentDayId], references: [id], onDelete: Cascade)
+  shifts          Shift[]
 
+  @@unique([tournamentDayId, startMin, endMin])
   @@index([tournamentDayId])
   @@map("day_slots")
 }

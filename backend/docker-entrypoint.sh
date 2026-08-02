@@ -4,6 +4,12 @@ set -e
 echo "  Alte Shift-Daten pruefen (Tag-/Slot-System Migration)..."
 node scripts/migrate-day-slot-system.cjs
 
+# MUSS vor "db push" laufen: das Schema legt jetzt einen Unique-Index ueber
+# (Tag, Start, Ende) auf day_slots an, der an bestehenden Duplikaten scheitern
+# wuerde.
+echo "  Doppelte Zeitfenster je Turniertag zusammenfuehren..."
+node scripts/migrate-dedupe-day-slots.cjs
+
 # Sicherung VOR jedem Schema-Push: "db push --accept-data-loss" kann bei
 # SQLite fuer manche Aenderungen (z.B. Foreign-Key-onDelete-Verhalten) die
 # betroffene Tabelle intern neu anlegen. Das ist im Normalfall verlustfrei,

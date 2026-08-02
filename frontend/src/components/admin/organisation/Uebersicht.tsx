@@ -1,9 +1,9 @@
 import { useMemo, useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Shift, VolunteerShift, TournamentWorkArea, TournamentDay, Tournament, minToTime, timeToMin } from '../shared';
+import { Shift, VolunteerShift, TournamentWorkArea, TournamentDay, Tournament, WorkArea, minToTime, timeToMin } from '../shared';
 import {
   getShifts, getVolunteerShifts, getVolunteers, updateShiftsBatch, updateShift,
-  getTournamentWorkAreas, getTournamentDays, addDaySlot,
+  getTournamentWorkAreas, getTournamentDays, addDaySlot, getWorkAreas, adoptTournamentWorkArea,
   exportDayToTemplate, createShift, apiDelete, apiPost
 } from '../../../api';
 import { modal } from '../Modal';
@@ -71,6 +71,9 @@ const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
 
   const { data: areas = [] } = useQuery<TournamentWorkArea[]>({ queryKey: ['t-work-areas', tid], queryFn: () => getTournamentWorkAreas(tid), enabled: !!tid });
   const { data: days = [] } = useQuery<TournamentDay[]>({ queryKey: ['t-days', tid], queryFn: () => getTournamentDays(tid), enabled: !!tid });
+  // Der Stammdaten-Katalog: damit "➕ Schicht" auch Bereiche anbieten kann,
+  // die dieses Turnier noch nicht kennt.
+  const { data: catalogAreas = [] } = useQuery<WorkArea[]>({ queryKey: ['work-areas'], queryFn: getWorkAreas, enabled: !!tid });
 
   /** Einheitliche Fehlerbehandlung für Setup-Mutationen (401 -> klarer Hinweis, kein Uncaught). */
   const guard = async (fn: () => Promise<void>) => {
@@ -119,31 +122,65 @@ const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
 /**
    * "+ Schicht hinzufügen" pro Tag: bewusst nicht auf generateShifts()
    * gestützt, weil das den Fall nicht abdeckt, dass ein Arbeitsbereich an
-   * diesem Tag schon eine Schicht hat, aber eine WEITERE (anderer Zeit-Slot)
+   * diesem Tag schon eine Schicht hat, aber eine WEITERE (andere Zeit)
    * gebraucht wird - generateShifts() erzeugt nur Katalog-Kombinationen, die
    * es noch nie gab, und ist zudem an die Tagesvorlagen-Zuordnung gebunden.
-   * Hier wählt der Admin Arbeitsbereich + Zeit-Slot bewusst selbst (auch
-   * mehrfach für denselben Bereich möglich) und legt direkt eine Schicht an;
-   * bei Bedarf wird zuerst ein neuer Zeit-Slot für den Tag erzeugt.
+   *
+   * Die Bereichsliste enthält auch Bereiche, die es in diesem Turnier noch gar
+   * nicht gibt. Sonst müsste man für einen einzelnen nachgemeldeten Bereich
+   * ("wir brauchen doch noch Fußballgolf") erst in den Generator, dort den
+   * Katalog synchronisieren und den Tag neu erzeugen lassen - für eine einzige
+   * Schicht ein unverhältnismäßiger Umweg. Wird so ein Bereich gewählt, holt
+   * ihn adoptTournamentWorkArea vorher ins Turnier.
    */
   const addShiftToDay = (day: TournamentDay) => guard(async () => {
     if (!tid) return;
     const activeAreas = areas.filter(a => a.active);
-    if (activeAreas.length === 0) {
-      await modal.alert({ title: 'Hinweis', message: 'Keine aktiven Arbeitsbereiche für dieses Turnier. Lege oben unter „Dienstplan-Generierung" erst welche an.' });
+
+    // Katalog-Bereiche, die in diesem Turnier noch fehlen oder deaktiviert sind.
+    const aktiveHerkunft = new Set(activeAreas.map(a => a.sourceWorkAreaId).filter((v): v is number => v != null));
+    const aktiveNamen = new Set(activeAreas.map(a => a.name));
+    const zusaetzlich = catalogAreas.filter(w => !w.isObsolete && !aktiveHerkunft.has(w.id) && !aktiveNamen.has(w.name));
+
+    if (activeAreas.length === 0 && zusaetzlich.length === 0) {
+      await modal.alert({ title: 'Hinweis', message: 'Es gibt noch keine Arbeitsbereiche. Lege sie erst unter „Stammdaten → Arbeitsbereiche" an.' });
       return;
     }
-    const slotOptions = (day.slots || []).map(s => ({ value: String(s.id), label: `${minToTime(s.startMin)}–${minToTime(s.endMin)}${s.label ? ' · ' + s.label : ''}` }));
+
+    const areaOptions = [
+      ...activeAreas.map(a => ({ value: `t:${a.id}`, label: `${a.icon} ${a.name}` })),
+      ...zusaetzlich.map(w => ({ value: `k:${w.id}`, label: `${w.icon} ${w.name} — neu ins Turnier holen` }))
+    ];
+
+    // Ein Zeitfenster gibt es pro Tag genau einmal, die Liste ist damit von
+    // sich aus eindeutig. Sortiert, damit sie der Tagesabfolge entspricht.
+    const slotOptions = [...(day.slots || [])]
+      .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin)
+      .map(s => ({ value: String(s.id), label: `${minToTime(s.startMin)}–${minToTime(s.endMin)}${s.label ? ' · ' + s.label : ''}` }));
+
     const res = await modal.form({
       title: '➕ Schicht zu diesem Tag hinzufügen',
       fields: [
-        { key: 'areaId', label: 'Arbeitsbereich', type: 'select', options: activeAreas.map(a => ({ value: a.id, label: `${a.icon} ${a.name}` })) },
-        { key: 'daySlotId', label: 'Zeit-Slot', type: 'select', options: [...slotOptions, { value: 'custom', label: '➕ Neue Zeit erstellen...' }] }
+        { key: 'areaId', label: 'Arbeitsbereich', type: 'select', options: areaOptions },
+        { key: 'daySlotId', label: 'Zeit', type: 'select', options: [...slotOptions, { value: 'custom', label: '➕ Neue Zeit erstellen...' }] }
       ]
     });
     if (!res || !res.areaId || !res.daySlotId) return;
-    const areaId = Number(res.areaId);
-    const area = activeAreas.find(a => a.id === areaId);
+
+    // Bereich aus dem Katalog? Dann zuerst ins Turnier übernehmen.
+    let areaId: number;
+    let area: { name: string } | undefined;
+    const wahl = String(res.areaId);
+    if (wahl.startsWith('k:')) {
+      const katalogId = Number(wahl.slice(2));
+      const uebernommen = await adoptTournamentWorkArea(tid, katalogId);
+      areaId = uebernommen.id;
+      area = uebernommen;
+      queryClient.invalidateQueries({ queryKey: ['t-work-areas', tid] });
+    } else {
+      areaId = Number(wahl.slice(2));
+      area = activeAreas.find(a => a.id === areaId);
+    }
 
     let daySlotId: number;
     if (String(res.daySlotId) === 'custom') {

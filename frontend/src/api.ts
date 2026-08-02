@@ -197,6 +197,9 @@ export const updateWorkAreaOrder = (order: number[]) => apiPost('/api/work-areas
 export const getTournamentWorkAreas = (tid: number | null) =>
   tid ? apiFetch(`/api/tournament-work-areas?tournamentId=${tid}`) : Promise.resolve([]);
 export const syncTournamentWorkAreas = (tid: number) => apiPost('/api/tournament-work-areas/sync', { tournamentId: tid });
+/** Holt EINEN Katalog-Bereich ins Turnier und aktiviert ihn (ohne den ganzen Katalog zu synchronisieren). */
+export const adoptTournamentWorkArea = (tournamentId: number, workAreaId: number) =>
+  apiPost('/api/tournament-work-areas/adopt', { tournamentId, workAreaId });
 export const updateTournamentWorkArea = <T = Record<string, unknown>>(id: number, data: T) => apiPatch(`/api/tournament-work-areas/${id}`, data);
 
 // Turnier-Tage + Slots

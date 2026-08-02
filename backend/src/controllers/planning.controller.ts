@@ -12,6 +12,11 @@ export const tournamentWorkAreaUpdateSchema = z.object({
   operatingEndMin: z.number().int().min(1).max(1440).nullable().optional()
 });
 
+export const tournamentWorkAreaAdoptSchema = z.object({
+  tournamentId: z.number().int().positive(),
+  workAreaId: z.number().int().positive()
+});
+
 export const tournamentWorkAreaSyncSchema = z.object({
   tournamentId: z.number().int().positive()
 });
@@ -213,6 +218,54 @@ export const syncTournamentWorkAreas = async (req: Request, res: Response) => {
   return res.json(areas);
 };
 
+/**
+ * Uebernimmt EINEN Katalog-Arbeitsbereich in ein Turnier und aktiviert ihn.
+ *
+ * Der Weg ueber "sync" holt immer den gesamten Katalog und ist auf die
+ * Einrichtung eines Turniers zugeschnitten. Wenn waehrend des laufenden
+ * Turniers ein einzelner Bereich dazukommt ("wir brauchen doch noch
+ * Fussballgolf"), soll das direkt beim Anlegen der Schicht gehen, ohne Umweg
+ * ueber den Generator und ohne alles neu zu erzeugen.
+ *
+ * Idempotent: ein bereits vorhandener Bereich wird nur aktiviert.
+ */
+export const adoptTournamentWorkArea = async (req: Request, res: Response) => {
+  const { tournamentId, workAreaId } = req.body as z.infer<typeof tournamentWorkAreaAdoptSchema>;
+
+  const katalog = await prisma.workArea.findUnique({ where: { id: workAreaId } });
+  if (!katalog) return res.status(404).json({ error: 'Arbeitsbereich nicht im Katalog gefunden' });
+
+  // Nach Herkunft suchen, ersatzweise nach Namen: manuell angelegte Bereiche
+  // eines Turniers tragen keine sourceWorkAreaId.
+  const vorhanden = await prisma.tournamentWorkArea.findFirst({
+    where: { tournamentId, OR: [{ sourceWorkAreaId: workAreaId }, { sourceWorkAreaId: null, name: katalog.name }] }
+  });
+
+  if (vorhanden) {
+    const aktiviert = vorhanden.active
+      ? vorhanden
+      : await prisma.tournamentWorkArea.update({ where: { id: vorhanden.id }, data: { active: true } });
+    return res.status(200).json(aktiviert);
+  }
+
+  const erstellt = await prisma.tournamentWorkArea.create({
+    data: {
+      tournamentId,
+      sourceWorkAreaId: katalog.id,
+      name: katalog.name,
+      icon: katalog.icon,
+      order: katalog.order,
+      color: katalog.color,
+      minVolunteers: katalog.minVolunteers,
+      maxVolunteers: katalog.maxVolunteers,
+      operatingStartMin: katalog.operatingStartMin,
+      operatingEndMin: katalog.operatingEndMin,
+      active: true
+    }
+  });
+  return res.status(201).json(erstellt);
+};
+
 export const updateTournamentWorkArea = async (req: Request, res: Response) => {
   const area = await prisma.tournamentWorkArea.update({
     where: { id: parseInt(req.params.id as string) },
@@ -243,16 +296,23 @@ export const createTournamentDay = async (req: Request, res: Response) => {
       data: { tournamentId, date: new Date(date), label: label ?? null, order: order ?? 0, sourceTemplateId: templateId ?? null }
     });
     if (templateId) {
-      // Jeder TemplateWorkArea → eigener DaySlot mit direkter Referenz
+      // Ein Slot je ZEITFENSTER der Vorlage, nicht je Arbeitsbereich: mehrere
+      // Bereiche teilen sich dieselbe Uhrzeit und damit denselben Slot.
       const twas = await tx.templateWorkArea.findMany({ where: { templateId }, orderBy: [{ startMin: 'asc' }] });
-      if (twas.length) {
+      const fenster = new Map<string, { startMin: number; endMin: number }>();
+      for (const twa of twas) {
+        fenster.set(`${twa.startMin}-${twa.endMin}`, { startMin: twa.startMin, endMin: twa.endMin });
+      }
+      if (fenster.size) {
         // Der Tag wurde eine Anweisung zuvor erst angelegt, es kann hier also
         // noch keine bestehenden Slots geben - createMany genuegt.
         await tx.daySlot.createMany({
-          data: twas.map((twa, i) => ({
-            tournamentDayId: d.id, startMin: twa.startMin, endMin: twa.endMin,
-            label: null, color: '#3b98f8', order: i, sourceTemplateWorkAreaId: twa.id
-          }))
+          data: Array.from(fenster.values())
+            .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin)
+            .map((f, i) => ({
+              tournamentDayId: d.id, startMin: f.startMin, endMin: f.endMin,
+              label: null, color: '#3b98f8', order: i
+            }))
         });
       }
     }
@@ -352,9 +412,21 @@ export const exportDayToTemplate = async (req: Request, res: Response) => {
 };
 
 // ==================== DaySlot ====================
+/**
+ * Legt ein Zeitfenster fuer einen Tag an - oder liefert das bestehende zurueck,
+ * falls es diese Uhrzeit dort schon gibt. Ein Fenster existiert pro Tag genau
+ * einmal; ein zweiter Anlauf mit denselben Zeiten ist deshalb kein Fehler,
+ * sondern liefert schlicht denselben Slot.
+ */
 export const addDaySlot = async (req: Request, res: Response) => {
   const { tournamentDayId, startMin, endMin, label, color, order } = req.body;
   if (endMin <= startMin) return res.status(400).json({ error: 'endMin muss größer als startMin sein' });
+
+  const vorhanden = await prisma.daySlot.findUnique({
+    where: { tournamentDayId_startMin_endMin: { tournamentDayId, startMin, endMin } }
+  });
+  if (vorhanden) return res.status(200).json(vorhanden);
+
   const slot = await prisma.daySlot.create({
     data: { tournamentDayId, startMin, endMin, label: label ?? null, color: color || '#3b98f8', order: order ?? 0 }
   });
@@ -374,17 +446,16 @@ export const deleteDaySlot = async (req: Request, res: Response) => {
 // ==================== Shift-Generierung ====================
 /**
  * Erzeugt Shifts aus (Tag × Slot × Area), aber NUR fuer Kombinationen, die die
- * zugrundeliegende Tag-Vorlage fuer diesen Slot auch tatsaechlich vorsieht
- * (TemplateWorkArea). Ein aktiver Turnier-Arbeitsbereich, der in KEINER
- * Vorlage einem Slot zugeordnet ist, wird NICHT automatisch irgendwo
+ * zugrundeliegende Tag-Vorlage fuer dieses Zeitfenster auch tatsaechlich
+ * vorsieht (TemplateWorkArea). Ein aktiver Turnier-Arbeitsbereich, der in
+ * KEINER Vorlage einem Fenster zugeordnet ist, wird NICHT automatisch irgendwo
  * eingefuegt - er erscheint stattdessen in `orphanedActiveAreas`, damit der
  * Admin bewusst entscheidet (Vorlage ergaenzen oder Bereich fuers Turnier
  * deaktivieren).
  *
- * Fuer manuell angelegte Slots ohne Vorlagen-Herkunft
- * (sourceTemplateWorkAreaId null) gibt es keine Katalog-Einschraenkung - dort
- * zaehlt weiterhin nur der Betriebszeiten-Filter. Solche Slots werden von der
- * Vorlagen-Synchronisation auch nie geloescht.
+ * Die Zuordnung Fenster → Bereiche laeuft ueber die Uhrzeit. Fuer von Hand
+ * angelegte Zeiten, die in der Vorlage nicht vorkommen, gibt es keine
+ * Katalog-Einschraenkung - dort darf jeder aktive Bereich eingeplant werden.
  *
  * Idempotent (ueberspringt bereits existierende Kombinationen) und
  * transaktional; bestehende Shifts inkl. Helfer-Zuweisungen bleiben
@@ -418,14 +489,29 @@ export const generateShifts = async (req: Request, res: Response) => {
       ? await tx.templateWorkArea.findMany({ where: { templateId: { in: templateIds } } })
       : [];
 
-    // Map: templateWorkAreaId → workAreaId (1:1)
-    const twaToWorkArea = new Map<number, number>();
+    /**
+     * Welche Katalog-Bereiche sieht eine Vorlage fuer ein bestimmtes
+     * Zeitfenster vor? Die Zuordnung laeuft ueber die Uhrzeit, seit ein Slot
+     * ein Zeitfenster des Tages ist und nicht mehr die Kopie eines einzelnen
+     * Vorlagen-Eintrags. Mehrere Bereiche im selben Fenster landen damit
+     * korrekt im selben Slot.
+     */
+    const fensterZuBereichen = new Map<string, Set<number>>();
+    const fensterKey = (templateId: number, startMin: number, endMin: number) => `${templateId}|${startMin}-${endMin}`;
     for (const twa of allTemplateTWAs) {
-      twaToWorkArea.set(twa.id, twa.workAreaId);
+      const key = fensterKey(twa.templateId, twa.startMin, twa.endMin);
+      if (!fensterZuBereichen.has(key)) fensterZuBereichen.set(key, new Set());
+      fensterZuBereichen.get(key)!.add(twa.workAreaId);
     }
 
-    // Nur relevant, wenn JEDER Slot des Turniers eine Vorlagen-Herkunft hat
-    const allSlotsHaveTemplate = daysSynced.every(d => d.slots.every(s => s.sourceTemplateWorkAreaId != null));
+    /** Bereiche, die die Vorlage fuer genau diesen Slot vorsieht - leer heisst "keine Einschraenkung". */
+    const bereicheFuerSlot = (day: typeof daysSynced[number], slot: { startMin: number; endMin: number }): Set<number> => {
+      if (day.sourceTemplateId == null) return new Set();
+      return fensterZuBereichen.get(fensterKey(day.sourceTemplateId, slot.startMin, slot.endMin)) ?? new Set();
+    };
+
+    // Nur relevant, wenn JEDER Slot des Turniers aus einer Vorlage stammt
+    const allSlotsHaveTemplate = daysSynced.every(d => d.slots.every(s => bereicheFuerSlot(d, s).size > 0));
     const usedCatalogWorkAreaIds = new Set<number>();
 
     // Zielhelfer pro Tag laden (targetHelpers aus DayWorkArea)
@@ -449,12 +535,8 @@ export const generateShifts = async (req: Request, res: Response) => {
       const targetHelpersMap = dayWorkAreasMap.get(day.id);
       
       for (const slot of day.slots) {
-        // Hole die WorkAreaId aus der TemplateWorkArea-Referenz
-        const sourceWaIds = new Set<number>();
-        if (slot.sourceTemplateWorkAreaId != null) {
-          const waId = twaToWorkArea.get(slot.sourceTemplateWorkAreaId);
-          if (waId != null) sourceWaIds.add(waId);
-        }
+        // Welche Katalog-Bereiche sieht die Vorlage fuer dieses Zeitfenster vor?
+        const sourceWaIds = bereicheFuerSlot(day, slot);
 
         for (const area of areas) {
           // Vorlagen-Filter: Bei Slots mit Katalog-Herkunft nur Areas erzeugen,
