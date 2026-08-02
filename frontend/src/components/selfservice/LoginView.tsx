@@ -115,7 +115,11 @@ export default function LoginView({ clubPrimary: propClubPrimary, clubSecondary:
                 </div>
               </>
             )}
-            <input type="text" placeholder="Name oder Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} className="input-base input-no-autofill-overlay" autoComplete="off" autoFocus />
+            {/* autoCapitalize/autoCorrect aus: mobile Tastaturen schreiben den
+                ersten Buchstaben sonst automatisch gross und korrigieren
+                Nachnamen zu Woerterbuch-Eintraegen - beides fuehrte zu
+                "Benutzer nicht gefunden". */}
+            <input type="text" placeholder="Name oder Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} className="input-base input-no-autofill-overlay" autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoFocus />
             <input type="password" placeholder="Passwort" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') login(); }} className="input-base" autoComplete="current-password" />
             <button onClick={login} className="btn btn-primary">Anmelden</button>
             <button onClick={() => navigate('/register')} className="btn btn-outline">Registrieren</button>

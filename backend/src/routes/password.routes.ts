@@ -15,6 +15,7 @@ import { ensureTournamentMembership } from '../utils/tournamentMembership.js';
 import { resolveRolesAndForceAdmin, signSessionToken } from '../utils/authSession.js';
 import { ROLES, highestRole, normalizeRoles } from '../utils/roles.js';
 import { setUserRoles } from '../utils/userRoles.js';
+import { findUserIdByIdentifier, findUserIdByName } from '../utils/findUserByIdentifier.js';
 import { deleteUserAccount } from '../utils/accountDeletion.js';
 import { sanitizeChildrenInput } from '../utils/sanitizeChildren.js';
 
@@ -359,18 +360,14 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res, next)
     }
 
     const ip = getClientIp(req);
-    // E-Mail case-insensitiv behandeln: Nutzer tippen Großschreibung im Browser
-    // (Autofill, iOS Safari). In der DB wird lowercase gespeichert.
-    // Bei Namen wird die exakte Schreibweise gesucht, da SQLite case-sensitive ist.
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: identifier.toLowerCase() },
-          { name: identifier }
-        ]
-      },
-      include: { children: true }
-    });
+    // Name UND E-Mail ohne Ruecksicht auf Gross-/Kleinschreibung suchen.
+    // Mobile Tastaturen schreiben den ersten Buchstaben automatisch gross;
+    // vorher wurde der Name zeichengenau verglichen und die Anmeldung schlug
+    // mit "Benutzer nicht gefunden" fehl.
+    const gefundeneId = await findUserIdByIdentifier(identifier);
+    const user = gefundeneId
+      ? await prisma.user.findUnique({ where: { id: gefundeneId }, include: { children: true } })
+      : null;
 
     // Einheitliche Antwort für "Konto existiert nicht" und "Passwort falsch".
     // Vorher verrieten die Meldungen ("Benutzer nicht gefunden" vs. "Falsches
@@ -760,7 +757,12 @@ router.post('/reset-by-pin', pinResetLimiter, validate(resetByPinSchema), async 
     // Der PIN liegt nur als bcrypt-Hash vor -> Nutzer über den Namen suchen und
     // den PIN vergleichen. `recoveryPin: { not: null }` schließt Konten ohne PIN
     // (z.B. vom Admin angelegte) explizit aus.
-    const user = await prisma.user.findFirst({ where: { name, recoveryPin: { not: null } } });
+    // Namenssuche ebenfalls unabhaengig von der Schreibweise - sonst waere
+    // fuer Nutzer ohne E-Mail auch dieser Rettungsweg verschlossen.
+    const pinUserId = await findUserIdByName(name);
+    const user = pinUserId
+      ? await prisma.user.findFirst({ where: { id: pinUserId, recoveryPin: { not: null } } })
+      : null;
 
     // Immer einen bcrypt-Vergleich durchführen (bei unbekanntem Namen gegen einen
     // Dummy-Hash), damit "Name existiert nicht" und "PIN falsch" nicht über die
@@ -810,7 +812,10 @@ router.post('/forgot-password-push', authLimiter, validate(forgotPasswordPushSch
     // /reset-by-pin interessanten Ziele markiert.
     const PUSH_SENT_MESSAGE = 'Wenn ein Konto mit registriertem Gerät existiert, wurde eine Benachrichtigung gesendet.';
 
-    const user = await prisma.user.findFirst({ where: { name }, include: { pushSubscriptions: true } });
+    const pushUserId = await findUserIdByName(name);
+    const user = pushUserId
+      ? await prisma.user.findUnique({ where: { id: pushUserId }, include: { pushSubscriptions: true } })
+      : null;
     if (!user || user.pushSubscriptions.length === 0) {
       return res.json({ message: PUSH_SENT_MESSAGE });
     }
