@@ -41,6 +41,17 @@ export default function RegisterView({ clubPrimary: propClubPrimary, clubSeconda
   const years = Array.from({ length: 30 }, (_, i) => (new Date().getFullYear() - 4) - i);
 
   const applyLoginResult = async (data: Record<string, any>) => {
+    // Ohne E-Mail vergibt der Server einen Wiederherstellungs-Code und liefert
+    // ihn genau EINMAL im Klartext mit. Wurde er bisher nicht angezeigt, hatte
+    // niemand ihn je gesehen - und wer ohne E-Mail sein Passwort vergass, war
+    // dauerhaft ausgesperrt.
+    const code = data.user?.recoveryPin || data.volunteer?.recoveryPin;
+    if (code) {
+      await modal.alert({
+        title: '🔢 Bitte notieren: dein Wiederherstellungs-Code',
+        message: `${code}\n\nDu hast keine E-Mail-Adresse hinterlegt. Mit diesem Code kommst du wieder in dein Konto, falls du dein Passwort vergisst - er wird dir kein zweites Mal angezeigt.\n\nAlternativ kannst du in deinem Profil eine E-Mail-Adresse ergänzen.`
+      });
+    }
     contextLogin(data.token, data.user || data.volunteer);
     navigate('/');
   };

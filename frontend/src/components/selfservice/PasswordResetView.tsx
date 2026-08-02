@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiPost } from '../../api';
 import { modal } from '../admin/Modal';
-import { btnStyle, inputStyle } from '../admin/shared';
 
 function shadeColor(color: string | undefined, percent: number) {
   if (!color || typeof color !== 'string' || !color.startsWith('#')) {
@@ -23,7 +22,28 @@ function shadeColor(color: string | undefined, percent: number) {
   return '#' + RR + GG + BB;
 }
 
-export default function PasswordResetView({ clubPrimary: propClubPrimary, clubSecondary: _cs, clubAccent: _ca, clubLogo: _cl }: { clubPrimary?: string; clubSecondary?: string; clubAccent?: string; clubLogo?: string | null }) {
+/**
+ * Drei Wege zurueck ins Konto.
+ *
+ * Bis hierher bot die Oberflaeche nur den E-Mail-Weg an. Wer sich ohne
+ * E-Mail registriert hatte - bei Helfern der Regelfall - war nach einem
+ * vergessenen Passwort dauerhaft ausgesperrt und auf einen Administrator
+ * angewiesen. Die Endpunkte fuer Code und Push gab es im Backend laengst,
+ * sie waren nur nirgends verlinkt. Der fruehere Knopf "Code manuell
+ * eingeben" fuehrte trotz seiner Beschriftung zum E-Mail-Token, nicht zum
+ * Wiederherstellungs-Code.
+ */
+type Weg = 'email' | 'pin' | 'push';
+
+/** Namensfelder: mobile Tastaturen duerfen die Eingabe nicht veraendern. */
+const namensFeldProps = {
+  autoCapitalize: 'none' as const,
+  autoCorrect: 'off' as const,
+  spellCheck: false,
+  autoComplete: 'username'
+};
+
+export default function PasswordResetView({ clubPrimary: propClubPrimary }: { clubPrimary?: string; clubSecondary?: string; clubAccent?: string; clubLogo?: string | null }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const clubPrimary = propClubPrimary || '#0d6efd';
@@ -31,10 +51,22 @@ export default function PasswordResetView({ clubPrimary: propClubPrimary, clubSe
   const tokenParam = searchParams.get('token');
   const [resetToken, setResetToken] = useState(tokenParam || '');
   const [isResetMode, setIsResetMode] = useState(!!tokenParam);
-  
+
+  const [weg, setWeg] = useState<Weg>('email');
+  const [busy, setBusy] = useState(false);
+
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotMessage, setForgotMessage] = useState('');
-  
+
+  const [pinName, setPinName] = useState('');
+  const [pinCode, setPinCode] = useState('');
+  const [pinPasswort, setPinPasswort] = useState('');
+  const [pinPasswortWdh, setPinPasswortWdh] = useState('');
+  const [neuerPin, setNeuerPin] = useState<string | null>(null);
+
+  const [pushName, setPushName] = useState('');
+  const [pushMessage, setPushMessage] = useState('');
+
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [resetNewPasswordConfirm, setResetNewPasswordConfirm] = useState('');
 
@@ -50,12 +82,64 @@ export default function PasswordResetView({ clubPrimary: propClubPrimary, clubSe
       await modal.alert({ title: 'Fehler', message: 'Bitte Email-Adresse eingeben' });
       return;
     }
+    setBusy(true);
     try {
       await apiPost('/api/auth/forgot-password', { email: forgotEmail });
       setForgotMessage('Wir haben dir einen Link zum Zurücksetzen gesendet (falls die Email existiert). Bitte prüfe auch deinen Spam-Ordner.');
     } catch (err: unknown) {
-      const e = err as Error;
-      await modal.alert({ title: 'Fehler', message: e.message || 'Ein Fehler ist aufgetreten' });
+      await modal.alert({ title: 'Fehler', message: (err as Error).message || 'Ein Fehler ist aufgetreten' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resetPerPin = async () => {
+    if (!pinName.trim() || !pinCode.trim()) {
+      await modal.alert({ title: 'Fehlende Angabe', message: 'Bitte Name und Wiederherstellungs-Code eingeben.' });
+      return;
+    }
+    if (pinPasswort.length < 6) {
+      await modal.alert({ title: 'Passwort zu kurz', message: 'Das neue Passwort muss mindestens 6 Zeichen haben.' });
+      return;
+    }
+    if (pinPasswort !== pinPasswortWdh) {
+      await modal.alert({ title: 'Fehler', message: 'Passwörter stimmen nicht überein' });
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await apiPost('/api/auth/reset-by-pin', {
+        name: pinName.trim(),
+        recoveryPin: pinCode.trim(),
+        newPassword: pinPasswort
+      });
+      // Der Server vergibt bei jeder Nutzung einen NEUEN Code und liefert ihn
+      // genau einmal aus - er muss hier zwingend angezeigt werden.
+      setNeuerPin(res?.recoveryPin || null);
+      if (!res?.recoveryPin) {
+        await modal.alert({ title: 'Passwort geändert', message: 'Du kannst dich jetzt mit deinem neuen Passwort anmelden.' });
+        navigate('/login');
+      }
+    } catch (err: unknown) {
+      await modal.alert({ title: 'Nicht zurückgesetzt', message: (err as Error).message || 'Name oder Code stimmen nicht.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resetPerPush = async () => {
+    if (!pushName.trim()) {
+      await modal.alert({ title: 'Fehlende Angabe', message: 'Bitte deinen Namen eingeben.' });
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await apiPost('/api/auth/forgot-password-push', { name: pushName.trim() });
+      setPushMessage(res?.message || 'Wenn ein Konto mit registriertem Gerät existiert, wurde eine Benachrichtigung gesendet.');
+    } catch (err: unknown) {
+      await modal.alert({ title: 'Fehler', message: (err as Error).message || 'Ein Fehler ist aufgetreten' });
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -64,82 +148,147 @@ export default function PasswordResetView({ clubPrimary: propClubPrimary, clubSe
       await modal.alert({ title: 'Fehler', message: 'Passwörter stimmen nicht überein' });
       return;
     }
+    setBusy(true);
     try {
       await apiPost('/api/auth/reset-password', { token: resetToken, newPassword: resetNewPassword });
       await modal.alert({ title: 'Erfolg', message: 'Dein Passwort wurde erfolgreich geändert.' });
       navigate('/login');
     } catch (err: unknown) {
-      const e = err as Error;
-      await modal.alert({ title: 'Fehler', message: e.message || 'Passwort konnte nicht geändert werden' });
+      await modal.alert({ title: 'Fehler', message: (err as Error).message || 'Passwort konnte nicht geändert werden' });
+    } finally {
+      setBusy(false);
     }
   };
 
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-
-  if (isResetMode) {
-    return (
-      <div className="auth-wrapper" style={{ background: `linear-gradient(135deg, ${clubPrimary} 0%, ${shadeColor(clubPrimary, -30)} 100%)` }}>
-        <div className="auth-container">
-          <div className="auth-card">
-            <div className="auth-header">
-              <div className="auth-emoji">🔑</div>
-              <h2 className="auth-title">Neues Passwort setzen</h2>
-            </div>
-            
-            <div className="auth-form">
-              <input type="password" placeholder="Neues Passwort" value={resetNewPassword} onChange={e => setResetNewPassword(e.target.value)} className="input-base" />
-              <input type="password" placeholder="Passwort bestätigen" value={resetNewPasswordConfirm} onChange={e => setResetNewPasswordConfirm(e.target.value)} className="input-base" />
-              <button onClick={applyPasswordReset} className="btn btn-primary" style={{ marginTop: 12 }}>Passwort speichern</button>
-              <button onClick={() => navigate('/login')} className="btn btn-text">Abbrechen</button>
-            </div>
-          </div>
-        </div>
+  const huelle = (inhalt: React.ReactNode) => (
+    <div className="auth-wrapper" style={{ background: `linear-gradient(135deg, ${clubPrimary} 0%, ${shadeColor(clubPrimary, -30)} 100%)` }}>
+      <div className="auth-container">
+        <div className="auth-card">{inhalt}</div>
       </div>
+    </div>
+  );
+
+  // --- Neues Passwort setzen (Link aus E-Mail oder Push-Nachricht) ---
+  if (isResetMode) {
+    return huelle(
+      <>
+        <div className="auth-header">
+          <div className="auth-emoji">🔑</div>
+          <h2 className="auth-title">Neues Passwort setzen</h2>
+        </div>
+        <div className="auth-form">
+          <input type="password" placeholder="Neues Passwort" value={resetNewPassword} onChange={e => setResetNewPassword(e.target.value)} className="input-base" autoComplete="new-password" />
+          <input type="password" placeholder="Passwort bestätigen" value={resetNewPasswordConfirm} onChange={e => setResetNewPasswordConfirm(e.target.value)} className="input-base" autoComplete="new-password" />
+          <button onClick={applyPasswordReset} disabled={busy} className="btn btn-primary" style={{ marginTop: 12 }}>{busy ? 'Speichert…' : 'Passwort speichern'}</button>
+          <button onClick={() => navigate('/login')} className="btn btn-text">Abbrechen</button>
+        </div>
+      </>
     );
   }
 
-  return (
-    <div className="auth-wrapper" style={{ background: `linear-gradient(135deg, ${clubPrimary} 0%, ${shadeColor(clubPrimary, -30)} 100%)` }}>
-      <div className="auth-container">
-        <div className="auth-card">
-          <div className="auth-header">
-            <div className="auth-emoji">🔒</div>
-            <h2 className="auth-title">Passwort vergessen</h2>
-            <p className="auth-subtitle">Gib deine Email ein, um es zurückzusetzen</p>
-          </div>
-          
-          {forgotMessage ? (
-            <div style={{ background: 'var(--bg-surface-hover)', padding: 'var(--spacing-4)', borderRadius: 'var(--radius-md)', color: 'var(--club-accent)', textAlign: 'center', marginBottom: 'var(--spacing-4)', lineHeight: 1.5, border: '1px solid var(--club-accent)' }}>
-              {forgotMessage}
-            </div>
-          ) : (
-            <div className="auth-form">
-              <input type="email" placeholder="Email-Adresse" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} className="input-base" />
-              <button onClick={requestPasswordReset} className="btn btn-primary">Zurücksetzen</button>
-            </div>
-          )}
-          
-          <div style={{ textAlign: 'center', marginTop: 'var(--spacing-4)' }}>
-            <button onClick={() => navigate('/login')} className="btn btn-text">Zurück zum Login</button>
-          </div>
-          
-          {/* Token-Eingabe (Fallback falls Email-Link nicht klappt) */}
-          {!forgotMessage && (
-            <div style={{ marginTop: 'var(--spacing-6)', paddingTop: 'var(--spacing-4)', borderTop: '1px solid var(--border-color)', textAlign: 'center' }}>
-              <p className="auth-subtitle" style={{ marginBottom: 'var(--spacing-2)' }}>Du hast einen Code/PIN bekommen?</p>
-              <button onClick={() => {
-                const p = window.prompt("Bitte gib deinen 6-stelligen Code ein:");
-                if(p && p.length > 3) {
-                  setResetToken(p.trim());
-                  setIsResetMode(true);
-                }
-              }} className="btn btn-outline" style={{ fontSize: 'var(--font-size-xs)', padding: 'var(--spacing-2) var(--spacing-3)', width: 'auto', margin: '0 auto', color: 'var(--text-muted)', borderColor: 'var(--border-color-focus)' }}>
-                Code manuell eingeben
-              </button>
-            </div>
-          )}
+  // --- Nach erfolgreichem Code-Reset: der neue Code MUSS gesichert werden ---
+  if (neuerPin) {
+    return huelle(
+      <>
+        <div className="auth-header">
+          <div className="auth-emoji">✅</div>
+          <h2 className="auth-title">Passwort geändert</h2>
         </div>
+        <div style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <p style={{ margin: '0 0 8px', fontSize: 14, color: '#664d03', fontWeight: 600 }}>Dein neuer Wiederherstellungs-Code</p>
+          <div style={{ fontFamily: 'monospace', fontSize: 24, letterSpacing: 2, textAlign: 'center', color: '#212529', background: '#fff', borderRadius: 8, padding: '12px 8px', userSelect: 'all' }}>
+            {neuerPin}
+          </div>
+          <p style={{ margin: '10px 0 0', fontSize: 13, color: '#664d03', lineHeight: 1.5 }}>
+            Bitte notiere ihn. Der alte Code gilt nicht mehr, und dieser hier wird dir kein zweites Mal angezeigt.
+          </p>
+        </div>
+        <button onClick={() => { navigator.clipboard?.writeText(neuerPin).catch(() => {}); }} className="btn btn-outline" style={{ marginBottom: 8 }}>Code kopieren</button>
+        <button onClick={() => navigate('/login')} className="btn btn-primary">Jetzt anmelden</button>
+      </>
+    );
+  }
+
+  const wege: { id: Weg; label: string }[] = [
+    { id: 'email', label: '✉️ E-Mail' },
+    { id: 'pin', label: '🔢 Code' },
+    { id: 'push', label: '📱 Gerät' }
+  ];
+
+  return huelle(
+    <>
+      <div className="auth-header">
+        <div className="auth-emoji">🔒</div>
+        <h2 className="auth-title">Passwort vergessen</h2>
+        <p className="auth-subtitle">Wähle, wie du zurück in dein Konto kommst</p>
       </div>
-    </div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        {wege.map(w => (
+          <button
+            key={w.id}
+            onClick={() => { setWeg(w.id); setForgotMessage(''); setPushMessage(''); }}
+            style={{
+              flex: 1, padding: '10px 4px', minHeight: 44, borderRadius: 10, cursor: 'pointer',
+              border: `1px solid ${weg === w.id ? clubPrimary : 'var(--border-color)'}`,
+              background: weg === w.id ? clubPrimary : 'var(--bg-surface)',
+              color: weg === w.id ? '#fff' : 'var(--text-muted)',
+              fontSize: 13, fontWeight: weg === w.id ? 600 : 400
+            }}
+          >{w.label}</button>
+        ))}
+      </div>
+
+      {weg === 'email' && (forgotMessage ? (
+        <div style={{ background: 'var(--bg-surface-hover)', padding: 'var(--spacing-4)', borderRadius: 'var(--radius-md)', color: 'var(--club-accent)', textAlign: 'center', marginBottom: 'var(--spacing-4)', lineHeight: 1.5, border: '1px solid var(--club-accent)' }}>
+          {forgotMessage}
+        </div>
+      ) : (
+        <div className="auth-form">
+          <p className="auth-subtitle" style={{ marginBottom: 8 }}>Wir senden dir einen Link zum Zurücksetzen.</p>
+          <input type="email" placeholder="Email-Adresse" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} className="input-base" autoComplete="email" />
+          <button onClick={requestPasswordReset} disabled={busy} className="btn btn-primary">{busy ? 'Sendet…' : 'Link anfordern'}</button>
+          <button
+            onClick={() => {
+              const t = window.prompt('Code aus der E-Mail eingeben:');
+              if (t && t.trim().length > 3) { setResetToken(t.trim()); setIsResetMode(true); }
+            }}
+            className="btn btn-text"
+            style={{ fontSize: 'var(--font-size-xs)' }}
+          >Link kam nicht an? Code aus der E-Mail eingeben</button>
+        </div>
+      ))}
+
+      {weg === 'pin' && (
+        <div className="auth-form">
+          <p className="auth-subtitle" style={{ marginBottom: 8 }}>
+            Den Wiederherstellungs-Code hast du bei der Registrierung erhalten.
+          </p>
+          <input type="text" placeholder="Dein Name" value={pinName} onChange={e => setPinName(e.target.value)} className="input-base" {...namensFeldProps} />
+          <input type="text" placeholder="Wiederherstellungs-Code" value={pinCode} onChange={e => setPinCode(e.target.value.toUpperCase())} className="input-base" autoCapitalize="characters" autoCorrect="off" spellCheck={false} style={{ fontFamily: 'monospace', letterSpacing: 1 }} />
+          <input type="password" placeholder="Neues Passwort" value={pinPasswort} onChange={e => setPinPasswort(e.target.value)} className="input-base" autoComplete="new-password" />
+          <input type="password" placeholder="Passwort bestätigen" value={pinPasswortWdh} onChange={e => setPinPasswortWdh(e.target.value)} className="input-base" autoComplete="new-password" />
+          <button onClick={resetPerPin} disabled={busy} className="btn btn-primary">{busy ? 'Setzt zurück…' : 'Passwort neu setzen'}</button>
+        </div>
+      )}
+
+      {weg === 'push' && (pushMessage ? (
+        <div style={{ background: 'var(--bg-surface-hover)', padding: 'var(--spacing-4)', borderRadius: 'var(--radius-md)', color: 'var(--club-accent)', textAlign: 'center', marginBottom: 'var(--spacing-4)', lineHeight: 1.5, border: '1px solid var(--club-accent)' }}>
+          {pushMessage}
+        </div>
+      ) : (
+        <div className="auth-form">
+          <p className="auth-subtitle" style={{ marginBottom: 8 }}>
+            Wir schicken eine Benachrichtigung an dein Handy — vorausgesetzt, du hast dort Benachrichtigungen aktiviert.
+          </p>
+          <input type="text" placeholder="Dein Name" value={pushName} onChange={e => setPushName(e.target.value)} className="input-base" {...namensFeldProps} />
+          <button onClick={resetPerPush} disabled={busy} className="btn btn-primary">{busy ? 'Sendet…' : 'Benachrichtigung senden'}</button>
+        </div>
+      ))}
+
+      <div style={{ textAlign: 'center', marginTop: 'var(--spacing-4)' }}>
+        <button onClick={() => navigate('/login')} className="btn btn-text">Zurück zum Login</button>
+      </div>
+    </>
   );
 }
