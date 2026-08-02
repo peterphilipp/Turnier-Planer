@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 
 // ===================== Rollen-System (Enum) =====================
-export type Role = 'HELPER' | 'ORGANIZER' | 'ADMIN';
+export type Role = 'HELPER' | 'ORGANIZER' | 'ADMIN' | 'TRAINER';
 
 /** Prüft ob eine Rolle Admin-Rechte hat */
 function hasAdminAccess(role: Role): boolean {

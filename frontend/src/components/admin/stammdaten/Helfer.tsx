@@ -8,6 +8,7 @@ import { formatPhoneNumber } from '../../../utils/phone';
 
 const ROLES = [
   { value: 'HELPER', label: '🔒 Helfer', colorClass: 'helfer-role-helper' },
+  { value: 'TRAINER', label: '⚽ Trainer', colorClass: 'helfer-role-trainer' },
   { value: 'ORGANIZER', label: '🔧 Organisator', colorClass: 'helfer-role-organizer' },
   { value: 'ADMIN', label: '👑 Admin', colorClass: 'helfer-role-admin' }
 ] as const;
@@ -28,7 +29,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
   const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers'], queryFn: () => getVolunteers() });
   const { data: yearGroups = [] } = useQuery<YearGroup[]>({ queryKey: ['yearGroups'], queryFn: getYearGroups });
 
-  const [volForm, setVolForm] = useState<{ name: string; email: string; phone: string; role: string; children: { childName: string; childYear: string }[] }>({ name: '', email: '', phone: '', role: 'HELPER', children: [] });
+  const [volForm, setVolForm] = useState<{ name: string; email: string; phone: string; role: string; children: { childName: string; childYear: string }[]; trainedYearGroupIds: number[] }>({ name: '', email: '', phone: '', role: 'HELPER', children: [], trainedYearGroupIds: [] });
   const [editingVol, setEditingVol] = useState<number | null>(null);
   // Aufklappbare Geräte-Detailansicht pro User (welche Geräte haben Push
   // aktiviert) - hilft bei der Fehlersuche, wenn ein Helfer mehrere Geräte
@@ -48,7 +49,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
   
   const { items: sortedVolunteers, requestSort, getSortIndicator } = useSortableData(filtered, { key: 'name', direction: 'asc' });
 
-  const EMPTY_FORM = { name: '', email: '', phone: '', role: 'HELPER', children: [] as { childName: string; childYear: string }[] };
+  const EMPTY_FORM = { name: '', email: '', phone: '', role: 'HELPER', children: [] as { childName: string; childYear: string }[], trainedYearGroupIds: [] as number[] };
 
   const saveVolunteer = async () => {
     if (!volForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
@@ -86,7 +87,8 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
     setEditingVol(v.id);
     setVolForm({
       name: v.name, email: v.email || '', phone: v.phone || '', role: v.role || 'HELPER',
-      children: (v.children || []).map(c => ({ childName: c.childName, childYear: String(c.childYear) }))
+      children: (v.children || []).map(c => ({ childName: c.childName, childYear: String(c.childYear) })),
+      trainedYearGroupIds: (v.trainedYearGroups || []).map(yg => yg.id)
     });
   };
   const closeEdit = () => { setEditingVol(null); setVolForm(EMPTY_FORM); };
@@ -132,6 +134,31 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
           <span className="helfer-btn-primary-icon" aria-hidden="true">+</span><span>Hinzufügen</span>
         </button>
       </div>
+      {volForm.role === 'TRAINER' && (
+        <div className="helfer-form-row" style={{ marginTop: '-12px' }}>
+          <div className="helfer-form-col-2">
+            <label className="helfer-label">Zuständige Jahrgänge (Trainer)</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', padding: '12px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #dee2e6' }}>
+              {yearGroups.map(yg => (
+                <label key={yg.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px', color: '#495057' }}>
+                  <input
+                    type="checkbox"
+                    checked={volForm.trainedYearGroupIds.includes(yg.id)}
+                    onChange={(e) => {
+                      const newIds = e.target.checked
+                        ? [...volForm.trainedYearGroupIds, yg.id]
+                        : volForm.trainedYearGroupIds.filter(id => id !== yg.id);
+                      setVolForm({ ...volForm, trainedYearGroupIds: newIds });
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  {yg.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="admin-table-scroll">
       <table className="helfer-table admin-cards-mobile">
@@ -245,6 +272,29 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
                 {ROLES.map(r => (<option key={r.value} value={r.value}>{r.label}</option>))}
               </select>
             </div>
+            
+            {volForm.role === 'TRAINER' && (
+              <div>
+                <label className="helfer-label">Zuständige Jahrgänge (Trainer)</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '12px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}>
+                  {yearGroups.map(yg => (
+                    <label key={yg.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px' }}>
+                      <input
+                        type="checkbox"
+                        checked={volForm.trainedYearGroupIds.includes(yg.id)}
+                        onChange={(e) => {
+                          const newIds = e.target.checked
+                            ? [...volForm.trainedYearGroupIds, yg.id]
+                            : volForm.trainedYearGroupIds.filter(id => id !== yg.id);
+                          setVolForm({ ...volForm, trainedYearGroupIds: newIds });
+                        }}
+                      />
+                      {yg.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Kinder: bei der Registrierung vom Nutzer selbst eingetragen, hier
                 korrigierbar - der Jahrgang ergibt sich rein aus dem Geburtsjahr

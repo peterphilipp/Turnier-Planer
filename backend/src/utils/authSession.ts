@@ -11,7 +11,7 @@ import JWT_SECRET, { TOKEN_LIFETIME } from '../config/jwt.js';
  */
 export async function resolveRoleAndForceAdmin(user: { id: number; email: string | null; role: string }): Promise<string> {
   const adminEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.toLowerCase().split(',').map(e => e.trim()) : [];
-  let role = typeof user.role === 'string' && ['HELPER', 'ORGANIZER', 'ADMIN'].includes(user.role) ? user.role : 'HELPER';
+  let role = typeof user.role === 'string' && ['HELPER', 'ORGANIZER', 'ADMIN', 'TRAINER'].includes(user.role) ? user.role : 'HELPER';
 
   if (user.email && adminEmails.includes(user.email.toLowerCase()) && role !== 'ADMIN') {
     console.warn(`[SECURITY] ADMIN_EMAILS override: User #${user.id} (${user.email}) promoted from ${role} to ADMIN`);

@@ -31,10 +31,11 @@ export const volunteerSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
   email: z.string().email('Ungültige E-Mail').optional().or(z.literal('')),
   phone: z.union([z.string(), z.literal('')]).nullable().optional().transform(val => val === undefined ? undefined : (formatPhoneNumber(val) ?? '')),
-  role: z.enum(['HELPER', 'ORGANIZER', 'ADMIN']).optional(),
+  role: z.enum(['HELPER', 'ORGANIZER', 'ADMIN', 'TRAINER']).optional(),
   password: z.string().min(1).optional(),
   tournamentId: z.number().int().nullable().optional(),
-  children: z.array(childSchema).max(20).optional()
+  children: z.array(childSchema).max(20).optional(),
+  trainedYearGroupIds: z.array(z.number().int()).optional()
 });
 
 export const updateVolunteerPasswordSchema = z.object({
@@ -94,7 +95,7 @@ export const getVolunteers = async (req: AuthRequest, res: Response) => {
       ]
     } : undefined,
     orderBy: { name: 'asc' },
-    include: { children: true, pushSubscriptions: { select: { id: true, userAgent: true, createdAt: true } } }
+    include: { children: true, trainedYearGroups: true, pushSubscriptions: { select: { id: true, userAgent: true, createdAt: true } } }
   });
   // Rolle als String zurückgeben; Passwort-Hash niemals ausliefern; Geräte-
   // Label serverseitig aus dem User-Agent ableiten (Detailansicht "auf
@@ -107,10 +108,10 @@ export const getVolunteers = async (req: AuthRequest, res: Response) => {
 };
 
 export const createVolunteer = async (req: Request, res: Response) => {
-  const body = req.body;
+  const { trainedYearGroupIds, children, ...body } = req.body;
   
   // Rolle setzen (Default: HELPER)
-  if (!body.role || !['HELPER', 'ORGANIZER', 'ADMIN'].includes(body.role)) {
+  if (!body.role || !['HELPER', 'ORGANIZER', 'ADMIN', 'TRAINER'].includes(body.role)) {
     body.role = 'HELPER';
   }
   
@@ -118,7 +119,19 @@ export const createVolunteer = async (req: Request, res: Response) => {
     body.password = await bcrypt.hash(body.password, 10);
   }
 
-  const user = await prisma.user.create({ data: body });
+  const data: any = { ...body };
+  if (trainedYearGroupIds) {
+    data.trainedYearGroups = {
+      connect: trainedYearGroupIds.map((id: number) => ({ id }))
+    };
+  }
+  if (children !== undefined && children.length > 0) {
+    data.children = {
+      create: sanitizeChildrenInput(children as any)
+    };
+  }
+
+  const user = await prisma.user.create({ data });
   await ensureTournamentMembership(user.id, user.tournamentId);
   logVolunteerUpdated(user.id, { name: user.name }, 'created');
   return res.status(201).json(sanitizeUser(user));
@@ -132,10 +145,10 @@ export const deleteVolunteer = async (req: Request, res: Response) => {
 };
 
 export const updateVolunteer = async (req: Request, res: Response) => {
-  const { children, ...rest } = req.body;
+  const { children, trainedYearGroupIds, ...rest } = req.body;
 
   // Rolle validieren
-  if (rest.role && !['HELPER', 'ORGANIZER', 'ADMIN'].includes(rest.role)) {
+  if (rest.role && !['HELPER', 'ORGANIZER', 'ADMIN', 'TRAINER'].includes(rest.role)) {
     return res.status(400).json({ error: 'Ungültige Rolle' });
   }
 
@@ -153,11 +166,17 @@ export const updateVolunteer = async (req: Request, res: Response) => {
       create: sanitizeChildrenInput(children as any)
     };
   }
+  
+  if (trainedYearGroupIds !== undefined) {
+    data.trainedYearGroups = {
+      set: trainedYearGroupIds.map((id: number) => ({ id }))
+    };
+  }
 
   const user = await prisma.user.update({
     where: { id: parseInt(req.params.id as string) },
     data,
-    include: { children: true }
+    include: { children: true, trainedYearGroups: true }
   });
   if (data.tournamentId) await ensureTournamentMembership(user.id, data.tournamentId as number);
   logVolunteerUpdated(user.id, Object.keys(rest));

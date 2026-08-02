@@ -33,7 +33,7 @@ async function getUserRole(userId: number): Promise<string> {
   if (!user) return 'HELPER';
   
   // Fallback für alte Daten (roles als JSON-String)
-  if (typeof user.role === 'string' && !['HELPER', 'ORGANIZER', 'ADMIN'].includes(user.role)) {
+  if (typeof user.role === 'string' && !['HELPER', 'ORGANIZER', 'ADMIN', 'TRAINER'].includes(user.role)) {
     try {
       const parsed = JSON.parse(user.role);
       return Array.isArray(parsed) ? (parsed[0] || 'HELPER') : 'HELPER';

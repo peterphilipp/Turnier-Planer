@@ -359,12 +359,12 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res, next)
     const ip = getClientIp(req);
     // E-Mail case-insensitiv behandeln: Nutzer tippen Großschreibung im Browser
     // (Autofill, iOS Safari). In der DB wird lowercase gespeichert.
-    const normalizedIdentifier = email ? identifier.toLowerCase() : identifier;
+    // Bei Namen wird die exakte Schreibweise gesucht, da SQLite case-sensitive ist.
     const user = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: normalizedIdentifier },
-          { name: normalizedIdentifier }
+          { email: identifier.toLowerCase() },
+          { name: identifier }
         ]
       },
       include: { children: true }
@@ -379,7 +379,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res, next)
     // Antwortzeit keinen Rückschluss erlaubt.
     const match = await bcrypt.compare(password, user?.password || DUMMY_BCRYPT_HASH);
     if (!user || !match) {
-      logLoginFailed(normalizedIdentifier, user ? 'Falsches Passwort' : 'Benutzer nicht gefunden', getClientIp(req) || '');
+      logLoginFailed(identifier, user ? 'Falsches Passwort' : 'Benutzer nicht gefunden', getClientIp(req) || '');
       return res.status(401).json({ error: LOGIN_FAILED_MESSAGE });
     }
 
@@ -719,7 +719,7 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res,
     await ensureTournamentMembership(user.id, activeTournament?.id);
 
     logRegistrationCreated(user.name, user.email || '', ip);
-    const newRole = typeof user.role === 'string' && ['HELPER', 'ORGANIZER', 'ADMIN'].includes(user.role)
+    const newRole = typeof user.role === 'string' && ['HELPER', 'ORGANIZER', 'ADMIN', 'TRAINER'].includes(user.role)
       ? user.role
       : 'HELPER';
     const token = jwt.sign({ userId: user.id, role: newRole }, JWT_SECRET, { expiresIn: TOKEN_LIFETIME });

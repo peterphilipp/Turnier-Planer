@@ -251,6 +251,12 @@ export default function SelfServiceLayout() {
               
               <button onClick={() => { setMenuOpen(false); navigate('/'); }} className="admin-core-style-20">📅 Mein Dienstplan</button>
 
+              {/* Trainer-Ansicht ist ein Rollenwechsel, kein weiterer Reiter im
+                  Dienstplan - deshalb hier im Menü, wie der Admin-Bereich. */}
+              {volunteer?.role === 'TRAINER' && (
+                <button onClick={() => { setMenuOpen(false); navigate('/trainer'); }} className="admin-core-style-20">⚽ Mein Jahrgang</button>
+              )}
+
               {/* Turnier-Auswahl */}
               <div style={{ paddingLeft: 16, paddingBottom: 8 }}>
                 <label style={{ fontSize: 12, color: '#6c757d', marginBottom: 4, display: 'block' }}>🏆 Turnier</label>

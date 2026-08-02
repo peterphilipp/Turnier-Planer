@@ -11,6 +11,7 @@ import RegisterView from './components/selfservice/RegisterView';
 import PasswordResetView from './components/selfservice/PasswordResetView';
 import ProfileView from './components/selfservice/ProfileView';
 import DashboardView from './components/selfservice/DashboardView';
+import TrainerView from './components/selfservice/TrainerView';
 
 // --- Admin Layouts ---
 import AdminLayout from './components/layouts/AdminLayout';
@@ -51,6 +52,7 @@ export default function App() {
           {/* Self Service (Volunteers) */}
           <Route element={<SelfServiceLayout />}>
             <Route path="/" element={<DashboardView />} />
+            <Route path="/trainer" element={<TrainerView />} />
             <Route path="/profile" element={<ProfileView />} />
           </Route>
           

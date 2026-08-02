@@ -183,6 +183,7 @@ model User {
   children              UserChild[]
   shifts                VolunteerShift[]
   webAuthnCredentials   WebAuthnCredential[]
+  trainedYearGroups     YearGroup[]            @relation("TrainerYearGroups")
 
   @@index([tournamentId])
   @@map("users")
@@ -256,30 +257,30 @@ model VolunteerShift {
 }
 
 model WorkArea {
-  id                Int                     @id @default(autoincrement())
+  id                Int                @id @default(autoincrement())
   name              String
-  icon              String                  @default("📍")
-  order             Int                     @default(0)
-  minVolunteers     Int                     @default(2) @map("min_volunteers")
-  maxVolunteers     Int                     @default(8) @map("max_volunteers")
-  color             String                  @default("#3b98f8")
-  operatingStartMin Int?                    @map("operating_start_min")
-  operatingEndMin   Int?                    @map("operating_end_min")
-  isStandard        Boolean                 @default(false) @map("is_standard")
-  isObsolete        Boolean                 @default(false) @map("is_obsolete")
-  templateWorkAreas    TemplateWorkArea[]
-  categories        WorkAreaCategory[]      @relation("WorkAreaToCategories")
+  icon              String             @default("📍")
+  order             Int                @default(0)
+  minVolunteers     Int                @default(2) @map("min_volunteers")
+  maxVolunteers     Int                @default(8) @map("max_volunteers")
+  color             String             @default("#3b98f8")
+  operatingStartMin Int?               @map("operating_start_min")
+  operatingEndMin   Int?               @map("operating_end_min")
+  isStandard        Boolean            @default(false) @map("is_standard")
+  isObsolete        Boolean            @default(false) @map("is_obsolete")
+  templateWorkAreas TemplateWorkArea[]
+  categories        WorkAreaCategory[] @relation("WorkAreaToCategories")
 
   @@map("arbeitsbereiche")
 }
 
 model GlobalDayTemplate {
-  id         Int             @id @default(autoincrement())
+  id         Int                @id @default(autoincrement())
   name       String
-  order      Int             @default(0)
-  isObsolete Boolean         @default(false) @map("is_obsolete")
-  createdAt  DateTime        @default(now()) @map("created_at")
-  workAreas            TemplateWorkArea[]
+  order      Int                @default(0)
+  isObsolete Boolean            @default(false) @map("is_obsolete")
+  createdAt  DateTime           @default(now()) @map("created_at")
+  workAreas  TemplateWorkArea[]
 
   @@map("global_day_templates")
 }
@@ -297,14 +298,14 @@ model WorkAreaCategory {
 }
 
 model TemplateWorkArea {
-  id           Int           @id @default(autoincrement())
-  templateId   Int           @map("template_id")
-  workAreaId   Int           @map("work_area_id")
-  startMin     Int           @map("start_min")
-  endMin       Int           @map("end_min")
-  order        Int                     @default(0)
-  template     GlobalDayTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  workArea     WorkArea      @relation(fields: [workAreaId], references: [id], onDelete: Cascade)
+  id         Int               @id @default(autoincrement())
+  templateId Int               @map("template_id")
+  workAreaId Int               @map("work_area_id")
+  startMin   Int               @map("start_min")
+  endMin     Int               @map("end_min")
+  order      Int               @default(0)
+  template   GlobalDayTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  workArea   WorkArea          @relation(fields: [workAreaId], references: [id], onDelete: Cascade)
 
   @@unique([templateId, workAreaId, startMin])
   @@index([templateId])
@@ -495,6 +496,7 @@ model YearGroup {
   teams             Team[]
   timeSlots         TimeSlot[]
   tournaments       Tournament[]       @relation("TournamentYearGroups")
+  trainers          User[]             @relation("TrainerYearGroups")
 
   @@map("year_groups")
 }

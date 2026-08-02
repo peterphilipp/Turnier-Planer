@@ -344,4 +344,95 @@ export const rateShift = async (req: Request, res: Response) => {
   res.json(updated);
 };
 
+export const getTrainerDashboard = async (req: Request, res: Response) => {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Nicht authentifiziert' });
 
+  const { tournamentId } = req.query;
+  // Number(undefined) ist NaN und damit falsy - ohne diese Pruefung fiele der
+  // Turnier-Filter unten still weg und der Trainer saehe Spendenaufrufe und
+  // Schichten aus ALLEN Turnieren.
+  const parsedTid = Number(tournamentId);
+  const tid = Number.isFinite(parsedTid) && parsedTid > 0 ? parsedTid : undefined;
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { trainedYearGroups: true }
+    });
+
+    if (!user || user.role !== 'TRAINER') {
+      return res.status(403).json({ error: 'Nur Trainer haben Zugriff auf diesen Bereich.' });
+    }
+
+    const yearGroupIds = user.trainedYearGroups.map(yg => yg.id);
+
+    if (yearGroupIds.length === 0) {
+      // trainedYearGroups MUSS mit: das Frontend liest es ohne Guard aus, ein
+      // Fehlen wuerde die Ansicht mit einem TypeError abschiessen - und genau
+      // dieser Fall (Trainer noch ohne Jahrgang) ist der Erstzustand.
+      return res.json({ trainedYearGroups: [], foodDonationSlots: [], volunteerShifts: [] });
+    }
+
+    // 1. Verpflegungsspenden für diese Jahrgänge
+    const foodDonationSlots = await prisma.foodDonationSlot.findMany({
+      where: {
+        tournamentId: tid,
+        yearGroupId: { in: yearGroupIds }
+      },
+      include: {
+        yearGroup: true,
+        foodItem: true,
+        donations: {
+          include: {
+            user: { select: { name: true, phone: true } }
+          }
+        }
+      },
+      orderBy: [
+        { yearGroup: { order: 'asc' } },
+        { foodItem: { categoryId: 'asc' } },
+        { foodItem: { name: 'asc' } }
+      ]
+    });
+
+    // 2. Schichten von Helfern, die Kinder in diesen Jahrgängen haben
+    const volunteerShifts = await prisma.volunteerShift.findMany({
+      where: {
+        tournamentId: tid,
+        user: {
+          children: {
+            some: {
+              OR: user.trainedYearGroups.map(yg => ({
+                childYear: {
+                  gte: yg.birthYearStart,
+                  lte: yg.birthYearEnd
+                }
+              }))
+            }
+          }
+        }
+      },
+      include: {
+        user: { select: { name: true, phone: true } },
+        shift: {
+          include: {
+            day: true,
+            daySlot: true,
+            workArea: true
+          }
+        }
+      },
+      orderBy: { date: 'asc' }
+    });
+
+    return res.json({
+      trainedYearGroups: user.trainedYearGroups,
+      foodDonationSlots,
+      volunteerShifts
+    });
+  } catch (error) {
+    console.error('Error in getTrainerDashboard:', error);
+    return res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+};
