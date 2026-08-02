@@ -184,9 +184,31 @@ model User {
   shifts                VolunteerShift[]
   webAuthnCredentials   WebAuthnCredential[]
   trainedYearGroups     YearGroup[]            @relation("TrainerYearGroups")
+  userRoles             UserRole[]
 
   @@index([tournamentId])
   @@map("users")
+}
+
+// Rollen eines Nutzers. Bewusst eine eigene Tabelle statt einer Liste im
+// User: eine Person kann mehrere Hüte tragen (z.B. Admin UND Trainer), und
+// zwei Stellen filtern serverseitig nach Rolle (Erst-Admin-Zählung,
+// Ausschluss von Admins bei der Inaktivitäts-Löschung) - das bliebe mit
+// einer JSON-Spalte nur über Zeichenkettensuche möglich.
+//
+// User.role existiert übergangsweise weiter und wird als höchste Rolle
+// mitgeschrieben, damit ein Rollback auf eine ältere Image-Version die
+// Anmeldung nicht zerlegt. Nach ein paar stabilen Releases kann die Spalte
+// entfallen.
+model UserRole {
+  id     Int    @id @default(autoincrement())
+  userId Int    @map("user_id")
+  role   String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+  @@index([userId])
+  @@map("user_roles")
 }
 
 model PushSubscription {

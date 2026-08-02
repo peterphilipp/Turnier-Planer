@@ -6,6 +6,8 @@ import { logJobAssigned, logJobUnassigned } from '../utils/logger.js';
 import JWT_SECRET from '../config/jwt.js';
 import { getVapidPublicKey as getPubKey } from '../utils/push.js';
 import { ensureTournamentMembership } from '../utils/tournamentMembership.js';
+import { isTrainer } from '../utils/roles.js';
+import { getUserRoles } from '../utils/userRoles.js';
 
 // Öffentliche Self-Service-Endpunkte: Body-Formen entsprechen exakt dem, was
 // das Frontend sendet (SelfServiceView.tsx / utils/push.ts) - hier werden nur
@@ -361,7 +363,10 @@ export const getTrainerDashboard = async (req: Request, res: Response) => {
       include: { trainedYearGroups: true }
     });
 
-    if (!user || user.role !== 'TRAINER') {
+    // Rollen aus der Zuordnungstabelle: ein Admin, der zusaetzlich Trainer
+    // ist, muss hier durchkommen - mit der alten Einzelrolle ging das nicht.
+    const rollen = await getUserRoles(userId);
+    if (!user || !isTrainer(rollen)) {
       return res.status(403).json({ error: 'Nur Trainer haben Zugriff auf diesen Bereich.' });
     }
 

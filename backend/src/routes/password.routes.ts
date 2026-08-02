@@ -12,7 +12,9 @@ import { sendPushToUser } from '../utils/push.js';
 import { formatPhoneNumber } from '../utils/phone.js';
 import validate from '../middleware/validate.js';
 import { ensureTournamentMembership } from '../utils/tournamentMembership.js';
-import { resolveRoleAndForceAdmin, signSessionToken } from '../utils/authSession.js';
+import { resolveRolesAndForceAdmin, signSessionToken } from '../utils/authSession.js';
+import { ROLES, highestRole, normalizeRoles } from '../utils/roles.js';
+import { setUserRoles } from '../utils/userRoles.js';
 import { deleteUserAccount } from '../utils/accountDeletion.js';
 import { sanitizeChildrenInput } from '../utils/sanitizeChildren.js';
 
@@ -386,10 +388,10 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res, next)
       logLoginSuccess(user.email || identifier, getClientIp(req));
       await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastActivityAt: new Date() } });
 
-      const userRole = await resolveRoleAndForceAdmin(user);
-      const token = signSessionToken(user.id, userRole);
-      // Korrigierte Rolle an Frontend übergeben (resolveRoleAndForceAdmin kann HELPER → ADMIN ändern)
-      res.json({ token, user: sanitizeUser({ ...user, role: userRole }) });
+      const userRoles = await resolveRolesAndForceAdmin(user);
+      const token = signSessionToken(user.id, userRoles);
+      // Korrigierte Rollen ans Frontend geben (ADMIN_EMAILS kann ADMIN ergänzen)
+      res.json({ token, user: sanitizeUser({ ...user, role: highestRole(userRoles), roles: userRoles }) });
   } catch (err) {
     next(err);
   }
@@ -673,8 +675,10 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res,
       orderBy: { startDate: 'desc' }
     });
 
-    // Erster User bekommt automatisch ADMIN-Rechte
-    const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
+    // Erster User bekommt automatisch ADMIN-Rechte. Zaehlung ueber die
+    // Rollentabelle, nicht mehr ueber die alte Einzelspalte - sonst wuerde ein
+    // Admin, der zusaetzlich Trainer ist, hier nicht mitgezaehlt.
+    const adminCount = await prisma.userRole.count({ where: { role: ROLES.ADMIN } });
     const isFirstAdmin = adminCount === 0;
 
     // Recovery-PIN: nur nötig, wenn keine E-Mail hinterlegt ist - mit E-Mail
@@ -718,11 +722,12 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res,
     });
     await ensureTournamentMembership(user.id, activeTournament?.id);
 
+    // Rollen in die Zuordnungstabelle schreiben; setUserRoles spiegelt die
+    // hoechste Stufe zurueck in users.role.
+    const newRoles = await setUserRoles(user.id, normalizeRoles(user.role));
+
     logRegistrationCreated(user.name, user.email || '', ip);
-    const newRole = typeof user.role === 'string' && ['HELPER', 'ORGANIZER', 'ADMIN', 'TRAINER'].includes(user.role)
-      ? user.role
-      : 'HELPER';
-    const token = jwt.sign({ userId: user.id, role: newRole }, JWT_SECRET, { expiresIn: TOKEN_LIFETIME });
+    const token = signSessionToken(user.id, newRoles);
     // Einmalige Ausnahme: der PIN im KLARTEXT (nicht der DB-Hash!), damit das
     // Frontend ihn dem Nutzer direkt nach der Registrierung anzeigen kann.
     // Danach ist er nirgends mehr abrufbar – in der DB liegt nur der Hash.

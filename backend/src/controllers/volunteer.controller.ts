@@ -8,6 +8,8 @@ import { sendPushToUser } from '../utils/push.js';
 import { formatPhoneNumber } from '../utils/phone.js';
 import { ensureTournamentMembership } from '../utils/tournamentMembership.js';
 import { describeUserAgent } from '../utils/userAgent.js';
+import { normalizeRoles, highestRole } from '../utils/roles.js';
+import { setUserRoles, getUserRoles } from '../utils/userRoles.js';
 import { sanitizeChildrenInput } from '../utils/sanitizeChildren.js';
 
 // Gleiche Jahrgangs-Grenzen wie bei den Turnier-Jahrgängen selbst (Jahrgaenge.tsx),
@@ -31,7 +33,9 @@ export const volunteerSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
   email: z.string().email('Ungültige E-Mail').optional().or(z.literal('')),
   phone: z.union([z.string(), z.literal('')]).nullable().optional().transform(val => val === undefined ? undefined : (formatPhoneNumber(val) ?? '')),
+  // role bleibt fuer aeltere Clients erlaubt; roles ist der neue Weg.
   role: z.enum(['HELPER', 'ORGANIZER', 'ADMIN', 'TRAINER']).optional(),
+  roles: z.array(z.enum(['HELPER', 'ORGANIZER', 'ADMIN', 'TRAINER'])).optional(),
   password: z.string().min(1).optional(),
   tournamentId: z.number().int().nullable().optional(),
   children: z.array(childSchema).max(20).optional(),
@@ -95,25 +99,31 @@ export const getVolunteers = async (req: AuthRequest, res: Response) => {
       ]
     } : undefined,
     orderBy: { name: 'asc' },
-    include: { children: true, trainedYearGroups: true, pushSubscriptions: { select: { id: true, userAgent: true, createdAt: true } } }
+    include: { children: true, trainedYearGroups: true, userRoles: true, pushSubscriptions: { select: { id: true, userAgent: true, createdAt: true } } }
   });
   // Rolle als String zurückgeben; Passwort-Hash niemals ausliefern; Geräte-
   // Label serverseitig aus dem User-Agent ableiten (Detailansicht "auf
   // welchen Geräten ist Push aktiviert" in der Benutzerverwaltung).
-  return res.json(users?.map(u => ({
-    ...sanitizeUser(u),
-    role: u.role as string,
-    pushSubscriptions: u.pushSubscriptions.map(ps => ({ ...ps, deviceLabel: describeUserAgent(ps.userAgent) }))
-  })) || []);
+  return res.json(users?.map(u => {
+    const roles = u.userRoles.length > 0 ? normalizeRoles(u.userRoles.map(r => r.role)) : normalizeRoles(u.role);
+    const { userRoles, ...rest } = u;
+    return {
+      ...sanitizeUser(rest),
+      roles,
+      // Einzelrolle weiterhin mitgeben, solange aeltere Clients sie lesen.
+      role: highestRole(roles),
+      pushSubscriptions: u.pushSubscriptions.map(ps => ({ ...ps, deviceLabel: describeUserAgent(ps.userAgent) }))
+    };
+  }) || []);
 };
 
 export const createVolunteer = async (req: Request, res: Response) => {
-  const { trainedYearGroupIds, children, ...body } = req.body;
-  
-  // Rolle setzen (Default: HELPER)
-  if (!body.role || !['HELPER', 'ORGANIZER', 'ADMIN', 'TRAINER'].includes(body.role)) {
-    body.role = 'HELPER';
-  }
+  const { trainedYearGroupIds, children, roles: rolesInput, ...body } = req.body;
+
+  // Rollen bestimmen: bevorzugt die Liste, sonst die alte Einzelrolle.
+  const roles = normalizeRoles(rolesInput ?? body.role);
+  // users.role bleibt als Spiegel der hoechsten Stufe erhalten (Rollback).
+  body.role = highestRole(roles);
   
   if (body.password) {
     body.password = await bcrypt.hash(body.password, 10);
@@ -132,6 +142,7 @@ export const createVolunteer = async (req: Request, res: Response) => {
   }
 
   const user = await prisma.user.create({ data });
+  await setUserRoles(user.id, roles);
   await ensureTournamentMembership(user.id, user.tournamentId);
   logVolunteerUpdated(user.id, { name: user.name }, 'created');
   return res.status(201).json(sanitizeUser(user));
@@ -147,10 +158,13 @@ export const deleteVolunteer = async (req: Request, res: Response) => {
 export const updateVolunteer = async (req: Request, res: Response) => {
   const { children, trainedYearGroupIds, ...rest } = req.body;
 
-  // Rolle validieren
-  if (rest.role && !['HELPER', 'ORGANIZER', 'ADMIN', 'TRAINER'].includes(rest.role)) {
-    return res.status(400).json({ error: 'Ungültige Rolle' });
-  }
+  // Rollen: die Liste hat Vorrang, die Einzelrolle bleibt als Rueckfallweg.
+  const rolesInput = (rest as Record<string, unknown>).roles;
+  delete (rest as Record<string, unknown>).roles;
+  const neueRollen = (rolesInput !== undefined || rest.role !== undefined)
+    ? normalizeRoles(rolesInput ?? rest.role)
+    : null;
+  if (neueRollen) rest.role = highestRole(neueRollen);
 
   const data: Record<string, unknown> = { ...rest };
   if (children !== undefined) {
@@ -178,9 +192,10 @@ export const updateVolunteer = async (req: Request, res: Response) => {
     data,
     include: { children: true, trainedYearGroups: true }
   });
+  if (neueRollen) await setUserRoles(user.id, neueRollen);
   if (data.tournamentId) await ensureTournamentMembership(user.id, data.tournamentId as number);
   logVolunteerUpdated(user.id, Object.keys(rest));
-  return res.json(sanitizeUser(user));
+  return res.json({ ...sanitizeUser(user), roles: neueRollen ?? await getUserRoles(user.id) });
 };
 
 export const updateVolunteerPassword = async (req: Request, res: Response) => {

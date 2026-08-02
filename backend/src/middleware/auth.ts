@@ -2,9 +2,14 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import JWT_SECRET from '../config/jwt.js';
+import { Role, hasAdminAccess, isAdmin, highestRole } from '../utils/roles.js';
+import { getUserRoles } from '../utils/userRoles.js';
 
 export interface AuthRequest extends Request {
   userId?: number;
+  /** Alle Rollen des Nutzers - maßgeblich für Berechtigungsprüfungen. */
+  roles?: Role[];
+  /** Höchste Stufe als Einzelwert, nur noch für Altcode. */
   role?: string;
 }
 
@@ -27,23 +32,15 @@ function touchActivity(userId: number): void {
   prisma.user.update({ where: { id: userId }, data: { lastActivityAt: new Date() } }).catch(() => {});
 }
 
-/** Helper: Rolle aus DB laden */
-async function getUserRole(userId: number): Promise<string> {
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) return 'HELPER';
-  
-  // Fallback für alte Daten (roles als JSON-String)
-  if (typeof user.role === 'string' && !['HELPER', 'ORGANIZER', 'ADMIN', 'TRAINER'].includes(user.role)) {
-    try {
-      const parsed = JSON.parse(user.role);
-      return Array.isArray(parsed) ? (parsed[0] || 'HELPER') : 'HELPER';
-    } catch {
-      return 'HELPER';
-    }
-  }
-  
-  // Prisma Enum wird als String zurückgegeben
-  return user.role as string || 'HELPER';
+/**
+ * Rollen immer aus der Datenbank laden, nie aus dem Token.
+ *
+ * Die Tokens laufen 90 Tage; eine Rechteänderung würde sonst erst nach der
+ * nächsten Anmeldung greifen - beim Entzug von Rechten wäre das ein
+ * Sicherheitsproblem.
+ */
+async function loadRoles(userId: number): Promise<Role[]> {
+  return getUserRoles(userId);
 }
 
 /** Middleware: Prüft gültiges Token und hängt User-Daten an req */
@@ -82,22 +79,22 @@ export function requireRole(requiredRoles: string[]) {
       req.userId = decoded.userId;
       touchActivity(decoded.userId);
 
-      // Rolle aus DB prüfen
-      const role = await getUserRole(decoded.userId);
-      req.role = role;
-      
+      const roles = await loadRoles(decoded.userId);
+      req.roles = roles;
+      req.role = highestRole(roles);
+
       // Admin/Organizer haben immer Zugriff auf alles
-      if (role === 'ADMIN' || role === 'ORGANIZER') {
+      if (hasAdminAccess(roles)) {
         next();
         return;
       }
-      
-      // Sonst muss die exakte Rolle vorhanden sein
-      if (!requiredRoles.includes(role)) {
+
+      // Sonst muss mindestens eine der geforderten Rollen vorhanden sein
+      if (!requiredRoles.some(r => roles.includes(r as Role))) {
         res.status(403).json({ error: 'Unzureichende Berechtigungen' });
         return;
       }
-      
+
       next();
     } catch {
       res.status(401).json({ error: 'Ungültiger Token' });
@@ -106,11 +103,11 @@ export function requireRole(requiredRoles: string[]) {
 }
 
 /**
- * Prüft Token, hängt userId/role an req an. Gibt die Rolle zurück, oder null
+ * Prüft Token, hängt userId/roles an req an. Gibt die Rollen zurück, oder null
  * wenn bereits eine 401-Antwort gesendet wurde (Aufrufer muss dann sofort
  * zurückkehren, ohne weiter zu antworten).
  */
-async function authenticateAndGetRole(req: AuthRequest, res: Response): Promise<string | null> {
+async function authenticateAndGetRoles(req: AuthRequest, res: Response): Promise<Role[] | null> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     res.status(401).json({ error: 'Nicht authentifiziert' });
@@ -128,17 +125,18 @@ async function authenticateAndGetRole(req: AuthRequest, res: Response): Promise<
 
   req.userId = decoded.userId;
   touchActivity(decoded.userId);
-  const role = await getUserRole(decoded.userId);
-  req.role = role;
-  return role;
+  const roles = await loadRoles(decoded.userId);
+  req.roles = roles;
+  req.role = highestRole(roles);
+  return roles;
 }
 
 /** Middleware: Admin/Organizer Only */
 export async function requireAdmin(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const role = await authenticateAndGetRole(req, res);
-    if (role === null) return;
-    if (role === 'ADMIN' || role === 'ORGANIZER') {
+    const roles = await authenticateAndGetRoles(req, res);
+    if (roles === null) return;
+    if (hasAdminAccess(roles)) {
       next();
     } else {
       res.status(403).json({ error: 'Unzureichende Berechtigungen – Admin oder Organisator erforderlich' });
@@ -158,9 +156,9 @@ export async function requireAdmin(req: AuthRequest, res: Response, next: NextFu
  */
 export async function requireAdminOnly(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const role = await authenticateAndGetRole(req, res);
-    if (role === null) return;
-    if (role === 'ADMIN') {
+    const roles = await authenticateAndGetRoles(req, res);
+    if (roles === null) return;
+    if (isAdmin(roles)) {
       next();
     } else {
       res.status(403).json({ error: 'Unzureichende Berechtigungen – nur Administratoren' });

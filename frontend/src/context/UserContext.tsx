@@ -1,11 +1,29 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 
-// ===================== Rollen-System (Enum) =====================
+// ===================== Rollen-System =====================
 export type Role = 'HELPER' | 'ORGANIZER' | 'ADMIN' | 'TRAINER';
 
-/** Prüft ob eine Rolle Admin-Rechte hat */
-function hasAdminAccess(role: Role): boolean {
-  return role === 'ADMIN' || role === 'ORGANIZER';
+const GUELTIGE_ROLLEN: Role[] = ['HELPER', 'ORGANIZER', 'ADMIN', 'TRAINER'];
+
+/**
+ * Rollen aus dem gespeicherten Nutzer lesen.
+ *
+ * Verträgt beide Formen: die neue Liste `roles` und die alte Einzelrolle
+ * `role`. Das ist nötig, weil im localStorage noch Nutzerobjekte aus der Zeit
+ * vor den Mehrfachrollen liegen und die Tokens 90 Tage gelten - ohne diesen
+ * Rückfallweg wären angemeldete Nutzer plötzlich nur noch Helfer.
+ */
+function leseRollen(v: { roles?: unknown; role?: unknown } | null): Role[] {
+  const roh = Array.isArray(v?.roles) ? v!.roles : (v?.role != null ? [v.role] : []);
+  const sauber = Array.from(new Set(roh.filter((r): r is Role => GUELTIGE_ROLLEN.includes(r as Role))));
+  return sauber.length > 0 ? sauber : ['HELPER'];
+}
+
+/** Höchste Berechtigungsstufe - nur für Anzeigezwecke. */
+function hoechsteRolle(roles: Role[]): Role {
+  if (roles.includes('ADMIN')) return 'ADMIN';
+  if (roles.includes('ORGANIZER')) return 'ORGANIZER';
+  return 'HELPER';
 }
 
 export interface VolunteerData {
@@ -13,6 +31,8 @@ export interface VolunteerData {
   name: string;
   email: string | null;
   phone: string | null;
+  /** Mehrfachrollen; `role` bleibt für ältere gespeicherte Objekte gelesen. */
+  roles?: Role[];
   role?: Role;
   tournamentId?: number | null;
   consentGiven?: boolean;
@@ -25,9 +45,12 @@ interface UserContextType {
   token: string;
   isLoggedIn: boolean;
   isInitializing: boolean; // True solange localStorage noch gelesen wird
+  roles: Role[];
+  /** Höchste Stufe - für Anzeige, nicht für Berechtigungen. */
   role: Role;
   isAdmin: boolean;
   isOrganizer: boolean;
+  isTrainer: boolean;
   hasAdminAccess: boolean;
   login: (token: string, volunteer: VolunteerData) => void;
   logout: () => void;
@@ -84,14 +107,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('volunteer');
   }, []);
 
-  // Rolle aus dem Volunteer-Objekt extrahieren (Fallback: HELPER)
-  const role: Role = volunteer?.role ? (volunteer.role as Role) : 'HELPER';
-  const isAdmin = role === 'ADMIN';
-  const isOrganizer = role === 'ORGANIZER';
-  const hasAdminAccessRole = hasAdminAccess(role);
+  const roles = leseRollen(volunteer);
+  const role = hoechsteRolle(roles);
+  const isAdmin = roles.includes('ADMIN');
+  const isOrganizer = roles.includes('ORGANIZER');
+  const isTrainer = roles.includes('TRAINER');
+  const hasAdminAccessRole = isAdmin || isOrganizer;
 
   return (
-    <UserContext.Provider value={{ volunteer, token, isLoggedIn, isInitializing, role, isAdmin, isOrganizer, hasAdminAccess: hasAdminAccessRole, login, logout }}>
+    <UserContext.Provider value={{ volunteer, token, isLoggedIn, isInitializing, roles, role, isAdmin, isOrganizer, isTrainer, hasAdminAccess: hasAdminAccessRole, login, logout }}>
       {children}
     </UserContext.Provider>
   );

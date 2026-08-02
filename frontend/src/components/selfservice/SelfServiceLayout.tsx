@@ -30,7 +30,7 @@ function shadeColor(color: string | undefined, percent: number) {
 }
 
 export default function SelfServiceLayout() {
-  const { isLoggedIn, volunteer, token, logout, isAdmin, isOrganizer, login, isInitializing } = useUser();
+  const { isLoggedIn, volunteer, token, logout, isAdmin, isOrganizer, isTrainer, login, isInitializing } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -253,7 +253,7 @@ export default function SelfServiceLayout() {
 
               {/* Trainer-Ansicht ist ein Rollenwechsel, kein weiterer Reiter im
                   Dienstplan - deshalb hier im Menü, wie der Admin-Bereich. */}
-              {volunteer?.role === 'TRAINER' && (
+              {isTrainer && (
                 <button onClick={() => { setMenuOpen(false); navigate('/trainer'); }} className="admin-core-style-20">⚽ Mein Jahrgang</button>
               )}
 

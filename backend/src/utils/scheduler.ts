@@ -54,7 +54,9 @@ async function checkInactiveUserCleanup(): Promise<void> {
 
   const candidates = await prisma.user.findMany({
     where: {
-      role: { not: 'ADMIN' },
+      // Ueber die Rollentabelle: ein Admin, der zusaetzlich Trainer ist,
+      // haette mit der alten Einzelspalte nicht mehr 'ADMIN' dort stehen.
+      userRoles: { none: { role: 'ADMIN' } },
       OR: [
         { lastActivityAt: { lt: cutoff } },
         { lastActivityAt: null, createdAt: { lt: cutoff } }

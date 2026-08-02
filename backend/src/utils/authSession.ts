@@ -1,27 +1,41 @@
 import jwt from 'jsonwebtoken';
-import prisma from '../config/prisma.js';
 import JWT_SECRET, { TOKEN_LIFETIME } from '../config/jwt.js';
+import { Role, ROLES, highestRole } from './roles.js';
+import { getUserRoles, setUserRoles } from './userRoles.js';
 
 /**
  * Erzwingt ADMIN-Rechte für in ADMIN_EMAILS gelistete Adressen (persistiert in
- * der DB) und liefert die effektive Rolle fürs Token zurück. Geteilt zwischen
+ * der DB) und liefert die effektiven Rollen fürs Token zurück. Geteilt zwischen
  * Passwort-Login und Passkey-Login, damit beide Wege garantiert dieselbe
  * Rechte-Logik anwenden - ein Drift zwischen zwei Kopien wäre hier ein
  * Sicherheitsrisiko, kein Stilfehler.
+ *
+ * ADMIN wird ergänzt, nicht ersetzt: wer zusätzlich Trainer ist, bleibt es.
  */
-export async function resolveRoleAndForceAdmin(user: { id: number; email: string | null; role: string }): Promise<string> {
+export async function resolveRolesAndForceAdmin(user: { id: number; email: string | null }): Promise<Role[]> {
   const adminEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.toLowerCase().split(',').map(e => e.trim()) : [];
-  let role = typeof user.role === 'string' && ['HELPER', 'ORGANIZER', 'ADMIN', 'TRAINER'].includes(user.role) ? user.role : 'HELPER';
+  const roles = await getUserRoles(user.id);
 
-  if (user.email && adminEmails.includes(user.email.toLowerCase()) && role !== 'ADMIN') {
-    console.warn(`[SECURITY] ADMIN_EMAILS override: User #${user.id} (${user.email}) promoted from ${role} to ADMIN`);
-    role = 'ADMIN';
-    await prisma.user.update({ where: { id: user.id }, data: { role: 'ADMIN' } });
+  if (user.email && adminEmails.includes(user.email.toLowerCase()) && !roles.includes(ROLES.ADMIN)) {
+    console.warn(`[SECURITY] ADMIN_EMAILS override: User #${user.id} (${user.email}) erhält zusätzlich ADMIN (bisher: ${roles.join(', ')})`);
+    return setUserRoles(user.id, [...roles, ROLES.ADMIN]);
   }
 
-  return role;
+  return roles;
 }
 
-export function signSessionToken(userId: number, role: string): string {
-  return jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: TOKEN_LIFETIME });
+/**
+ * Signiert das Sitzungs-Token.
+ *
+ * `roles` ist maßgeblich; `role` wird als höchste Stufe mitgeschrieben, damit
+ * ein Rollback auf ein älteres Image die bereits ausgegebenen Tokens noch
+ * lesen kann. Berechtigungen werden ohnehin serverseitig aus der Datenbank
+ * geprüft, nicht aus dem Token.
+ */
+export function signSessionToken(userId: number, roles: readonly Role[]): string {
+  return jwt.sign(
+    { userId, roles, role: highestRole(roles) },
+    JWT_SECRET,
+    { expiresIn: TOKEN_LIFETIME }
+  );
 }

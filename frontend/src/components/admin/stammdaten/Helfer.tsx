@@ -29,7 +29,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
   const { data: volunteers = [] } = useQuery<Volunteer[]>({ queryKey: ['volunteers'], queryFn: () => getVolunteers() });
   const { data: yearGroups = [] } = useQuery<YearGroup[]>({ queryKey: ['yearGroups'], queryFn: getYearGroups });
 
-  const [volForm, setVolForm] = useState<{ name: string; email: string; phone: string; role: string; children: { childName: string; childYear: string }[]; trainedYearGroupIds: number[] }>({ name: '', email: '', phone: '', role: 'HELPER', children: [], trainedYearGroupIds: [] });
+  const [volForm, setVolForm] = useState<{ name: string; email: string; phone: string; roles: string[]; children: { childName: string; childYear: string }[]; trainedYearGroupIds: number[] }>({ name: '', email: '', phone: '', roles: ['HELPER'], children: [], trainedYearGroupIds: [] });
   const [editingVol, setEditingVol] = useState<number | null>(null);
   // Aufklappbare Geräte-Detailansicht pro User (welche Geräte haben Push
   // aktiviert) - hilft bei der Fehlersuche, wenn ein Helfer mehrere Geräte
@@ -49,7 +49,13 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
   
   const { items: sortedVolunteers, requestSort, getSortIndicator } = useSortableData(filtered, { key: 'name', direction: 'asc' });
 
-  const EMPTY_FORM = { name: '', email: '', phone: '', role: 'HELPER', children: [] as { childName: string; childYear: string }[], trainedYearGroupIds: [] as number[] };
+  const EMPTY_FORM = { name: '', email: '', phone: '', roles: ['HELPER'] as string[], children: [] as { childName: string; childYear: string }[], trainedYearGroupIds: [] as number[] };
+
+  /** Rolle an-/abwählen; ohne Auswahl bleibt HELPER als Grundstufe. */
+  const toggleRole = (wert: string) => setVolForm(f => {
+    const naechste = f.roles.includes(wert) ? f.roles.filter(r => r !== wert) : [...f.roles, wert];
+    return { ...f, roles: naechste.length > 0 ? naechste : ['HELPER'] };
+  });
 
   const saveVolunteer = async () => {
     if (!volForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
@@ -86,7 +92,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
   const openEdit = (v: Volunteer) => {
     setEditingVol(v.id);
     setVolForm({
-      name: v.name, email: v.email || '', phone: v.phone || '', role: v.role || 'HELPER',
+      name: v.name, email: v.email || '', phone: v.phone || '', roles: (v.roles && v.roles.length > 0) ? [...v.roles] : [v.role || 'HELPER'],
       children: (v.children || []).map(c => ({ childName: c.childName, childYear: String(c.childYear) })),
       trainedYearGroupIds: (v.trainedYearGroups || []).map(yg => yg.id)
     });
@@ -126,15 +132,20 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
         </div>
         <div className="helfer-form-col-fixed">
           <label className="helfer-label">🎭 Rolle</label>
-          <select value={volForm.role} onChange={e => setVolForm({ ...volForm, role: e.target.value })} className="helfer-select">
-            {ROLES.map(r => (<option key={r.value} value={r.value}>{r.label}</option>))}
-          </select>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {ROLES.map(r => (
+              <label key={r.value} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, border: '1px solid #dee2e6', borderRadius: 8, padding: '8px 10px', minHeight: 40, cursor: 'pointer', background: volForm.roles.includes(r.value) ? '#e7f1ff' : '#fff' }}>
+                <input type="checkbox" checked={volForm.roles.includes(r.value)} onChange={() => toggleRole(r.value)} />
+                {r.label}
+              </label>
+            ))}
+          </div>
         </div>
         <button onClick={saveVolunteer} className="helfer-btn-primary" style={{ background: adminPrimary }}>
           <span className="helfer-btn-primary-icon" aria-hidden="true">+</span><span>Hinzufügen</span>
         </button>
       </div>
-      {volForm.role === 'TRAINER' && (
+      {volForm.roles.includes('TRAINER') && (
         <div className="helfer-form-row" style={{ marginTop: '-12px' }}>
           <div className="helfer-form-col-2">
             <label className="helfer-label">Zuständige Jahrgänge (Trainer)</label>
@@ -198,7 +209,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
               <td data-label="Telefon" className="helfer-table-td-normal">{v.phone || '–'}</td>
               <td data-label="Rolle" className="helfer-table-td-normal">
                 <div className="helfer-flex-row">
-                  <RoleBadge role={v.role || 'HELPER'} />
+                  {((v.roles && v.roles.length > 0) ? v.roles : [v.role || 'HELPER']).map(r => <RoleBadge key={r} role={r} />)}
                 </div>
               </td>
               <td data-label="Letzte Aktivität" className={`helfer-table-td-normal helfer-date-text ${v.lastActivityAt ? 'helfer-date-active' : 'helfer-date-inactive'}`}>
@@ -268,12 +279,17 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
                 </div>
             
             <div><label className="helfer-label">🎭 Rolle</label>
-              <select value={volForm.role} onChange={e => setVolForm({ ...volForm, role: e.target.value })} className="helfer-modal-select">
-                {ROLES.map(r => (<option key={r.value} value={r.value}>{r.label}</option>))}
-              </select>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {ROLES.map(r => (
+                  <label key={r.value} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, border: '1px solid #dee2e6', borderRadius: 8, padding: '8px 10px', minHeight: 40, cursor: 'pointer', background: volForm.roles.includes(r.value) ? '#e7f1ff' : '#fff' }}>
+                    <input type="checkbox" checked={volForm.roles.includes(r.value)} onChange={() => toggleRole(r.value)} />
+                    {r.label}
+                  </label>
+                ))}
+              </div>
             </div>
             
-            {volForm.role === 'TRAINER' && (
+            {volForm.roles.includes('TRAINER') && (
               <div>
                 <label className="helfer-label">Zuständige Jahrgänge (Trainer)</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '12px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}>
