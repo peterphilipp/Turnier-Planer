@@ -53,6 +53,9 @@ export default function TrainerView() {
   // dieselben wie dort (dashboard-tabs-wrapper / dashboard-pill-tab), damit es
   // nicht nur aehnlich aussieht, sondern identisch bleibt.
   const [bereich, setBereich] = useState<Bereich>('jobs');
+  // Ebene ueber den Reitern: erst der Jahrgang, dann Jobs/Verpflegung.
+  // null = noch nicht gewaehlt, wird gesetzt sobald die Daten da sind.
+  const [jahrgangId, setJahrgangId] = useState<number | null>(null);
 
   const [data, setData] = useState<TrainerData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +80,18 @@ export default function TrainerView() {
   }, [selectedTournamentId, volunteer?.tournamentId]);
 
   const jahrgaenge = data?.trainedYearGroups || [];
+
+  // Sobald die Daten da sind, den ersten Jahrgang vorauswählen - und eine
+  // Auswahl verwerfen, die nach einem Turnierwechsel nicht mehr existiert.
+  useEffect(() => {
+    if (jahrgaenge.length === 0) { setJahrgangId(null); return; }
+    if (jahrgangId === null || !jahrgaenge.some(yg => yg.id === jahrgangId)) {
+      setJahrgangId(jahrgaenge[0].id);
+    }
+  }, [jahrgaenge, jahrgangId]);
+
+  const slotsDesJahrgangs = (data?.foodDonationSlots || []).filter(s => s.yearGroupId === jahrgangId);
+  const schichtenDesJahrgangs = (data?.volunteerShifts || []).filter(vs => (vs.yearGroupIds || []).includes(jahrgangId));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -115,27 +130,52 @@ export default function TrainerView() {
 
       {!loading && !error && jahrgaenge.length > 0 && data && (
         <>
-          {/* Identische Reiterzeile wie im Dienstplan. Die Anzahl steht mit im
-              Reiter, damit der Ueberblick nicht verloren geht, den das
-              Untereinander vorher geboten hat. */}
+          {/* Ebene 1: Jahrgang. Nur bei mehr als einem betreuten Jahrgang -
+              bei genau einem waere die Zeile reine Platzverschwendung, der
+              Jahrgang steht ohnehin in der Kopfleiste. */}
+          {jahrgaenge.length > 1 && (
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+              {jahrgaenge.map(yg => {
+                const aktiv = yg.id === jahrgangId;
+                return (
+                  <button
+                    key={yg.id}
+                    onClick={() => setJahrgangId(yg.id)}
+                    style={{
+                      flex: '0 0 auto', padding: '8px 14px', minHeight: 40, borderRadius: 999,
+                      border: `1px solid ${aktiv ? clubPrimary : 'var(--border-color)'}`,
+                      background: aktiv ? clubPrimary : 'var(--bg-surface)',
+                      color: aktiv ? '#fff' : 'var(--text-muted)',
+                      fontSize: 14, fontWeight: aktiv ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap'
+                    }}
+                  >{yg.name}</button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Ebene 2: identische Reiterzeile wie im Dienstplan. Die Anzahl
+              steht mit im Reiter und bezieht sich auf den gewählten Jahrgang,
+              damit der Ueberblick nicht verloren geht, den das Untereinander
+              vorher geboten hat. */}
           <div className="dashboard-tabs-wrapper">
             <button
               onClick={() => setBereich('jobs')}
               className={`dashboard-pill-tab ${bereich === 'jobs' ? 'active' : ''}`}
               style={{ background: bereich === 'jobs' ? clubSecondary : 'var(--bg-surface)', color: bereich === 'jobs' ? '#fff' : 'var(--text-muted)' }}
-            >📋 Jobs ({data.volunteerShifts.length})</button>
+            >📋 Jobs ({schichtenDesJahrgangs.length})</button>
             <button
               onClick={() => setBereich('verpflegung')}
               className={`dashboard-pill-tab ${bereich === 'verpflegung' ? 'active' : ''}`}
               style={{ background: bereich === 'verpflegung' ? clubSecondary : 'var(--bg-surface)', color: bereich === 'verpflegung' ? '#fff' : 'var(--text-muted)' }}
-            >🍔 Verpflegung ({data.foodDonationSlots.length})</button>
+            >🍔 Verpflegung ({slotsDesJahrgangs.length})</button>
           </div>
 
           <section style={{ display: bereich === 'verpflegung' ? 'block' : 'none' }}>
             <h3 style={{ margin: '0 0 12px', fontSize: 17, color: 'var(--text-main)' }}>Verpflegungsspenden</h3>
-            {data.foodDonationSlots.length > 0 ? (
+            {slotsDesJahrgangs.length > 0 ? (
               <div className="dashboard-shifts-grid">
-                {data.foodDonationSlots.map(slot => {
+                {slotsDesJahrgangs.map(slot => {
                   const isDone = (slot.targetQuantity - slot.collected) <= 0;
                   return (
                     <div key={slot.id} className="dashboard-shift-card" style={{ borderLeft: `6px solid ${isDone ? '#198754' : clubAccent}`, cursor: 'default' }}>
@@ -143,9 +183,13 @@ export default function TrainerView() {
                         <div className="dashboard-shift-title">
                           <span>{slot.foodItem?.icon || '🍔'}</span> <span>{slot.foodItem?.name || '–'}</span>
                         </div>
-                        <div className="dashboard-shift-time">
-                          <span>Jahrgang {slot.yearGroup?.name}</span>
-                        </div>
+                        {/* Der Jahrgang stand hier vorher - seit oben danach
+                            gefiltert wird, waere er nur Wiederholung. */}
+                        {slot.foodItem?.unit && (
+                          <div className="dashboard-shift-time">
+                            <span>Einheit: {slot.foodItem.unit}</span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="dashboard-shift-actions" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
@@ -175,15 +219,15 @@ export default function TrainerView() {
                 })}
               </div>
             ) : (
-              <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Keine Spendenaufrufe für deine Jahrgänge.</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Keine Spendenaufrufe für diesen Jahrgang.</p>
             )}
           </section>
 
           <section style={{ display: bereich === 'jobs' ? 'block' : 'none' }}>
             <h3 style={{ margin: '0 0 12px', fontSize: 17, color: 'var(--text-main)' }}>Helfer-Schichten der Eltern</h3>
-            {data.volunteerShifts.length > 0 ? (
+            {schichtenDesJahrgangs.length > 0 ? (
               <div className="dashboard-shifts-grid">
-                {data.volunteerShifts.map(vs => (
+                {schichtenDesJahrgangs.map(vs => (
                   <div key={vs.id} className="dashboard-shift-card" style={{ borderLeft: `6px solid ${clubAccent}`, cursor: 'default' }}>
                     <div className="dashboard-shift-card-inner">
                       <div className="dashboard-shift-title">
@@ -211,7 +255,7 @@ export default function TrainerView() {
                 ))}
               </div>
             ) : (
-              <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Noch keine Schichten von Eltern deiner Jahrgänge übernommen.</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Noch keine Schichten von Eltern dieses Jahrgangs übernommen.</p>
             )}
           </section>
         </>

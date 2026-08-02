@@ -432,7 +432,9 @@ export const getTrainerDashboard = async (req: Request, res: Response) => {
         }
       },
       include: {
-        user: { select: { name: true, phone: true } },
+        // Geburtsjahre nur, um die Schicht dem Jahrgang zuordnen zu koennen -
+        // sie werden unten ausgewertet und NICHT mit ausgeliefert.
+        user: { select: { name: true, phone: true, children: { select: { childYear: true } } } },
         shift: {
           include: {
             day: true,
@@ -444,10 +446,23 @@ export const getTrainerDashboard = async (req: Request, res: Response) => {
       orderBy: { date: 'asc' }
     });
 
+    // Jede Schicht den Jahrgaengen zuordnen, ueber die sie gefunden wurde.
+    // Ein Elternteil kann Kinder in mehreren betreuten Jahrgaengen haben -
+    // dann erscheint die Schicht bei jedem davon. Die Geburtsjahre selbst
+    // werden bewusst nicht ausgeliefert, nur die abgeleiteten Jahrgangs-IDs.
+    const shiftsMitJahrgang = volunteerShifts.map(vs => {
+      const jahre = vs.user?.children?.map(c => c.childYear) ?? [];
+      const yearGroupIds = user.trainedYearGroups
+        .filter(yg => jahre.some(j => j >= yg.birthYearStart && j <= yg.birthYearEnd))
+        .map(yg => yg.id);
+      const { children, ...userOhneKinder } = vs.user ?? { children: [] };
+      return { ...vs, user: vs.user ? userOhneKinder : vs.user, yearGroupIds };
+    });
+
     return res.json({
       trainedYearGroups: user.trainedYearGroups,
       foodDonationSlots,
-      volunteerShifts
+      volunteerShifts: shiftsMitJahrgang
     });
   } catch (error) {
     console.error('Error in getTrainerDashboard:', error);
