@@ -192,8 +192,8 @@ const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
       const tagEnde = Math.max(...fenster.map(s => s.endMin));
       const mitte = (tagStart + tagEnde) / 2;
       
-      const dayShifts = shifts.filter(sh => sh.tournamentDayId === day.id);
-      const verfuegbareFenster = fenster.filter(s => !dayShifts.some(sh => sh.daySlotId === s.id && (sh.tournamentWorkAreaId === areaId || (sh as any).arbeitsbereichId === areaId)));
+      const dayShifts = jobSlots.filter((sh: Record<string, any>) => sh.tournamentDayId === day.id);
+      const verfuegbareFenster = fenster.filter(s => !dayShifts.some((sh: Record<string, any>) => sh.daySlotId === s.id && (sh.tournamentWorkAreaId === areaId || sh.arbeitsbereichId === areaId)));
       
       if (verfuegbareFenster.length > 0) {
         const mittigstes = verfuegbareFenster.reduce((best, s) =>
