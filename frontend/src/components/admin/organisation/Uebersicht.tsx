@@ -183,19 +183,31 @@ const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
       area = activeAreas.find(a => a.id === areaId);
     }
 
-    // Mittiges Zeitfenster: das, dessen Mitte der Tagesmitte am nächsten liegt.
-    // Ein bestehendes Fenster wiederzuverwenden ist besser, als dem Tag ein
-    // weiteres hinzuzufügen, das niemand angefordert hat.
+    // Mittiges Zeitfenster, in dem dieser Arbeitsbereich noch keine Schicht hat.
     const fenster = [...(day.slots || [])].sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
     let daySlotId: number;
+    
     if (fenster.length > 0) {
       const tagStart = Math.min(...fenster.map(s => s.startMin));
       const tagEnde = Math.max(...fenster.map(s => s.endMin));
       const mitte = (tagStart + tagEnde) / 2;
-      const mittigstes = fenster.reduce((best, s) =>
-        Math.abs((s.startMin + s.endMin) / 2 - mitte) < Math.abs((best.startMin + best.endMin) / 2 - mitte) ? s : best
-      );
-      daySlotId = mittigstes.id;
+      
+      const dayShifts = shifts.filter(sh => sh.tournamentDayId === day.id);
+      const verfuegbareFenster = fenster.filter(s => !dayShifts.some(sh => sh.daySlotId === s.id && (sh.tournamentWorkAreaId === areaId || (sh as any).arbeitsbereichId === areaId)));
+      
+      if (verfuegbareFenster.length > 0) {
+        const mittigstes = verfuegbareFenster.reduce((best, s) =>
+          Math.abs((s.startMin + s.endMin) / 2 - mitte) < Math.abs((best.startMin + best.endMin) / 2 - mitte) ? s : best
+        );
+        daySlotId = mittigstes.id;
+      } else {
+        const gewaehlt = activeAreas.find(a => a.id === areaId);
+        const startMin = gewaehlt?.operatingStartMin ?? 600;
+        const endMin = gewaehlt?.operatingEndMin ?? 840;
+        const neu = await addDaySlot({ tournamentDayId: day.id, startMin, endMin, label: null });
+        daySlotId = neu.id;
+        queryClient.invalidateQueries({ queryKey: ['t-days', tid] });
+      }
     } else {
       // Ein Tag ohne jedes Zeitfenster (ohne Vorlage angelegt) braucht erst eins.
       const gewaehlt = activeAreas.find(a => a.id === areaId);

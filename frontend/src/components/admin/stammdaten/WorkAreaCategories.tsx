@@ -17,10 +17,8 @@ export default function WorkAreaCategories({ adminPrimary = '#6c757d' }: { admin
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['work-area-categories'] });
-    // WorkAreas.tsx registriert seine Query als ['workAreas'] (camelCase),
-    // GlobalDayTemplates.tsx als ['work-areas'] – beide invalidieren.
+    // GlobalDayTemplates.tsx als ['work-areas'] - invalidieren.
     qc.invalidateQueries({ queryKey: ['work-areas'] });
-    qc.invalidateQueries({ queryKey: ['workAreas'] });
     qc.invalidateQueries({ queryKey: ['day-templates'] });
   };
 

@@ -10,7 +10,7 @@ const emojiList = ['🏪', '🍳', '🔥', '🎪', '🎯', '⚽', '🍰', '☕',
 
 export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
   const queryClient = useQueryClient();
-  const { data: workAreas = [], isLoading: isLoadingWA } = useQuery<WorkArea[]>({ queryKey: ['workAreas'], queryFn: getWorkAreas });
+  const { data: workAreas = [], isLoading: isLoadingWA } = useQuery<WorkArea[]>({ queryKey: ['work-areas'], queryFn: getWorkAreas });
   const { data: categories = [], isLoading: isLoadingCat } = useQuery<WorkAreaCategory[]>({ queryKey: ['workAreaCategories'], queryFn: getWorkAreaCategories });
   
   const { items: sortedWorkAreas, requestSort, getSortIndicator } = useSortableData(workAreas, { key: 'order', direction: 'asc' });
@@ -32,7 +32,7 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
 
     const newOrder = _areas.map(t => t.id);
     await updateWorkAreaOrder(newOrder);
-    queryClient.invalidateQueries({ queryKey: ['workAreas'] });
+    queryClient.invalidateQueries({ queryKey: ['work-areas'] });
     queryClient.invalidateQueries({ queryKey: ['t-work-areas'] });
 
     dragItemIndex.current = null;
@@ -43,7 +43,7 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
     if (!abForm.name.trim()) return await modal.alert({ title: 'Hinweis', message: 'Name erforderlich!' });
     if (editingAb) { await apiPatch(`/api/work-areas/${editingAb}`, abForm); }
     else { await apiPost('/api/work-areas', abForm); }
-    queryClient.invalidateQueries({ queryKey: ['workAreas'] });
+    queryClient.invalidateQueries({ queryKey: ['work-areas'] });
     queryClient.invalidateQueries({ queryKey: ['day-templates'] }); // in case template tags change
     setAbForm({ name: '', icon: '📍', color: '#3b98f8', minVolunteers: 2, maxVolunteers: 8, isStandard: false, categoryIds: [] });
     setEditingAb(null);
@@ -52,7 +52,7 @@ export default function WorkAreas({ adminPrimary }: { adminPrimary: string }) {
   const deleteWorkArea = async (ab: WorkArea) => {
     if (!(await confirmWithImpact('workArea', ab.id, ab.name))) return;
     await apiDelete(`/api/work-areas/${ab.id}`);
-    queryClient.invalidateQueries({ queryKey: ['workAreas'] });
+    queryClient.invalidateQueries({ queryKey: ['work-areas'] });
   };
 
   const openEdit = (ab: WorkArea) => { setEditingAb(ab.id); setAbForm({ name: ab.name, icon: ab.icon, color: ab.color, minVolunteers: ab.minVolunteers, maxVolunteers: ab.maxVolunteers, isStandard: ab.isStandard || false, categoryIds: ab.categories?.map(c => c.id) || [] }); setEmojiPickerOpen(false); };

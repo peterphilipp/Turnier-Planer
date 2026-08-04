@@ -130,7 +130,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
           <label className="helfer-label">📞 Telefon</label>
           <input value={volForm.phone} onChange={e => setVolForm({ ...volForm, phone: e.target.value })} onBlur={() => setVolForm({ ...volForm, phone: formatPhoneNumber(volForm.phone) || volForm.phone })} placeholder="+49 123 456789" className="helfer-input" />
         </div>
-        <div className="helfer-form-col-fixed">
+        <div className="helfer-form-col-2">
           <label className="helfer-label">🎭 Rolle</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {ROLES.map(r => (
@@ -212,7 +212,7 @@ export default function Helfer({ adminPrimary, tournamentId }: { adminPrimary: s
                   {((v.roles && v.roles.length > 0) ? v.roles : [v.role || 'HELPER']).map(r => <RoleBadge key={r} role={r} />)}
                 </div>
               </td>
-              <td data-label="Letzte Aktivität" className={`helfer-table-td-normal helfer-date-text ${v.lastActivityAt ? 'helfer-date-active' : 'helfer-date-inactive'}`}>
+              <td data-label="Letzte Aktivität" title={v.lastActivityAt ? new Date(v.lastActivityAt).toLocaleString('de-DE') : 'Nie'} className={`helfer-table-td-normal helfer-date-text ${v.lastActivityAt ? 'helfer-date-active' : 'helfer-date-inactive'}`}>
                 {v.lastActivityAt ? new Date(v.lastActivityAt).toLocaleDateString('de-DE') : 'Nie'}
               </td>
               <td className="helfer-table-td-actions">
