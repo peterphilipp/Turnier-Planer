@@ -11,6 +11,7 @@ import './styles/components/admin.css'
 import './styles/components/shared.css'
 import './styles/components/admin-core.css'
 import './styles/components/admin-data.css'
+import './styles/components/station-print.css'
 
 import App from './App'
 

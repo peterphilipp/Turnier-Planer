@@ -4,13 +4,14 @@ import { Shift, VolunteerShift, TournamentWorkArea, TournamentDay, Tournament, W
 import {
   getShifts, getVolunteerShifts, getVolunteers, updateShiftsBatch, updateShift,
   getTournamentWorkAreas, getTournamentDays, addDaySlot, getWorkAreas, adoptTournamentWorkArea,
-  exportDayToTemplate, createShift, apiDelete, apiPost
+  exportDayToTemplate, createShift, apiDelete, apiPost, getTournaments
 } from '../../../api';
 import { modal } from '../Modal';
 import { btnStyle, inputStyle, tdStyle, thStyle } from '../shared';
 import ShiftFeedbackModal from './ShiftFeedbackModal';
 import ShiftTimeline from './ShiftTimeline';
 import RosterSetupPanel from './RosterSetupPanel';
+import StationPrintModal from './StationPrintModal';
 
 function useWindowWidth() {
   const [width, setWidth] = useState(window.innerWidth);
@@ -24,6 +25,7 @@ function useWindowWidth() {
 
 const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
 export default function Uebersicht({ selectedTournament }: { selectedTournament: number | null }) {
+  const [showPrintModal, setShowPrintModal] = useState(false);
   const queryClient = useQueryClient();
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth < 768;
@@ -71,6 +73,8 @@ const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
 
   const { data: areas = [] } = useQuery<TournamentWorkArea[]>({ queryKey: ['t-work-areas', tid], queryFn: () => getTournamentWorkAreas(tid), enabled: !!tid });
   const { data: days = [] } = useQuery<TournamentDay[]>({ queryKey: ['t-days', tid], queryFn: () => getTournamentDays(tid), enabled: !!tid });
+  const { data: tournaments = [] } = useQuery<Tournament[]>({ queryKey: ['tournaments'], queryFn: getTournaments });
+  const currentTournament = useMemo(() => tournaments.find(t => t.id === tid) || null, [tournaments, tid]);
   // Der Stammdaten-Katalog: damit "➕ Schicht" auch Bereiche anbieten kann,
   // die dieses Turnier noch nicht kennt.
   const { data: catalogAreas = [] } = useQuery<WorkArea[]>({ queryKey: ['work-areas'], queryFn: getWorkAreas, enabled: !!tid });
@@ -394,6 +398,24 @@ const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
                   className="admin-core-style-193"
                 >
                   ✏️ Zeiten bearbeiten
+                </button>
+                <button
+                  onClick={() => setShowPrintModal(true)}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: 8,
+                    border: '1px solid #0d6efd',
+                    background: '#0d6efd',
+                    color: '#fff',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  🖨️ Stationszettel (PDF)
                 </button>
               </>
             ) : (
@@ -765,6 +787,18 @@ const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
         <ShiftFeedbackModal
           tournament={{ id: selectedTournament, name: 'Turnier ' + selectedTournament } as unknown as Tournament}
           onClose={() => setShowFeedbackModal(false)}
+        />
+      )}
+
+      {showPrintModal && (
+        <StationPrintModal
+          isOpen={showPrintModal}
+          onClose={() => setShowPrintModal(false)}
+          tournament={currentTournament}
+          days={days}
+          workAreas={areas}
+          jobSlots={jobSlots}
+          volunteerShifts={volunteerShifts}
         />
       )}
     </div>
