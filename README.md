@@ -315,30 +315,45 @@ erDiagram
 
 ### Datenmodell-Übersicht
 
-| Modell | Beschreibung |
-|--------|-------------|
-| **Club** | Verein mit Logo und 2-Farben-Theming (Primary/Secondary) |
-| **Tournament** | Turnier mit Status (`aktiv` / `entwurf` / `archiviert`), verknüpft mit Club |
-| **Group / Team** | Gruppenphase: Groups enthalten Teams, Teams spielen Matches |
-| **Match** | Begegnung zwischen zwei Teams mit Ergebnis und Feld/Zeit |
-| **WorkArea** (Arbeitsbereich) | Physische Station mit Min/Max Helfer + Betriebszeiten (`operatingStartMin`/`EndMin`) |
-| **TournamentWorkArea** | Zuordnung von WorkAreas zu einem Turnier mit Zielhelfer-Anzahl |
-| **Zeitslot** | Zeitfenster (Start/Ende) für Schichten |
-| **GlobalDayTemplate** | Tag-Vorlage mit `order`-Feld für manuelle Sortierung |
-| **TemplateWorkArea** | Vorlagen-Eintrag: WorkArea + startMin/endMin (Gantt-Chart-Daten) |
-| **TournamentDay** | Konkreter Turniertag, erstellt aus einer GlobalDayTemplate (`sourceTemplateId`) |
-| **DaySlot** | Slot eines Turniertags mit direktem Verweis auf TemplateWorkArea (`sourceTemplateWorkAreaId`) |
-| **Shift** | Konkreter Job-Slot: Datum × DaySlot × TournamentWorkArea (keine Betriebszeiten-Zuschneidung!) |
-| **User** (Code-Name; früher „Volunteer") | Helferin/Helfer mit Login-Daten, Rolle (`role`: HELPER/ORGANIZER/ADMIN) + Passkey-Support |
-| **UserChild** (früher „VolunteerChild") | Kind einer Helferin (Name + Jahrgang) für Spendenfilterung |
-| **VolunteerShift** | Zuweisung: Wer ist wann in welcher Schicht? |
-| **FoodCategory / FoodItem** | Lebensmittel-Kategorien und -Artikel mit Preisen |
-| **YearGroup** | Jahrgang (Geburtsjahr-Bereich) für zielgruppengerechte Spendenplanung |
-| **FoodDonationSlot** | Zielmenge pro Artikel + Jahrgang, wird durch Spenden gefüllt |
-| **FoodDonation** | Konkrete Spende einer Helferin (verknüpft mit Slot oder frei) |
-| **MaterialItem** | Materialliste für das Turnier |
-| **PasswordResetToken** | Token-basiertes Passwort-zurücksetzen |
+> **Vollständig und immer aktuell: [`docs/datenmodell.md`](docs/datenmodell.md)** —
+> aus `backend/prisma/schema.prisma` erzeugt (`npm run docs:datamodel` im Ordner
+> `backend`), die CI prüft bei jedem Lauf, dass beides zusammenpasst.
+>
+> Die Tabelle an dieser Stelle wurde früher von Hand gepflegt und war auf etwa
+> der Hälfte der Modelle stehengeblieben. Hier steht deshalb nur noch, wie die
+> Teile zusammenhängen.
 
+Die Helferplanung ist die Kette, um die sich das meiste dreht:
+
+```
+WorkArea            Stammdaten-Katalog: "Küche", "Grillstand", ...
+   │ beim Einrichten eines Turniers kopiert
+TournamentWorkArea  Turnier-eigene Kopie (Änderungen am Katalog wirken nicht rückwirkend)
+   │
+Shift               Eine Schicht: Turniertag × Zeitfenster × Arbeitsbereich
+   │
+VolunteerShift      Die Zusage einer Person auf diese Schicht
+```
+
+Der Tagesaufbau daneben:
+
+```
+GlobalDayTemplate   Vorlage eines Tagtyps ("Turniersamstag")
+   │ TemplateWorkArea: welcher Bereich von wann bis wann
+TournamentDay       Konkreter Turniertag, erzeugt aus der Vorlage
+   │ DaySlot: die Zeitfenster dieses Tages, pro Tag eindeutig über (Start, Ende)
+Shift               hängt an genau einem DaySlot und einem TournamentWorkArea
+```
+
+Ein `DaySlot` ist **ein Zeitfenster des Tages** — nicht die Kopie eines
+Arbeitsbereichs. Welche Bereiche in einem Fenster arbeiten, sagen die Schichten.
+
+Der Rest gliedert sich in **Spielbetrieb** (`YearGroup`, `Group`, `Team`,
+`Match`, `Field`, `StandingsEntry`, `KnockoutBracket`), **Menschen** (`User`
+mit `UserRoleEntry` für Mehrfachrollen, `VolunteerChild`, `Passkey`,
+`PushSubscription`, `UserNotification`) und **Verpflegung**
+(`FoodDonationSlot`, `FoodDonation`, `FoodItem`, `FoodCategory`,
+`ShoppingCatalogItem`, `ShoppingListItem`).
 ---
 
 ## Data Dictionary
@@ -525,27 +540,37 @@ erDiagram
 
 ## Datenbank-Migrationen
 
-Die Anwendung verwendet **Prisma Migrations** für alle Schema-Änderungen. Migrationen sind versionierte SQL-Skripte in `backend/prisma/migrations/` und werden automatisch angewendet:
+Das Schema wird per **`prisma db push --accept-data-loss`** synchronisiert, nicht
+über eine Migrationskette. Das ist eine bewusste Entscheidung — die Details und
+die Absicherung stehen in
+[PROJECT_MEMORY.md](PROJECT_MEMORY.md#%EF%B8%8F-database-migration-strategy).
 
 | Ort | Befehl |
 |-----|--------|
-| **CI/CD** (deploy.yml) | `prisma migrate deploy` im Test-Job |
-| **Docker Build** (Dockerfile) | `RUN npx prisma migrate deploy \|\| true` |
-| **Container-Start** (docker-entrypoint.sh) | `npx prisma migrate deploy` vor Server-Start |
+| **CI/CD** (deploy.yml) | `npx prisma db push --accept-data-loss` auf eine frische `ci.db` |
+| **Docker Build** (Dockerfile) | `RUN npx prisma db push --accept-data-loss` |
+| **Container-Start** (docker-entrypoint.sh) | Backup → Datenumbau-Skripte → `npx prisma db push` |
 
-### Migration erstellen
+`backend/prisma/migrations/` enthält nur noch einen historischen Rest und wird
+von nichts ausgeführt.
+
+### Schema ändern
 ```bash
 cd backend
-# Interaktiv (lokal):
-npx prisma migrate dev --name <name>
-
-# Oder manuell:
-mkdir -p prisma/migrations/<timestamp>_<name>
-# migration.sql schreiben → npx prisma migrate deploy
+npx prisma db push          # Node-Prozesse vorher beenden (Windows: DLL-Lock)
+npm run docs:datamodel      # docs/datenmodell.md neu erzeugen und mitcommitten
 ```
 
+Braucht die Änderung einen Datenumbau — Daten umhängen, Duplikate zusammenführen,
+neue Felder füllen —, gehört der als idempotentes Skript nach
+`backend/scripts/` und wird im `docker-entrypoint.sh` eingehängt: **vor**
+`db push`, wenn die Änderung sonst an den Altdaten scheitert (etwa ein neuer
+Unique-Index), sonst danach.
+
 ### SQLite-Hinweis
-SQLite unterstützt `DROP COLUMN` erst ab 3.35.0 (2021). Für ältere Versionen wird Table Recreation mit INSERT INTO ... SELECT verwendet.
+SQLite unterstützt `DROP COLUMN` erst ab 3.35.0 (2021). `db push` löst das über
+Table Recreation — deshalb läuft im Entrypoint vor jedem Push ein Backup
+(`scripts/backup-db.cjs`). Das ist der einzige Rückweg.
 
 ---
 
@@ -556,8 +581,8 @@ SQLite unterstützt `DROP COLUMN` erst ab 3.35.0 (2021). Für ältere Versionen 
 cd backend && npm install && cd ..
 cd frontend && npm install && cd ..
 
-# Datenbank initialisieren (MIGRATIONEN)
-cd backend && npx prisma migrate deploy && cd ..
+# Datenbank initialisieren (Schema aus schema.prisma anlegen)
+cd backend && npx prisma db push && cd ..
 
 # Server starten
 docker compose up --build

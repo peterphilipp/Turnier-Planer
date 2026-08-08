@@ -46,6 +46,13 @@ jobs:
           DATABASE_URL: "file:./prisma/data/ci.db"
         run: npx prisma db push --accept-data-loss
 
+      # Haelt docs/datenmodell.md am Schema. Die Modell-Uebersicht wurde
+      # frueher von Hand gepflegt und war irgendwann bei 17 von 36 Modellen
+      # stehengeblieben; seitdem wird sie erzeugt und hier geprueft.
+      - name: Datenmodell-Doku aktuell?
+        working-directory: backend
+        run: npm run docs:datamodel -- --check
+
       - name: Typecheck backend
         working-directory: backend
         run: npx tsc --noEmit
@@ -54,9 +61,12 @@ jobs:
         working-directory: backend
         # Dummy-Werte: die Unit-Tests sprechen keine DB an, aber der
         # Prisma-Client und config/jwt.ts erwarten gesetzte Variablen.
+        # JWT_SECRET kommt bewusst aus der Lauf-Id statt als Literal im Repo zu
+        # stehen - ein erfundenes Secret im Klartext laesst jeden Secret-Scanner
+        # (auch den eigenen pre-commit-Hook) zu Recht anschlagen.
         env:
           DATABASE_URL: "file:./prisma/data/ci.db"
-          JWT_SECRET: "ci-only-dummy-secret-not-used-for-anything"
+          JWT_SECRET: ${{ github.run_id }}
         run: npm test
 
       # --- Frontend ---

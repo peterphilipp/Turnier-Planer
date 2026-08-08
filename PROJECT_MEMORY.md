@@ -50,12 +50,12 @@ docker-compose.yml              # Docker Compose Config
 
 ## Backend Runtime Rules
 - **CMD**: `npx tsx src/server.ts` (NICHT compiled JS!)
-- **Migrations**: Siehe Abschnitt "🗄️ DATABASE MIGRATION STRATEGY" unten – immer `prisma migrate deploy`, NIE `prisma db push`
+- **Schema-Änderungen**: `prisma db push`, NICHT `migrate deploy` – Begründung und Absicherung im Abschnitt "🗄️ DATABASE MIGRATION STRATEGY"
 - **Prisma DLL Locks**: Zuerst Node via Port/PID killen, dann `prisma generate`
 - **Resend API**: Lazy-instantiate (`new Resend()`) nur wenn `RESEND_API_KEY` gesetzt
 
 ## Docker Rules
-- Backend: Node 22, tsx Runtime, entrypoint mit `prisma migrate deploy`
+- Backend: Node 22, tsx Runtime, entrypoint mit Backup → Datenumbau-Skripte → `prisma db push`
 - Frontend: Node 22, npm build → nginx
 - Image Name: `machdasturnier` (lowercase für GHCR)
 - SQLite Volume persistent über Docker
@@ -71,47 +71,35 @@ Bei HMR-Fehlern: `rm -rf node_modules/.vite` + Node-Prozess killen.
 
 ---
 
-# 📦 PRISMA SCHEMA (17 Models)
+# 📦 PRISMA SCHEMA
 
-## Core Entities
-| Model | Beschreibung | Wichtige Felder |
-|-------|-------------|-----------------|
-| **Club** | Verein mit Branding | `name`, `logo` (Base64), `primaryColor`, `secondaryColor` |
-| **Tournament** | Turnier | `name`, `startDate`, `endDate`, `status` (aktiv/beendet/archiviert), `clubId` FK |
-| **Group** | Gruppe | `name`, `tournamentId` FK |
-| **Team** | Mannschaft | `name`, `groupId` FK, `goalsFor`, `goalsAgainst` |
-| **Match** | Begegnung | `teamAId`, `teamBId`, `scoreA/B`, `field`, `time` |
+> **Die vollständige Modell-Übersicht steht in [`docs/datenmodell.md`](docs/datenmodell.md)
+> und wird aus `backend/prisma/schema.prisma` erzeugt** — verbindlich ist immer das Schema.
+> Neu erzeugen: `npm run docs:datamodel` im Ordner `backend`. Die CI prüft bei jedem Lauf,
+> dass die Datei zum Schema passt.
+>
+> Diese Liste wurde früher von Hand gepflegt und stand irgendwann bei 17 Modellen,
+> während das Schema 36 enthielt. Deshalb steht hier nur noch die Orientierung,
+> welche Modelle den Kern ausmachen — nicht mehr deren Felder.
 
-## Scheduler Entities
-| Model | Beschreibung | Wichtige Felder |
-|-------|-------------|-----------------|
-| **Arbeitsbereich** | Physische Station | `name`, `icon`, `minVolunteers`, `maxVolunteers`, `color` |
-| **Zeitslot** | Zeitfenster | `name`, `startTime`, `endTime`, `color`, `order` |
-| **Shift** | Konkreter Job-Slot | `tournamentId`, `date`, `zeitslotId` FK, `arbeitsbereichId` FK, `maxVolunteers` |
+## Die tragenden Modelle
 
-## User / Helfer Entities
-> Verbindlich: `backend/prisma/schema.prisma`. Die Helfer-Entität heißt im Code **`User`** (Tabelle `users`), nicht `Volunteer`.
+| Bereich | Modelle | Worum es geht |
+|---------|---------|---------------|
+| **Verein & Turnier** | `Club`, `Tournament` | Branding und der Rahmen, an dem fast alles hängt |
+| **Spielbetrieb** | `YearGroup`, `Group`, `Team`, `Match`, `Field`, `StandingsEntry`, `KnockoutBracket` | Gruppenphase, Spielplan, Tabelle, K.-o.-Runde |
+| **Helferplanung** | `WorkArea` → `TournamentWorkArea` → `Shift` → `VolunteerShift` | Katalog, Turnier-Kopie, konkrete Schicht, Zusage einer Person |
+| **Tagesstruktur** | `GlobalDayTemplate`, `TemplateWorkArea`, `TournamentDay`, `DaySlot` | Vorlage eines Tagtyps und der daraus erzeugte Turniertag mit seinen Zeitfenstern |
+| **Menschen** | `User`, `UserRoleEntry`, `VolunteerChild`, `Passkey`, `PushSubscription`, `UserNotification` | Konto, Mehrfachrollen, Kinder, Anmeldung, Benachrichtigung |
+| **Verpflegung** | `FoodDonationSlot`, `FoodDonation`, `FoodItem`, `FoodCategory`, `ShoppingCatalogItem`, `ShoppingListItem` | Spendenaufrufe, Zusagen und Einkauf |
 
-| Model | Beschreibung | Wichtige Felder |
-|-------|-------------|-----------------|
-| **User** | Helferin/Helfer | `name`, `email`, `phone`, `password` (bcrypt), `role` (Enum-artig: `HELPER`/`ORGANIZER`/`ADMIN`), `isPrimaryAdmin`, `consentGiven`/`consentDate`, `tournamentId` FK |
-| **UserChild** | Kind einer Helferin | `userId` FK, `childName`, `childYear` |
-| **VolunteerShift** | Zuweisung | `userId` FK, `shiftId` FK, `tournamentId` FK, `date`, `slot`, `role`, `areaId` |
+**Zwei Muster, die immer wieder auftauchen:**
 
-## Food Donation Entities
-| Model | Beschreibung | Wichtige Felder |
-|-------|-------------|-----------------|
-| **FoodCategory** | Kategorie | `name`, `icon`, `order` |
-| **FoodItem** | Artikel | `categoryId` FK, `name`, `price`, `unit` |
-| **YearGroup** | Jahrgang | `name`, `birthYearStart`, `birthYearEnd`, `order`, `isActive` |
-| **FoodDonationSlot** | Spenden-Ziel | `tournamentId`, `yearGroupId` FK, `foodItemId` FK, `targetQuantity`, `collected` (auto-increment) |
-| **FoodDonation** | Konkrete Spende | `tournamentId`, `volunteerId` FK, `slotId` FK, `foodItemId` FK, `quantity`, `note` |
-
-## Other Entities
-| Model | Beschreibung | Wichtige Felder |
-|-------|-------------|-----------------|
-| **MaterialItem** | Materialgegenstand | `tournamentId`, `name`, `quantity`, `unit`, `done` |
-| **PasswordResetToken** | Reset-Token | `volunteerId` FK, `token` (unique), `expiresAt`, `used` |
+1. **Katalog → Turnier-Kopie.** `WorkArea` (Stammdaten) wird beim Einrichten eines Turniers
+   nach `TournamentWorkArea` kopiert. Änderungen am Katalog wirken damit nicht rückwirkend
+   in laufende Turniere. `sourceWorkAreaId` hält die Herkunft fest.
+2. **Ein `DaySlot` ist ein Zeitfenster des Tages**, pro Tag eindeutig über (Start, Ende).
+   Welche Bereiche darin arbeiten, sagen die `Shift`-Einträge — nicht der Slot.
 
 ---
 
@@ -195,71 +183,92 @@ Stammdaten:
 
 # 🗄️ DATABASE MIGRATION STRATEGY
 
-## Prinzipien
-1. **Prisma Migrations** (nicht `prisma db push`) für alle Schema-Änderungen
-2. **Versionierte SQL-Migrationen** in `backend/prisma/migrations/<timestamp>_<name>/migration.sql`
-3. **Automatische Anwendung** via `prisma migrate deploy` in CI/CD und Docker-Entrypoint
-4. **Multi-Release-Gap**: `migrate deploy` wendet ALLE ausstehenden Migrationen sequenziell an
-5. **Keine ad-hoc SQL-Dateien** mehr im Repo-Root – alle Migrations gehören nach `prisma/migrations/`
+> **Achtung, hier stand jahrelang das Gegenteil der Wahrheit.** Bis August 2026
+> beschrieb dieser Abschnitt eine dreistufige `prisma migrate deploy`-Kette und
+> verbot `db push` ausdrücklich. Gebaut war nie etwas davon — real lief an allen
+> drei Stellen `db push`. Der Abschnitt beschreibt jetzt, was tatsächlich passiert.
+
+## Wie es wirklich läuft: `prisma db push`
+
+Das Schema wird per `prisma db push --accept-data-loss` synchronisiert, an drei
+Stellen:
+
+| Ort | Befehl |
+|-----|--------|
+| CI (`deploy.yml`, Test-Job) | `npx prisma db push --accept-data-loss` auf eine frische `ci.db` |
+| Docker-Build (`Dockerfile`) | `RUN npx prisma db push --accept-data-loss` |
+| Container-Start (`docker-entrypoint.sh`) | `npx prisma db push --accept-data-loss` |
+
+Es gibt **keine** gepflegte Migrationskette. Unter
+`backend/prisma/migrations/` liegt nur noch `20250102_full_init` als
+historischer Rest; der Ordner ist seit den Mehrfachrollen nicht mehr aktuell
+(ihm fehlen u.a. `user_roles`, `passkeys`, `user_notifications`) und wird von
+nichts ausgeführt.
+
+## Warum das so ist
+
+Die alten Migrationen waren ad-hoc geschriebenes SQL und ergaben keine gültige
+Kette von "leer → aktuelles Schema". `migrate deploy` konnte darauf nicht
+aufsetzen. Statt die Kette zu reparieren, wurde auf `db push` umgestellt — die
+Begründung steht als Kommentar im Workflow.
+
+Für dieses Projekt ist das vertretbar: eine SQLite-Datei, eine Instanz, ein
+Deploy-Kanal. Es ist eine bewusste Entscheidung, kein Versehen.
+
+## Was das kostet — und was dagegen abgesichert ist
+
+`--accept-data-loss` entfernt gelöschte Spalten kommentarlos. Es gibt keine
+Schema-Historie und keinen Rollback per Migration. Dagegen stehen zwei Dinge:
+
+1. **Backup vor jedem Schema-Push.** `scripts/backup-db.cjs` läuft im Entrypoint
+   unmittelbar vor `db push`. Das ist der einzige Rückweg — behandle ihn
+   entsprechend.
+2. **Datenumbauten als eigene, idempotente Skripte** in `backend/scripts/`, die
+   der Entrypoint in fester Reihenfolge ausführt. Alles, was `db push` nicht von
+   allein richtig macht (Daten umhängen, Duplikate zusammenführen, Felder
+   nachfüllen), gehört dorthin.
 
 ## Workflow: Schema-Änderung → Deployment
+
 ```
-1. schema.prisma ändern (z.B. neue Spalte, neues Model)
-2. Migration erstellen:
-   a. Lokal: npx prisma migrate dev --name <name>
-   b. Oder manuell: Ordner + migration.sql erstellen
-3. Migration testen: npx prisma migrate deploy (lokal)
-4. Commit + Push → CI/CD Pipeline
-5. Bei Tag-Push: CI läuft `prisma migrate deploy` im Test-Job
-6. Container-Start: docker-entrypoint.sh läuft `prisma migrate deploy`
-```
-
-## Migration erstellen (manuell, non-interaktiv)
-```bash
-# 1. Ordner erstellen
-mkdir -p backend/prisma/migrations/<timestamp>_<name>
-
-# 2. migration.sql schreiben (SQLite: table recreation für column drops/changes)
-# Siehe: 20250101_remove_accent_color als Referenz
-
-# 3. Als applied markieren (wenn DB bereits im Zielzustand ist)
-npx prisma migrate resolve --applied <name>
-
-# ODER anwenden:
-npx prisma migrate deploy
+1. schema.prisma ändern
+2. Braucht die Änderung einen Datenumbau?
+   → Skript in backend/scripts/ schreiben, idempotent, mit Kommentar warum
+   → im docker-entrypoint.sh einhängen
+   → VOR dem "db push", wenn die Änderung sonst daran scheitert
+     (z.B. neuer Unique-Index auf Daten, die noch Duplikate enthalten)
+   → NACH dem "db push", wenn das Skript neue Spalten braucht
+3. Lokal: npx prisma db push  (Node-Prozesse vorher killen, s.u.)
+4. npm run docs:datamodel  → docs/datenmodell.md neu erzeugen und mitcommitten
+5. Commit + Push; Release erst bei ausdrücklicher Freigabe taggen
 ```
 
-## SQLite column drop Hinweis
-SQLite unterstützt `ALTER TABLE ... DROP COLUMN` erst ab 3.35.0 (2021).
-Für ältere Versionen: Table recreation mit INSERT INTO ... SELECT.
-Siehe `migration.sql` in `20250101_remove_accent_color/` als Vorlage.
+## Datenumbau-Skripte (Reihenfolge wie im Entrypoint)
 
-## Bestehende Migrationen (Stand nach Init)
-| Migration | Status | Beschreibung |
-|-----------|--------|-------------|
-| `20260722103316_init` | ✓ angewendet | Initial schema |
-| `20260722104806_add_slot_types_and_tournament_status` | ✓ angewendet | Slot types + tournament status |
-| `20260723_add_volunteer_contact` | ✓ angewendet | volunteer contact fields |
-| `20260101_add_tournament_logo` | ✓ angewendet | tournament logo field |
-| `add_shopping_food_category_link` | ✓ angewendet | shopping catalog food category |
-| `20250101_remove_accent_color` | ✓ angewendet | accentColor aus clubs entfernt |
+| Skript | Zweck | läuft |
+|--------|-------|-------|
+| `migrate-day-slot-system.cjs` | Altes Shift-Format auf Tag-/Slot-System | vor `db push` |
+| `migrate-dedupe-day-slots.cjs` | Doppelte Zeitfenster je Tag zusammenführen | vor `db push` |
+| `backfill-user-roles.cjs` | Einzelrolle → Mehrfachrollen-Tabelle | nach `db push` |
+| `backfill-tournament-membership.cjs` | Mitgliedschaften aus Schichten/Spenden ableiten | nach `db push` |
+| `migrate-hash-recovery-pins.cjs` | Recovery-PINs hashen | nach `db push` |
+| `migrate-food-unit-liter.cjs` | Einheit `L` → `Liter` | nach `db push` |
 
-## CI/CD Integration
-- **deploy.yml**: `prisma migrate deploy` nach `prisma generate` im Test-Job
-- **Dockerfile/Dockerfile.backend**: `RUN npx prisma migrate deploy || true` im Build
-- **docker-entrypoint.sh**: `npx prisma migrate deploy` vor Server-Start
-- Alle drei Stellen sind redundant – garantiert dass DB immer sync ist
+Alle sind idempotent: ein zweiter Lauf ändert nichts mehr.
 
-## Daten-Migrationen (ad-hoc scripts)
-Einige Migrationen betreffen NUR Daten, nicht das Schema. Diese bleiben als
-eigene Scripts in `backend/scripts/`:  
-- `migrate-day-slot-system.cjs` – Tag-/Slot-System Migration
-- `backfill-slot-provenance.cjs` – Slot-Herkunft nachtragen
-- `backfill-tournament-membership.cjs` – Turnier-Mitgliedschaften ableiten
-- `migrate-hash-recovery-pins.cjs` – Recovery-PINs hashen
-- `migrate-food-unit-liter.cjs` – Einheit 'L' → 'Liter'
+## SQLite-Hinweis
 
-Diese werden weiterhin im docker-entrypoint.sh ausgeführt.
+SQLite kann `ALTER TABLE ... DROP COLUMN` erst ab 3.35.0 (2021). `db push`
+löst das selbst über Table Recreation — genau deshalb ist das Backup davor
+nicht optional.
+
+## Wenn du zurück auf Migrationen willst
+
+Dann richtig: Baseline aus dem Ist-Schema erzeugen, als applied markieren, ab
+dann ausschließlich `migrate dev` / `migrate deploy`, und `db push` überall
+entfernen. Halbherzig ist schlechter als der jetzige ehrliche `db push` —
+eine Kette, die niemand pflegt, hat genau in den Zustand geführt, der hier
+aufgeräumt wurde.
 
 ---
 
@@ -303,7 +312,7 @@ services:
 
 ## Docker SQLite Initialization
 - Problem: Volume ist beim ersten Start leer
-- Fix: Entrypoint Script läuft `prisma migrate deploy` (oder `|| true` wenn keine DB existiert)
+- Fix: Entrypoint legt das Schema per `prisma db push` an; das Backup davor darf beim Erststart fehlschlagen (`|| echo`), weil es noch keine DB gibt
 
 ## Resend API Crash on Startup
 - Problem: `new Resend()` bei fehlendem Key crasht
