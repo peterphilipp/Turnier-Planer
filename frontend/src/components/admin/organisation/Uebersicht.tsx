@@ -124,6 +124,38 @@ const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
   }, [jobSlots, queryClient]);
 
 /**
+   * Fragt eine Uhrzeit ab und liefert das passende Zeitfenster des Tages -
+   * oder null, wenn abgebrochen oder Unsinn eingegeben wurde.
+   *
+   * addDaySlot ist idempotent: Gibt es das Fenster zu dieser Uhrzeit schon,
+   * kommt das bestehende zurück statt eines zweiten mit gleicher Zeit.
+   */
+  const erfrageNeueZeit = async (day: TournamentDay, bereichName?: string): Promise<number | null> => {
+    const res = await modal.form({
+      title: '⏰ Neue Zeit für diesen Tag',
+      message: bereichName
+        ? `„${bereichName}" ist an diesem Tag bereits in jedem Zeitfenster eingeplant. Für eine weitere Schicht braucht es eine neue Zeit.`
+        : undefined,
+      fields: [
+        { key: 'start', label: 'Start (HH:MM)', type: 'text', placeholder: '10:30' },
+        { key: 'end', label: 'Ende (HH:MM)', type: 'text', placeholder: '13:00' }
+      ]
+    });
+    if (!res || !res.start || !res.end) return null;
+
+    const startMin = timeToMin(String(res.start));
+    const endMin = timeToMin(String(res.end));
+    if (Number.isNaN(startMin) || Number.isNaN(endMin) || endMin <= startMin) {
+      await modal.alert({ title: 'Hinweis', message: 'Bitte gültige Uhrzeiten im Format HH:MM angeben, Ende nach Start.' });
+      return null;
+    }
+
+    const slot = await addDaySlot({ tournamentDayId: day.id, startMin, endMin, label: null });
+    queryClient.invalidateQueries({ queryKey: ['t-days', tid] });
+    return slot.id;
+  };
+
+  /**
    * "+ Schicht hinzufügen" pro Tag: bewusst nicht auf generateShifts()
    * gestützt, weil das den Fall nicht abdeckt, dass ein Arbeitsbereich an
    * diesem Tag schon eine Schicht hat, aber eine WEITERE (andere Zeit)
@@ -189,28 +221,33 @@ const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
 
     // Mittiges Zeitfenster, in dem dieser Arbeitsbereich noch keine Schicht hat.
     const fenster = [...(day.slots || [])].sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+    const dayShifts = jobSlots.filter((sh: Record<string, any>) => sh.tournamentDayId === day.id);
+    const belegt = (slotId: number) => dayShifts.some((sh: Record<string, any>) =>
+      sh.daySlotId === slotId && (sh.tournamentWorkAreaId === areaId || sh.arbeitsbereichId === areaId));
     let daySlotId: number;
-    
+
     if (fenster.length > 0) {
       const tagStart = Math.min(...fenster.map(s => s.startMin));
       const tagEnde = Math.max(...fenster.map(s => s.endMin));
       const mitte = (tagStart + tagEnde) / 2;
-      
-      const dayShifts = jobSlots.filter((sh: Record<string, any>) => sh.tournamentDayId === day.id);
-      const verfuegbareFenster = fenster.filter(s => !dayShifts.some((sh: Record<string, any>) => sh.daySlotId === s.id && (sh.tournamentWorkAreaId === areaId || sh.arbeitsbereichId === areaId)));
-      
+
+      const verfuegbareFenster = fenster.filter(s => !belegt(s.id));
+
       if (verfuegbareFenster.length > 0) {
         const mittigstes = verfuegbareFenster.reduce((best, s) =>
           Math.abs((s.startMin + s.endMin) / 2 - mitte) < Math.abs((best.startMin + best.endMin) / 2 - mitte) ? s : best
         );
         daySlotId = mittigstes.id;
       } else {
-        const gewaehlt = activeAreas.find(a => a.id === areaId);
-        const startMin = gewaehlt?.operatingStartMin ?? 600;
-        const endMin = gewaehlt?.operatingEndMin ?? 840;
-        const neu = await addDaySlot({ tournamentDayId: day.id, startMin, endMin, label: null });
-        daySlotId = neu.id;
-        queryClient.invalidateQueries({ queryKey: ['t-days', tid] });
+        // Dieser Bereich steht bereits in JEDEM Zeitfenster des Tages. Ein
+        // weiteres automatisch zu setzen ginge schief: addDaySlot ist idempotent
+        // und liefert bei bekannter Uhrzeit das bestehende Fenster zurück - die
+        // Schicht landete also ein zweites Mal dort, wo es sie schon gibt.
+        // Hier fehlt schlicht die Information, also wird sie erfragt. Der
+        // einzige Fall, in dem der Dialog nach einer Zeit fragt.
+        const neueZeit = await erfrageNeueZeit(day, area?.name);
+        if (neueZeit == null) return;
+        daySlotId = neueZeit;
       }
     } else {
       // Ein Tag ohne jedes Zeitfenster (ohne Vorlage angelegt) braucht erst eins.
@@ -220,6 +257,18 @@ const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
       const neu = await addDaySlot({ tournamentDayId: day.id, startMin, endMin, label: null });
       daySlotId = neu.id;
       queryClient.invalidateQueries({ queryKey: ['t-days', tid] });
+    }
+
+    // Letzte Sperre gegen die doppelte Schicht - greift auch, wenn die oben
+    // benutzte Schichtliste aus dem Cache veraltet war.
+    if (belegt(daySlotId)) {
+      const f = fenster.find(s => s.id === daySlotId);
+      await modal.alert({
+        title: 'Gibt es schon',
+        message: `„${area?.name}" ist an diesem Tag${f ? ` von ${minToTime(f.startMin)} bis ${minToTime(f.endMin)}` : ''} bereits eingeplant. `
+          + 'Wähle eine andere Zeit, oder erhöhe die Helferzahl der bestehenden Schicht.'
+      });
+      return;
     }
 
     try {
